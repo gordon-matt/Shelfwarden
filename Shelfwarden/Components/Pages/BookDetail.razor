@@ -20,7 +20,7 @@ else
             <div class="book-cover rounded shadow-sm">
                 @if (!string.IsNullOrWhiteSpace(book.CoverImagePath))
                 {
-                    <img src="@book.CoverImagePath" alt="@book.Title" />
+                    <img src="@($"covers/{book.Id}")" alt="@book.Title" />
                 }
                 else
                 {

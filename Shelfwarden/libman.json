@@ -20,6 +20,24 @@
         "font/fonts/bootstrap-icons.woff",
         "font/fonts/bootstrap-icons.woff2"
       ]
+    },
+    {
+      "library": "bootswatch@5.3.3",
+      "destination": "wwwroot/lib/bootswatch/dist/",
+      "files": [
+        "cosmo/bootstrap.min.css",
+        "darkly/bootstrap.min.css",
+        "flatly/bootstrap.min.css",
+        "litera/bootstrap.min.css",
+        "lux/bootstrap.min.css",
+        "minty/bootstrap.min.css",
+        "pulse/bootstrap.min.css",
+        "sandstone/bootstrap.min.css",
+        "slate/bootstrap.min.css",
+        "solar/bootstrap.min.css",
+        "superhero/bootstrap.min.css",
+        "yeti/bootstrap.min.css"
+      ]
     }
   ]
 }

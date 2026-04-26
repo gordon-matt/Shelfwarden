@@ -5,7 +5,7 @@
             <div class="book-cover">
                 @if (!string.IsNullOrWhiteSpace(Book.CoverImagePath))
                 {
-                    <img src="@Book.CoverImagePath" alt="@Book.Title" />
+                    <img src="@($"covers/{Book.Id}")" alt="@Book.Title" loading="lazy" />
                 }
                 else
                 {

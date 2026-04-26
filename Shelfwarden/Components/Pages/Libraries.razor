@@ -1,6 +1,8 @@
 @page "/libraries"
 @attribute [Authorize]
+@implements IDisposable
 @inject ILibraryService LibraryService
+@inject IScanStatusService ScanStatusService
 @inject NavigationManager NavigationManager
 
 <PageTitle>Libraries - Shelfwarden</PageTitle>
@@ -31,11 +33,13 @@ else
     <div class="row g-3">
         @foreach (var lib in libraries)
         {
+            var status = GetStatus(lib.Id);
             <div class="col-md-6 col-lg-4">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h5 class="card-title">
+                        <h5 class="card-title d-flex justify-content-between align-items-start">
                             <a href="@($"libraries/{lib.Id}")" class="text-decoration-none">@lib.Name</a>
+                            @RenderStatusBadge(status)
                         </h5>
                         @if (!string.IsNullOrEmpty(lib.Description))
                         {
@@ -45,8 +49,9 @@ else
                             <i class="bi bi-book"></i> @lib.BookCount book@(lib.BookCount == 1 ? "" : "s")
                             @if (lib.LastScannedAt.HasValue)
                             {
-                                <span class="ms-2 text-body-secondary">
-                                    <i class="bi bi-clock-history"></i> @lib.LastScannedAt.Value.ToString("yyyy-MM-dd HH:mm")
+                                <span class="ms-2 text-body-secondary"
+                                      title="@lib.LastScannedAt.Value.ToString("yyyy-MM-dd HH:mm:ss")">
+                                    <i class="bi bi-clock-history"></i> Last scan: @FormatRelative(lib.LastScannedAt.Value)
                                 </span>
                             }
                         </p>
@@ -63,8 +68,11 @@ else
                     <AuthorizeView Roles="@Constants.Roles.Administrator">
                         <Authorized>
                             <div class="card-footer bg-transparent">
-                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => ScanAsync(lib.Id)">
-                                    <i class="bi bi-arrow-clockwise"></i> Scan
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => ScanAsync(lib.Id)"
+                                        disabled="@IsBusy(status)">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                    @(IsBusy(status) ? "Scanning..." : "Scan")
                                 </button>
                                 <a class="btn btn-sm btn-outline-secondary ms-1" href="@($"libraries/{lib.Id}/edit")">
                                     <i class="bi bi-pencil"></i> Edit
@@ -80,21 +88,97 @@ else
 
 @code {
     private IReadOnlyList<LibraryDto>? libraries;
+    private IReadOnlyDictionary<int, ScanStatusDto> statuses = new Dictionary<int, ScanStatusDto>();
+    private Timer? pollTimer;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
+        // Refresh scan status every 3s while the page is mounted. Cheap because Hangfire
+        // monitoring queries the queue counts only — we don't reload the libraries table.
+        pollTimer = new Timer(async _ => await RefreshStatusesAsync(),
+            state: null, dueTime: TimeSpan.FromSeconds(3), period: TimeSpan.FromSeconds(3));
     }
 
     private async Task LoadAsync()
     {
-        var result = await LibraryService.GetAllAsync();
-        libraries = result.IsSuccess ? result.Value : [];
+        var libsTask = LibraryService.GetAllAsync();
+        var statusTask = ScanStatusService.GetAllAsync();
+        await Task.WhenAll(libsTask, statusTask);
+
+        libraries = libsTask.Result.IsSuccess ? libsTask.Result.Value : [];
+        if (statusTask.Result.IsSuccess) statuses = statusTask.Result.Value;
+    }
+
+    private async Task RefreshStatusesAsync()
+    {
+        var result = await ScanStatusService.GetAllAsync();
+        if (!result.IsSuccess) return;
+
+        var snapshot = result.Value;
+
+        // If anything just transitioned out of running we want fresh book counts /
+        // LastScannedAt — easier to just reload the libraries list once that happens.
+        bool needLibraryReload = statuses.Any(kv =>
+            kv.Value.State == ScanState.Running
+            && snapshot.TryGetValue(kv.Key, out var fresh)
+            && fresh.State != ScanState.Running);
+
+        statuses = snapshot;
+
+        if (needLibraryReload)
+        {
+            var libsResult = await LibraryService.GetAllAsync();
+            if (libsResult.IsSuccess) libraries = libsResult.Value;
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task ScanAsync(int id)
     {
         await LibraryService.ScheduleScanAsync(id);
-        await LoadAsync();
+        await RefreshStatusesAsync();
+    }
+
+    private ScanStatusDto? GetStatus(int libraryId) =>
+        statuses.TryGetValue(libraryId, out var s) ? s : null;
+
+    private static bool IsBusy(ScanStatusDto? status) =>
+        status is not null && (status.State == ScanState.Running || status.State == ScanState.Queued);
+
+    private static RenderFragment RenderStatusBadge(ScanStatusDto? status) => __builder =>
+    {
+        if (status is null) return;
+        switch (status.State)
+        {
+            case ScanState.Running:
+                __builder.AddMarkupContent(0,
+                    """<span class="badge bg-info"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Scanning</span>""");
+                break;
+            case ScanState.Queued:
+                __builder.AddMarkupContent(0,
+                    """<span class="badge bg-secondary">Queued</span>""");
+                break;
+            case ScanState.Idle:
+                __builder.AddMarkupContent(0,
+                    """<span class="badge bg-warning-subtle text-warning-emphasis">Never scanned</span>""");
+                break;
+        }
+    };
+
+    private static string FormatRelative(DateTime utc)
+    {
+        var delta = DateTime.UtcNow - utc;
+        if (delta < TimeSpan.FromMinutes(1)) return "just now";
+        if (delta < TimeSpan.FromHours(1)) return $"{(int)delta.TotalMinutes}m ago";
+        if (delta < TimeSpan.FromDays(1)) return $"{(int)delta.TotalHours}h ago";
+        if (delta < TimeSpan.FromDays(30)) return $"{(int)delta.TotalDays}d ago";
+        return utc.ToLocalTime().ToString("yyyy-MM-dd");
+    }
+
+    public void Dispose()
+    {
+        pollTimer?.Dispose();
     }
 }

@@ -36,7 +36,7 @@ var overrides = new Dictionary<string, string?>
     ["Authentication:Provider"] = Constants.AuthProviders.None,
     ["ConnectionStrings:DefaultConnection"] = $"Data Source={Path.Combine(appDataDir, "shelfwarden.db")}",
     ["Hangfire:SqlitePath"] = Path.Combine(appDataDir, "hangfire.db"),
-    ["Shelfwarden:CoversPath"] = Path.Combine(appDataDir, "covers"),
+    ["Storage:CoversPath"] = Path.Combine(appDataDir, "covers"),
 };
 
 string webRootPath = SharedAssetLocator.ResolveWebRoot();

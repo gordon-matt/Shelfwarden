@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Shelfwarden.Services.Scanning;
+using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
 
@@ -21,6 +23,17 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IBookService, BookService>();
             services.AddScoped<IAuthorService, AuthorService>();
             services.AddScoped<ISeriesService, SeriesService>();
+            services.AddScoped<IGenreService, GenreService>();
+            services.AddScoped<IServerSettingsService, ServerSettingsService>();
+
+            // Storage + scanner. The metadata extractors are stateless so they can be singletons;
+            // ScannerService itself is scoped because it pulls in EF Core repositories.
+            services.AddSingleton<IStoragePathProvider, StoragePathProvider>();
+            services.AddSingleton<IEbookMetadataExtractor, EpubMetadataExtractor>();
+            services.AddSingleton<IEbookMetadataExtractor, PdfMetadataExtractor>();
+            services.AddSingleton<IEbookMetadataExtractorFactory, EbookMetadataExtractorFactory>();
+            services.AddScoped<IScannerService, ScannerService>();
+            services.AddScoped<IScanStatusService, ScanStatusService>();
 
             return services;
         }

@@ -1,6 +1,10 @@
 @page "/books"
 @attribute [Authorize]
 @inject IBookService BookService
+@inject ILibraryService LibraryService
+@inject IAuthorService AuthorService
+@inject ISeriesService SeriesService
+@inject IGenreService GenreService
 @inject NavigationManager NavigationManager
 
 <PageTitle>Books - Shelfwarden</PageTitle>
@@ -30,7 +34,56 @@
     </div>
 </div>
 
-<div class="d-flex justify-content-end mb-3">
+<div class="row g-2 mb-3">
+    <div class="col-sm-6 col-md-3">
+        <label class="form-label small text-body-secondary mb-1">Library</label>
+        <select class="form-select form-select-sm" @bind="libraryId">
+            <option value="">All libraries</option>
+            @foreach (var lib in libraries)
+            {
+                <option value="@lib.Id">@lib.Name</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <label class="form-label small text-body-secondary mb-1">Author</label>
+        <select class="form-select form-select-sm" @bind="authorId">
+            <option value="">Any author</option>
+            @foreach (var a in authors)
+            {
+                <option value="@a.Id">@a.Name</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <label class="form-label small text-body-secondary mb-1">Series</label>
+        <select class="form-select form-select-sm" @bind="seriesId">
+            <option value="">Any series</option>
+            @foreach (var s in series)
+            {
+                <option value="@s.Id">@s.Name</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <label class="form-label small text-body-secondary mb-1">Genre</label>
+        <select class="form-select form-select-sm" @bind="genreId">
+            <option value="">Any genre</option>
+            @foreach (var g in genres)
+            {
+                <option value="@g.Id">@g.Name</option>
+            }
+        </select>
+    </div>
+</div>
+
+<div class="d-flex justify-content-end gap-2 mb-3">
+    @if (HasActiveFilters)
+    {
+        <button class="btn btn-outline-secondary" @onclick="ClearFiltersAsync">
+            <i class="bi bi-x-circle"></i> Clear
+        </button>
+    }
     <button class="btn btn-primary" @onclick="ApplyFilters">
         <i class="bi bi-funnel"></i> Apply
     </button>
@@ -77,13 +130,42 @@ else
 @code {
     private PagedList<BookListItemDto>? results;
     private string? query;
+    private string libraryId = "";
+    private string authorId = "";
+    private string seriesId = "";
+    private string genreId = "";
     private BookSortBy sortBy = BookSortBy.Title;
     private bool sortDescending;
     private int pageNumber = 1;
     private const int pageSize = 24;
 
+    private IReadOnlyList<LibraryDto> libraries = [];
+    private IReadOnlyList<AuthorDto> authors = [];
+    private IReadOnlyList<SeriesDto> series = [];
+    private IReadOnlyList<GenreDto> genres = [];
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrEmpty(libraryId)
+        || !string.IsNullOrEmpty(authorId)
+        || !string.IsNullOrEmpty(seriesId)
+        || !string.IsNullOrEmpty(genreId)
+        || !string.IsNullOrWhiteSpace(query);
+
     protected override async Task OnInitializedAsync()
     {
+        // Load filter options + first page in parallel — they're independent queries.
+        var librariesTask = LibraryService.GetAllAsync();
+        var authorsTask = AuthorService.SearchAsync(null, limit: 200);
+        var seriesTask = SeriesService.SearchAsync(null, limit: 200);
+        var genresTask = GenreService.SearchAsync(null, limit: 200);
+
+        await Task.WhenAll(librariesTask, authorsTask, seriesTask, genresTask);
+
+        if (librariesTask.Result.IsSuccess) libraries = librariesTask.Result.Value;
+        if (authorsTask.Result.IsSuccess) authors = authorsTask.Result.Value;
+        if (seriesTask.Result.IsSuccess) series = seriesTask.Result.Value;
+        if (genresTask.Result.IsSuccess) genres = genresTask.Result.Value;
+
         await LoadAsync();
     }
 
@@ -94,6 +176,10 @@ else
             Page = pageNumber,
             PageSize = pageSize,
             Query = string.IsNullOrWhiteSpace(query) ? null : query,
+            LibraryId = ParseId(libraryId),
+            AuthorId = ParseId(authorId),
+            SeriesId = ParseId(seriesId),
+            GenreId = ParseId(genreId),
             SortBy = sortBy,
             SortDescending = sortDescending,
         });
@@ -103,6 +189,17 @@ else
 
     private async Task ApplyFilters()
     {
+        pageNumber = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        query = null;
+        libraryId = "";
+        authorId = "";
+        seriesId = "";
+        genreId = "";
         pageNumber = 1;
         await LoadAsync();
     }
@@ -122,4 +219,7 @@ else
         pageNumber = target;
         await LoadAsync();
     }
+
+    private static int? ParseId(string raw) =>
+        int.TryParse(raw, out int id) && id > 0 ? id : null;
 }

@@ -179,16 +179,22 @@ Implemented in this session:
 
 ## Roadmap (next sessions)
 
-1. **Library scanner** — Hangfire job, EPUB/PDF metadata extraction (`VersOne.Epub`, `Docnet.Core`), cover extraction, change detection.
-2. **EPUB reader** — embedded Blazor reader using one of: `epub.js` via interop, or VersOne.Epub server-side rendering of pages similar to Kavita's approach.
-3. **PDF reader** — embedded `pdf.js` viewer.
-4. **Reading progress + bookmarks UI.**
-5. **Search / filters** on the books page (by author, series, genre, tag, format).
-6. **Collections + Reading Lists UI.**
-7. **First-run wizard** (`/setup`): admin user creation + initial library config.
-8. **Theme picker** UI: lets users choose any of the Bootswatch themes from `/lib/bootswatch/dist/`.
-9. **Generate the missing migrations** for SQL Server, Postgres, MySQL.
-10. **Integration tests** for the auth-mode switch, scanner, reader.
+Done:
+- ✅ **Library scanner** — `IScannerService` + Hangfire `scan` queue, EPUB (`VersOne.Epub`) and PDF (`UglyToad.PdfPig`) metadata extraction, cover image persistence, change detection (size + last-modified), author/series/genre auto-resolution.
+- ✅ **Search / filters** on `/books` (library, author, series, genre + title query + sort).
+- ✅ **Theme picker** — `IServerSettingsService`-backed Bootswatch picker in the nav menu, hot-swaps the stylesheet without a page reload (admin-only).
+- ✅ **Per-library scan status indicator** — Combines `Library.LastScannedAt` with live Hangfire monitoring (`IScanStatusService`); badge auto-refreshes every 3s on the libraries page.
+- ✅ **Cover serving** — `CoversController` streams `wwwroot`-external cover bytes from `Storage:CoversPath` with 7-day cache.
+
+Next:
+1. **EPUB reader** — embedded Blazor reader using one of: `epub.js` via interop, or VersOne.Epub server-side rendering of pages similar to Kavita's approach.
+2. **PDF reader** — embedded `pdf.js` viewer.
+3. **Reading progress + bookmarks UI.**
+4. **Collections + Reading Lists UI.**
+5. **First-run wizard** (`/setup`): admin user creation + initial library config (uses the existing `setup.complete` server setting).
+6. **Generate the missing migrations** for SQL Server, Postgres, MySQL (note: the `ServerSettings` table now exists; migrations may need regenerating).
+7. **Integration tests** for the auth-mode switch, scanner, reader.
+8. **Recurring scans** — schedule each library's scan via Hangfire `RecurringJob` instead of (or in addition to) on-demand triggering.
 
 ## Build / run cheatsheet
 

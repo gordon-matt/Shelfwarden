@@ -1,8 +1,12 @@
+using Hangfire;
+using Shelfwarden.Services.Scanning;
+
 namespace Shelfwarden.Services;
 
 public class LibraryService(
     ILogger<LibraryService> logger,
     IUserContextService userContext,
+    IBackgroundJobClient backgroundJobs,
     IRepository<Library> libraryRepository,
     IRepository<LibraryFolder> folderRepository,
     IRepository<Book> bookRepository) : ILibraryService
@@ -166,18 +170,30 @@ public class LibraryService(
         return Result.Success();
     }
 
-    public Task<Result> ScheduleScanAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<Result> ScheduleScanAsync(int id, CancellationToken cancellationToken = default)
     {
         if (!userContext.IsAdministrator())
         {
-            return Task.FromResult(Result.Forbidden());
+            return Result.Forbidden();
         }
 
-        // Hangfire scan job is wired up in a later phase; for now just log.
-        if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInformation("Scan requested for library {LibraryId} (scheduler not yet wired up)", id);
+        var library = await libraryRepository.FindOneAsync(new SearchOptions<Library>
+        {
+            Query = l => l.Id == id,
+        });
+        if (library is null)
+        {
+            return Result.NotFound();
+        }
 
-        return Task.FromResult(Result.Success());
+        // Hangfire's [DisableConcurrentExecution] on IScannerService.ScanLibraryAsync stops the
+        // same library being scanned twice concurrently — multiple enqueues just queue up.
+        string jobId = backgroundJobs.Enqueue<IScannerService>(s => s.ScanLibraryAsync(id, CancellationToken.None));
+
+        if (logger.IsEnabled(LogLevel.Information))
+            logger.LogInformation("Enqueued scan for library {LibraryId} as Hangfire job {JobId}", id, jobId);
+
+        return Result.Success();
     }
 
     private static List<string> NormalizeFolders(IReadOnlyList<string> folders)

@@ -50,4 +50,38 @@ public static class Constants
     {
         public const string App = "app";
     }
+
+    /// <summary>
+    /// Well-known keys persisted in the <c>ServerSettings</c> table by
+    /// <c>IServerSettingsService</c>. Keep the strings stable — they are the source of truth
+    /// once written to the database.
+    /// </summary>
+    public static class ServerSettingKeys
+    {
+        public const string Theme = "ui.theme";
+        public const string SetupComplete = "setup.complete";
+    }
+
+    /// <summary>
+    /// Default values applied when a setting has never been written. Centralised here so the
+    /// theme picker and the layout component can't drift apart.
+    /// </summary>
+    public static class ServerSettingDefaults
+    {
+        public const string Theme = "flatly";
+    }
+
+    /// <summary>
+    /// Bootswatch themes shipped via LibMan to <c>wwwroot/lib/bootswatch/dist/&lt;theme&gt;/bootstrap.min.css</c>.
+    /// Keep this list in lock-step with the <c>files</c> entries in <c>libman.json</c> — themes
+    /// listed here but not restored produce 404s when selected.
+    /// </summary>
+    public static class BootswatchThemes
+    {
+        public static readonly IReadOnlyList<string> All =
+        [
+            "cosmo", "darkly", "flatly", "litera", "lux", "minty",
+            "pulse", "sandstone", "slate", "solar", "superhero", "yeti"
+        ];
+    }
 }

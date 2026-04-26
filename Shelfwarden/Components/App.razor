@@ -1,4 +1,5 @@
 @inject IAuthProviderService AuthProvider
+@inject IServerSettingsService ServerSettings
 
 <!DOCTYPE html>
 <html lang="en">
@@ -7,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <title>Shelfwarden</title>
-    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link id="theme-stylesheet" rel="stylesheet" href="@($"lib/bootswatch/dist/{theme}/bootstrap.min.css")" />
     <link rel="stylesheet" href="lib/bootstrap-icons/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="Shelfwarden.styles.css" />
     <link rel="stylesheet" href="css/site.css" />
@@ -18,5 +19,21 @@
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
     <script src="lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/shelfwarden.js"></script>
 </body>
 </html>
+
+@code {
+    private string theme = Constants.ServerSettingDefaults.Theme;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Ran on the server during the initial render of the host page, so the active theme is
+        // baked into the first HTML response — no flash of unstyled content.
+        var result = await ServerSettings.GetAsync();
+        if (result.IsSuccess)
+        {
+            theme = result.Value.Theme;
+        }
+    }
+}
