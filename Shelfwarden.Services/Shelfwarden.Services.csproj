@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<Version>0.1.0</Version>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Ardalis.Result" Version="10.1.0" />
+		<PackageReference Include="Hangfire.Core" Version="1.8.23" />
+		<PackageReference Include="Keycloak.NETCore.Client" Version="1.0.2" />
+		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.9" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.6" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.6" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Shelfwarden.Core\Shelfwarden.Core.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data\Shelfwarden.Data.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Models\Shelfwarden.Models.csproj" />
+	</ItemGroup>
+
+</Project>

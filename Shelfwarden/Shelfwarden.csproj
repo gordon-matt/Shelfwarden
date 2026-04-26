@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UserSecretsId>shelfwarden-web-2589b324-ac0c-49ce-8caa-b1a7380a2ecd</UserSecretsId>
+		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+		<Version>0.1.0</Version>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Ardalis.Result" Version="10.1.0" />
+		<PackageReference Include="Autofac" Version="9.1.0" />
+		<PackageReference Include="Autofac.Extensions.DependencyInjection" Version="11.0.0" />
+		<PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.6" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.6">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.Web.LibraryManager.Build" Version="3.0.71" />
+		<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Shelfwarden.Core\Shelfwarden.Core.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data\Shelfwarden.Data.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data.Sqlite\Shelfwarden.Data.Sqlite.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data.Sql\Shelfwarden.Data.Sql.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data.Npgsql\Shelfwarden.Data.Npgsql.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data.MySql\Shelfwarden.Data.MySql.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Models\Shelfwarden.Models.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Services\Shelfwarden.Services.csproj" />
+	</ItemGroup>
+
+</Project>

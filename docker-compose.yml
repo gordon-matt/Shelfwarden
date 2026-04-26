@@ -1,0 +1,91 @@
+# Shelfwarden — opinionated multi-container setup.
+# Run from repo root: docker compose up -d
+# App: http://localhost:8080
+#
+# Defaults below run the web app against PostgreSQL with built-in ASP.NET Identity. To switch the
+# database to SQLite (single-file, baked into the image), set Database__Provider=Sqlite and remove
+# the db service. To switch authentication to Keycloak, fill in the Authentication__Keycloak__*
+# variables and uncomment the keycloak service at the bottom of this file.
+#
+# A `.env` file at the repo root can override any ${VAR} placeholders — see .env.example.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Shelfwarden/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Database__Provider: Npgsql
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=shelfwarden;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
+      ConnectionStrings__Hangfire: "Host=db;Port=5432;Database=shelfwarden_hangfire;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
+      Authentication__Provider: Identity
+      # Override the seeded admin (defaults: admin@shelfwarden.local / Admin@123).
+      SeedAdmin__Email: "admin@shelfwarden.local"
+      SeedAdmin__Password: "${ADMIN_PASSWORD:-Admin@123}"
+      # Where Shelfwarden stores extracted cover images.
+      Storage__CoversPath: /app/data/covers
+      # ── Keycloak (optional) ─────────────────────────────────────────────────
+      # Authentication__Provider: Keycloak
+      # Authentication__Keycloak__Authority: http://host.docker.internal:8081/realms/shelfwarden
+      # Authentication__Keycloak__ClientId: shelfwarden
+      # Authentication__Keycloak__ClientSecret: replace-me
+      # Authentication__Keycloak__BackchannelBaseUrl: http://keycloak:8080
+    volumes:
+      # Mount your ebook libraries here. Anything inside /app/data/library is what Shelfwarden scans.
+      - shelfwarden-library:/app/data/library
+      - shelfwarden-covers:/app/data/covers
+      - shelfwarden-logs:/app/data/logs
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18-alpine
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+      POSTGRES_DB: shelfwarden
+    volumes:
+      - shelfwarden-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Keycloak (optional) ──────────────────────────────────────────────────────
+  # Uncomment to run Keycloak alongside the app. Set Authentication__Provider=Keycloak above.
+  #
+  # keycloak:
+  #   image: quay.io/keycloak/keycloak:26.5.5
+  #   container_name: keycloak
+  #   ports:
+  #     - "8081:8080"
+  #   environment:
+  #     KC_BOOTSTRAP_ADMIN_USERNAME: admin
+  #     KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:-admin}"
+  #     KC_DB: postgres
+  #     KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+  #     KC_DB_USERNAME: postgres
+  #     KC_DB_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+  #   command: start-dev
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #     start_period: 30s
+
+volumes:
+  shelfwarden-library:
+  shelfwarden-covers:
+  shelfwarden-logs:
+  shelfwarden-pgdata:

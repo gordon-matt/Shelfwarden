@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/refs/heads/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.shelfwarden.desktop",
+  "productName": "Shelfwarden",
+  "copyright": "Copyright © Shelfwarden",
+  "compression": "maximum",
+  "directories": {
+    "output": "bin/Desktop"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": "x64"
+      }
+    ]
+  },
+  "linux": {
+    "target": [
+      "AppImage"
+    ],
+    "executableArgs": [ "--no-sandbox" ],
+    "artifactName": "${name}-${arch}-${version}.${ext}"
+  },
+  "mac": {
+    "target": [
+      "dmg"
+    ]
+  }
+}

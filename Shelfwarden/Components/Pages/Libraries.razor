@@ -1,0 +1,100 @@
+@page "/libraries"
+@attribute [Authorize]
+@inject ILibraryService LibraryService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Libraries - Shelfwarden</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Libraries</h1>
+    <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <Authorized>
+            <a class="btn btn-primary" href="libraries/new">
+                <i class="bi bi-plus-lg"></i> New library
+            </a>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+@if (libraries is null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (libraries.Count == 0)
+{
+    <div class="alert alert-info">
+        No libraries yet. Administrators can <a href="libraries/new">create a library</a> to start adding books.
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var lib in libraries)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <a href="@($"libraries/{lib.Id}")" class="text-decoration-none">@lib.Name</a>
+                        </h5>
+                        @if (!string.IsNullOrEmpty(lib.Description))
+                        {
+                            <p class="card-text small text-body-secondary">@lib.Description</p>
+                        }
+                        <p class="card-text small">
+                            <i class="bi bi-book"></i> @lib.BookCount book@(lib.BookCount == 1 ? "" : "s")
+                            @if (lib.LastScannedAt.HasValue)
+                            {
+                                <span class="ms-2 text-body-secondary">
+                                    <i class="bi bi-clock-history"></i> @lib.LastScannedAt.Value.ToString("yyyy-MM-dd HH:mm")
+                                </span>
+                            }
+                        </p>
+                        @if (lib.Folders.Count > 0)
+                        {
+                            <ul class="list-unstyled small mb-0 text-body-secondary">
+                                @foreach (var f in lib.Folders)
+                                {
+                                    <li><i class="bi bi-folder"></i> @f.Path</li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                    <AuthorizeView Roles="@Constants.Roles.Administrator">
+                        <Authorized>
+                            <div class="card-footer bg-transparent">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => ScanAsync(lib.Id)">
+                                    <i class="bi bi-arrow-clockwise"></i> Scan
+                                </button>
+                                <a class="btn btn-sm btn-outline-secondary ms-1" href="@($"libraries/{lib.Id}/edit")">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </a>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<LibraryDto>? libraries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await LibraryService.GetAllAsync();
+        libraries = result.IsSuccess ? result.Value : [];
+    }
+
+    private async Task ScanAsync(int id)
+    {
+        await LibraryService.ScheduleScanAsync(id);
+        await LoadAsync();
+    }
+}

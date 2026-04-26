@@ -1,0 +1,372 @@
+namespace Shelfwarden.Services;
+
+public class BookService(
+    ILogger<BookService> logger,
+    IUserContextService userContext,
+    IRepository<Book> bookRepository,
+    IRepository<BookAuthor> bookAuthorRepository,
+    IRepository<BookGenre> bookGenreRepository,
+    IRepository<Tag> tagRepository,
+    IRepository<BookTag> bookTagRepository,
+    IRepository<BookProgress> progressRepository) : IBookService
+{
+    public async Task<Result<PagedList<BookListItemDto>>> SearchAsync(BookSearchRequest request, CancellationToken cancellationToken = default)
+    {
+        int page = Math.Max(1, request.Page);
+        int pageSize = Math.Clamp(request.PageSize, 1, 200);
+
+        var options = new SearchOptions<Book>
+        {
+            PageNumber = page,
+            PageSize = pageSize,
+            Include = q => q
+                .Include(b => b.Series)
+                .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
+            SplitQuery = true,
+        };
+
+        if (request.LibraryId is int libId) options.Query = AndAlso(options.Query, b => b.LibraryId == libId);
+        if (request.SeriesId is int sId) options.Query = AndAlso(options.Query, b => b.SeriesId == sId);
+        if (request.AuthorId is int aId) options.Query = AndAlso(options.Query, b => b.BookAuthors.Any(ba => ba.AuthorId == aId));
+        if (request.GenreId is int gId) options.Query = AndAlso(options.Query, b => b.BookGenres.Any(bg => bg.GenreId == gId));
+
+        if (!string.IsNullOrWhiteSpace(request.Query))
+        {
+            string q = request.Query.Trim();
+            options.Query = AndAlso(options.Query, b => EF.Functions.Like(b.Title, $"%{q}%"));
+        }
+
+        options.OrderBy = request.SortBy switch
+        {
+            BookSortBy.Title => request.SortDescending
+                ? q => q.OrderByDescending(b => b.SortTitle ?? b.Title)
+                : q => q.OrderBy(b => b.SortTitle ?? b.Title),
+            BookSortBy.AddedAt => request.SortDescending
+                ? q => q.OrderByDescending(b => b.CreatedAt)
+                : q => q.OrderBy(b => b.CreatedAt),
+            BookSortBy.PublishedOn => request.SortDescending
+                ? q => q.OrderByDescending(b => b.PublishedOn)
+                : q => q.OrderBy(b => b.PublishedOn),
+            BookSortBy.NumberInSeries => request.SortDescending
+                ? q => q.OrderByDescending(b => b.SeriesId).ThenByDescending(b => b.NumberInSeries)
+                : q => q.OrderBy(b => b.SeriesId).ThenBy(b => b.NumberInSeries),
+            _ => q => q.OrderBy(b => b.SortTitle ?? b.Title),
+        };
+
+        var page_ = await bookRepository.FindAsync(options);
+        string? userId = userContext.GetCurrentUserId();
+
+        var bookIds = page_.Select(b => b.Id).ToList();
+        var progressByBook = await LoadProgressMapAsync(userId, bookIds);
+
+        var items = page_
+            .Select(b => new BookListItemDto(
+                b.Id,
+                b.Title,
+                b.Subtitle,
+                PrimaryAuthor: b.BookAuthors
+                    .OrderBy(ba => ba.Position)
+                    .Select(ba => ba.Author.Name)
+                    .FirstOrDefault() ?? string.Empty,
+                SeriesName: b.Series?.Name,
+                NumberInSeries: b.NumberInSeries,
+                CoverImagePath: b.CoverImagePath,
+                FileFormat: b.FileFormat,
+                ProgressPercentage: progressByBook.GetValueOrDefault(b.Id)?.Percentage ?? 0))
+            .ToList();
+
+        var result = new PagedList<BookListItemDto>(items, page_.ItemCount, page, pageSize);
+        return Result.Success(result);
+    }
+
+    public async Task<Result<BookDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
+        {
+            Query = b => b.Id == id,
+            Include = q => q
+                .Include(b => b.Series)
+                .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author)
+                .Include(b => b.BookGenres).ThenInclude(bg => bg.Genre)
+                .Include(b => b.BookTags).ThenInclude(bt => bt.Tag),
+            SplitQuery = true,
+        });
+
+        if (book is null)
+        {
+            return Result.NotFound($"Book {id} not found.");
+        }
+
+        return Result.Success(MapBook(book));
+    }
+
+    public async Task<Result<BookDto>> UpdateAsync(int id, UpdateBookRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAuthenticated())
+        {
+            return Result.Unauthorized();
+        }
+
+        var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
+        {
+            Query = b => b.Id == id,
+            Include = q => q
+                .Include(b => b.BookAuthors)
+                .Include(b => b.BookGenres)
+                .Include(b => b.BookTags),
+            SplitQuery = true,
+        });
+
+        if (book is null)
+        {
+            return Result.NotFound($"Book {id} not found.");
+        }
+
+        book.Title = request.Title.Trim();
+        book.SortTitle = NullIfWhitespace(request.SortTitle);
+        book.Subtitle = NullIfWhitespace(request.Subtitle);
+        book.Description = request.Description;
+        book.Language = NullIfWhitespace(request.Language);
+        book.Publisher = NullIfWhitespace(request.Publisher);
+        book.Isbn = NullIfWhitespace(request.Isbn);
+        book.PublishedOn = request.PublishedOn;
+        book.SeriesId = request.SeriesId;
+        book.NumberInSeries = request.NumberInSeries;
+
+        await bookRepository.UpdateAsync(book);
+
+        await SyncBookAuthorsAsync(id, request.AuthorIds);
+        await SyncBookGenresAsync(id, request.GenreIds);
+        await SyncBookTagsAsync(id, request.Tags);
+
+        return await GetByIdAsync(id, cancellationToken);
+    }
+
+    public async Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
+        {
+            Query = b => b.Id == id,
+        });
+        if (book is null)
+        {
+            return Result.NotFound();
+        }
+
+        await bookRepository.DeleteAsync(book);
+        if (logger.IsEnabled(LogLevel.Information))
+            logger.LogInformation("Deleted book {BookId} ({Title})", id, book.Title);
+
+        return Result.Success();
+    }
+
+    public async Task<Result<BookProgressDto>> SaveProgressAsync(int id, SaveProgressRequest request, CancellationToken cancellationToken = default)
+    {
+        string? userId = userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Result.Unauthorized();
+        }
+
+        var book = await bookRepository.FindOneAsync(new SearchOptions<Book> { Query = b => b.Id == id });
+        if (book is null)
+        {
+            return Result.NotFound();
+        }
+
+        var existing = await progressRepository.FindOneAsync(new SearchOptions<BookProgress>
+        {
+            Query = p => p.BookId == id && p.UserId == userId,
+        });
+
+        BookProgress saved;
+        if (existing is null)
+        {
+            saved = await progressRepository.InsertAsync(new BookProgress
+            {
+                BookId = id,
+                UserId = userId,
+                Percentage = request.Percentage,
+                PageNumber = request.PageNumber,
+                Location = request.Location,
+                LastReadAt = DateTime.UtcNow,
+            });
+        }
+        else
+        {
+            existing.Percentage = request.Percentage;
+            existing.PageNumber = request.PageNumber;
+            existing.Location = request.Location;
+            existing.LastReadAt = DateTime.UtcNow;
+            saved = await progressRepository.UpdateAsync(existing);
+        }
+
+        return Result.Success(new BookProgressDto(
+            saved.BookId, saved.Percentage, saved.PageNumber, saved.Location, saved.LastReadAt));
+    }
+
+    private async Task<Dictionary<int, BookProgress>> LoadProgressMapAsync(string? userId, IReadOnlyList<int> bookIds)
+    {
+        if (string.IsNullOrEmpty(userId) || bookIds.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await progressRepository.FindAsync(new SearchOptions<BookProgress>
+        {
+            Query = p => p.UserId == userId && bookIds.Contains(p.BookId),
+        });
+        return rows.ToDictionary(p => p.BookId);
+    }
+
+    private async Task SyncBookAuthorsAsync(int bookId, IReadOnlyList<int> authorIds)
+    {
+        var existing = (await bookAuthorRepository.FindAsync(new SearchOptions<BookAuthor>
+        {
+            Query = ba => ba.BookId == bookId,
+        })).ToList();
+
+        var existingIds = existing.Select(ba => ba.AuthorId).ToHashSet();
+        var desired = authorIds.Distinct().ToList();
+        var desiredIds = desired.ToHashSet();
+
+        var toRemove = existing.Where(ba => !desiredIds.Contains(ba.AuthorId)).ToList();
+        if (toRemove.Count > 0) await bookAuthorRepository.DeleteAsync(toRemove);
+
+        var toAdd = desired
+            .Where(aid => !existingIds.Contains(aid))
+            .Select((aid, idx) => new BookAuthor { BookId = bookId, AuthorId = aid, Position = idx })
+            .ToList();
+        if (toAdd.Count > 0) await bookAuthorRepository.InsertAsync(toAdd);
+    }
+
+    private async Task SyncBookGenresAsync(int bookId, IReadOnlyList<int> genreIds)
+    {
+        var existing = (await bookGenreRepository.FindAsync(new SearchOptions<BookGenre>
+        {
+            Query = bg => bg.BookId == bookId,
+        })).ToList();
+
+        var existingIds = existing.Select(bg => bg.GenreId).ToHashSet();
+        var desiredIds = genreIds.Distinct().ToHashSet();
+
+        var toRemove = existing.Where(bg => !desiredIds.Contains(bg.GenreId)).ToList();
+        if (toRemove.Count > 0) await bookGenreRepository.DeleteAsync(toRemove);
+
+        var toAdd = desiredIds
+            .Where(gid => !existingIds.Contains(gid))
+            .Select(gid => new BookGenre { BookId = bookId, GenreId = gid })
+            .ToList();
+        if (toAdd.Count > 0) await bookGenreRepository.InsertAsync(toAdd);
+    }
+
+    private async Task SyncBookTagsAsync(int bookId, IReadOnlyList<string> tagNames)
+    {
+        var normalised = tagNames
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Resolve / create tags by normalised name.
+        var lookup = normalised.Select(n => n.ToLowerInvariant()).ToList();
+        var existingTags = (await tagRepository.FindAsync(new SearchOptions<Tag>
+        {
+            Query = t => lookup.Contains(t.NormalizedName),
+        })).ToList();
+
+        var byNormalized = existingTags.ToDictionary(t => t.NormalizedName, StringComparer.OrdinalIgnoreCase);
+
+        var toCreate = new List<Tag>();
+        foreach (var name in normalised)
+        {
+            if (!byNormalized.ContainsKey(name.ToLowerInvariant()))
+            {
+                toCreate.Add(new Tag { Name = name, NormalizedName = name.ToLowerInvariant() });
+            }
+        }
+        if (toCreate.Count > 0)
+        {
+            var created = await tagRepository.InsertAsync(toCreate);
+            foreach (var t in created) byNormalized[t.NormalizedName] = t;
+        }
+
+        // Sync the join table.
+        var existingJoins = (await bookTagRepository.FindAsync(new SearchOptions<BookTag>
+        {
+            Query = bt => bt.BookId == bookId,
+        })).ToList();
+
+        var desiredTagIds = normalised
+            .Select(n => byNormalized[n.ToLowerInvariant()].Id)
+            .ToHashSet();
+
+        var toRemove = existingJoins.Where(bt => !desiredTagIds.Contains(bt.TagId)).ToList();
+        if (toRemove.Count > 0) await bookTagRepository.DeleteAsync(toRemove);
+
+        var existingJoinIds = existingJoins.Select(bt => bt.TagId).ToHashSet();
+        var toAddJoins = desiredTagIds
+            .Where(tid => !existingJoinIds.Contains(tid))
+            .Select(tid => new BookTag { BookId = bookId, TagId = tid })
+            .ToList();
+        if (toAddJoins.Count > 0) await bookTagRepository.InsertAsync(toAddJoins);
+    }
+
+    private static System.Linq.Expressions.Expression<Func<Book, bool>>? AndAlso(
+        System.Linq.Expressions.Expression<Func<Book, bool>>? left,
+        System.Linq.Expressions.Expression<Func<Book, bool>> right)
+    {
+        if (left is null) return right;
+
+        var param = System.Linq.Expressions.Expression.Parameter(typeof(Book), "b");
+        var combined = System.Linq.Expressions.Expression.AndAlso(
+            new ParameterReplacer(param).Visit(left.Body)!,
+            new ParameterReplacer(param).Visit(right.Body)!);
+        return System.Linq.Expressions.Expression.Lambda<Func<Book, bool>>(combined, param);
+    }
+
+    private static string? NullIfWhitespace(string? s)
+        => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private static BookDto MapBook(Book b) => new(
+        b.Id,
+        b.Title,
+        b.SortTitle,
+        b.Subtitle,
+        b.Description,
+        b.Language,
+        b.Publisher,
+        b.Isbn,
+        b.PublishedOn,
+        b.PageCount,
+        b.FilePath,
+        b.FileSizeBytes,
+        b.FileFormat,
+        b.CoverImagePath,
+        b.LibraryId,
+        b.Series is null ? null : new SeriesDto(b.Series.Id, b.Series.Name, b.Series.Description, BookCount: 0),
+        b.NumberInSeries,
+        b.BookAuthors
+            .OrderBy(ba => ba.Position)
+            .Select(ba => new AuthorDto(ba.Author.Id, ba.Author.Name, ba.Author.Biography))
+            .ToList(),
+        b.BookGenres
+            .Select(bg => new GenreDto(bg.Genre.Id, bg.Genre.Name))
+            .ToList(),
+        b.BookTags
+            .Select(bt => bt.Tag.Name)
+            .ToList(),
+        b.CreatedAt,
+        b.LastScannedAt);
+
+    private sealed class ParameterReplacer(System.Linq.Expressions.ParameterExpression target) : System.Linq.Expressions.ExpressionVisitor
+    {
+        protected override System.Linq.Expressions.Expression VisitParameter(System.Linq.Expressions.ParameterExpression node)
+            => target;
+    }
+}

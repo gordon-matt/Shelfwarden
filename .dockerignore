@@ -1,0 +1,24 @@
+**/.dockerignore
+**/.env
+**/.git
+**/.gitignore
+**/.vs
+**/.vscode
+**/.idea
+**/*.user
+**/bin
+**/obj
+**/node_modules
+**/wwwroot/lib
+**/Properties/launchSettings.json
+**/secrets.dev.yaml
+**/values.dev.yaml
+**/charts
+LICENSE
+README.md
+CONTEXT.md
+
+# Desktop / Electron output is never wanted in the web container.
+Shelfwarden.Desktop/bin
+Shelfwarden.Desktop/obj
+Shelfwarden.Desktop/ElectronNET

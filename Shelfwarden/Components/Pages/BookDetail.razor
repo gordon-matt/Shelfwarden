@@ -1,0 +1,176 @@
+@page "/books/{Id:int}"
+@attribute [Authorize]
+@inject IBookService BookService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(book?.Title ?? "Book") - Shelfwarden</PageTitle>
+
+@if (loading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (book is null)
+{
+    <div class="alert alert-warning">Book not found. <a href="books">Back to books</a></div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-md-3">
+            <div class="book-cover rounded shadow-sm">
+                @if (!string.IsNullOrWhiteSpace(book.CoverImagePath))
+                {
+                    <img src="@book.CoverImagePath" alt="@book.Title" />
+                }
+                else
+                {
+                    <i class="bi bi-book placeholder-icon"></i>
+                }
+            </div>
+        </div>
+        <div class="col-md-9">
+            <h1 class="mb-1">@book.Title</h1>
+            @if (!string.IsNullOrEmpty(book.Subtitle))
+            {
+                <h2 class="h5 text-body-secondary">@book.Subtitle</h2>
+            }
+
+            <p class="mb-2">
+                @if (book.Authors.Count > 0)
+                {
+                    <span>
+                        by
+                        @for (int i = 0; i < book.Authors.Count; i++)
+                        {
+                            var author = book.Authors[i];
+                            <a href="@($"books?authorId={author.Id}")">@author.Name</a>
+                            @if (i < book.Authors.Count - 1)
+                            {
+                                <text>, </text>
+                            }
+                        }
+                    </span>
+                }
+                @if (book.Series is not null)
+                {
+                    <span class="ms-2">
+                        in <a href="@($"books?seriesId={book.Series.Id}")">@book.Series.Name</a>
+                        @if (book.NumberInSeries.HasValue)
+                        {
+                            <text> #@book.NumberInSeries</text>
+                        }
+                    </span>
+                }
+            </p>
+
+            <dl class="row small">
+                @if (!string.IsNullOrEmpty(book.Publisher))
+                {
+                    <dt class="col-sm-3">Publisher</dt>
+                    <dd class="col-sm-9">@book.Publisher</dd>
+                }
+                @if (book.PublishedOn.HasValue)
+                {
+                    <dt class="col-sm-3">Published</dt>
+                    <dd class="col-sm-9">@book.PublishedOn.Value.ToString("yyyy-MM-dd")</dd>
+                }
+                @if (!string.IsNullOrEmpty(book.Language))
+                {
+                    <dt class="col-sm-3">Language</dt>
+                    <dd class="col-sm-9">@book.Language</dd>
+                }
+                @if (!string.IsNullOrEmpty(book.Isbn))
+                {
+                    <dt class="col-sm-3">ISBN</dt>
+                    <dd class="col-sm-9">@book.Isbn</dd>
+                }
+                @if (book.PageCount.HasValue)
+                {
+                    <dt class="col-sm-3">Pages</dt>
+                    <dd class="col-sm-9">@book.PageCount</dd>
+                }
+                <dt class="col-sm-3">Format</dt>
+                <dd class="col-sm-9">@book.FileFormat</dd>
+                <dt class="col-sm-3">File size</dt>
+                <dd class="col-sm-9">@FormatBytes(book.FileSizeBytes)</dd>
+            </dl>
+
+            @if (book.Genres.Count > 0)
+            {
+                <p class="mb-2">
+                    @foreach (var g in book.Genres)
+                    {
+                        <a class="badge text-bg-secondary text-decoration-none me-1" href="@($"books?genreId={g.Id}")">@g.Name</a>
+                    }
+                </p>
+            }
+
+            @if (book.Tags.Count > 0)
+            {
+                <p class="mb-3">
+                    @foreach (var t in book.Tags)
+                    {
+                        <span class="badge text-bg-light border me-1">#@t</span>
+                    }
+                </p>
+            }
+
+            @if (!string.IsNullOrEmpty(book.Description))
+            {
+                <h3 class="h6 mt-3">Description</h3>
+                <p>@((MarkupString)book.Description)</p>
+            }
+
+            <div class="mt-3">
+                <button class="btn btn-primary" disabled>
+                    <i class="bi bi-book-half"></i> Read (coming soon)
+                </button>
+                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                    <Authorized>
+                        <button class="btn btn-outline-danger ms-2" @onclick="DeleteAsync">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private BookDto? book;
+    private bool loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        var result = await BookService.GetByIdAsync(Id);
+        book = result.IsSuccess ? result.Value : null;
+        loading = false;
+    }
+
+    private async Task DeleteAsync()
+    {
+        var result = await BookService.DeleteAsync(Id);
+        if (result.IsSuccess)
+        {
+            NavigationManager.NavigateTo("books");
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        int unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+        return $"{value:0.##} {units[unit]}";
+    }
+}

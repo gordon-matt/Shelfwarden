@@ -1,0 +1,35 @@
+@if (Book is not null)
+{
+    <a class="text-decoration-none text-reset" href="@($"books/{Book.Id}")">
+        <div class="book-card">
+            <div class="book-cover">
+                @if (!string.IsNullOrWhiteSpace(Book.CoverImagePath))
+                {
+                    <img src="@Book.CoverImagePath" alt="@Book.Title" />
+                }
+                else
+                {
+                    <i class="bi bi-book placeholder-icon"></i>
+                }
+            </div>
+            <div class="card-body">
+                <div class="book-title" title="@Book.Title">@Book.Title</div>
+                <div class="book-author" title="@Book.PrimaryAuthor">
+                    @(string.IsNullOrEmpty(Book.PrimaryAuthor) ? "Unknown author" : Book.PrimaryAuthor)
+                </div>
+                @if (Book.ProgressPercentage > 0)
+                {
+                    <div class="progress mt-2" style="height: 4px;" role="progressbar"
+                         aria-valuenow="@Book.ProgressPercentage" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar" style="width: @($"{Book.ProgressPercentage:0}%")"></div>
+                    </div>
+                }
+            </div>
+        </div>
+    </a>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public BookListItemDto? Book { get; set; }
+}

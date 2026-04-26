@@ -1,0 +1,13 @@
+<Solution>
+  <Project Path="Shelfwarden.Core/Shelfwarden.Core.csproj" />
+  <Project Path="Shelfwarden.Data/Shelfwarden.Data.csproj" />
+  <Project Path="Shelfwarden.Data.Sqlite/Shelfwarden.Data.Sqlite.csproj" />
+  <Project Path="Shelfwarden.Data.Sql/Shelfwarden.Data.Sql.csproj" />
+  <Project Path="Shelfwarden.Data.Npgsql/Shelfwarden.Data.Npgsql.csproj" />
+  <Project Path="Shelfwarden.Data.MySql/Shelfwarden.Data.MySql.csproj" />
+  <Project Path="Shelfwarden.Models/Shelfwarden.Models.csproj" />
+  <Project Path="Shelfwarden.Services/Shelfwarden.Services.csproj" />
+  <Project Path="Shelfwarden.Tests/Shelfwarden.Tests.csproj" />
+  <Project Path="Shelfwarden/Shelfwarden.csproj" />
+  <Project Path="Shelfwarden.Desktop/Shelfwarden.Desktop.csproj" />
+</Solution>

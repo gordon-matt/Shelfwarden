@@ -1,0 +1,21 @@
+@inherits LayoutComponentBase
+
+<div class="page d-flex flex-column min-vh-100">
+    <header>
+        <NavMenu />
+    </header>
+
+    <main class="container-fluid py-4 flex-grow-1">
+        @Body
+    </main>
+
+    <footer class="border-top text-center small py-2 text-body-secondary">
+        Shelfwarden
+    </footer>
+</div>
+
+<div id="blazor-error-ui" class="alert alert-danger m-3 d-none">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>

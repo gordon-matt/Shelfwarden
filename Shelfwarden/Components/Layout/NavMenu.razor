@@ -1,0 +1,72 @@
+@inject IAuthProviderService AuthProvider
+
+<nav class="navbar navbar-expand-md navbar-dark bg-dark border-bottom">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+            <i class="bi bi-bookshelf"></i> Shelfwarden
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        <i class="bi bi-house-door me-1"></i> Home
+                    </NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="books">
+                        <i class="bi bi-book me-1"></i> Books
+                    </NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="libraries">
+                        <i class="bi bi-collection me-1"></i> Libraries
+                    </NavLink>
+                </li>
+            </ul>
+
+            <ul class="navbar-nav">
+                <AuthorizeView>
+                    <Authorized>
+                        <li class="nav-item">
+                            <span class="navbar-text me-3">
+                                <i class="bi bi-person-circle me-1"></i>
+                                @context.User.Identity?.Name
+                            </span>
+                        </li>
+                        @if (AuthProvider.Provider != Shelfwarden.Services.AuthProvider.None)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" href="@LogoutUrl">Sign out</a>
+                            </li>
+                        }
+                    </Authorized>
+                    <NotAuthorized>
+                        <li class="nav-item">
+                            <a class="nav-link" href="@LoginUrl">Sign in</a>
+                        </li>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+@code {
+    private string LoginUrl => AuthProvider.Provider switch
+    {
+        Shelfwarden.Services.AuthProvider.Identity => "Identity/Account/Login",
+        Shelfwarden.Services.AuthProvider.Keycloak => "auth/login",
+        _ => "/",
+    };
+
+    private string LogoutUrl => AuthProvider.Provider switch
+    {
+        Shelfwarden.Services.AuthProvider.Identity => "Identity/Account/Logout",
+        Shelfwarden.Services.AuthProvider.Keycloak => "auth/logout",
+        _ => "/",
+    };
+}

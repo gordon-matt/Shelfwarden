@@ -1,0 +1,59 @@
+@page "/"
+@attribute [Authorize]
+@inject IBookService BookService
+
+<PageTitle>Home - Shelfwarden</PageTitle>
+
+<h1 class="visually-hidden">Home</h1>
+
+<section class="mb-5">
+    <div class="section-header">
+        <h2>Recently Added</h2>
+        <a class="btn btn-sm btn-outline-secondary" href="books">View all</a>
+    </div>
+
+    @if (recentlyAdded is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else if (recentlyAdded.Items.Count == 0)
+    {
+        <div class="alert alert-info">
+            No books yet. <a href="libraries">Create a library</a> to get started.
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var book in recentlyAdded.Items)
+            {
+                <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                    <BookCard Book="book" />
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private PagedList<BookListItemDto>? recentlyAdded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await BookService.SearchAsync(new BookSearchRequest
+        {
+            Page = 1,
+            PageSize = 12,
+            SortBy = BookSortBy.AddedAt,
+            SortDescending = true,
+        });
+        if (result.IsSuccess)
+        {
+            recentlyAdded = result.Value;
+        }
+        else
+        {
+            recentlyAdded = new PagedList<BookListItemDto>([], 0, 1, 12);
+        }
+    }
+}

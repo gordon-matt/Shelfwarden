@@ -1,0 +1,156 @@
+@page "/libraries/new"
+@page "/libraries/{Id:int}/edit"
+@attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@inject ILibraryService LibraryService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(IsCreate ? "New library" : $"Edit {model.Name}") - Shelfwarden</PageTitle>
+
+<h1 class="mb-3">@(IsCreate ? "New library" : "Edit library")</h1>
+
+@if (loadError is not null)
+{
+    <div class="alert alert-danger">@loadError</div>
+}
+
+<EditForm Model="model" OnValidSubmit="SaveAsync" FormName="library-form">
+    <DataAnnotationsValidator />
+
+    <div class="mb-3">
+        <label class="form-label">Name</label>
+        <InputText class="form-control" @bind-Value="model.Name" />
+        <ValidationMessage For="@(() => model.Name)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Description</label>
+        <InputTextArea class="form-control" rows="3" @bind-Value="model.Description" />
+        <ValidationMessage For="@(() => model.Description)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Folders</label>
+        <p class="form-text mb-2">Absolute paths to folders that contain ebooks. Subfolders are scanned recursively.</p>
+        @for (int i = 0; i < folders.Count; i++)
+        {
+            int captured = i;
+            <div class="input-group mb-1">
+                <span class="input-group-text"><i class="bi bi-folder"></i></span>
+                <input class="form-control" placeholder="/path/to/library" value="@folders[captured]"
+                       @oninput="@(e => folders[captured] = e.Value?.ToString() ?? string.Empty)" />
+                <button class="btn btn-outline-danger" type="button" @onclick="() => RemoveFolder(captured)" disabled="@(folders.Count == 1)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        }
+        <button class="btn btn-sm btn-outline-secondary mt-1" type="button" @onclick="AddFolder">
+            <i class="bi bi-plus-lg"></i> Add folder
+        </button>
+    </div>
+
+    @if (saveError is not null)
+    {
+        <div class="alert alert-danger">@saveError</div>
+    }
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary" type="submit" disabled="@saving">
+            @if (saving)
+            {
+                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+            }
+            Save
+        </button>
+        <a class="btn btn-link" href="libraries">Cancel</a>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool IsCreate => Id is null;
+
+    private LibraryFormModel model = new();
+    private List<string> folders = [string.Empty];
+    private string? loadError;
+    private string? saveError;
+    private bool saving;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id is int id)
+        {
+            var result = await LibraryService.GetByIdAsync(id);
+            if (result.IsSuccess)
+            {
+                model.Name = result.Value.Name;
+                model.Description = result.Value.Description;
+                folders = result.Value.Folders.Select(f => f.Path).DefaultIfEmpty(string.Empty).ToList();
+                loadError = null;
+            }
+            else
+            {
+                loadError = "Library not found.";
+            }
+        }
+    }
+
+    private void AddFolder() => folders.Add(string.Empty);
+
+    private void RemoveFolder(int index)
+    {
+        if (folders.Count > 1) folders.RemoveAt(index);
+    }
+
+    private async Task SaveAsync()
+    {
+        var nonEmpty = folders.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList();
+        if (nonEmpty.Count == 0)
+        {
+            saveError = "At least one folder is required.";
+            return;
+        }
+
+        saving = true;
+        saveError = null;
+        try
+        {
+            if (Id is int id)
+            {
+                var result = await LibraryService.UpdateAsync(id, new UpdateLibraryRequest
+                {
+                    Name = model.Name,
+                    Description = model.Description,
+                    Folders = nonEmpty,
+                });
+                if (result.IsSuccess) NavigationManager.NavigateTo("libraries");
+                else saveError = string.Join("; ", result.Errors);
+            }
+            else
+            {
+                var result = await LibraryService.CreateAsync(new CreateLibraryRequest
+                {
+                    Name = model.Name,
+                    Description = model.Description,
+                    Folders = nonEmpty,
+                });
+                if (result.IsSuccess) NavigationManager.NavigateTo("libraries");
+                else saveError = string.Join("; ", result.Errors);
+            }
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private sealed class LibraryFormModel
+    {
+        [Required, StringLength(256)]
+        public string Name { get; set; } = string.Empty;
+
+        [StringLength(2048)]
+        public string? Description { get; set; }
+    }
+}

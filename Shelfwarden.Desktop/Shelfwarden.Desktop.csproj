@@ -1,0 +1,91 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<!--
+		Shelfwarden.Desktop wraps the Blazor Server web app inside an Electron shell using
+		ElectronNET.Core. The original Shelfwarden web project is unchanged. To avoid
+		duplicating code, this project shares the source from ..\Shelfwarden\ via linked
+		Compile / Content items rather than via a project reference. The Web SDK can't
+		treat another Web SDK project as a library cleanly (only one Program.Main), so
+		source linking gives us a separate entry point + assembly while reusing every
+		Razor component, page, and static asset.
+	-->
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<RootNamespace>Shelfwarden</RootNamespace>
+		<AssemblyName>Shelfwarden.Desktop</AssemblyName>
+		<UserSecretsId>shelfwarden-desktop-1c4d0f7b-7e6d-4b9e-9f5e-2a7d3c8b9f4a</UserSecretsId>
+		<Version>0.1.0</Version>
+		<RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
+	</PropertyGroup>
+
+	<!-- Same package set as the main web project, minus Identity UI (None auth has no UI). -->
+	<ItemGroup>
+		<PackageReference Include="Ardalis.Result" Version="10.1.0" />
+		<PackageReference Include="Autofac" Version="9.1.0" />
+		<PackageReference Include="Autofac.Extensions.DependencyInjection" Version="11.0.0" />
+		<PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.6" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.6">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+
+		<!-- Electron host -->
+		<PackageReference Include="ElectronNET.Core" Version="0.4.1" />
+		<PackageReference Include="ElectronNET.Core.AspNet" Version="0.4.1" />
+	</ItemGroup>
+
+	<!--
+		Shared library projects. We reference all four database provider projects so the
+		linked source compiles cleanly, but appsettings.json hardcodes Database:Provider=Sqlite,
+		so only the SQLite path is exercised at runtime. (Keeping the references avoids the
+		need to fork ServiceCollectionExtensions.cs into a desktop-specific copy.)
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\Shelfwarden.Core\Shelfwarden.Core.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data\Shelfwarden.Data.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data.Sqlite\Shelfwarden.Data.Sqlite.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data.Sql\Shelfwarden.Data.Sql.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data.Npgsql\Shelfwarden.Data.Npgsql.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Data.MySql\Shelfwarden.Data.MySql.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Models\Shelfwarden.Models.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Services\Shelfwarden.Services.csproj" />
+	</ItemGroup>
+
+	<!--
+		Share every C# file from the main web project (Components, Infrastructure, Extensions,
+		Areas, etc.) — but skip its Program.cs (this project has its own Electron-aware entry
+		point) and any source file flagged for web-only use.
+	-->
+	<ItemGroup>
+		<Compile Include="..\Shelfwarden\**\*.cs" Exclude="..\Shelfwarden\Program.cs;..\Shelfwarden\bin\**\*.cs;..\Shelfwarden\obj\**\*.cs" LinkBase="Shared" />
+	</ItemGroup>
+
+	<!--
+		Share Razor components, pages and view imports. Razor SDK compiles linked .razor /
+		.cshtml files into this project's assembly using the same _Imports they ship with.
+	-->
+	<ItemGroup>
+		<Content Include="..\Shelfwarden\Components\**\*.razor" Link="Components\%(RecursiveDir)%(Filename)%(Extension)" />
+		<Content Include="..\Shelfwarden\Components\**\*.cshtml" Link="Components\%(RecursiveDir)%(Filename)%(Extension)" />
+		<Content Include="..\Shelfwarden\Areas\**\*.cshtml" Link="Areas\%(RecursiveDir)%(Filename)%(Extension)" />
+		<Content Include="..\Shelfwarden\Areas\**\*.json" Link="Areas\%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<!--
+		Share static web assets. The shared wwwroot is exposed at runtime via SharedAssetLocator
+		(see Program.cs) so we don't need to physically copy it during a normal build/run.
+		CopyToPublishDirectory ensures `dotnet publish` (used when packaging the Electron app)
+		puts a real wwwroot in the publish output.
+	-->
+	<ItemGroup>
+		<Content Include="..\Shelfwarden\wwwroot\**\*" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" />
+	</ItemGroup>
+
+</Project>

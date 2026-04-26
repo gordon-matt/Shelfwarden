@@ -1,0 +1,99 @@
+@page "/libraries/{Id:int}"
+@attribute [Authorize]
+@inject ILibraryService LibraryService
+@inject IBookService BookService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(library?.Name ?? "Library") - Shelfwarden</PageTitle>
+
+@if (library is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="mb-0">@library.Name</h1>
+            @if (!string.IsNullOrEmpty(library.Description))
+            {
+                <p class="text-body-secondary mb-0">@library.Description</p>
+            }
+        </div>
+        <AuthorizeView Roles="@Constants.Roles.Administrator">
+            <Authorized>
+                <div>
+                    <button class="btn btn-outline-secondary" @onclick="ScanAsync">
+                        <i class="bi bi-arrow-clockwise"></i> Scan
+                    </button>
+                    <a class="btn btn-outline-secondary ms-1" href="@($"libraries/{Id}/edit")">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <button class="btn btn-outline-danger ms-1" @onclick="DeleteAsync">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+
+    @if (books is null)
+    {
+        <p><em>Loading books...</em></p>
+    }
+    else if (books.Items.Count == 0)
+    {
+        <div class="alert alert-info">No books in this library yet. Run a scan to populate it.</div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var book in books.Items)
+            {
+                <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                    <BookCard Book="book" />
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private LibraryDto? library;
+    private PagedList<BookListItemDto>? books;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var lib = await LibraryService.GetByIdAsync(Id);
+        library = lib.IsSuccess ? lib.Value : null;
+
+        if (library is not null)
+        {
+            var bookResult = await BookService.SearchAsync(new BookSearchRequest
+            {
+                LibraryId = Id,
+                Page = 1,
+                PageSize = 48,
+                SortBy = BookSortBy.Title,
+            });
+            books = bookResult.IsSuccess ? bookResult.Value : null;
+        }
+    }
+
+    private async Task ScanAsync()
+    {
+        await LibraryService.ScheduleScanAsync(Id);
+    }
+
+    private async Task DeleteAsync()
+    {
+        var result = await LibraryService.DeleteAsync(Id);
+        if (result.IsSuccess)
+        {
+            NavigationManager.NavigateTo("libraries");
+        }
+    }
+}

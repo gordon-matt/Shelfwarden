@@ -1,0 +1,29 @@
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Shelfwarden.Data.Entities;
+
+public class Author : BaseEntity<int>
+{
+    public required string Name { get; set; }
+
+    /// <summary>Lowercased / normalised version of <see cref="Name"/> for case-insensitive lookups.</summary>
+    public required string NormalizedName { get; set; }
+
+    public string? Biography { get; set; }
+
+    public virtual ICollection<BookAuthor> BookAuthors { get; set; } = [];
+}
+
+public class AuthorMap : IEntityTypeConfiguration<Author>
+{
+    public void Configure(EntityTypeBuilder<Author> builder)
+    {
+        builder.ToTable("Authors", Constants.Schemas.App);
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Name).IsRequired().HasMaxLength(256).IsUnicode(true);
+        builder.Property(m => m.NormalizedName).IsRequired().HasMaxLength(256).IsUnicode(true);
+        builder.Property(m => m.Biography).IsUnicode(true);
+
+        builder.HasIndex(m => m.NormalizedName).IsUnique();
+    }
+}
