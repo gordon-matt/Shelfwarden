@@ -1,5 +1,6 @@
 using Hangfire;
 using Hangfire.Storage.SQLite;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,6 +29,9 @@ public static class ServiceCollectionExtensions
                 {
                     options.UseSqlite(connectionString, sqlite =>
                         sqlite.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.GetName().Name));
+                    // SQLite ignores HasDefaultSchema("app"); the warning is correct but noisy.
+                    // Other providers still honour the schema, which is what we want.
+                    options.ConfigureWarnings(w => w.Ignore(SqliteEventId.SchemaConfiguredWarning));
                 }
             });
 

@@ -1,0 +1,53 @@
+@*
+    Custom layout for the embedded ASP.NET Identity UI (`AddDefaultUI()`).
+    The default layout shipped with Microsoft.AspNetCore.Identity.UI references partials
+    (`_LoginPartial`, `_ValidationScriptsPartial`) we never scaffolded into this Blazor Server
+    project, so we replace it wholesale. Identity pages here intentionally do not host the
+    Blazor NavMenu / ThemePicker — they're plain Razor Pages rendered before the Blazor circuit
+    is up. They share the active Bootswatch theme so the chrome still looks consistent.
+*@
+@inject IServerSettingsService ServerSettings
+@{
+    string theme = Constants.ServerSettingDefaults.Theme;
+    var themeResult = await ServerSettings.GetAsync(Context.RequestAborted);
+    if (themeResult.IsSuccess)
+    {
+        theme = themeResult.Value.Theme;
+    }
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Shelfwarden</title>
+    <link rel="stylesheet" href="~/lib/bootswatch/dist/@(theme)/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="icon" type="image/png" href="~/favicon.png" />
+</head>
+<body class="bg-body-tertiary">
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark border-bottom">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-bookshelf"></i> Shelfwarden
+            </a>
+        </div>
+    </nav>
+
+    <main class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        @RenderBody()
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

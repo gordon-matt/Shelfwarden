@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 
 namespace Shelfwarden.Data.Sqlite;
@@ -26,6 +27,8 @@ public class ApplicationDbContextFactory(IConfiguration configuration) : IDbCont
         {
             optionsBuilder.UseSqlite(connectionString, sqlite =>
                 sqlite.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.GetName().Name));
+            // See ServiceCollectionExtensions for context — silences SQLite-only schema warnings.
+            optionsBuilder.ConfigureWarnings(w => w.Ignore(SqliteEventId.SchemaConfiguredWarning));
         }
 
         return optionsBuilder.Options;

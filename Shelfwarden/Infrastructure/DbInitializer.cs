@@ -49,11 +49,15 @@ public static class DbInitializer
     private static async Task SeedAdminAsync(IServiceProvider services, IConfiguration configuration, ILogger logger)
     {
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-        string userName = configuration["Seed:Admin:UserName"] ?? "admin";
         string email = configuration["Seed:Admin:Email"] ?? "admin@shelfwarden.local";
+        // ASP.NET Identity's default UI uses UserName == Email at sign-in time
+        // (Login.cshtml passes Input.Email to PasswordSignInAsync, which treats it as the username).
+        // Keep UserName aligned with Email so users can sign in with their email address.
+        string userName = configuration["Seed:Admin:UserName"] ?? email;
         string password = configuration["Seed:Admin:Password"] ?? "Admin123!";
 
-        var existing = await userManager.FindByNameAsync(userName);
+        var existing = await userManager.FindByEmailAsync(email)
+            ?? await userManager.FindByNameAsync(userName);
         if (existing is not null)
         {
             return;

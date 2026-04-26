@@ -192,7 +192,13 @@ Next:
 3. **Reading progress + bookmarks UI.**
 4. **Collections + Reading Lists UI.**
 5. **First-run wizard** (`/setup`): admin user creation + initial library config (uses the existing `setup.complete` server setting).
-6. **Generate the missing migrations** for SQL Server, Postgres, MySQL (note: the `ServerSettings` table now exists; migrations may need regenerating).
+6. **Generate the missing migrations** for SQL Server, Postgres, MySQL. SQLite already has its `InitialCreate` migration. To regenerate after model changes:
+
+   ```powershell
+   dotnet ef migrations add <Name> -p Shelfwarden.Data.Sqlite -s Shelfwarden -c Shelfwarden.Data.Sqlite.ApplicationDbContext --output-dir Migrations
+   ```
+
+   Note: the EF 10.0.6+ tooling needs `Microsoft.EntityFrameworkCore.Design` referenced on the **startup project** (`Shelfwarden`) too, otherwise `dotnet ef` fails with `MissingMethodException: AbstractionsStrings.ArgumentIsEmpty(Object)` (see [efcore#38107](https://github.com/dotnet/efcore/issues/38107)).
 7. **Integration tests** for the auth-mode switch, scanner, reader.
 8. **Recurring scans** — schedule each library's scan via Hangfire `RecurringJob` instead of (or in addition to) on-demand triggering.
 

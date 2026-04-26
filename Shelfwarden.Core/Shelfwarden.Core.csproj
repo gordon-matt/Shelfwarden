@@ -12,7 +12,7 @@
 		<PackageReference Include="Hangfire.Core" Version="1.8.23" />
 		<!-- Hangfire.Core 1.8.23 transitively pulls Newtonsoft.Json 11.0.1 (high-severity CVE).
 		     Pin a current version directly so the whole graph uses it. -->
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 	</ItemGroup>
 
 </Project>
