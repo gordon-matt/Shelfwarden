@@ -12,6 +12,10 @@
         dotnetRef: null,   // DotNetObjectReference for progress callbacks
         scriptLoaded: false,
         pendingProgressTimer: null,
+        currentCfi: null,        // Last CFI emitted by the EPUB rendition; used by bookmark create.
+        currentPercent: 0,       // Last percent for the same.
+        pdfFrameId: null,        // The iframe element id we mounted into so we can goto pages later.
+        pdfBaseUrl: null,        // The /files/{id} URL for the active PDF (used for re-navigation).
     };
 
     function loadScript(src) {
@@ -32,9 +36,11 @@
 
     async function ensureEpubJsLoaded() {
         if (state.scriptLoaded && window.ePub) return;
-        // jszip is required by epub.js — load it first.
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js');
+        // We self-host both libraries under wwwroot/lib (managed by libman.json) so the reader
+        // works offline and isn't subject to CDN availability — cdnjs only stocks epub.js up
+        // to 0.2.15 which lacks the modern Rendition API we depend on.
+        await loadScript('lib/jszip/dist/jszip.min.js');
+        await loadScript('lib/epubjs/dist/epub.min.js');
         state.scriptLoaded = true;
     }
 
@@ -77,6 +83,8 @@
                     percent = Math.round(state.epub.locations.percentageFromCfi(location.start.cfi) * 100);
                 }
                 var cfi = location && location.start ? location.start.cfi : null;
+                state.currentCfi = cfi;
+                state.currentPercent = percent;
                 scheduleProgressPush(percent, cfi);
             });
 
@@ -89,6 +97,29 @@
 
         nextPage: function () { if (state.rendition) state.rendition.next(); },
         prevPage: function () { if (state.rendition) state.rendition.prev(); },
+
+        /**
+         * Returns { cfi, percent } for the EPUB's current spot. Blazor calls this when the
+         * user clicks "Bookmark this spot" so we can attach the location server-side.
+         */
+        getEpubLocation: function () {
+            return { cfi: state.currentCfi, percent: state.currentPercent };
+        },
+
+        /**
+         * Jump the EPUB rendition to the given CFI. Used by the bookmark list when the user
+         * clicks an entry. Returns true on success.
+         */
+        gotoEpub: function (cfi) {
+            if (!state.rendition || !cfi) return false;
+            try {
+                state.rendition.display(cfi);
+                return true;
+            } catch (err) {
+                console.warn('gotoEpub failed', err);
+                return false;
+            }
+        },
 
         disposeEpub: function () {
             if (state.pendingProgressTimer) {
@@ -117,7 +148,23 @@
             if (!frame) return;
             // Append #toolbar=1 — Chromium honours this to keep the toolbar visible. Other
             // browsers ignore unknown PDF fragment options.
+            state.pdfFrameId = iframeId;
+            state.pdfBaseUrl = url;
             frame.src = url + '#toolbar=1';
+        },
+
+        /**
+         * Re-navigate the iframe to a specific PDF page. Browsers honour the standard
+         * #page=N fragment for built-in PDF viewers (Chromium / Firefox / Safari all do).
+         * Resetting `src` is required because changing only the hash on the same URL is a
+         * no-op for cross-document navigation in some browsers.
+         */
+        gotoPdfPage: function (pageNumber) {
+            if (!state.pdfFrameId || !state.pdfBaseUrl) return false;
+            var frame = document.getElementById(state.pdfFrameId);
+            if (!frame) return false;
+            frame.src = state.pdfBaseUrl + '#page=' + (pageNumber || 1) + '&toolbar=1';
+            return true;
         },
     };
 })();

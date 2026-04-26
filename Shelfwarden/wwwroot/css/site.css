@@ -321,6 +321,7 @@ body {
     display: flex;
     align-items: flex-end;
     justify-content: center;
+    gap: 0.35rem;
     padding: 0.75rem;
     opacity: 0;
     transition: opacity 160ms ease;
@@ -515,6 +516,47 @@ body {
     border-top: 1px solid var(--bs-border-color);
     font-size: 0.85rem;
 }
+
+/* The bookmark drawer hangs from below the reader topbar; absolute-positioned over the
+   viewport so it doesn't reflow the EPUB rendering. The reader shell is position: fixed
+   so this absolute child positions against the shell itself. */
+.reader-bookmarks-panel {
+    position: absolute;
+    top: 3.5rem;
+    right: 0.75rem;
+    width: 340px;
+    max-width: 90vw;
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+    padding: 0.75rem;
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    z-index: 5;
+}
+
+.bookmark-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.25rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+    .bookmark-row:last-child {
+        border-bottom: none;
+    }
+
+    .bookmark-row .btn-link {
+        flex: 1 1 auto;
+        text-decoration: none;
+        color: var(--bs-body-color);
+    }
+
+    .bookmark-row .btn-link:hover {
+        color: var(--bs-primary);
+    }
 
 /* ──────────────────────────────────────────────────────────────────────────
    Misc utility tweaks

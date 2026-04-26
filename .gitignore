@@ -427,3 +427,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+Shelfwarden/hangfire.db*
+Shelfwarden/shelfwarden.db*

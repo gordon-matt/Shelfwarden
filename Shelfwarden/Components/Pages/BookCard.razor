@@ -30,6 +30,12 @@
                    @onclick:stopPropagation="true">
                     <i class="bi bi-book-half"></i> Read
                 </a>
+                <a class="btn btn-sm btn-outline-light"
+                   href="@($"books/{Book.Id}/edit")"
+                   title="Edit metadata"
+                   @onclick:stopPropagation="true">
+                    <i class="bi bi-pencil"></i>
+                </a>
             </div>
         </div>
         <div class="book-meta">

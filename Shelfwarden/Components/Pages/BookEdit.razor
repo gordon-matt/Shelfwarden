@@ -1,0 +1,461 @@
+@page "/books/{Id:int}/edit"
+@attribute [Authorize]
+@inject IBookService BookService
+@inject IAuthorService AuthorService
+@inject ISeriesService SeriesService
+@inject IGenreService GenreService
+@inject NavigationManager NavigationManager
+@inject ILogger<BookEdit> Logger
+
+<PageTitle>@(book?.Title is { } t ? $"Edit \"{t}\"" : "Edit book") - Shelfwarden</PageTitle>
+
+@if (loading)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading book…</div>
+    </div>
+}
+else if (book is null || form is null)
+{
+    <div class="empty-state">
+        <i class="bi bi-question-circle empty-icon"></i>
+        <h3>Book not found</h3>
+        <p>It may have been deleted, or moved out of its library on disk.</p>
+        <a class="btn btn-outline-secondary" href="books">
+            <i class="bi bi-arrow-left"></i> Back to books
+        </a>
+    </div>
+}
+else
+{
+    <EditForm Model="form" OnValidSubmit="SaveAsync" FormName="book-edit">
+        <DataAnnotationsValidator />
+
+        <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
+            <div>
+                <a href="@($"books/{book.Id}")" class="text-secondary text-decoration-none small">
+                    <i class="bi bi-arrow-left"></i> Back to @book.Title
+                </a>
+                <h1 class="mb-0 mt-1">Edit book</h1>
+            </div>
+            <div class="d-flex gap-2">
+                <a class="btn btn-outline-secondary" href="@($"books/{book.Id}")">Cancel</a>
+                <button type="submit" class="btn btn-primary" disabled="@saving">
+                    @if (saving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-check-lg me-1"></i>
+                    }
+                    Save
+                </button>
+            </div>
+        </div>
+
+        @if (errorMessage is not null)
+        {
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-1"></i> @errorMessage
+            </div>
+        }
+
+        <ValidationSummary class="alert alert-warning" />
+
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card mb-4">
+                    <div class="card-header"><strong>General</strong></div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Title <span class="text-danger">*</span></label>
+                            <InputText class="form-control" @bind-Value="form.Title" />
+                            <ValidationMessage For="() => form.Title" class="text-danger small" />
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Sort title</label>
+                                <InputText class="form-control" @bind-Value="form.SortTitle" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Subtitle</label>
+                                <InputText class="form-control" @bind-Value="form.Subtitle" />
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <label class="form-label">Description</label>
+                            <InputTextArea class="form-control" rows="6" @bind-Value="form.Description" />
+                            <div class="form-text">HTML is rendered on the detail page.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header"><strong>Publication</strong></div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Publisher</label>
+                                <InputText class="form-control" @bind-Value="form.Publisher" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Published on</label>
+                                <InputDate class="form-control" @bind-Value="form.PublishedOn" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Language</label>
+                                <InputText class="form-control" @bind-Value="form.Language" placeholder="en, fr, de…" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">ISBN</label>
+                                <InputText class="form-control" @bind-Value="form.Isbn" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header"><strong>Series</strong></div>
+                    <div class="card-body">
+                        <label class="form-label">Series</label>
+                        <div class="position-relative mb-3">
+                            <input class="form-control" type="text"
+                                   value="@seriesInput" @oninput="OnSeriesInput"
+                                   @onfocus="OnSeriesFocus" @onkeydown="OnSeriesKeyDown"
+                                   placeholder="Pick or create a series…" />
+                            @if (selectedSeries is not null)
+                            {
+                                <button type="button" class="btn-close position-absolute top-50 end-0 translate-middle-y me-2"
+                                        title="Clear" aria-label="Clear" @onclick="ClearSeries"></button>
+                            }
+                            @if (showSeriesSuggestions)
+                            {
+                                <ul class="dropdown-menu d-block w-100 mt-1 shadow-sm" style="position: absolute; max-height: 220px; overflow-y: auto; z-index: 50;">
+                                    @foreach (var s in seriesSuggestions)
+                                    {
+                                        <li>
+                                            <button type="button" class="dropdown-item" @onclick="() => SelectSeriesAsync(s.Name)">
+                                                @s.Name
+                                            </button>
+                                        </li>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(seriesInput) && !seriesSuggestions.Any(s => string.Equals(s.Name, seriesInput.Trim(), StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        <li><hr class="dropdown-divider" /></li>
+                                        <li>
+                                            <button type="button" class="dropdown-item" @onclick="() => SelectSeriesAsync(seriesInput!.Trim())">
+                                                <i class="bi bi-plus-lg"></i> Create "<strong>@seriesInput.Trim()</strong>"
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+
+                        @if (selectedSeries is not null)
+                        {
+                            <label class="form-label">Number in series</label>
+                            <InputNumber class="form-control" @bind-Value="form.NumberInSeries" step="0.01" />
+                        }
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header"><strong>Authors</strong></div>
+                    <div class="card-body">
+                        <ChipInput TItem="AuthorDto"
+                                   Label="Authors"
+                                   Selected="selectedAuthors"
+                                   NameOf="@(a => a.Name)"
+                                   SearchAsync="SearchAuthorsAsync"
+                                   OnAddAsync="AddAuthorAsync" />
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header"><strong>Genres</strong></div>
+                    <div class="card-body">
+                        <ChipInput TItem="GenreDto"
+                                   Label="Genres"
+                                   Selected="selectedGenres"
+                                   NameOf="@(g => g.Name)"
+                                   SearchAsync="SearchGenresAsync"
+                                   OnAddAsync="AddGenreAsync" />
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header"><strong>Tags</strong></div>
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap gap-1 mb-2">
+                            @if (selectedTags.Count == 0)
+                            {
+                                <span class="text-secondary small fst-italic">No tags yet.</span>
+                            }
+                            else
+                            {
+                                @foreach (var tag in selectedTags)
+                                {
+                                    <span class="chip chip-tag">
+                                        #@tag
+                                        <button type="button" class="btn-close btn-close-sm ms-1"
+                                                aria-label="Remove" @onclick="() => RemoveTag(tag)"></button>
+                                    </span>
+                                }
+                            }
+                        </div>
+                        <input class="form-control form-control-sm" type="text"
+                               placeholder="Type a tag and press Enter…"
+                               value="@tagInput" @oninput="e => tagInput = e.Value?.ToString() ?? string.Empty"
+                               @onkeydown="OnTagKeyDown" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private BookDto? book;
+    private FormModel? form;
+    private bool loading = true;
+    private bool saving;
+    private string? errorMessage;
+
+    // Authors / Genres are managed as the actual selected DTOs so we already have the IDs
+    // for save without re-resolving them. New entries get an Id of 0 → resolved on save.
+    private readonly List<AuthorDto> selectedAuthors = [];
+    private readonly List<GenreDto> selectedGenres = [];
+    private readonly List<string> selectedTags = [];
+    private string? tagInput;
+
+    // Series picker — single-select with create-on-the-fly. We track the *name* the user
+    // typed/picked here and resolve it to an Id at save time so the user can create new
+    // series without an extra round-trip.
+    private SeriesDto? selectedSeries;
+    private string? seriesInput;
+    private IReadOnlyList<SeriesDto> seriesSuggestions = [];
+    private bool showSeriesSuggestions;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        var result = await BookService.GetByIdAsync(Id);
+        if (!result.IsSuccess || result.Value is null)
+        {
+            book = null;
+            loading = false;
+            return;
+        }
+
+        book = result.Value;
+        form = new FormModel
+        {
+            Title = book.Title,
+            SortTitle = book.SortTitle,
+            Subtitle = book.Subtitle,
+            Description = book.Description,
+            Language = book.Language,
+            Publisher = book.Publisher,
+            Isbn = book.Isbn,
+            PublishedOn = book.PublishedOn,
+            NumberInSeries = book.NumberInSeries,
+        };
+
+        selectedAuthors.Clear();
+        selectedAuthors.AddRange(book.Authors);
+        selectedGenres.Clear();
+        selectedGenres.AddRange(book.Genres);
+        selectedTags.Clear();
+        selectedTags.AddRange(book.Tags);
+        selectedSeries = book.Series;
+        seriesInput = book.Series?.Name;
+
+        loading = false;
+    }
+
+    private async Task<IReadOnlyList<AuthorDto>> SearchAuthorsAsync(string query)
+    {
+        var result = await AuthorService.SearchAsync(query, limit: 20);
+        return result.IsSuccess ? result.Value : [];
+    }
+
+    private async Task AddAuthorAsync(string name)
+    {
+        var result = await AuthorService.GetOrCreateAsync(name);
+        if (result.IsSuccess)
+        {
+            selectedAuthors.Add(result.Value);
+        }
+        else if (Logger.IsEnabled(LogLevel.Warning))
+        {
+            Logger.LogWarning("Failed to add author '{Name}': {Errors}", name, string.Join("; ", result.Errors));
+        }
+    }
+
+    private async Task<IReadOnlyList<GenreDto>> SearchGenresAsync(string query)
+    {
+        var result = await GenreService.SearchAsync(query, limit: 20);
+        return result.IsSuccess ? result.Value : [];
+    }
+
+    private async Task AddGenreAsync(string name)
+    {
+        var result = await GenreService.GetOrCreateAsync(name);
+        if (result.IsSuccess)
+        {
+            selectedGenres.Add(result.Value);
+        }
+    }
+
+    private async Task OnSeriesInput(ChangeEventArgs e)
+    {
+        seriesInput = e.Value?.ToString();
+        showSeriesSuggestions = true;
+        await RefreshSeriesSuggestionsAsync();
+    }
+
+    private async Task OnSeriesFocus()
+    {
+        showSeriesSuggestions = true;
+        await RefreshSeriesSuggestionsAsync();
+    }
+
+    private async Task OnSeriesKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(seriesInput))
+        {
+            await SelectSeriesAsync(seriesInput.Trim());
+        }
+        else if (e.Key == "Escape")
+        {
+            showSeriesSuggestions = false;
+        }
+    }
+
+    private async Task RefreshSeriesSuggestionsAsync()
+    {
+        var result = await SeriesService.SearchAsync(seriesInput, limit: 10);
+        seriesSuggestions = result.IsSuccess ? result.Value : [];
+    }
+
+    private async Task SelectSeriesAsync(string name)
+    {
+        var result = await SeriesService.GetOrCreateAsync(name);
+        if (result.IsSuccess)
+        {
+            selectedSeries = result.Value;
+            seriesInput = result.Value.Name;
+            showSeriesSuggestions = false;
+        }
+    }
+
+    private void ClearSeries()
+    {
+        selectedSeries = null;
+        seriesInput = null;
+        if (form is not null)
+        {
+            form.NumberInSeries = null;
+        }
+    }
+
+    private void OnTagKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(tagInput))
+        {
+            var trimmed = tagInput.Trim().TrimStart('#');
+            if (!string.IsNullOrEmpty(trimmed) &&
+                !selectedTags.Any(t => string.Equals(t, trimmed, StringComparison.OrdinalIgnoreCase)))
+            {
+                selectedTags.Add(trimmed);
+            }
+            tagInput = string.Empty;
+        }
+    }
+
+    private void RemoveTag(string tag) => selectedTags.Remove(tag);
+
+    private async Task SaveAsync()
+    {
+        if (form is null || book is null) return;
+        saving = true;
+        errorMessage = null;
+        try
+        {
+            var request = new UpdateBookRequest
+            {
+                Title = form.Title,
+                SortTitle = string.IsNullOrWhiteSpace(form.SortTitle) ? null : form.SortTitle,
+                Subtitle = string.IsNullOrWhiteSpace(form.Subtitle) ? null : form.Subtitle,
+                Description = string.IsNullOrWhiteSpace(form.Description) ? null : form.Description,
+                Language = string.IsNullOrWhiteSpace(form.Language) ? null : form.Language,
+                Publisher = string.IsNullOrWhiteSpace(form.Publisher) ? null : form.Publisher,
+                Isbn = string.IsNullOrWhiteSpace(form.Isbn) ? null : form.Isbn,
+                PublishedOn = form.PublishedOn,
+                SeriesId = selectedSeries?.Id,
+                NumberInSeries = selectedSeries is null ? null : form.NumberInSeries,
+                AuthorIds = selectedAuthors.Select(a => a.Id).ToList(),
+                GenreIds = selectedGenres.Select(g => g.Id).ToList(),
+                Tags = selectedTags,
+            };
+
+            var result = await BookService.UpdateAsync(Id, request);
+            if (result.IsSuccess)
+            {
+                NavigationManager.NavigateTo($"books/{Id}");
+            }
+            else
+            {
+                errorMessage = result.Errors.FirstOrDefault()
+                    ?? string.Join("; ", result.ValidationErrors.Select(v => v.ErrorMessage))
+                    ?? "Could not save the book.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save metadata for book {BookId}", Id);
+            errorMessage = "Something went wrong saving the book. Check the logs for details.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        [Required, StringLength(512)]
+        public string Title { get; set; } = string.Empty;
+
+        [StringLength(512)]
+        public string? SortTitle { get; set; }
+
+        [StringLength(512)]
+        public string? Subtitle { get; set; }
+
+        public string? Description { get; set; }
+
+        [StringLength(16)]
+        public string? Language { get; set; }
+
+        [StringLength(256)]
+        public string? Publisher { get; set; }
+
+        [StringLength(32)]
+        public string? Isbn { get; set; }
+
+        public DateTime? PublishedOn { get; set; }
+
+        public decimal? NumberInSeries { get; set; }
+    }
+}

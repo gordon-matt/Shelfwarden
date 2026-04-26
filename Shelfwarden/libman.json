@@ -22,6 +22,18 @@
       ]
     },
     {
+      "provider": "jsdelivr",
+      "library": "epubjs@0.3.93",
+      "destination": "wwwroot/lib/epubjs/",
+      "files": [ "dist/epub.min.js" ]
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "jszip@3.10.1",
+      "destination": "wwwroot/lib/jszip/",
+      "files": [ "dist/jszip.min.js" ]
+    },
+    {
       "library": "bootswatch@5.3.3",
       "destination": "wwwroot/lib/bootswatch/dist/",
       "files": [

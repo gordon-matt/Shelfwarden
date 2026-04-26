@@ -3,6 +3,7 @@
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
 @inject IBookService BookService
+@inject IBookmarkService BookmarkService
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 
@@ -32,7 +33,52 @@
                 <i class="bi bi-chevron-right"></i>
             </button>
         }
+        @if (book is not null)
+        {
+            <button class="btn btn-sm btn-outline-secondary" @onclick="AddBookmarkAsync" title="Bookmark this spot">
+                <i class="bi bi-bookmark-plus"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary @(showBookmarks ? "active" : null)"
+                    @onclick="ToggleBookmarks" title="Bookmarks">
+                <i class="bi bi-bookmarks"></i>
+                @if (bookmarks.Count > 0)
+                {
+                    <span class="badge text-bg-secondary ms-1">@bookmarks.Count</span>
+                }
+            </button>
+        }
     </div>
+
+    @if (showBookmarks)
+    {
+        <div class="reader-bookmarks-panel">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <strong>Bookmarks</strong>
+                <button class="btn-close" aria-label="Close" @onclick="() => showBookmarks = false"></button>
+            </div>
+            @if (bookmarks.Count == 0)
+            {
+                <p class="text-secondary small mb-0">No bookmarks yet. Use <i class="bi bi-bookmark-plus"></i> in the toolbar to drop one.</p>
+            }
+            else
+            {
+                <ul class="list-unstyled mb-0">
+                    @foreach (var bm in bookmarks)
+                    {
+                        <li class="bookmark-row">
+                            <button class="btn btn-link p-0 text-start" @onclick="() => GotoBookmarkAsync(bm)" title="Jump to this spot">
+                                <span class="d-block fw-semibold">@(bm.Title ?? DefaultBookmarkTitle(bm))</span>
+                                <span class="d-block text-secondary small">@bm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary border-0" title="Remove" @onclick="() => DeleteBookmarkAsync(bm)">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    }
 
     <div class="reader-viewport">
         @if (loadError is not null)
@@ -105,6 +151,11 @@
     private DotNetObjectReference<Reader>? selfRef;
     private bool jsMounted;
 
+    private readonly List<BookmarkDto> bookmarks = [];
+    private bool showBookmarks;
+    private string? bookmarkError;
+    private string? lastSavedCfi;
+
     protected override async Task OnInitializedAsync()
     {
         var result = await BookService.GetByIdAsync(Id);
@@ -120,6 +171,17 @@
         }
 
         book = result.Value;
+        await LoadBookmarksAsync();
+    }
+
+    private async Task LoadBookmarksAsync()
+    {
+        var result = await BookmarkService.ListAsync(Id);
+        if (result.IsSuccess)
+        {
+            bookmarks.Clear();
+            bookmarks.AddRange(result.Value);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -175,6 +237,7 @@
     public async Task OnProgress(double percentage, int? page, string? cfi)
     {
         progressPercent = percentage;
+        lastSavedCfi = cfi;
         var result = await BookService.SaveProgressAsync(Id, new SaveProgressRequest
         {
             Percentage = Math.Clamp(percentage, 0, 100),
@@ -187,6 +250,93 @@
         }
         await InvokeAsync(StateHasChanged);
     }
+
+    private void ToggleBookmarks() => showBookmarks = !showBookmarks;
+
+    private async Task AddBookmarkAsync()
+    {
+        if (book is null) return;
+        bookmarkError = null;
+
+        // EPUB: ask the renderer for the current spot. Fall back to the last CFI we saved
+        // via OnProgress in case the JS side hasn't been initialised yet.
+        // PDF: we don't get progress callbacks, so the bookmark uses the page count when
+        // marked-as-read or the cover (page 1) when nothing is known.
+        int? pageNumber = null;
+        string? cfi = null;
+        if (book.FileFormat == EbookFormat.Epub)
+        {
+            try
+            {
+                var location = await JS.InvokeAsync<EpubLocation?>("shelfwardenReader.getEpubLocation");
+                cfi = location?.Cfi ?? lastSavedCfi;
+            }
+            catch (JSDisconnectedException) { }
+
+            if (string.IsNullOrEmpty(cfi))
+            {
+                bookmarkError = "Open the book to a page before bookmarking.";
+                return;
+            }
+        }
+        else if (book.FileFormat == EbookFormat.Pdf)
+        {
+            // Without pdf.js we can't know the live page; ask the user (browser prompt is OK
+            // for v1 — a self-hosted pdf.js is on the roadmap).
+            string? raw = await JS.InvokeAsync<string?>("prompt", "Page number to bookmark:", "");
+            if (string.IsNullOrWhiteSpace(raw) || !int.TryParse(raw, out int p) || p <= 0)
+            {
+                return;
+            }
+            pageNumber = p;
+        }
+
+        var request = new CreateBookmarkRequest
+        {
+            Title = $"Page @ {DateTime.Now:HH:mm}",
+            PageNumber = pageNumber,
+            Location = cfi,
+        };
+        var result = await BookmarkService.CreateAsync(Id, request);
+        if (result.IsSuccess)
+        {
+            bookmarks.Add(result.Value);
+            showBookmarks = true;
+        }
+        else
+        {
+            bookmarkError = result.Errors.FirstOrDefault() ?? "Could not save bookmark.";
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task GotoBookmarkAsync(BookmarkDto bm)
+    {
+        if (book is null) return;
+        if (book.FileFormat == EbookFormat.Epub && !string.IsNullOrEmpty(bm.Location))
+        {
+            await JS.InvokeVoidAsync("shelfwardenReader.gotoEpub", bm.Location);
+        }
+        else if (book.FileFormat == EbookFormat.Pdf && bm.PageNumber.HasValue)
+        {
+            await JS.InvokeVoidAsync("shelfwardenReader.gotoPdfPage", bm.PageNumber.Value);
+        }
+        showBookmarks = false;
+    }
+
+    private async Task DeleteBookmarkAsync(BookmarkDto bm)
+    {
+        var result = await BookmarkService.DeleteAsync(bm.Id);
+        if (result.IsSuccess)
+        {
+            bookmarks.Remove(bm);
+        }
+    }
+
+    private static string DefaultBookmarkTitle(BookmarkDto bm)
+        => bm.PageNumber.HasValue ? $"Page {bm.PageNumber}" : "Saved spot";
+
+    private sealed record EpubLocation(string? Cfi, double? Percent);
 
     private async Task MarkPdfAsReadAsync()
     {

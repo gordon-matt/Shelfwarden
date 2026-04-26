@@ -1,6 +1,7 @@
 @page "/books/{Id:int}"
 @attribute [Authorize]
 @inject IBookService BookService
+@inject IBookmarkService BookmarkService
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(book?.Title ?? "Book") - Shelfwarden</PageTitle>
@@ -133,12 +134,43 @@ else
                 <p>@((MarkupString)book.Description)</p>
             }
 
+            @if (bookmarks.Count > 0)
+            {
+                <h3 class="h6 mt-3 mb-2">
+                    <i class="bi bi-bookmarks"></i> Your bookmarks
+                    <span class="badge text-bg-secondary ms-1">@bookmarks.Count</span>
+                </h3>
+                <ul class="list-unstyled mb-3">
+                    @foreach (var bm in bookmarks)
+                    {
+                        <li class="bookmark-row">
+                            <a class="btn btn-link p-0 text-start" href="@($"read/{book.Id}")">
+                                <span class="d-block fw-semibold">@(bm.Title ?? DefaultBookmarkTitle(bm))</span>
+                                <span class="d-block text-secondary small">
+                                    @bm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                    @if (bm.PageNumber.HasValue)
+                                    {
+                                        <text> · Page @bm.PageNumber</text>
+                                    }
+                                </span>
+                            </a>
+                            <button class="btn btn-sm btn-outline-secondary border-0" title="Remove" @onclick="() => RemoveBookmarkAsync(bm)">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+
             <div class="mt-4 d-flex flex-wrap gap-2">
                 <a class="btn btn-primary" href="@($"read/{book.Id}")">
                     <i class="bi bi-book-half"></i> Read
                 </a>
                 <a class="btn btn-outline-secondary" href="@($"covers/{book.Id}")" target="_blank" rel="noopener">
                     <i class="bi bi-image"></i> View cover
+                </a>
+                <a class="btn btn-outline-secondary" href="@($"books/{book.Id}/edit")">
+                    <i class="bi bi-pencil"></i> Edit
                 </a>
                 <AuthorizeView Roles="@Constants.Roles.Administrator">
                     <Authorized>
@@ -158,12 +190,24 @@ else
 
     private BookDto? book;
     private bool loading = true;
+    private readonly List<BookmarkDto> bookmarks = [];
 
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
         var result = await BookService.GetByIdAsync(Id);
         book = result.IsSuccess ? result.Value : null;
+
+        bookmarks.Clear();
+        if (book is not null)
+        {
+            var bmResult = await BookmarkService.ListAsync(Id);
+            if (bmResult.IsSuccess)
+            {
+                bookmarks.AddRange(bmResult.Value);
+            }
+        }
+
         loading = false;
     }
 
@@ -175,6 +219,18 @@ else
             NavigationManager.NavigateTo("books");
         }
     }
+
+    private async Task RemoveBookmarkAsync(BookmarkDto bm)
+    {
+        var result = await BookmarkService.DeleteAsync(bm.Id);
+        if (result.IsSuccess)
+        {
+            bookmarks.Remove(bm);
+        }
+    }
+
+    private static string DefaultBookmarkTitle(BookmarkDto bm)
+        => bm.PageNumber.HasValue ? $"Page {bm.PageNumber}" : "Saved spot";
 
     private static string FormatBytes(long bytes)
     {
