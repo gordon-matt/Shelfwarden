@@ -7,11 +7,21 @@
 
 @if (loading)
 {
-    <p><em>Loading...</em></p>
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading book…</div>
+    </div>
 }
 else if (book is null)
 {
-    <div class="alert alert-warning">Book not found. <a href="books">Back to books</a></div>
+    <div class="empty-state">
+        <i class="bi bi-question-circle empty-icon"></i>
+        <h3>Book not found</h3>
+        <p>It may have been deleted, or moved out of its library on disk.</p>
+        <a class="btn btn-outline-secondary" href="books">
+            <i class="bi bi-arrow-left"></i> Back to books
+        </a>
+    </div>
 }
 else
 {
@@ -97,20 +107,22 @@ else
 
             @if (book.Genres.Count > 0)
             {
-                <p class="mb-2">
+                <p class="mb-2 d-flex flex-wrap gap-1">
                     @foreach (var g in book.Genres)
                     {
-                        <a class="badge text-bg-secondary text-decoration-none me-1" href="@($"books?genreId={g.Id}")">@g.Name</a>
+                        <a class="chip chip-genre" href="@($"books?genreId={g.Id}")">
+                            <i class="bi bi-tag"></i> @g.Name
+                        </a>
                     }
                 </p>
             }
 
             @if (book.Tags.Count > 0)
             {
-                <p class="mb-3">
+                <p class="mb-3 d-flex flex-wrap gap-1">
                     @foreach (var t in book.Tags)
                     {
-                        <span class="badge text-bg-light border me-1">#@t</span>
+                        <span class="chip chip-tag">#@t</span>
                     }
                 </p>
             }
@@ -121,13 +133,16 @@ else
                 <p>@((MarkupString)book.Description)</p>
             }
 
-            <div class="mt-3">
-                <button class="btn btn-primary" disabled>
-                    <i class="bi bi-book-half"></i> Read (coming soon)
-                </button>
+            <div class="mt-4 d-flex flex-wrap gap-2">
+                <a class="btn btn-primary" href="@($"read/{book.Id}")">
+                    <i class="bi bi-book-half"></i> Read
+                </a>
+                <a class="btn btn-outline-secondary" href="@($"covers/{book.Id}")" target="_blank" rel="noopener">
+                    <i class="bi bi-image"></i> View cover
+                </a>
                 <AuthorizeView Roles="@Constants.Roles.Administrator">
                     <Authorized>
-                        <button class="btn btn-outline-danger ms-2" @onclick="DeleteAsync">
+                        <button class="btn btn-outline-danger" @onclick="DeleteAsync">
                             <i class="bi bi-trash"></i> Delete
                         </button>
                     </Authorized>

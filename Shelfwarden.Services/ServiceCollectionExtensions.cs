@@ -25,6 +25,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<ISeriesService, SeriesService>();
             services.AddScoped<IGenreService, GenreService>();
             services.AddScoped<IServerSettingsService, ServerSettingsService>();
+            services.AddScoped<IDashboardService, DashboardService>();
 
             // Storage + scanner. The metadata extractors are stateless so they can be singletons;
             // ScannerService itself is scoped because it pulls in EF Core repositories.

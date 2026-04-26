@@ -1,14 +1,15 @@
 @inject IServerSettingsService ServerSettings
 @inject IJSRuntime JS
 
-@* Theme is a server-wide setting so only admins can change it. *@
+@* Theme is a server-wide setting so only admins can change it. Rendered as a self-contained
+   Bootstrap dropdown so it works inside the topbar (or anywhere else we need it). *@
 <AuthorizeView Roles="@Constants.Roles.Administrator">
     <Authorized>
-        <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" role="button"
-               data-bs-toggle="dropdown" aria-expanded="false" title="Theme">
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary border-0" type="button"
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Theme">
                 <i class="bi bi-palette"></i>
-            </a>
+            </button>
             <ul class="dropdown-menu dropdown-menu-end">
                 <li><h6 class="dropdown-header">Bootswatch theme</h6></li>
                 @foreach (string t in Constants.BootswatchThemes.All)
@@ -26,7 +27,7 @@
                     </li>
                 }
             </ul>
-        </li>
+        </div>
     </Authorized>
 </AuthorizeView>
 

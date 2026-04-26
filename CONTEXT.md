@@ -181,26 +181,31 @@ Implemented in this session:
 
 Done:
 - ✅ **Library scanner** — `IScannerService` + Hangfire `scan` queue, EPUB (`VersOne.Epub`) and PDF (`UglyToad.PdfPig`) metadata extraction, cover image persistence, change detection (size + last-modified), author/series/genre auto-resolution.
-- ✅ **Search / filters** on `/books` (library, author, series, genre + title query + sort).
-- ✅ **Theme picker** — `IServerSettingsService`-backed Bootswatch picker in the nav menu, hot-swaps the stylesheet without a page reload (admin-only).
+- ✅ **Search / filters** on `/books` (library, author, series, genre + title query + sort). Topbar search posts `?q=` straight into the books grid.
+- ✅ **Theme picker** — `IServerSettingsService`-backed Bootswatch picker in the topbar, hot-swaps the stylesheet without a page reload (admin-only).
 - ✅ **Per-library scan status indicator** — Combines `Library.LastScannedAt` with live Hangfire monitoring (`IScanStatusService`); badge auto-refreshes every 3s on the libraries page.
 - ✅ **Cover serving** — `CoversController` streams `wwwroot`-external cover bytes from `Storage:CoversPath` with 7-day cache.
+- ✅ **Kavita-style UI shell** — Fixed left `Sidebar.razor` (brand + browse + per-user library list + admin), sticky `Topbar.razor` (search + theme picker), `MainLayout.razor` runs them through an `app-shell` flex container. New CSS in `wwwroot/css/site.css`: stat cards, library tiles, chip badges, hover overlays on book covers, format badges, progress bars baked onto the cover, slim scrollbars, empty-state pattern. All themed via Bootstrap CSS variables — works with every Bootswatch theme.
+- ✅ **Home dashboard** — `IDashboardService` aggregates server stats (libraries / books / authors / finished count), "Continue Reading" carousel (per-user, ordered by `LastReadAt`), and "Recently Added" carousel.
+- ✅ **EPUB reader** — `Reader.razor` at `/read/{id}` renders an `epub.js` viewer (loaded lazily from CDN) inside `#epub-viewer`. Live-tracks position via the `relocated` event, debounces, and pushes percentage + CFI back through a `DotNetObjectReference` to `IBookService.SaveProgressAsync`. Resumes from saved CFI on next open. JS interop module: `wwwroot/js/reader.js`.
+- ✅ **PDF reader** — Same `/read/{id}` page falls back to a native browser `<iframe>` against `/files/{id}` for PDFs (Chromium / Firefox / Safari all ship a native viewer). Manual "Mark as read" button persists 100% completion. Page-level auto-progress is a follow-up using `pdf.js` directly.
+- ✅ **Book file streaming** — `BookFilesController` at `/files/{bookId}` streams the raw EPUB / PDF bytes, range-enabled so big files don't get buffered. Auth-required so the URL isn't a public download link.
+- ✅ **Reading progress hookup** — `IBookService.GetProgressAsync` exposes the calling user's saved location for a book; the reader uses it to resume; the dashboard's "Continue Reading" surfaces partially-read books.
 
 Next:
-1. **EPUB reader** — embedded Blazor reader using one of: `epub.js` via interop, or VersOne.Epub server-side rendering of pages similar to Kavita's approach.
-2. **PDF reader** — embedded `pdf.js` viewer.
-3. **Reading progress + bookmarks UI.**
-4. **Collections + Reading Lists UI.**
-5. **First-run wizard** (`/setup`): admin user creation + initial library config (uses the existing `setup.complete` server setting).
-6. **Generate the missing migrations** for SQL Server, Postgres, MySQL. SQLite already has its `InitialCreate` migration. To regenerate after model changes:
+1. **Bookmarks UI** — surface the `Bookmark` entity + reader-side "add bookmark at current location" / jump list.
+2. **Collections + Reading Lists UI.**
+3. **First-run wizard** (`/setup`): admin user creation + initial library config (uses the existing `setup.complete` server setting).
+4. **Self-host pdf.js** so PDF progress can be tracked per page (and so we don't depend on the browser's built-in viewer).
+5. **Generate the missing migrations** for SQL Server, Postgres, MySQL. SQLite already has its `InitialCreate` migration. To regenerate after model changes:
 
    ```powershell
    dotnet ef migrations add <Name> -p Shelfwarden.Data.Sqlite -s Shelfwarden -c Shelfwarden.Data.Sqlite.ApplicationDbContext --output-dir Migrations
    ```
 
    Note: the EF 10.0.6+ tooling needs `Microsoft.EntityFrameworkCore.Design` referenced on the **startup project** (`Shelfwarden`) too, otherwise `dotnet ef` fails with `MissingMethodException: AbstractionsStrings.ArgumentIsEmpty(Object)` (see [efcore#38107](https://github.com/dotnet/efcore/issues/38107)).
-7. **Integration tests** for the auth-mode switch, scanner, reader.
-8. **Recurring scans** — schedule each library's scan via Hangfire `RecurringJob` instead of (or in addition to) on-demand triggering.
+6. **Integration tests** for the auth-mode switch, scanner, reader.
+7. **Recurring scans** — schedule each library's scan via Hangfire `RecurringJob` instead of (or in addition to) on-demand triggering.
 
 ## Build / run cheatsheet
 
@@ -220,8 +225,11 @@ dotnet test
 
 ## Notes for future Cursor sessions
 
-- The Bootswatch theme is loaded from `wwwroot/lib/bootswatch/dist/<theme>/bootstrap.min.css`. Default is `flatly`. To swap themes, change `<ThemeStylesheet />` in `MainLayout.razor` (driven by `IServerSettingsService` later).
-- Avoid baking colors into custom CSS. Use Bootstrap utility classes (`text-primary`, `bg-body-tertiary`, `border-subtle`, etc.) and CSS variables (`--bs-primary`) so theme swaps propagate.
+- The Bootswatch theme is loaded from `wwwroot/lib/bootswatch/dist/<theme>/bootstrap.min.css`. Default is `flatly`. The `<link id="theme-stylesheet">` in `Components/App.razor` is server-rendered with the active theme, and `wwwroot/js/shelfwarden.js` provides `setThemeHref` so admins can swap themes via the topbar's `ThemePicker.razor` without a full reload.
+- Avoid baking colors into custom CSS. Use Bootstrap utility classes (`text-primary`, `bg-body-tertiary`, `border-subtle`, etc.) and CSS variables (`--bs-primary`, `--bs-emphasis-color`, `--bs-tertiary-bg`, etc.) so theme swaps propagate.
+- The app shell is in `Components/Layout/MainLayout.razor` → `Sidebar.razor` (left) + `Topbar.razor` (top) inside an `.app-shell` flex container. `wwwroot/css/site.css` defines all the layout / card / chip / reader styles. Mobile collapses the sidebar via the `topbar-toggle` button.
+- The reader (`/read/{id}`) loads epub.js lazily from a CDN on first use and renders into `#epub-viewer`. PDFs are an iframe against `/files/{id}` — file streaming goes through `BookFilesController` with `enableRangeProcessing: true`. Progress flows: JS `relocated` event → `DotNetObjectReference.OnProgress(percent, page, cfi)` → `IBookService.SaveProgressAsync` → `BookProgress` table.
+- Identity Razor pages live under `Areas/Identity/Pages/` with custom `_Layout.cshtml` so we don't depend on the embedded `_LoginPartial` (which Blazor Server doesn't ship). The custom layout reads the active theme via `IServerSettingsService`.
 - Keep services provider-agnostic. They depend on `IRepository<T>`, never on `ApplicationDbContext` directly.
 - New entities: add the POCO + `IEntityTypeConfiguration` to `Shelfwarden.Data\Entities\<Name>.cs`, add a `DbSet<>` to `ApplicationDbContextBase`, run `dotnet ef migrations add <Name> --project Shelfwarden.Data.Sqlite --startup-project Shelfwarden`.
 - When generating migrations for the non-Sqlite providers later, set `Database:Provider` to that provider in `appsettings.Development.json` first so the `--startup-project` resolves the right factory.

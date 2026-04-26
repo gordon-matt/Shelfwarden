@@ -1,0 +1,239 @@
+@page "/read/{Id:int}"
+@attribute [Authorize]
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IBookService BookService
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>@(book?.Title ?? "Reader") - Shelfwarden</PageTitle>
+
+@* The reader takes over the full viewport. We render outside the normal sidebar layout
+   feel by using `position: fixed` styles in site.css; the sidebar is still mounted under
+   us so links via the back button still work. *@
+<div class="reader-shell">
+    <div class="reader-topbar">
+        <a class="btn btn-sm btn-outline-secondary border-0" href="@($"books/{Id}")" title="Back">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div class="reader-title">
+            @(book?.Title ?? "Loading…")
+            @if (book is not null && book.Authors.Count > 0)
+            {
+                <span class="text-secondary small ms-2">@book.Authors[0].Name</span>
+            }
+        </div>
+        @if (book?.FileFormat == EbookFormat.Epub)
+        {
+            <button class="btn btn-sm btn-outline-secondary" @onclick="PrevPage" title="Previous page (←)">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="NextPage" title="Next page (→)">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        }
+    </div>
+
+    <div class="reader-viewport">
+        @if (loadError is not null)
+        {
+            <div class="empty-state">
+                <i class="bi bi-exclamation-triangle empty-icon"></i>
+                <h3>@loadError</h3>
+                <a class="btn btn-outline-secondary" href="books"><i class="bi bi-arrow-left"></i> Back to books</a>
+            </div>
+        }
+        else if (book is null)
+        {
+            <div class="text-center text-secondary py-5">
+                <div class="spinner-border" role="status"></div>
+                <div class="mt-2">Loading book…</div>
+            </div>
+        }
+        else if (book.FileFormat == EbookFormat.Epub)
+        {
+            <div id="epub-viewer" @onkeydown="HandleKeyDown" tabindex="0"></div>
+        }
+        else if (book.FileFormat == EbookFormat.Pdf)
+        {
+            <iframe id="pdf-viewer" title="@book.Title"></iframe>
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="bi bi-file-earmark-x empty-icon"></i>
+                <h3>Unsupported format</h3>
+                <p>Shelfwarden currently supports EPUB and PDF.</p>
+            </div>
+        }
+    </div>
+
+    <div class="reader-bottombar">
+        @if (book?.FileFormat == EbookFormat.Epub)
+        {
+            <span class="text-secondary">
+                <i class="bi bi-bookmark"></i>
+                @(progressPercent.HasValue ? $"{progressPercent.Value:0}% read" : "Tracking progress…")
+            </span>
+            @if (lastSavedAt.HasValue)
+            {
+                <span class="ms-auto text-secondary small">
+                    <i class="bi bi-cloud-check"></i> Saved @FormatRelative(lastSavedAt.Value)
+                </span>
+            }
+        }
+        else if (book?.FileFormat == EbookFormat.Pdf)
+        {
+            <span class="text-secondary">
+                <i class="bi bi-info-circle"></i> Use your browser's PDF controls to navigate
+            </span>
+            <button class="btn btn-sm btn-outline-primary ms-auto" @onclick="MarkPdfAsReadAsync" disabled="@savingPdf">
+                <i class="bi bi-check2-circle"></i> Mark as read
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private BookDto? book;
+    private string? loadError;
+    private double? progressPercent;
+    private DateTime? lastSavedAt;
+    private bool savingPdf;
+    private DotNetObjectReference<Reader>? selfRef;
+    private bool jsMounted;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await BookService.GetByIdAsync(Id);
+        if (!result.IsSuccess)
+        {
+            loadError = result.Status switch
+            {
+                ResultStatus.NotFound => "Book not found",
+                ResultStatus.Unauthorized => "You need to sign in to read books",
+                _ => "Failed to load book",
+            };
+            return;
+        }
+
+        book = result.Value;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (book is null || jsMounted) return;
+        jsMounted = true;
+
+        string fileUrl = $"/files/{Id}";
+
+        if (book.FileFormat == EbookFormat.Epub)
+        {
+            // Resume from saved CFI if we have one, otherwise start from the beginning.
+            string? resumeCfi = null;
+            var progressResult = await BookService.GetProgressAsync(Id);
+            if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
+            {
+                resumeCfi = dto.Location;
+                progressPercent = dto.Percentage;
+            }
+
+            selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("shelfwardenReader.mountEpub", "epub-viewer", fileUrl, selfRef, resumeCfi);
+        }
+        else if (book.FileFormat == EbookFormat.Pdf)
+        {
+            await JS.InvokeVoidAsync("shelfwardenReader.mountPdf", "pdf-viewer", fileUrl);
+
+            // Restore percentage on the bottom bar so the user can see they've been here.
+            var progressResult = await BookService.GetProgressAsync(Id);
+            if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
+            {
+                progressPercent = dto.Percentage;
+                lastSavedAt = dto.LastReadAt;
+            }
+        }
+    }
+
+    private async Task PrevPage() => await JS.InvokeVoidAsync("shelfwardenReader.prevPage");
+    private async Task NextPage() => await JS.InvokeVoidAsync("shelfwardenReader.nextPage");
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowLeft") await PrevPage();
+        else if (e.Key == "ArrowRight") await NextPage();
+    }
+
+    /// <summary>
+    /// Called from JS via <see cref="DotNetObjectReference"/> whenever the rendered location
+    /// changes (debounced on the JS side). We persist progress immediately so the user can
+    /// resume from any device.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnProgress(double percentage, int? page, string? cfi)
+    {
+        progressPercent = percentage;
+        var result = await BookService.SaveProgressAsync(Id, new SaveProgressRequest
+        {
+            Percentage = Math.Clamp(percentage, 0, 100),
+            PageNumber = page,
+            Location = cfi,
+        });
+        if (result.IsSuccess)
+        {
+            lastSavedAt = result.Value.LastReadAt;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task MarkPdfAsReadAsync()
+    {
+        savingPdf = true;
+        try
+        {
+            var result = await BookService.SaveProgressAsync(Id, new SaveProgressRequest
+            {
+                Percentage = 100,
+                PageNumber = book?.PageCount,
+            });
+            if (result.IsSuccess)
+            {
+                progressPercent = 100;
+                lastSavedAt = result.Value.LastReadAt;
+            }
+        }
+        finally
+        {
+            savingPdf = false;
+        }
+    }
+
+    private static string FormatRelative(DateTime utc)
+    {
+        var delta = DateTime.UtcNow - utc;
+        if (delta < TimeSpan.FromSeconds(5)) return "just now";
+        if (delta < TimeSpan.FromMinutes(1)) return $"{(int)delta.TotalSeconds}s ago";
+        if (delta < TimeSpan.FromHours(1)) return $"{(int)delta.TotalMinutes}m ago";
+        return utc.ToLocalTime().ToString("HH:mm");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("shelfwardenReader.disposeEpub");
+        }
+        catch (JSDisconnectedException)
+        {
+            // Browser closed the circuit before we got here — nothing to clean up.
+        }
+        catch (Exception)
+        {
+            // The reader script may not have loaded if we errored early; swallow rather
+            // than throwing from Dispose.
+        }
+        selfRef?.Dispose();
+    }
+}

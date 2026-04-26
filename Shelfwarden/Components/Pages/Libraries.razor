@@ -20,12 +20,24 @@
 
 @if (libraries is null)
 {
-    <p><em>Loading...</em></p>
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading libraries…</div>
+    </div>
 }
 else if (libraries.Count == 0)
 {
-    <div class="alert alert-info">
-        No libraries yet. Administrators can <a href="libraries/new">create a library</a> to start adding books.
+    <div class="empty-state">
+        <i class="bi bi-collection empty-icon"></i>
+        <h3>No libraries yet</h3>
+        <p>Administrators can create a library pointed at one or more folders to start indexing books.</p>
+        <AuthorizeView Roles="@Constants.Roles.Administrator">
+            <Authorized>
+                <a class="btn btn-primary" href="libraries/new">
+                    <i class="bi bi-plus-lg"></i> Create a library
+                </a>
+            </Authorized>
+        </AuthorizeView>
     </div>
 }
 else
@@ -35,23 +47,26 @@ else
         {
             var status = GetStatus(lib.Id);
             <div class="col-md-6 col-lg-4">
-                <div class="card h-100">
+                <div class="library-tile">
+                    <a href="@($"libraries/{lib.Id}")" class="library-tile-banner text-decoration-none">
+                        <i class="bi bi-bookshelf"></i>
+                    </a>
                     <div class="card-body">
-                        <h5 class="card-title d-flex justify-content-between align-items-start">
-                            <a href="@($"libraries/{lib.Id}")" class="text-decoration-none">@lib.Name</a>
+                        <h5 class="card-title d-flex justify-content-between align-items-start mb-2">
+                            <a href="@($"libraries/{lib.Id}")" class="text-decoration-none text-reset">@lib.Name</a>
                             @RenderStatusBadge(status)
                         </h5>
                         @if (!string.IsNullOrEmpty(lib.Description))
                         {
-                            <p class="card-text small text-body-secondary">@lib.Description</p>
+                            <p class="card-text small text-body-secondary mb-2">@lib.Description</p>
                         }
-                        <p class="card-text small">
-                            <i class="bi bi-book"></i> @lib.BookCount book@(lib.BookCount == 1 ? "" : "s")
+                        <p class="card-text small mb-2">
+                            <span class="chip"><i class="bi bi-book"></i> @lib.BookCount book@(lib.BookCount == 1 ? "" : "s")</span>
                             @if (lib.LastScannedAt.HasValue)
                             {
-                                <span class="ms-2 text-body-secondary"
+                                <span class="chip ms-1"
                                       title="@lib.LastScannedAt.Value.ToString("yyyy-MM-dd HH:mm:ss")">
-                                    <i class="bi bi-clock-history"></i> Last scan: @FormatRelative(lib.LastScannedAt.Value)
+                                    <i class="bi bi-clock-history"></i> @FormatRelative(lib.LastScannedAt.Value)
                                 </span>
                             }
                         </p>
@@ -60,7 +75,7 @@ else
                             <ul class="list-unstyled small mb-0 text-body-secondary">
                                 @foreach (var f in lib.Folders)
                                 {
-                                    <li><i class="bi bi-folder"></i> @f.Path</li>
+                                    <li class="text-truncate" title="@f.Path"><i class="bi bi-folder me-1"></i>@f.Path</li>
                                 }
                             </ul>
                         }

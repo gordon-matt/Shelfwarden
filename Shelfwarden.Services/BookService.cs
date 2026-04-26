@@ -165,6 +165,27 @@ public class BookService(
         return Result.Success();
     }
 
+    public async Task<Result<BookProgressDto?>> GetProgressAsync(int id, CancellationToken cancellationToken = default)
+    {
+        string? userId = userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Result<BookProgressDto?>.Unauthorized();
+        }
+
+        var existing = await progressRepository.FindOneAsync(new SearchOptions<BookProgress>
+        {
+            Query = p => p.BookId == id && p.UserId == userId,
+            CancellationToken = cancellationToken,
+        });
+
+        BookProgressDto? dto = existing is null
+            ? null
+            : new BookProgressDto(existing.BookId, existing.Percentage, existing.PageNumber, existing.Location, existing.LastReadAt);
+
+        return Result<BookProgressDto?>.Success(dto);
+    }
+
     public async Task<Result<BookProgressDto>> SaveProgressAsync(int id, SaveProgressRequest request, CancellationToken cancellationToken = default)
     {
         string? userId = userContext.GetCurrentUserId();

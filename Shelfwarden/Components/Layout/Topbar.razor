@@ -1,0 +1,39 @@
+@using Microsoft.AspNetCore.Components.Routing
+@inject NavigationManager Nav
+
+<div class="app-topbar">
+    <button type="button" class="topbar-toggle" @onclick="OnToggleSidebar"
+            aria-label="Toggle sidebar" title="Menu">
+        <i class="bi bi-list"></i>
+    </button>
+
+    <form class="topbar-search" @onsubmit="SubmitSearch" @onsubmit:preventDefault>
+        <div class="input-group input-group-sm">
+            <span class="input-group-text bg-body-tertiary border-end-0">
+                <i class="bi bi-search"></i>
+            </span>
+            <input type="search" class="form-control border-start-0" placeholder="Search books, authors, series..."
+                   @bind="searchTerm" @bind:event="oninput" />
+            <button class="btn btn-primary" type="submit" disabled="@string.IsNullOrWhiteSpace(searchTerm)">
+                Go
+            </button>
+        </div>
+    </form>
+
+    <div class="ms-auto d-flex align-items-center gap-2">
+        <ThemePicker />
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnToggleSidebar { get; set; }
+
+    private string? searchTerm;
+
+    private void SubmitSearch()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm)) return;
+        var encoded = Uri.EscapeDataString(searchTerm.Trim());
+        Nav.NavigateTo($"books?q={encoded}");
+    }
+}

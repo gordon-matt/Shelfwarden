@@ -9,7 +9,13 @@
 
 <PageTitle>Books - Shelfwarden</PageTitle>
 
-<h1>Books</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Books</h1>
+    @if (results is not null)
+    {
+        <span class="text-secondary small">@results.TotalCount result@(results.TotalCount == 1 ? "" : "s")</span>
+    }
+</div>
 
 <div class="row g-2 mb-3">
     <div class="col-md-6">
@@ -91,11 +97,33 @@
 
 @if (results is null)
 {
-    <p><em>Loading...</em></p>
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading books…</div>
+    </div>
 }
 else if (results.Items.Count == 0)
 {
-    <div class="alert alert-info">No books match the current filters.</div>
+    <div class="empty-state">
+        <i class="bi bi-search empty-icon"></i>
+        <h3>No matching books</h3>
+        <p>
+            @if (HasActiveFilters)
+            {
+                <span>Try clearing some filters or running a library scan to import more books.</span>
+            }
+            else
+            {
+                <span>You don't have any books yet. <a href="libraries">Add a library</a> to get started.</span>
+            }
+        </p>
+        @if (HasActiveFilters)
+        {
+            <button class="btn btn-outline-secondary" @onclick="ClearFiltersAsync">
+                <i class="bi bi-x-circle"></i> Clear filters
+            </button>
+        }
+    </div>
 }
 else
 {
@@ -128,6 +156,9 @@ else
 }
 
 @code {
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? QueryFromUrl { get; set; }
+
     private PagedList<BookListItemDto>? results;
     private string? query;
     private string libraryId = "";
@@ -165,7 +196,17 @@ else
         if (authorsTask.Result.IsSuccess) authors = authorsTask.Result.Value;
         if (seriesTask.Result.IsSuccess) series = seriesTask.Result.Value;
         if (genresTask.Result.IsSuccess) genres = genresTask.Result.Value;
+    }
 
+    protected override async Task OnParametersSetAsync()
+    {
+        // The topbar search posts its term as ?q=… — pick that up so search drops the user
+        // straight onto a filtered books grid.
+        if (!string.IsNullOrWhiteSpace(QueryFromUrl) && QueryFromUrl != query)
+        {
+            query = QueryFromUrl;
+            pageNumber = 1;
+        }
         await LoadAsync();
     }
 

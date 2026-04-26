@@ -1,39 +1,253 @@
 /*
- * Custom styles for Shelfwarden.
- * Avoid hard-coded colors. Prefer Bootstrap CSS variables (--bs-*) so the app
- * can swap to any Bootswatch theme without code changes.
+ * Shelfwarden custom styles. Kavita-inspired layout (fixed sidebar + content) layered on
+ * top of whatever Bootswatch theme is active. We rely on Bootstrap CSS variables (--bs-*)
+ * everywhere so swapping themes (light/dark) doesn't require a CSS rebuild.
  */
 
 html,
 body {
     height: 100%;
+    overflow-x: hidden;
 }
 
-.page {
+body {
     background-color: var(--bs-body-bg);
     color: var(--bs-body-color);
 }
 
-main {
-    min-height: calc(100vh - 130px);
+/* ──────────────────────────────────────────────────────────────────────────
+   App shell — fixed sidebar + scrollable content
+   ────────────────────────────────────────────────────────────────────────── */
+
+.app-shell {
+    display: flex;
+    min-height: 100vh;
 }
 
-/* Book cards */
-.book-card {
-    background-color: var(--bs-body-bg);
-    border: 1px solid var(--bs-border-color);
-    border-radius: var(--bs-border-radius);
-    transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
-    overflow: hidden;
-    height: 100%;
+.app-sidebar {
+    width: 240px;
+    flex: 0 0 240px;
+    background: var(--bs-tertiary-bg);
+    border-right: 1px solid var(--bs-border-color);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    transition: transform 200ms ease, margin-left 200ms ease;
+    z-index: 1030;
+}
+
+.app-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--bs-emphasis-color);
+    border-bottom: 1px solid var(--bs-border-color);
+    text-decoration: none;
+}
+
+    .app-sidebar-brand:hover {
+        color: var(--bs-emphasis-color);
+    }
+
+    .app-sidebar-brand i {
+        color: var(--bs-primary);
+        font-size: 1.4rem;
+    }
+
+.app-sidebar-section {
+    padding: 1rem 0.75rem 0.5rem 0.75rem;
+}
+
+.app-sidebar-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    padding: 0 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.app-sidebar-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+    .app-sidebar-nav .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.5rem 0.85rem;
+        border-radius: var(--bs-border-radius);
+        color: var(--bs-body-color);
+        font-size: 0.92rem;
+    }
+
+        .app-sidebar-nav .nav-link i {
+            font-size: 1.05rem;
+            width: 1.25rem;
+            text-align: center;
+            color: var(--bs-secondary-color);
+        }
+
+        .app-sidebar-nav .nav-link:hover {
+            background-color: var(--bs-secondary-bg);
+        }
+
+        .app-sidebar-nav .nav-link.active {
+            background-color: var(--bs-primary-bg-subtle);
+            color: var(--bs-primary-text-emphasis);
+            font-weight: 600;
+        }
+
+            .app-sidebar-nav .nav-link.active i {
+                color: var(--bs-primary);
+            }
+
+.app-sidebar-footer {
+    margin-top: auto;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--bs-border-color);
+    font-size: 0.85rem;
+}
+
+/* Mobile — sidebar slides in/out from the left */
+@media (max-width: 767.98px) {
+    .app-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        margin-left: -100%;
+        width: 80%;
+        max-width: 280px;
+    }
+
+    .app-sidebar.open {
+        margin-left: 0;
+        box-shadow: 0 0 30px rgba(0, 0, 0, 0.4);
+    }
+}
+
+.app-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 1025;
+    display: none;
+}
+
+@media (max-width: 767.98px) {
+    .app-sidebar-backdrop.show {
+        display: block;
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Main content area
+   ────────────────────────────────────────────────────────────────────────── */
+
+.app-main {
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
     flex-direction: column;
 }
 
+.app-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    background-color: var(--bs-body-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+    position: sticky;
+    top: 0;
+    z-index: 1010;
+}
+
+.app-topbar .topbar-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--bs-body-color);
+    font-size: 1.3rem;
+}
+
+@media (max-width: 767.98px) {
+    .app-topbar .topbar-toggle {
+        display: inline-flex;
+    }
+}
+
+.app-topbar .topbar-search {
+    flex: 1 1 auto;
+    max-width: 480px;
+}
+
+.app-content {
+    flex: 1 1 auto;
+    padding: 1.5rem 1.5rem 3rem 1.5rem;
+}
+
+.app-footer {
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--bs-border-color);
+    color: var(--bs-secondary-color);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Section heading (used on Home / Library detail / Book detail)
+   ────────────────────────────────────────────────────────────────────────── */
+
+.section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+    .section-header h2 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--bs-emphasis-color);
+    }
+
+    .section-header .section-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Book card — Kavita-style: cover-dominant, hover overlay, progress bar
+   ────────────────────────────────────────────────────────────────────────── */
+
+.book-card {
+    display: block;
+    background-color: var(--bs-body-bg);
+    border-radius: var(--bs-border-radius);
+    overflow: hidden;
+    color: var(--bs-body-color);
+    text-decoration: none;
+    transition: transform 160ms ease;
+    position: relative;
+}
+
     .book-card:hover {
         transform: translateY(-2px);
-        border-color: var(--bs-primary-border-subtle);
-        box-shadow: var(--bs-box-shadow-sm);
     }
 
 .book-cover {
@@ -44,7 +258,17 @@ main {
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    border-radius: var(--bs-border-radius);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    transition: box-shadow 160ms ease, outline 160ms ease;
+    outline: 1px solid var(--bs-border-color);
+    outline-offset: -1px;
 }
+
+    .book-card:hover .book-cover {
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+        outline-color: var(--bs-primary);
+    }
 
     .book-cover img {
         width: 100%;
@@ -57,15 +281,68 @@ main {
         color: var(--bs-secondary-color);
     }
 
-.book-card .card-body {
-    padding: 0.75rem 0.75rem 1rem 0.75rem;
+/* Format badge top-left */
+.book-format-badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background-color: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    border-radius: 0.25rem;
+    backdrop-filter: blur(2px);
 }
 
-.book-card .book-title {
+/* Progress bar across the bottom of the cover */
+.book-cover-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+    .book-cover-progress > .bar {
+        height: 100%;
+        background-color: var(--bs-primary);
+        transition: width 200ms ease;
+    }
+
+/* "Read" hover overlay */
+.book-cover-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.65) 100%);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0.75rem;
+    opacity: 0;
+    transition: opacity 160ms ease;
+}
+
+.book-card:hover .book-cover-overlay {
+    opacity: 1;
+}
+
+.book-cover-overlay .btn {
+    pointer-events: auto;
+}
+
+.book-meta {
+    padding: 0.55rem 0.1rem 0.25rem 0.1rem;
+}
+
+.book-title {
     font-weight: 600;
-    font-size: 0.95rem;
-    line-height: 1.2;
-    margin: 0 0 0.25rem 0;
+    font-size: 0.92rem;
+    line-height: 1.25;
+    margin: 0 0 0.15rem 0;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
@@ -74,28 +351,212 @@ main {
     -webkit-box-orient: vertical;
 }
 
-.book-card .book-author {
-    font-size: 0.85rem;
+.book-author {
+    font-size: 0.8rem;
     color: var(--bs-secondary-color);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-/* Section dividers (e.g. "Recently Added") matching the Kavita home feel */
-.section-header {
+/* ──────────────────────────────────────────────────────────────────────────
+   Library card on the libraries page
+   ────────────────────────────────────────────────────────────────────────── */
+
+.library-tile {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 0.75rem;
-    border-bottom: 1px solid var(--bs-border-color);
-    padding-bottom: 0.5rem;
+    flex-direction: column;
+    height: 100%;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background-color: var(--bs-body-bg);
+    overflow: hidden;
+    transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
-    .section-header h2 {
-        margin: 0;
-        font-size: 1.1rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+    .library-tile:hover {
+        border-color: var(--bs-primary-border-subtle);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
     }
+
+.library-tile-banner {
+    height: 80px;
+    background: linear-gradient(135deg, var(--bs-primary), var(--bs-info));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 2rem;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Stat cards on the home dashboard
+   ────────────────────────────────────────────────────────────────────────── */
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem 1.1rem;
+    border-radius: var(--bs-border-radius);
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    height: 100%;
+}
+
+    .stat-card .stat-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: var(--bs-border-radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        background-color: var(--bs-primary-bg-subtle);
+        color: var(--bs-primary);
+        flex: 0 0 auto;
+    }
+
+    .stat-card .stat-value {
+        font-size: 1.4rem;
+        font-weight: 700;
+        line-height: 1.1;
+        margin: 0;
+    }
+
+    .stat-card .stat-label {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--bs-secondary-color);
+        margin: 0;
+    }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Empty state placeholder
+   ────────────────────────────────────────────────────────────────────────── */
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--bs-secondary-color);
+}
+
+    .empty-state .empty-icon {
+        font-size: 3.5rem;
+        opacity: 0.55;
+        margin-bottom: 0.75rem;
+        color: var(--bs-secondary-color);
+    }
+
+    .empty-state h3 {
+        font-size: 1.15rem;
+        color: var(--bs-emphasis-color);
+        margin-bottom: 0.4rem;
+    }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Reader (epub.js / pdf.js host)
+   ────────────────────────────────────────────────────────────────────────── */
+
+.reader-shell {
+    position: fixed;
+    inset: 0;
+    background-color: var(--bs-body-bg);
+    display: flex;
+    flex-direction: column;
+    z-index: 1050;
+}
+
+.reader-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background-color: var(--bs-tertiary-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+    .reader-topbar .reader-title {
+        flex: 1 1 auto;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+.reader-viewport {
+    flex: 1 1 auto;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--bs-tertiary-bg);
+}
+
+#epub-viewer {
+    position: absolute;
+    inset: 0;
+}
+
+#pdf-viewer {
+    position: absolute;
+    inset: 0;
+    border: none;
+    width: 100%;
+    height: 100%;
+}
+
+.reader-bottombar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--bs-tertiary-bg);
+    border-top: 1px solid var(--bs-border-color);
+    font-size: 0.85rem;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Misc utility tweaks
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Slimmer scrollbars to match Kavita's denser feel */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--bs-border-color);
+    border-radius: 5px;
+}
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--bs-secondary-color);
+    }
+
+/* Inline metadata chips */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 999px;
+    background-color: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    color: var(--bs-body-color);
+    text-decoration: none;
+}
+
+    .chip:hover {
+        background-color: var(--bs-secondary-bg);
+        color: var(--bs-emphasis-color);
+    }
+
+.chip-genre i,
+.chip-tag i,
+.chip-author i {
+    color: var(--bs-secondary-color);
+}

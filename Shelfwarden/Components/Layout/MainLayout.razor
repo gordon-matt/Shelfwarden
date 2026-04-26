@@ -1,17 +1,21 @@
 @inherits LayoutComponentBase
 
-<div class="page d-flex flex-column min-vh-100">
-    <header>
-        <NavMenu />
-    </header>
+<div class="app-shell">
+    <Sidebar Open="sidebarOpen" OnRequestClose="CloseSidebar" />
 
-    <main class="container-fluid py-4 flex-grow-1">
-        @Body
-    </main>
+    <div class="app-sidebar-backdrop @(sidebarOpen ? "show" : "")" @onclick="CloseSidebar"></div>
 
-    <footer class="border-top text-center small py-2 text-body-secondary">
-        Shelfwarden
-    </footer>
+    <div class="app-main">
+        <Topbar OnToggleSidebar="ToggleSidebar" />
+
+        <main class="app-content">
+            @Body
+        </main>
+
+        <footer class="app-footer">
+            Shelfwarden &middot; <a class="text-decoration-none" href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+        </footer>
+    </div>
 </div>
 
 <div id="blazor-error-ui" class="alert alert-danger m-3 d-none">
@@ -19,3 +23,10 @@
     <a href="" class="reload">Reload</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code {
+    private bool sidebarOpen;
+
+    private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
+    private void CloseSidebar() => sidebarOpen = false;
+}
