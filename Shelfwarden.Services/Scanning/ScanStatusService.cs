@@ -14,6 +14,7 @@ namespace Shelfwarden.Services.Scanning;
 /// </summary>
 public class ScanStatusService(
     JobStorage jobStorage,
+    IScanProgressTracker progressTracker,
     IRepository<Library> libraryRepository) : IScanStatusService
 {
     private const string ScanMethodName = nameof(IScannerService.ScanLibraryAsync);
@@ -32,7 +33,8 @@ public class ScanStatusService(
 
         var (running, queued) = GetActiveLibraryIds();
         var state = ResolveState(libraryId, running, queued, library.LastScannedAt);
-        return Result.Success(new ScanStatusDto(libraryId, state, library.LastScannedAt));
+        var progress = state == ScanState.Running ? progressTracker.GetSnapshot(libraryId) : null;
+        return Result.Success(new ScanStatusDto(libraryId, state, library.LastScannedAt, progress));
     }
 
     public async Task<Result<IReadOnlyDictionary<int, ScanStatusDto>>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -46,7 +48,12 @@ public class ScanStatusService(
 
         var map = libraries.ToDictionary(
             l => l.Id,
-            l => new ScanStatusDto(l.Id, ResolveState(l.Id, running, queued, l.LastScannedAt), l.LastScannedAt));
+            l =>
+            {
+                var state = ResolveState(l.Id, running, queued, l.LastScannedAt);
+                var progress = state == ScanState.Running ? progressTracker.GetSnapshot(l.Id) : null;
+                return new ScanStatusDto(l.Id, state, l.LastScannedAt, progress);
+            });
 
         return Result.Success<IReadOnlyDictionary<int, ScanStatusDto>>(map);
     }

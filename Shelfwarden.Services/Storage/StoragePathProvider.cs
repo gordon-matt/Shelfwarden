@@ -28,9 +28,36 @@ public sealed class StoragePathProvider : IStoragePathProvider
 
         CoversDirectory = Path.GetFullPath(baseDir);
         Directory.CreateDirectory(CoversDirectory);
+
+        // Author photos sit alongside the covers directory by default. Configurable for installs
+        // where the operator wants to mount a separate volume for them.
+        string? authorPhotosConfigured = configuration["Storage:AuthorPhotosPath"];
+        string authorPhotosBase = string.IsNullOrWhiteSpace(authorPhotosConfigured)
+            ? Path.Combine(Path.GetDirectoryName(CoversDirectory) ?? AppContext.BaseDirectory, "author-photos")
+            : Path.IsPathRooted(authorPhotosConfigured)
+                ? authorPhotosConfigured
+                : Path.Combine(AppContext.BaseDirectory, authorPhotosConfigured);
+
+        AuthorPhotosDirectory = Path.GetFullPath(authorPhotosBase);
+        Directory.CreateDirectory(AuthorPhotosDirectory);
     }
 
     public string CoversDirectory { get; }
+
+    public string AuthorPhotosDirectory { get; }
+
+    public string? FindAuthorPhotoPath(int authorId)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(AuthorPhotosDirectory, $"{authorId}.*")
+                .FirstOrDefault();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return null;
+        }
+    }
 
     public string? GetCoverFilePath(int bookId, string? extension)
     {

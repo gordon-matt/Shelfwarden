@@ -1,0 +1,40 @@
+@*
+    Renders a small collage of book covers for a series. Up to four covers are arranged in
+    overlapping layers so even one or two covers look intentional. Books without a cover
+    image fall back to a tinted placeholder layer so the collage shape stays consistent.
+*@
+
+@if (Covers is null || Covers.Count == 0)
+{
+    <div class="series-collage series-collage-empty">
+        <i class="bi bi-collection placeholder-icon"></i>
+    </div>
+}
+else
+{
+    <div class="series-collage series-collage-@(Math.Min(Covers.Count, 4))">
+        @{ int i = 0; }
+        @foreach (var c in Covers.Take(4))
+        {
+            var layerClass = $"series-collage-layer series-collage-layer-{i}";
+            <div class="@layerClass">
+                @if (!string.IsNullOrWhiteSpace(c.CoverImagePath))
+                {
+                    <img src="@($"covers/{c.BookId}")" alt="" loading="lazy" />
+                }
+                else
+                {
+                    <div class="series-collage-placeholder">
+                        <i class="bi bi-book"></i>
+                    </div>
+                }
+            </div>
+            i++;
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<SeriesCoverDto>? Covers { get; set; }
+}

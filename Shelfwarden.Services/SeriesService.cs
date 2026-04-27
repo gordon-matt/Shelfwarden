@@ -80,4 +80,54 @@ public class SeriesService(
         });
         return Result.Success(new SeriesDto(created.Id, created.Name, created.Description, BookCount: 0));
     }
+
+    public async Task<Result<IReadOnlyList<SeriesListItemDto>>> ListAsync(string? query = null, CancellationToken cancellationToken = default)
+    {
+        var options = new SearchOptions<Series>
+        {
+            OrderBy = q => q.OrderBy(s => s.NormalizedName),
+            CancellationToken = cancellationToken,
+        };
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            string needle = query.Trim().ToLowerInvariant();
+            options.Query = s => EF.Functions.Like(s.NormalizedName, $"%{needle}%");
+        }
+
+        var seriesList = (await seriesRepository.FindAsync(options)).ToList();
+        var ids = seriesList.Select(s => s.Id).ToList();
+
+        // Pull just the (id, seriesId, number, cover) tuples we need for the collage.
+        // Anonymous projection keeps us off the wire from yanking down full Book rows.
+        var bookRows = (await bookRepository.FindAsync(
+                new SearchOptions<Book>
+                {
+                    Query = b => b.SeriesId != null && ids.Contains(b.SeriesId.Value),
+                    OrderBy = q => q.OrderBy(b => b.NumberInSeries).ThenBy(b => b.SortTitle ?? b.Title),
+                    CancellationToken = cancellationToken,
+                },
+                b => new { b.Id, b.SeriesId, b.CoverImagePath }))
+            .ToList();
+
+        var bySeries = bookRows
+            .Where(b => b.SeriesId.HasValue)
+            .GroupBy(b => b.SeriesId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        IReadOnlyList<SeriesListItemDto> result = seriesList
+            .Select(s =>
+            {
+                bySeries.TryGetValue(s.Id, out var rows);
+                rows ??= [];
+                var covers = rows
+                    .Take(4)
+                    .Select(r => new SeriesCoverDto(r.Id, r.CoverImagePath))
+                    .ToList();
+                return new SeriesListItemDto(s.Id, s.Name, s.Description, rows.Count, covers);
+            })
+            .ToList();
+
+        return Result.Success(result);
+    }
 }

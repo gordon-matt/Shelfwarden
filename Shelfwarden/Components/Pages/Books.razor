@@ -11,11 +11,57 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="mb-0">Books</h1>
-    @if (results is not null)
-    {
-        <span class="text-secondary small">@results.TotalCount result@(results.TotalCount == 1 ? "" : "s")</span>
-    }
+    <div class="d-flex align-items-center gap-3">
+        @if (results is not null)
+        {
+            <span class="text-secondary small">@results.TotalCount result@(results.TotalCount == 1 ? "" : "s")</span>
+        }
+        <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
+            <button type="button"
+                    class="btn @(viewMode == ViewMode.Grid ? "btn-primary" : "btn-outline-secondary")"
+                    title="Grid view" @onclick="() => SetViewMode(ViewMode.Grid)">
+                <i class="bi bi-grid-3x3-gap-fill"></i>
+            </button>
+            <button type="button"
+                    class="btn @(viewMode == ViewMode.List ? "btn-primary" : "btn-outline-secondary")"
+                    title="List view" @onclick="() => SetViewMode(ViewMode.List)">
+                <i class="bi bi-list-ul"></i>
+            </button>
+        </div>
+        <button type="button"
+                class="btn btn-sm @(selectMode ? "btn-primary" : "btn-outline-secondary")"
+                title="Toggle select mode"
+                @onclick="ToggleSelectMode">
+            <i class="bi bi-check2-square"></i>
+            @if (selectMode)
+            {
+                <span class="ms-1">@selectedBookIds.Count selected</span>
+            }
+            else
+            {
+                <span class="ms-1">Select</span>
+            }
+        </button>
+    </div>
 </div>
+
+@if (selectMode)
+{
+    <div class="selection-toolbar mb-3">
+        <span class="text-secondary small">
+            <i class="bi bi-check2-square"></i> @selectedBookIds.Count selected
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllOnPage" disabled="@(results is null || results.Items.Count == 0)">
+            <i class="bi bi-list-check"></i> Select page
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
+            <i class="bi bi-x-circle"></i> Clear
+        </button>
+        <button class="btn btn-sm btn-primary ms-auto" @onclick="GoToBatchEdit" disabled="@(selectedBookIds.Count == 0)">
+            <i class="bi bi-pencil-square"></i> Batch edit
+        </button>
+    </div>
+}
 
 <div class="row g-2 mb-3">
     <div class="col-md-6">
@@ -127,14 +173,42 @@ else if (results.Items.Count == 0)
 }
 else
 {
-    <div class="row g-3">
-        @foreach (var book in results.Items)
-        {
-            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                <BookCard Book="book" />
-            </div>
-        }
-    </div>
+    @if (viewMode == ViewMode.List)
+    {
+        <div class="book-list">
+            @foreach (var book in results.Items)
+            {
+                <div class="book-list-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
+                    @if (selectMode)
+                    {
+                        <input class="form-check-input book-list-select" type="checkbox"
+                               checked="@selectedBookIds.Contains(book.Id)"
+                               @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
+                    }
+                    <BookListRow Book="book" />
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var book in results.Items)
+            {
+                <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                    <div class="book-card-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
+                        @if (selectMode)
+                        {
+                            <input class="form-check-input book-card-select" type="checkbox"
+                                   checked="@selectedBookIds.Contains(book.Id)"
+                                   @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
+                        }
+                        <BookCard Book="book" />
+                    </div>
+                </div>
+            }
+        </div>
+    }
 
     <nav class="mt-4 d-flex justify-content-between align-items-center" aria-label="Books pagination">
         <small class="text-body-secondary">
@@ -159,6 +233,17 @@ else
     [SupplyParameterFromQuery(Name = "q")]
     public string? QueryFromUrl { get; set; }
 
+    [SupplyParameterFromQuery(Name = "view")]
+    public string? ViewFromUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "series")]
+    public int? SeriesFromUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "author")]
+    public int? AuthorFromUrl { get; set; }
+
+    private enum ViewMode { Grid, List }
+
     private PagedList<BookListItemDto>? results;
     private string? query;
     private string libraryId = "";
@@ -168,7 +253,11 @@ else
     private BookSortBy sortBy = BookSortBy.Title;
     private bool sortDescending;
     private int pageNumber = 1;
-    private const int pageSize = 24;
+    private ViewMode viewMode = ViewMode.Grid;
+    private int pageSize = 24;
+
+    private bool selectMode;
+    private readonly HashSet<int> selectedBookIds = [];
 
     private IReadOnlyList<LibraryDto> libraries = [];
     private IReadOnlyList<AuthorDto> authors = [];
@@ -207,6 +296,32 @@ else
             query = QueryFromUrl;
             pageNumber = 1;
         }
+        if (string.Equals(ViewFromUrl, "list", StringComparison.OrdinalIgnoreCase))
+        {
+            viewMode = ViewMode.List;
+            pageSize = 12;
+        }
+        // ?series= and ?author= make the books grid composable from author/series pages.
+        if (SeriesFromUrl is { } sId && seriesId != sId.ToString())
+        {
+            seriesId = sId.ToString();
+            pageNumber = 1;
+        }
+        if (AuthorFromUrl is { } aId && authorId != aId.ToString())
+        {
+            authorId = aId.ToString();
+            pageNumber = 1;
+        }
+        await LoadAsync();
+    }
+
+    private async Task SetViewMode(ViewMode mode)
+    {
+        if (viewMode == mode) return;
+        viewMode = mode;
+        // List rows are larger so render fewer per page; grid uses the dense default.
+        pageSize = mode == ViewMode.List ? 12 : 24;
+        pageNumber = 1;
         await LoadAsync();
     }
 
@@ -259,6 +374,34 @@ else
         if (target < 1 || target > results.TotalPages) return;
         pageNumber = target;
         await LoadAsync();
+    }
+
+    private void ToggleSelectMode()
+    {
+        selectMode = !selectMode;
+        if (!selectMode) selectedBookIds.Clear();
+    }
+
+    private void ToggleSelection(int id, bool include)
+    {
+        if (include) selectedBookIds.Add(id);
+        else selectedBookIds.Remove(id);
+    }
+
+    private void SelectAllOnPage()
+    {
+        if (results is null) return;
+        foreach (var b in results.Items) selectedBookIds.Add(b.Id);
+    }
+
+    private void ClearSelection() => selectedBookIds.Clear();
+
+    private void GoToBatchEdit()
+    {
+        if (selectedBookIds.Count == 0) return;
+        string ids = string.Join(',', selectedBookIds);
+        // Round-trip back to the books page (preserving the current URL ish — simplest is /books).
+        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=books");
     }
 
     private static int? ParseId(string raw) =>

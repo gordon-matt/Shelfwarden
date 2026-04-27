@@ -17,7 +17,7 @@ public class BookFilesController(
     IRepository<Book> bookRepository) : ControllerBase
 {
     [HttpGet("{bookId:int}")]
-    public async Task<IActionResult> Get(int bookId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Get(int bookId, [FromQuery] bool download, CancellationToken cancellationToken)
     {
         var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
         {
@@ -48,7 +48,42 @@ public class BookFilesController(
         // into memory. epub.js also uses ranged requests for big EPUBs (downloads a chapter
         // at a time).
         var stream = System.IO.File.OpenRead(book.FilePath);
-        var fileName = Path.GetFileName(book.FilePath);
-        return File(stream, contentType, fileName, enableRangeProcessing: true);
+        string downloadName = BuildDownloadFileName(book);
+
+        if (download)
+        {
+            // Force a Save-As prompt rather than letting the browser open the file inline.
+            // The Title-derived filename is friendlier than the on-disk path component.
+            Response.Headers.ContentDisposition =
+                $"attachment; filename=\"{System.Net.WebUtility.UrlEncode(downloadName)}\"; filename*=UTF-8''{System.Net.WebUtility.UrlEncode(downloadName)}";
+            return File(stream, contentType, enableRangeProcessing: true);
+        }
+
+        return File(stream, contentType, downloadName, enableRangeProcessing: true);
+    }
+
+    private static string BuildDownloadFileName(Book book)
+    {
+        string ext = Path.GetExtension(book.FilePath);
+        if (string.IsNullOrEmpty(ext))
+        {
+            ext = book.FileFormat switch
+            {
+                EbookFormat.Epub => ".epub",
+                EbookFormat.Pdf => ".pdf",
+                _ => string.Empty,
+            };
+        }
+
+        string baseName = string.IsNullOrWhiteSpace(book.Title)
+            ? Path.GetFileNameWithoutExtension(book.FilePath)
+            : book.Title;
+
+        // Strip filesystem-illegal characters so this round-trips into Save-As cleanly.
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitised = new string([.. baseName.Where(c => !invalid.Contains(c))]).Trim();
+        if (string.IsNullOrEmpty(sanitised)) sanitised = $"book-{book.Id}";
+
+        return sanitised + ext;
     }
 }

@@ -15,6 +15,7 @@ public sealed class ScannerService(
     ILogger<ScannerService> logger,
     IEbookMetadataExtractorFactory extractorFactory,
     IStoragePathProvider storage,
+    IScanProgressTracker progressTracker,
     IRepository<Library> libraryRepository,
     IRepository<LibraryFolder> folderRepository,
     IRepository<Book> bookRepository,
@@ -27,11 +28,6 @@ public sealed class ScannerService(
     public async Task<Result<ScanResult>> ScanLibraryAsync(int libraryId, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
-        int filesScanned = 0;
-        int booksAdded = 0;
-        int booksUpdated = 0;
-        int booksRemoved = 0;
-        int errors = 0;
 
         var library = await libraryRepository.FindOneAsync(new SearchOptions<Library>
         {
@@ -47,6 +43,25 @@ public sealed class ScannerService(
 
         logger.LogInformation("Scan started for library {LibraryId} '{Name}' ({FolderCount} folder(s))",
             libraryId, library.Name, library.Folders.Count);
+
+        progressTracker.Start(libraryId);
+        try
+        {
+            return await ScanInternalAsync(library, libraryId, sw, cancellationToken);
+        }
+        finally
+        {
+            progressTracker.Finish(libraryId);
+        }
+    }
+
+    private async Task<Result<ScanResult>> ScanInternalAsync(Library library, int libraryId, Stopwatch sw, CancellationToken cancellationToken)
+    {
+        int filesScanned = 0;
+        int booksAdded = 0;
+        int booksUpdated = 0;
+        int booksRemoved = 0;
+        int errors = 0;
 
         var supportedExtensions = new HashSet<string>(extractorFactory.SupportedExtensions, StringComparer.OrdinalIgnoreCase);
         var seenFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -110,6 +125,15 @@ public sealed class ScannerService(
                     logger.LogError(ex, "Failed to process file {FilePath}", filePath);
                     errors++;
                 }
+
+                progressTracker.Update(libraryId, p =>
+                {
+                    p.FilesScanned = filesScanned;
+                    p.BooksAdded = booksAdded;
+                    p.BooksUpdated = booksUpdated;
+                    p.Errors = errors;
+                    p.CurrentFile = Path.GetFileName(filePath);
+                });
             }
         }
 
@@ -127,6 +151,7 @@ public sealed class ScannerService(
         {
             await bookRepository.DeleteAsync(orphans);
             booksRemoved = orphans.Count;
+            progressTracker.Update(libraryId, p => p.BooksRemoved = booksRemoved);
         }
 
         library.LastScannedAt = DateTime.UtcNow;
@@ -169,9 +194,28 @@ public sealed class ScannerService(
         if (exists && book is not null
             && book.FileSizeBytes == fileInfo.Length
             && book.FileLastModified is { } prevModified
-            && Math.Abs((prevModified - fileInfo.LastWriteTimeUtc).TotalSeconds) < 1)
+            && Math.Abs((prevModified - fileInfo.LastWriteTimeUtc).TotalSeconds) < 1
+            && !string.IsNullOrEmpty(book.CoverImagePath))
         {
             // Up to date — nothing to do.
+            return (false, false);
+        }
+
+        // Cover-only backfill: if file metadata matches but we never saved a cover (typically
+        // older PDF entries scanned before cover rendering was supported), only re-extract the
+        // cover instead of rewriting all metadata.
+        if (exists && book is not null
+            && book.FileSizeBytes == fileInfo.Length
+            && book.FileLastModified is { } prev2
+            && Math.Abs((prev2 - fileInfo.LastWriteTimeUtc).TotalSeconds) < 1
+            && string.IsNullOrEmpty(book.CoverImagePath))
+        {
+            var coverOnly = await extractor.ExtractAsync(filePath, cancellationToken);
+            if (coverOnly.Cover is not null)
+            {
+                await SaveCoverAsync(book, coverOnly.Cover, cancellationToken);
+                return (false, true);
+            }
             return (false, false);
         }
 

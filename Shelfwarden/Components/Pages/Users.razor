@@ -1,0 +1,116 @@
+@page "/users"
+@attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@inject IUserInfoService UserInfoService
+@inject IAuthProviderService AuthProvider
+
+<PageTitle>Users - Shelfwarden</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1 class="mb-0">Users</h1>
+        <p class="text-secondary mb-0">
+            @switch (AuthProvider.Provider)
+            {
+                case Shelfwarden.Services.AuthProvider.Identity:
+                    <text>Local users managed by ASP.NET Identity.</text>
+                    break;
+                case Shelfwarden.Services.AuthProvider.Keycloak:
+                    <text>Users are managed in your Keycloak realm; this is a read-only view.</text>
+                    break;
+                case Shelfwarden.Services.AuthProvider.None:
+                    <text>Authentication is disabled — only the synthetic local user exists.</text>
+                    break;
+            }
+        </p>
+    </div>
+    @if (AuthProvider.Provider == Shelfwarden.Services.AuthProvider.Identity)
+    {
+        <a class="btn btn-primary" href="Identity/Account/Register">
+            <i class="bi bi-person-plus"></i> New user
+        </a>
+    }
+</div>
+
+@if (users is null)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading users…</div>
+    </div>
+}
+else if (users.Count == 0)
+{
+    <div class="empty-state">
+        <i class="bi bi-people empty-icon"></i>
+        <h3>No users found</h3>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">User</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">Roles</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in users)
+                    {
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-person-circle fs-4 text-secondary"></i>
+                                    <div>
+                                        <div class="fw-semibold">@(u.DisplayName ?? u.UserName)</div>
+                                        @if (!string.Equals(u.DisplayName, u.UserName, StringComparison.Ordinal))
+                                        {
+                                            <div class="text-secondary small">@u.UserName</div>
+                                        }
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(u.Email))
+                                {
+                                    <a class="text-decoration-none" href="@($"mailto:{u.Email}")">@u.Email</a>
+                                }
+                                else
+                                {
+                                    <span class="text-secondary">—</span>
+                                }
+                            </td>
+                            <td>
+                                @if (u.Roles.Count == 0)
+                                {
+                                    <span class="text-secondary small fst-italic">No roles</span>
+                                }
+                                else
+                                {
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @foreach (var role in u.Roles)
+                                        {
+                                            <span class="chip">@role</span>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<UserInfo>? users;
+
+    protected override async Task OnInitializedAsync()
+    {
+        users = await UserInfoService.GetAllUsersAsync();
+    }
+}

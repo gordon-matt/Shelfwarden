@@ -60,19 +60,9 @@ public class BookService(
         var progressByBook = await LoadProgressMapAsync(userId, bookIds);
 
         var items = page_
-            .Select(b => new BookListItemDto(
-                b.Id,
-                b.Title,
-                b.Subtitle,
-                PrimaryAuthor: b.BookAuthors
-                    .OrderBy(ba => ba.Position)
-                    .Select(ba => ba.Author.Name)
-                    .FirstOrDefault() ?? string.Empty,
-                SeriesName: b.Series?.Name,
-                NumberInSeries: b.NumberInSeries,
-                CoverImagePath: b.CoverImagePath,
-                FileFormat: b.FileFormat,
-                ProgressPercentage: progressByBook.GetValueOrDefault(b.Id)?.Percentage ?? 0))
+            .Select(b => BookProjections.ToListItem(
+                b,
+                progressByBook.GetValueOrDefault(b.Id)?.Percentage ?? 0))
             .ToList();
 
         var result = new PagedList<BookListItemDto>(items, page_.ItemCount, page, pageSize);

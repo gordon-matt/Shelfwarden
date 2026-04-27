@@ -12,7 +12,8 @@ public record BookListItemDto(
     decimal? NumberInSeries,
     string? CoverImagePath,
     EbookFormat FileFormat,
-    double ProgressPercentage);
+    double ProgressPercentage,
+    string? Description = null);
 
 /// <summary>Full book details, including all relationships, used on the detail page.</summary>
 public record BookDto(

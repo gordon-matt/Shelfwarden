@@ -7,4 +7,10 @@ public interface ISeriesService
     Task<Result<SeriesDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
     Task<Result<SeriesDto>> GetOrCreateAsync(string name, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Full /series index with covers for collage rendering. Empty series (zero books) are
+    /// included so admins can still see and clean them up if they want.
+    /// </summary>
+    Task<Result<IReadOnlyList<SeriesListItemDto>>> ListAsync(string? query = null, CancellationToken cancellationToken = default);
 }

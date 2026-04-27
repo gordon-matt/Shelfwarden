@@ -1,0 +1,95 @@
+@* Horizontal "list view" row for a book. Mirrors BookCard.razor (cover + meta + read/edit
+   actions) but lays them out in a wide row with room for a truncated description. *@
+
+@if (Book is not null)
+{
+    <a class="book-list-row" href="@($"books/{Book.Id}")" title="@Book.Title">
+        <div class="book-list-cover">
+            @if (!string.IsNullOrWhiteSpace(Book.CoverImagePath))
+            {
+                <img src="@($"covers/{Book.Id}")" alt="@Book.Title" loading="lazy" />
+            }
+            else
+            {
+                <i class="bi bi-book placeholder-icon"></i>
+            }
+
+            @if (Book.FileFormat != EbookFormat.Unknown)
+            {
+                <span class="book-format-badge">@Book.FileFormat.ToString().ToUpperInvariant()</span>
+            }
+
+            @if (Book.ProgressPercentage > 0)
+            {
+                <div class="book-cover-progress" role="progressbar"
+                     aria-valuenow="@Book.ProgressPercentage" aria-valuemin="0" aria-valuemax="100">
+                    <div class="bar" style="width: @($"{Book.ProgressPercentage:0}%")"></div>
+                </div>
+            }
+        </div>
+
+        <div class="book-list-body">
+            <div class="book-list-title">@Book.Title</div>
+            @if (!string.IsNullOrEmpty(Book.Subtitle))
+            {
+                <div class="book-list-subtitle">@Book.Subtitle</div>
+            }
+            <div class="book-list-author">
+                @(string.IsNullOrEmpty(Book.PrimaryAuthor) ? "Unknown author" : Book.PrimaryAuthor)
+                @if (!string.IsNullOrEmpty(Book.SeriesName))
+                {
+                    <span class="ms-2 text-secondary">
+                        <i class="bi bi-collection"></i> @Book.SeriesName
+                        @if (Book.NumberInSeries.HasValue)
+                        {
+                            <span> · #@Book.NumberInSeries</span>
+                        }
+                    </span>
+                }
+            </div>
+            @if (!string.IsNullOrEmpty(Book.Description))
+            {
+                <p class="book-list-description">@Truncate(Book.Description, DescriptionLength)</p>
+            }
+        </div>
+
+        <div class="book-list-actions">
+            <a class="btn btn-sm btn-primary"
+               href="@($"read/{Book.Id}")"
+               @onclick:stopPropagation="true">
+                <i class="bi bi-book-half"></i> Read
+            </a>
+            <a class="btn btn-sm btn-outline-secondary"
+               href="@($"books/{Book.Id}/edit")"
+               title="Edit metadata"
+               @onclick:stopPropagation="true">
+                <i class="bi bi-pencil"></i>
+            </a>
+        </div>
+    </a>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public BookListItemDto? Book { get; set; }
+
+    /// <summary>Hard truncate length for the description preview. ~280 chars fits ~3 lines on desktop without crowding the row.</summary>
+    [Parameter]
+    public int DescriptionLength { get; set; } = 280;
+
+    private static string Truncate(string raw, int max)
+    {
+        // Strip HTML tags so a description containing inline markup doesn't break the layout
+        // or leak partial elements when we cut it short. The detail page still renders full HTML.
+        var plain = System.Text.RegularExpressions.Regex
+            .Replace(raw, "<.*?>", string.Empty)
+            .Replace("&nbsp;", " ", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        if (plain.Length <= max) return plain;
+        // Try to break at a word boundary so we don't slice mid-word.
+        int cut = plain.LastIndexOf(' ', max);
+        if (cut < max / 2) cut = max;
+        return plain[..cut].TrimEnd(',', '.', ';', ':') + "…";
+    }
+}

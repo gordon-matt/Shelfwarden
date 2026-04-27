@@ -1,0 +1,100 @@
+@page "/series"
+@attribute [Authorize]
+@inject ISeriesService SeriesService
+
+<PageTitle>Series - Shelfwarden</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Series</h1>
+    @if (series is not null)
+    {
+        <span class="text-secondary small">@series.Count series</span>
+    }
+</div>
+
+<div class="row g-2 mb-3">
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input class="form-control" placeholder="Search series..." @bind="query" @bind:event="oninput" @onkeyup="OnQueryKeyUp" />
+        </div>
+    </div>
+</div>
+
+@if (series is null)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading series…</div>
+    </div>
+}
+else if (series.Count == 0)
+{
+    <div class="empty-state">
+        <i class="bi bi-collection empty-icon"></i>
+        <h3>No series yet</h3>
+        <p>When books are scanned and assigned to a series, they will appear here.</p>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var s in series)
+        {
+            <div class="col-6 col-md-4 col-lg-3">
+                <a class="series-tile" href="@($"books?series={s.Id}")" title="@s.Name">
+                    <SeriesCollage Covers="s.Covers" />
+                    <div class="series-tile-body">
+                        <div class="series-tile-name text-truncate">@s.Name</div>
+                        <div class="series-tile-count text-secondary small">
+                            @s.BookCount book@(s.BookCount == 1 ? "" : "s")
+                        </div>
+                    </div>
+                </a>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<SeriesListItemDto>? series;
+    private string query = string.Empty;
+    private CancellationTokenSource? searchCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        searchCts?.Cancel();
+        searchCts = new CancellationTokenSource();
+        var token = searchCts.Token;
+
+        var result = await SeriesService.ListAsync(query, token);
+        if (token.IsCancellationRequested) return;
+
+        series = result.IsSuccess ? result.Value : [];
+    }
+
+    private async Task OnQueryKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadAsync();
+            return;
+        }
+
+        searchCts?.Cancel();
+        searchCts = new CancellationTokenSource();
+        var token = searchCts.Token;
+        try
+        {
+            await Task.Delay(250, token);
+            if (token.IsCancellationRequested) return;
+            await LoadAsync();
+        }
+        catch (TaskCanceledException) { }
+    }
+}

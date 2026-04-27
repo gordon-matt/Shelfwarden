@@ -70,6 +70,36 @@ else
                                 </span>
                             }
                         </p>
+                        @if (status?.Progress is { } prog)
+                        {
+                            <div class="scan-progress mb-2">
+                                <div class="progress" role="progressbar" aria-label="Scanning" style="height: 4px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+                                         style="width: 100%"></div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 small mt-1 text-body-secondary">
+                                    <span><i class="bi bi-files"></i> @prog.FilesScanned scanned</span>
+                                    @if (prog.BooksAdded > 0)
+                                    {
+                                        <span class="text-success">+@prog.BooksAdded added</span>
+                                    }
+                                    @if (prog.BooksUpdated > 0)
+                                    {
+                                        <span class="text-info">~@prog.BooksUpdated updated</span>
+                                    }
+                                    @if (prog.Errors > 0)
+                                    {
+                                        <span class="text-danger">@prog.Errors error@(prog.Errors == 1 ? "" : "s")</span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrEmpty(prog.CurrentFile))
+                                {
+                                    <div class="small text-body-secondary text-truncate" title="@prog.CurrentFile">
+                                        <i class="bi bi-file-earmark"></i> @prog.CurrentFile
+                                    </div>
+                                }
+                            </div>
+                        }
                         @if (lib.Folders.Count > 0)
                         {
                             <ul class="list-unstyled small mb-0 text-body-secondary">
@@ -109,10 +139,10 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
-        // Refresh scan status every 3s while the page is mounted. Cheap because Hangfire
-        // monitoring queries the queue counts only — we don't reload the libraries table.
+        // Poll every 1.5s so the scan progress counters feel live without hammering Hangfire.
+        // The status query is just queue-count + an in-memory tracker lookup, so this is cheap.
         pollTimer = new Timer(async _ => await RefreshStatusesAsync(),
-            state: null, dueTime: TimeSpan.FromSeconds(3), period: TimeSpan.FromSeconds(3));
+            state: null, dueTime: TimeSpan.FromSeconds(1.5), period: TimeSpan.FromSeconds(1.5));
     }
 
     private async Task LoadAsync()
@@ -153,6 +183,14 @@ else
     private async Task ScanAsync(int id)
     {
         await LibraryService.ScheduleScanAsync(id);
+        // Optimistically reflect the queued state right away so the user sees feedback before
+        // the next poll tick fires.
+        var optimistic = new Dictionary<int, ScanStatusDto>(statuses)
+        {
+            [id] = new ScanStatusDto(id, ScanState.Queued, statuses.TryGetValue(id, out var s) ? s.LastScannedAt : null)
+        };
+        statuses = optimistic;
+        StateHasChanged();
         await RefreshStatusesAsync();
     }
 

@@ -1,0 +1,193 @@
+@page "/authors/{Id:int}"
+@attribute [Authorize]
+@inject IAuthorService AuthorService
+@inject NavigationManager NavigationManager
+
+@if (author is null && !loadFailed)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading author…</div>
+    </div>
+}
+else if (author is null)
+{
+    <PageTitle>Author not found - Shelfwarden</PageTitle>
+    <div class="empty-state">
+        <i class="bi bi-person-x empty-icon"></i>
+        <h3>Author not found</h3>
+        <p>The author you were looking for couldn't be loaded.</p>
+        <a class="btn btn-outline-primary" href="authors"><i class="bi bi-arrow-left"></i> Back to authors</a>
+    </div>
+}
+else
+{
+    <PageTitle>@author.Name - Shelfwarden</PageTitle>
+
+    <div class="author-header mb-4">
+        <div class="author-header-photo">
+            <img src="@($"author-photos/{author.Id}")" alt="@author.Name"
+                 onerror="this.classList.add('d-none');this.parentElement.classList.add('no-photo')" />
+            <i class="bi bi-person placeholder-icon"></i>
+        </div>
+        <div class="author-header-body">
+            <h1 class="mb-2">@author.Name</h1>
+            <div class="text-secondary small mb-3">
+                @author.BookCount book@(author.BookCount == 1 ? "" : "s")
+                @if (author.SeriesGroups.Count > 0)
+                {
+                    <span> · @author.SeriesGroups.Count series</span>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(author.Biography))
+            {
+                <p class="author-bio mb-0">@author.Biography</p>
+            }
+            else
+            {
+                <p class="text-secondary mb-0 fst-italic">No biography on file.</p>
+            }
+        </div>
+    </div>
+
+    @if (author.SeriesGroups.Count > 0)
+    {
+        <section class="mb-5">
+            <div class="d-flex justify-content-between align-items-end mb-3">
+                <h2 class="mb-0">Series</h2>
+                <a class="small text-decoration-none" href="series">Browse all series <i class="bi bi-arrow-right"></i></a>
+            </div>
+            <div class="row g-3">
+                @foreach (var s in author.SeriesGroups)
+                {
+                    <div class="col-6 col-md-4 col-lg-3">
+                        <a class="series-tile" href="@($"books?series={s.SeriesId}")" title="@s.SeriesName">
+                            <SeriesCollage Covers="s.Covers" />
+                            <div class="series-tile-body">
+                                <div class="series-tile-name text-truncate">@s.SeriesName</div>
+                                <div class="series-tile-count text-secondary small">
+                                    @s.BookCount book@(s.BookCount == 1 ? "" : "s")
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    @if (author.StandaloneBooks.Count > 0)
+    {
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h2 class="mb-0">Standalone books</h2>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button"
+                            class="btn btn-sm @(selectMode ? "btn-primary" : "btn-outline-secondary")"
+                            @onclick="ToggleSelectMode">
+                        <i class="bi bi-check2-square"></i>
+                        @if (selectMode)
+                        {
+                            <span class="ms-1">@selectedBookIds.Count selected</span>
+                        }
+                        else
+                        {
+                            <span class="ms-1">Select</span>
+                        }
+                    </button>
+                    @if (selectMode)
+                    {
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">
+                            <i class="bi bi-list-check"></i> All
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
+                            <i class="bi bi-x-circle"></i> Clear
+                        </button>
+                        <button class="btn btn-sm btn-primary" @onclick="GoToBatchEdit" disabled="@(selectedBookIds.Count == 0)">
+                            <i class="bi bi-pencil-square"></i> Batch edit
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="row g-3">
+                @foreach (var b in author.StandaloneBooks)
+                {
+                    <div class="col-6 col-md-4 col-lg-3 col-xl-2">
+                        <div class="book-card-wrap @(selectMode && selectedBookIds.Contains(b.Id) ? "selected" : "")">
+                            @if (selectMode)
+                            {
+                                <input class="form-check-input book-card-select" type="checkbox"
+                                       checked="@selectedBookIds.Contains(b.Id)"
+                                       @onchange="e => ToggleSelection(b.Id, (bool)(e.Value ?? false))" />
+                            }
+                            <BookCard Book="b" />
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+    else if (author.SeriesGroups.Count == 0)
+    {
+        <div class="empty-state">
+            <i class="bi bi-book empty-icon"></i>
+            <h3>No books yet</h3>
+            <p>Once a book by this author is scanned in, it will appear here.</p>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private AuthorDetailDto? author;
+    private bool loadFailed;
+
+    private bool selectMode;
+    private readonly HashSet<int> selectedBookIds = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        author = null;
+        loadFailed = false;
+        selectMode = false;
+        selectedBookIds.Clear();
+
+        var result = await AuthorService.GetDetailAsync(Id);
+        if (result.IsSuccess)
+        {
+            author = result.Value;
+        }
+        else
+        {
+            loadFailed = true;
+        }
+    }
+
+    private void ToggleSelectMode()
+    {
+        selectMode = !selectMode;
+        if (!selectMode) selectedBookIds.Clear();
+    }
+
+    private void ToggleSelection(int id, bool include)
+    {
+        if (include) selectedBookIds.Add(id);
+        else selectedBookIds.Remove(id);
+    }
+
+    private void SelectAll()
+    {
+        if (author is null) return;
+        foreach (var b in author.StandaloneBooks) selectedBookIds.Add(b.Id);
+    }
+
+    private void ClearSelection() => selectedBookIds.Clear();
+
+    private void GoToBatchEdit()
+    {
+        if (selectedBookIds.Count == 0) return;
+        string ids = string.Join(',', selectedBookIds);
+        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=authors/{Id}");
+    }
+}

@@ -361,6 +361,125 @@ body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Book list view (alternative to the grid on /books)
+   ────────────────────────────────────────────────────────────────────────── */
+
+.book-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.book-list-row {
+    display: grid;
+    grid-template-columns: 88px 1fr auto;
+    column-gap: 1rem;
+    align-items: stretch;
+    padding: 0.75rem 1rem;
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    color: var(--bs-body-color);
+    text-decoration: none;
+    transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+    .book-list-row:hover {
+        border-color: var(--bs-primary-border-subtle);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+        color: var(--bs-body-color);
+    }
+
+.book-list-cover {
+    position: relative;
+    width: 88px;
+    height: 132px;
+    background-color: var(--bs-tertiary-bg);
+    border-radius: var(--bs-border-radius-sm);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-secondary-color);
+}
+
+    .book-list-cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .book-list-cover .placeholder-icon {
+        font-size: 2rem;
+    }
+
+.book-list-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.book-list-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    line-height: 1.25;
+    color: var(--bs-emphasis-color);
+}
+
+.book-list-subtitle {
+    font-size: 0.9rem;
+    color: var(--bs-secondary-color);
+    font-style: italic;
+}
+
+.book-list-author {
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color);
+}
+
+.book-list-description {
+    margin: 0.4rem 0 0 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--bs-body-color);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.book-list-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+@media (max-width: 575.98px) {
+    .book-list-row {
+        grid-template-columns: 64px 1fr;
+        grid-template-rows: auto auto;
+        column-gap: 0.75rem;
+    }
+
+    .book-list-cover {
+        width: 64px;
+        height: 96px;
+    }
+
+    .book-list-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-end;
+    }
+
+    .book-list-description {
+        -webkit-line-clamp: 4;
+        line-clamp: 4;
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
    Library card on the libraries page
    ────────────────────────────────────────────────────────────────────────── */
 
@@ -389,6 +508,19 @@ body {
     justify-content: center;
     color: #fff;
     font-size: 2rem;
+}
+
+/* `.library-tile` is a custom card variant — it uses `.card-body` for the inner section
+   but the parent isn't `.card`, so Bootstrap's `--bs-card-spacer-*` vars aren't in scope.
+   Provide explicit padding here so the body content doesn't kiss the tile edges. */
+.library-tile > .card-body {
+    padding: 1rem 1.1rem;
+    flex: 1 1 auto;
+}
+
+.library-tile > .card-footer {
+    padding: 0.6rem 1.1rem;
+    border-top: 1px solid var(--bs-border-color);
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -742,6 +874,381 @@ ol.reading-list {
 .chip-genre i,
 .chip-tag i,
 .chip-author i {
+    color: var(--bs-secondary-color);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Authors & Series listings — uniform tile grid that mirrors the book grid.
+   Photos / collages live in a fixed-aspect block so the rows stay even even
+   when half the entries don't have an image.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.author-tile {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.15s ease;
+}
+
+    .author-tile:hover {
+        transform: translateY(-2px);
+        color: inherit;
+    }
+
+.author-avatar {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+}
+
+    .author-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .author-avatar .placeholder-icon {
+        font-size: 3rem;
+        color: var(--bs-secondary-color);
+        display: none;
+    }
+
+    .author-avatar.no-photo .placeholder-icon {
+        display: inline-block;
+    }
+
+.author-tile-name {
+    font-weight: 600;
+    text-align: center;
+}
+
+.author-tile-count {
+    text-align: center;
+}
+
+/* Author detail header */
+.author-header {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    padding: 1.5rem;
+    background-color: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius-lg);
+}
+
+.author-header-photo {
+    position: relative;
+    flex: 0 0 160px;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: var(--bs-body-bg);
+    border: 2px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .author-header-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .author-header-photo .placeholder-icon {
+        font-size: 4.5rem;
+        color: var(--bs-secondary-color);
+        display: none;
+    }
+
+    .author-header-photo.no-photo .placeholder-icon {
+        display: inline-block;
+    }
+
+.author-header-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.author-bio {
+    white-space: pre-wrap;
+    color: var(--bs-secondary-color);
+    line-height: 1.6;
+}
+
+@media (max-width: 575.98px) {
+    .author-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .author-header-photo {
+        flex: 0 0 120px;
+        width: 120px;
+        height: 120px;
+    }
+}
+
+/* Series tiles + collage. The collage absolutely positions up to four cover
+   thumbnails inside a 4:5 frame so even one cover renders the same shape. */
+.series-tile {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    background-color: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    overflow: hidden;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+    .series-tile:hover {
+        transform: translateY(-2px);
+        color: inherit;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+.series-tile-body {
+    padding: 0.75rem 0.85rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.series-tile-name {
+    font-weight: 600;
+}
+
+.series-collage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    background-color: var(--bs-body-bg);
+    overflow: hidden;
+}
+
+.series-collage-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .series-collage-empty .placeholder-icon {
+        font-size: 3rem;
+        color: var(--bs-secondary-color);
+    }
+
+.series-collage-layer {
+    position: absolute;
+    border: 2px solid var(--bs-tertiary-bg);
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: var(--bs-secondary-bg);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+    .series-collage-layer img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+.series-collage-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-secondary-color);
+    background-color: var(--bs-secondary-bg);
+}
+
+/* Layout for 1 cover: a single centred card */
+.series-collage-1 .series-collage-layer-0 {
+    inset: 8% 18%;
+}
+
+/* Layout for 2 covers: side-by-side with a slight overlap */
+.series-collage-2 .series-collage-layer-0 {
+    top: 8%;
+    bottom: 8%;
+    left: 6%;
+    width: 55%;
+    transform: rotate(-4deg);
+    z-index: 2;
+}
+
+.series-collage-2 .series-collage-layer-1 {
+    top: 8%;
+    bottom: 8%;
+    right: 6%;
+    width: 55%;
+    transform: rotate(4deg);
+    z-index: 1;
+}
+
+/* Layout for 3 covers: fanned, primary in front */
+.series-collage-3 .series-collage-layer-0 {
+    top: 6%;
+    bottom: 6%;
+    left: 18%;
+    right: 18%;
+    z-index: 3;
+}
+
+.series-collage-3 .series-collage-layer-1 {
+    top: 10%;
+    bottom: 10%;
+    left: 4%;
+    width: 50%;
+    transform: rotate(-7deg);
+    z-index: 1;
+}
+
+.series-collage-3 .series-collage-layer-2 {
+    top: 10%;
+    bottom: 10%;
+    right: 4%;
+    width: 50%;
+    transform: rotate(7deg);
+    z-index: 2;
+}
+
+/* Layout for 4 covers: 2x2 grid with subtle overlap */
+.series-collage-4 .series-collage-layer-0 {
+    top: 4%;
+    bottom: 50%;
+    left: 4%;
+    right: 50%;
+    transform: rotate(-3deg);
+    z-index: 2;
+}
+
+.series-collage-4 .series-collage-layer-1 {
+    top: 4%;
+    bottom: 50%;
+    left: 50%;
+    right: 4%;
+    transform: rotate(3deg);
+    z-index: 3;
+}
+
+.series-collage-4 .series-collage-layer-2 {
+    top: 50%;
+    bottom: 4%;
+    left: 4%;
+    right: 50%;
+    transform: rotate(3deg);
+    z-index: 1;
+}
+
+.series-collage-4 .series-collage-layer-3 {
+    top: 50%;
+    bottom: 4%;
+    left: 50%;
+    right: 4%;
+    transform: rotate(-3deg);
+    z-index: 4;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Multi-select toolbar + selectable book card overlay (Books page).
+   The checkbox is absolutely-positioned so the underlying BookCard / BookListRow
+   markup stays untouched.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.selection-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+}
+
+.book-card-wrap,
+.book-list-wrap {
+    position: relative;
+}
+
+.book-card-select {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 5;
+    width: 1.25rem;
+    height: 1.25rem;
+    background-color: var(--bs-body-bg);
+    box-shadow: 0 0 0 2px var(--bs-body-bg);
+}
+
+.book-list-select {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 5;
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.book-card-wrap.selected,
+.book-list-wrap.selected {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: -1px;
+    border-radius: var(--bs-border-radius);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Batch edit page — Apply-to-all sections + per-row Excel-ish grid.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.batch-section {
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    padding: 0.75rem 1rem;
+    background-color: var(--bs-body-bg);
+    height: 100%;
+}
+
+    .batch-section.disabled .batch-section-body {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
+.batch-edit-grid th,
+.batch-edit-grid td {
+    vertical-align: middle;
+}
+
+.batch-edit-grid .form-control,
+.batch-edit-grid .form-control-sm {
+    min-width: 6rem;
+}
+
+.batch-edit-cover {
+    width: 40px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 2px;
+    background-color: var(--bs-secondary-bg);
+}
+
+.batch-edit-cover-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: var(--bs-secondary-color);
 }
 

@@ -23,7 +23,8 @@ internal static class BookProjections
         NumberInSeries: b.NumberInSeries,
         CoverImagePath: b.CoverImagePath,
         FileFormat: b.FileFormat,
-        ProgressPercentage: progressPercent);
+        ProgressPercentage: progressPercent,
+        Description: b.Description);
 
     public static async Task<Dictionary<int, double>> LoadProgressPercentagesAsync(
         IRepository<BookProgress> progressRepository,

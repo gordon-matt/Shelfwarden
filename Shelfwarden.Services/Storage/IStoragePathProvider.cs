@@ -15,6 +15,18 @@ public interface IStoragePathProvider
     /// <summary>Absolute path to the directory where extracted cover images are stored.</summary>
     string CoversDirectory { get; }
 
+    /// <summary>
+    /// Absolute path to the directory where uploaded author photos are stored. Files are
+    /// named <c>{authorId}.{ext}</c> so they can be served by an authenticated controller.
+    /// </summary>
+    string AuthorPhotosDirectory { get; }
+
+    /// <summary>
+    /// Returns the absolute path to the author's existing photo, regardless of extension, or
+    /// null if no photo is present. Used when serving the photo back to the browser.
+    /// </summary>
+    string? FindAuthorPhotoPath(int authorId);
+
     /// <summary>Absolute path to the file currently associated with the given book id, or null when none.</summary>
     string? GetCoverFilePath(int bookId, string? extension);
 

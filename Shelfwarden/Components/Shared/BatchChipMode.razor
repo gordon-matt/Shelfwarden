@@ -1,0 +1,29 @@
+@*
+    Two-button toggle picking between "Append" (merge with each book's existing values) and
+    "Replace" (clear the book's existing values and use only what the user entered).
+*@
+
+<div class="btn-group btn-group-sm mb-2" role="group" aria-label="How to apply">
+    <button type="button"
+            class="btn @(Mode == ChipApplyMode.Append ? "btn-primary" : "btn-outline-secondary")"
+            @onclick="() => Set(ChipApplyMode.Append)">
+        <i class="bi bi-plus-circle"></i> Add to existing
+    </button>
+    <button type="button"
+            class="btn @(Mode == ChipApplyMode.Replace ? "btn-primary" : "btn-outline-secondary")"
+            @onclick="() => Set(ChipApplyMode.Replace)">
+        <i class="bi bi-arrow-repeat"></i> Replace
+    </button>
+</div>
+
+@code {
+    [Parameter] public ChipApplyMode Mode { get; set; }
+    [Parameter] public EventCallback<ChipApplyMode> ModeChanged { get; set; }
+
+    private async Task Set(ChipApplyMode mode)
+    {
+        if (Mode == mode) return;
+        Mode = mode;
+        if (ModeChanged.HasDelegate) await ModeChanged.InvokeAsync(mode);
+    }
+}

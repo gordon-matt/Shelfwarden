@@ -1,0 +1,580 @@
+@page "/books/batch-edit"
+@attribute [Authorize]
+@inject IBookService BookService
+@inject IAuthorService AuthorService
+@inject ISeriesService SeriesService
+@inject IGenreService GenreService
+@inject NavigationManager NavigationManager
+@inject ILogger<BatchEdit> Logger
+
+<PageTitle>Batch edit - Shelfwarden</PageTitle>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
+    <div>
+        <a href="@returnUrl" class="text-secondary text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        <h1 class="mb-0 mt-1">Batch edit</h1>
+        @if (books is not null)
+        {
+            <div class="text-secondary small">
+                @books.Count book@(books.Count == 1 ? "" : "s") loaded ·
+                @books.Count(b => selectedIds.Contains(b.Id)) selected for save
+            </div>
+        }
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="@returnUrl">Cancel</a>
+        <button type="button" class="btn btn-primary" disabled="@(saving || books is null || books.Count == 0)" @onclick="SaveAsync">
+            @if (saving)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+            }
+            else
+            {
+                <i class="bi bi-check2-all me-1"></i>
+            }
+            Save changes
+        </button>
+    </div>
+</div>
+
+@if (errorMessage is not null)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-1"></i> @errorMessage
+    </div>
+}
+@if (saveSummary is not null)
+{
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle me-1"></i> @saveSummary
+    </div>
+}
+
+@if (loading)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading books…</div>
+    </div>
+}
+else if (books is null || books.Count == 0)
+{
+    <div class="empty-state">
+        <i class="bi bi-question-circle empty-icon"></i>
+        <h3>No books selected</h3>
+        <p>Select one or more books on the books page first, then choose Batch edit.</p>
+        <a class="btn btn-outline-secondary" href="books">
+            <i class="bi bi-arrow-left"></i> Back to books
+        </a>
+    </div>
+}
+else
+{
+    @* ──────────────────────────────────────────────────────────────────────
+       APPLY TO ALL panel — these affect every selected book uniformly. Each
+       section has an explicit "Update" toggle; until ticked, the field is
+       skipped at save time so users can't clobber values by accident.
+       ────────────────────────────────────────────────────────────────────── *@
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="bi bi-stack"></i>
+            <strong>Apply to all selected</strong>
+            <span class="text-secondary small ms-2">Tick a section to include it in the batch save.</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <BatchSectionSwitch Title="Series" @bind-Enabled="bulk.UpdateSeries">
+                        <input class="form-control" type="text"
+                               value="@seriesInput" @oninput="OnSeriesInput"
+                               @onfocus="OnSeriesFocus" @onkeydown="OnSeriesKeyDown"
+                               placeholder="Pick or create a series… (leave blank to clear)" />
+                        @if (showSeriesSuggestions && seriesSuggestions.Count > 0)
+                        {
+                            <ul class="dropdown-menu d-block w-100 mt-1 shadow-sm"
+                                style="position: relative; max-height: 220px; overflow-y: auto;">
+                                @foreach (var s in seriesSuggestions)
+                                {
+                                    <li>
+                                        <button type="button" class="dropdown-item" @onclick="() => SelectSeriesAsync(s.Name)">
+                                            @s.Name
+                                        </button>
+                                    </li>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(seriesInput) && !seriesSuggestions.Any(s => string.Equals(s.Name, seriesInput.Trim(), StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li>
+                                        <button type="button" class="dropdown-item" @onclick="() => SelectSeriesAsync(seriesInput!.Trim())">
+                                            <i class="bi bi-plus-lg"></i> Create "<strong>@seriesInput.Trim()</strong>"
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                        <div class="form-text">
+                            Series number is edited per-row in the table below.
+                        </div>
+                    </BatchSectionSwitch>
+                </div>
+
+                <div class="col-lg-6">
+                    <BatchSectionSwitch Title="Authors" @bind-Enabled="bulk.UpdateAuthors">
+                        <BatchChipMode @bind-Mode="bulk.AuthorsMode" />
+                        <ChipInput TItem="AuthorDto"
+                                   Label="Authors"
+                                   Selected="bulkAuthors"
+                                   NameOf="@(a => a.Name)"
+                                   SearchAsync="SearchAuthorsAsync"
+                                   OnAddAsync="AddAuthorAsync" />
+                    </BatchSectionSwitch>
+                </div>
+
+                <div class="col-lg-6">
+                    <BatchSectionSwitch Title="Genres" @bind-Enabled="bulk.UpdateGenres">
+                        <BatchChipMode @bind-Mode="bulk.GenresMode" />
+                        <ChipInput TItem="GenreDto"
+                                   Label="Genres"
+                                   Selected="bulkGenres"
+                                   NameOf="@(g => g.Name)"
+                                   SearchAsync="SearchGenresAsync"
+                                   OnAddAsync="AddGenreAsync" />
+                    </BatchSectionSwitch>
+                </div>
+
+                <div class="col-lg-6">
+                    <BatchSectionSwitch Title="Tags" @bind-Enabled="bulk.UpdateTags">
+                        <BatchChipMode @bind-Mode="bulk.TagsMode" />
+                        <div class="d-flex flex-wrap gap-1 mb-2">
+                            @if (bulkTags.Count == 0)
+                            {
+                                <span class="text-secondary small fst-italic">No tags yet.</span>
+                            }
+                            else
+                            {
+                                @foreach (var tag in bulkTags)
+                                {
+                                    <span class="chip chip-tag">
+                                        #@tag
+                                        <button type="button" class="btn-close btn-close-sm ms-1"
+                                                aria-label="Remove" @onclick="() => RemoveBulkTag(tag)"></button>
+                                    </span>
+                                }
+                            }
+                        </div>
+                        <input class="form-control form-control-sm" type="text"
+                               placeholder="Type a tag and press Enter…"
+                               value="@bulkTagInput"
+                               @oninput="e => bulkTagInput = e.Value?.ToString() ?? string.Empty"
+                               @onkeydown="OnBulkTagKeyDown" />
+                    </BatchSectionSwitch>
+                </div>
+
+                <div class="col-lg-6">
+                    <BatchSectionSwitch Title="Publication" @bind-Enabled="bulk.UpdatePublication">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Publisher</label>
+                                <input class="form-control" @bind="bulk.Publisher" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Published on</label>
+                                <input class="form-control" type="date" @bind="bulk.PublishedOn" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Language</label>
+                                <input class="form-control" @bind="bulk.Language" placeholder="en, fr, de…" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">ISBN</label>
+                                <input class="form-control" @bind="bulk.Isbn" />
+                            </div>
+                        </div>
+                    </BatchSectionSwitch>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ──────────────────────────────────────────────────────────────────────
+       PER-ROW grid — title / sort title / subtitle / # in series / desc.
+       ────────────────────────────────────────────────────────────────────── *@
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="bi bi-table"></i>
+            <strong>Per-book details</strong>
+            <span class="text-secondary small ms-2">Edit one book per row. Untick to skip a row.</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle batch-edit-grid mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 36px;">
+                            <input class="form-check-input" type="checkbox"
+                                   checked="@(selectedIds.Count == books.Count)"
+                                   @onchange="ToggleSelectAll" />
+                        </th>
+                        <th style="width: 56px;"></th>
+                        <th>Title</th>
+                        <th>Sort title</th>
+                        <th>Subtitle</th>
+                        <th style="width: 90px;">#</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in rows)
+                    {
+                        <tr class="@(selectedIds.Contains(row.Id) ? "" : "table-secondary text-secondary")">
+                            <td>
+                                <input class="form-check-input" type="checkbox"
+                                       checked="@selectedIds.Contains(row.Id)"
+                                       @onchange="e => ToggleRow(row.Id, (bool)(e.Value ?? false))" />
+                            </td>
+                            <td>
+                                <a href="@($"books/{row.Id}")" target="_blank" title="Open in new tab">
+                                    @if (!string.IsNullOrEmpty(row.CoverImagePath))
+                                    {
+                                        <img src="@($"covers/{row.Id}")" class="batch-edit-cover" alt="@row.Title" />
+                                    }
+                                    else
+                                    {
+                                        <div class="batch-edit-cover batch-edit-cover-empty">
+                                            <i class="bi bi-book"></i>
+                                        </div>
+                                    }
+                                </a>
+                            </td>
+                            <td><input class="form-control form-control-sm" @bind="row.Title" /></td>
+                            <td><input class="form-control form-control-sm" @bind="row.SortTitle" /></td>
+                            <td><input class="form-control form-control-sm" @bind="row.Subtitle" /></td>
+                            <td><input class="form-control form-control-sm" type="number" step="0.01" @bind="row.NumberInSeries" /></td>
+                            <td>
+                                <textarea class="form-control form-control-sm" rows="2" @bind="row.Description"></textarea>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "ids")]
+    public string? IdsFromQuery { get; set; }
+
+    /// <summary>Where to send the user when they hit Cancel/Back. Defaults to the books page.</summary>
+    [SupplyParameterFromQuery(Name = "return")]
+    public string? ReturnFromQuery { get; set; }
+
+    private string returnUrl = "books";
+
+    private bool loading = true;
+    private bool saving;
+    private string? errorMessage;
+    private string? saveSummary;
+
+    private List<BookDto>? books;
+    private readonly List<RowModel> rows = [];
+    private readonly HashSet<int> selectedIds = [];
+
+    // Bulk apply-to-all state.
+    private readonly BulkApplyModel bulk = new();
+    private SeriesDto? bulkSeries;
+    private string? seriesInput;
+    private IReadOnlyList<SeriesDto> seriesSuggestions = [];
+    private bool showSeriesSuggestions;
+
+    private readonly List<AuthorDto> bulkAuthors = [];
+    private readonly List<GenreDto> bulkGenres = [];
+    private readonly List<string> bulkTags = [];
+    private string? bulkTagInput;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(ReturnFromQuery))
+        {
+            returnUrl = ReturnFromQuery;
+        }
+
+        var ids = ParseIds(IdsFromQuery);
+        if (ids.Count == 0)
+        {
+            books = [];
+            loading = false;
+            return;
+        }
+
+        loading = true;
+        // Fan-out load. ApplicationDbContext is scoped, so we can't run these truly in
+        // parallel safely — kick them off sequentially in a small batch.
+        var loaded = new List<BookDto>(ids.Count);
+        foreach (int id in ids)
+        {
+            var result = await BookService.GetByIdAsync(id);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                loaded.Add(result.Value);
+            }
+        }
+
+        books = loaded;
+        rows.Clear();
+        selectedIds.Clear();
+        foreach (var b in loaded)
+        {
+            rows.Add(new RowModel
+            {
+                Id = b.Id,
+                CoverImagePath = b.CoverImagePath,
+                Title = b.Title,
+                SortTitle = b.SortTitle,
+                Subtitle = b.Subtitle,
+                Description = b.Description,
+                NumberInSeries = b.NumberInSeries,
+            });
+            selectedIds.Add(b.Id);
+        }
+
+        loading = false;
+    }
+
+    private static List<int> ParseIds(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return [];
+        return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => int.TryParse(s, out var n) ? n : 0)
+            .Where(n => n > 0)
+            .Distinct()
+            .ToList();
+    }
+
+    private void ToggleRow(int id, bool include)
+    {
+        if (include) selectedIds.Add(id);
+        else selectedIds.Remove(id);
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool select = (bool)(e.Value ?? false);
+        selectedIds.Clear();
+        if (select && books is not null)
+        {
+            foreach (var b in books) selectedIds.Add(b.Id);
+        }
+    }
+
+    private async Task<IReadOnlyList<AuthorDto>> SearchAuthorsAsync(string query)
+    {
+        var result = await AuthorService.SearchAsync(query, limit: 20);
+        return result.IsSuccess ? result.Value : [];
+    }
+
+    private async Task AddAuthorAsync(string name)
+    {
+        var result = await AuthorService.GetOrCreateAsync(name);
+        if (result.IsSuccess && !bulkAuthors.Any(a => a.Id == result.Value.Id))
+        {
+            bulkAuthors.Add(result.Value);
+        }
+    }
+
+    private async Task<IReadOnlyList<GenreDto>> SearchGenresAsync(string query)
+    {
+        var result = await GenreService.SearchAsync(query, limit: 20);
+        return result.IsSuccess ? result.Value : [];
+    }
+
+    private async Task AddGenreAsync(string name)
+    {
+        var result = await GenreService.GetOrCreateAsync(name);
+        if (result.IsSuccess && !bulkGenres.Any(g => g.Id == result.Value.Id))
+        {
+            bulkGenres.Add(result.Value);
+        }
+    }
+
+    private async Task OnSeriesInput(ChangeEventArgs e)
+    {
+        seriesInput = e.Value?.ToString();
+        showSeriesSuggestions = true;
+        await RefreshSeriesSuggestionsAsync();
+    }
+
+    private async Task OnSeriesFocus()
+    {
+        showSeriesSuggestions = true;
+        await RefreshSeriesSuggestionsAsync();
+    }
+
+    private async Task OnSeriesKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(seriesInput))
+        {
+            await SelectSeriesAsync(seriesInput.Trim());
+        }
+        else if (e.Key == "Escape")
+        {
+            showSeriesSuggestions = false;
+        }
+    }
+
+    private async Task RefreshSeriesSuggestionsAsync()
+    {
+        var result = await SeriesService.SearchAsync(seriesInput, limit: 10);
+        seriesSuggestions = result.IsSuccess ? result.Value : [];
+    }
+
+    private async Task SelectSeriesAsync(string name)
+    {
+        var result = await SeriesService.GetOrCreateAsync(name);
+        if (result.IsSuccess)
+        {
+            bulkSeries = result.Value;
+            seriesInput = result.Value.Name;
+            showSeriesSuggestions = false;
+        }
+    }
+
+    private void OnBulkTagKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(bulkTagInput))
+        {
+            var trimmed = bulkTagInput.Trim().TrimStart('#');
+            if (!string.IsNullOrEmpty(trimmed) &&
+                !bulkTags.Any(t => string.Equals(t, trimmed, StringComparison.OrdinalIgnoreCase)))
+            {
+                bulkTags.Add(trimmed);
+            }
+            bulkTagInput = string.Empty;
+        }
+    }
+
+    private void RemoveBulkTag(string tag) => bulkTags.Remove(tag);
+
+    private async Task SaveAsync()
+    {
+        if (books is null || books.Count == 0) return;
+        saving = true;
+        errorMessage = null;
+        saveSummary = null;
+        try
+        {
+            int updated = 0, failed = 0;
+            foreach (var row in rows)
+            {
+                if (!selectedIds.Contains(row.Id)) continue;
+                var book = books.FirstOrDefault(b => b.Id == row.Id);
+                if (book is null) continue;
+
+                var request = BuildRequest(book, row);
+                var result = await BookService.UpdateAsync(book.Id, request);
+                if (result.IsSuccess) updated++;
+                else
+                {
+                    failed++;
+                    if (Logger.IsEnabled(LogLevel.Warning))
+                    {
+                        Logger.LogWarning("Batch update failed for book {BookId}: {Errors}", book.Id, string.Join("; ", result.Errors));
+                    }
+                }
+            }
+
+            saveSummary = failed == 0
+                ? $"Updated {updated} book{(updated == 1 ? "" : "s")}."
+                : $"Updated {updated} book{(updated == 1 ? "" : "s")}, {failed} failed. Check the logs for details.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Batch save failed");
+            errorMessage = "Something went wrong saving. Check the logs for details.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private UpdateBookRequest BuildRequest(BookDto book, RowModel row)
+    {
+        // Authors / Genres / Tags either replace or append; if the section is disabled we
+        // keep the book's current values verbatim. UpdateBookRequest is a full-replace shape
+        // so we always have to send a complete list.
+        IReadOnlyList<int> authorIds = bulk.UpdateAuthors
+            ? bulk.AuthorsMode == ChipApplyMode.Replace
+                ? bulkAuthors.Select(a => a.Id).ToList()
+                : book.Authors.Select(a => a.Id).Concat(bulkAuthors.Select(a => a.Id)).Distinct().ToList()
+            : book.Authors.Select(a => a.Id).ToList();
+
+        IReadOnlyList<int> genreIds = bulk.UpdateGenres
+            ? bulk.GenresMode == ChipApplyMode.Replace
+                ? bulkGenres.Select(g => g.Id).ToList()
+                : book.Genres.Select(g => g.Id).Concat(bulkGenres.Select(g => g.Id)).Distinct().ToList()
+            : book.Genres.Select(g => g.Id).ToList();
+
+        IReadOnlyList<string> tags = bulk.UpdateTags
+            ? bulk.TagsMode == ChipApplyMode.Replace
+                ? bulkTags.ToList()
+                : book.Tags.Concat(bulkTags).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            : book.Tags.ToList();
+
+        // Series: enabled = override (clearing if no series picked); disabled = keep current.
+        int? seriesId = bulk.UpdateSeries ? bulkSeries?.Id : book.Series?.Id;
+        decimal? numberInSeries = seriesId is null ? null : row.NumberInSeries ?? book.NumberInSeries;
+
+        // Publication block applies all four fields together (intentional; partial overrides
+        // would surprise users). When disabled, keep the book's current values.
+        string? publisher = bulk.UpdatePublication ? bulk.Publisher : book.Publisher;
+        DateTime? publishedOn = bulk.UpdatePublication ? bulk.PublishedOn : book.PublishedOn;
+        string? language = bulk.UpdatePublication ? bulk.Language : book.Language;
+        string? isbn = bulk.UpdatePublication ? bulk.Isbn : book.Isbn;
+
+        return new UpdateBookRequest
+        {
+            Title = string.IsNullOrWhiteSpace(row.Title) ? book.Title : row.Title.Trim(),
+            SortTitle = string.IsNullOrWhiteSpace(row.SortTitle) ? null : row.SortTitle!.Trim(),
+            Subtitle = string.IsNullOrWhiteSpace(row.Subtitle) ? null : row.Subtitle!.Trim(),
+            Description = string.IsNullOrWhiteSpace(row.Description) ? null : row.Description,
+            Language = string.IsNullOrWhiteSpace(language) ? null : language,
+            Publisher = string.IsNullOrWhiteSpace(publisher) ? null : publisher,
+            Isbn = string.IsNullOrWhiteSpace(isbn) ? null : isbn,
+            PublishedOn = publishedOn,
+            SeriesId = seriesId,
+            NumberInSeries = numberInSeries,
+            AuthorIds = authorIds,
+            GenreIds = genreIds,
+            Tags = tags,
+        };
+    }
+
+    private sealed class RowModel
+    {
+        public int Id { get; set; }
+        public string? CoverImagePath { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string? SortTitle { get; set; }
+        public string? Subtitle { get; set; }
+        public string? Description { get; set; }
+        public decimal? NumberInSeries { get; set; }
+    }
+
+    private sealed class BulkApplyModel
+    {
+        public bool UpdateSeries { get; set; }
+        public bool UpdateAuthors { get; set; }
+        public ChipApplyMode AuthorsMode { get; set; } = ChipApplyMode.Append;
+        public bool UpdateGenres { get; set; }
+        public ChipApplyMode GenresMode { get; set; } = ChipApplyMode.Append;
+        public bool UpdateTags { get; set; }
+        public ChipApplyMode TagsMode { get; set; } = ChipApplyMode.Append;
+        public bool UpdatePublication { get; set; }
+        public string? Publisher { get; set; }
+        public DateTime? PublishedOn { get; set; }
+        public string? Language { get; set; }
+        public string? Isbn { get; set; }
+    }
+}
