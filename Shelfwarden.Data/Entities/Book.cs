@@ -36,6 +36,12 @@ public class Book : BaseEntity<int>
 
     public DateTime? LastScannedAt { get; set; }
 
+    /// <summary>
+    /// Timestamp of the last user metadata edit ("reviewed" state). Null means the book has
+    /// never been reviewed and still only carries scanner-imported metadata.
+    /// </summary>
+    public DateTime? UpdatedAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public int LibraryId { get; set; }

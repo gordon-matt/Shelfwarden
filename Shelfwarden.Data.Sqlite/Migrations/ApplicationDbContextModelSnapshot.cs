@@ -342,6 +342,9 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .IsUnicode(true)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SeriesId");

@@ -16,6 +16,12 @@ public record BookSearchRequest
 
     public int? GenreId { get; init; }
 
+    /// <summary>
+    /// When true, only include books that have never had metadata edited by a user
+    /// (<c>UpdatedAt is null</c>).
+    /// </summary>
+    public bool AwaitingReview { get; init; }
+
     public string? Query { get; init; }
 
     public int Page { get; init; } = 1;
@@ -34,4 +40,5 @@ public enum BookSortBy
     PublishedOn = 2,
     LastReadAt = 3,
     NumberInSeries = 4,
+    UpdatedAt = 5,
 }

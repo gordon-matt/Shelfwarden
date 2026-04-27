@@ -354,6 +354,9 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .IsUnicode(true)
                         .HasColumnType("character varying(512)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SeriesId");

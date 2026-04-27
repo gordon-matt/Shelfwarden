@@ -1,3 +1,5 @@
+using LinqKit;
+
 namespace Shelfwarden.Services;
 
 public class BookService(
@@ -25,16 +27,20 @@ public class BookService(
             SplitQuery = true,
         };
 
-        if (request.LibraryId is int libId) options.Query = AndAlso(options.Query, b => b.LibraryId == libId);
-        if (request.SeriesId is int sId) options.Query = AndAlso(options.Query, b => b.SeriesId == sId);
-        if (request.AuthorId is int aId) options.Query = AndAlso(options.Query, b => b.BookAuthors.Any(ba => ba.AuthorId == aId));
-        if (request.GenreId is int gId) options.Query = AndAlso(options.Query, b => b.BookGenres.Any(bg => bg.GenreId == gId));
+        var predicate = PredicateBuilder.New<Book>(true);
 
+        if (request.LibraryId is int libId) predicate = predicate.And(b => b.LibraryId == libId);
+        if (request.SeriesId is int sId) predicate = predicate.And(b => b.SeriesId == sId);
+        if (request.AuthorId is int aId) predicate = predicate.And(b => b.BookAuthors.Any(ba => ba.AuthorId == aId));
+        if (request.GenreId is int gId) predicate = predicate.And(b => b.BookGenres.Any(bg => bg.GenreId == gId));
+        if (request.AwaitingReview) predicate = predicate.And(b => b.UpdatedAt == null);
         if (!string.IsNullOrWhiteSpace(request.Query))
         {
             string q = request.Query.Trim();
-            options.Query = AndAlso(options.Query, b => EF.Functions.Like(b.Title, $"%{q}%"));
+            predicate = predicate.And(b => b.Title.Contains(q));
         }
+
+        options.Query = predicate;
 
         options.OrderBy = request.SortBy switch
         {
@@ -50,6 +56,9 @@ public class BookService(
             BookSortBy.NumberInSeries => request.SortDescending
                 ? q => q.OrderByDescending(b => b.SeriesId).ThenByDescending(b => b.NumberInSeries)
                 : q => q.OrderBy(b => b.SeriesId).ThenBy(b => b.NumberInSeries),
+            BookSortBy.UpdatedAt => request.SortDescending
+                ? q => q.OrderByDescending(b => b.UpdatedAt)
+                : q => q.OrderBy(b => b.UpdatedAt),
             _ => q => q.OrderBy(b => b.SortTitle ?? b.Title),
         };
 
@@ -122,6 +131,7 @@ public class BookService(
         book.PublishedOn = request.PublishedOn;
         book.SeriesId = request.SeriesId;
         book.NumberInSeries = request.NumberInSeries;
+        book.UpdatedAt = DateTime.UtcNow;
 
         await bookRepository.UpdateAsync(book);
 
@@ -326,19 +336,6 @@ public class BookService(
             .Select(tid => new BookTag { BookId = bookId, TagId = tid })
             .ToList();
         if (toAddJoins.Count > 0) await bookTagRepository.InsertAsync(toAddJoins);
-    }
-
-    private static System.Linq.Expressions.Expression<Func<Book, bool>>? AndAlso(
-        System.Linq.Expressions.Expression<Func<Book, bool>>? left,
-        System.Linq.Expressions.Expression<Func<Book, bool>> right)
-    {
-        if (left is null) return right;
-
-        var param = System.Linq.Expressions.Expression.Parameter(typeof(Book), "b");
-        var combined = System.Linq.Expressions.Expression.AndAlso(
-            new ParameterReplacer(param).Visit(left.Body)!,
-            new ParameterReplacer(param).Visit(right.Body)!);
-        return System.Linq.Expressions.Expression.Lambda<Func<Book, bool>>(combined, param);
     }
 
     private static string? NullIfWhitespace(string? s)
