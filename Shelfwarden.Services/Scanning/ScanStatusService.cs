@@ -32,8 +32,10 @@ public class ScanStatusService(
         }
 
         var (running, queued) = GetActiveLibraryIds();
-        var state = ResolveState(libraryId, running, queued, library.LastScannedAt);
-        var progress = state == ScanState.Running ? progressTracker.GetSnapshot(libraryId) : null;
+        var progress = progressTracker.GetSnapshot(libraryId);
+        var state = progress is not null
+            ? ScanState.Running
+            : ResolveState(libraryId, running, queued, library.LastScannedAt);
         return Result.Success(new ScanStatusDto(libraryId, state, library.LastScannedAt, progress));
     }
 
@@ -51,7 +53,11 @@ public class ScanStatusService(
             l =>
             {
                 var state = ResolveState(l.Id, running, queued, l.LastScannedAt);
-                var progress = state == ScanState.Running ? progressTracker.GetSnapshot(l.Id) : null;
+                var progress = progressTracker.GetSnapshot(l.Id);
+                if (progress is not null)
+                {
+                    state = ScanState.Running;
+                }
                 return new ScanStatusDto(l.Id, state, l.LastScannedAt, progress);
             });
 

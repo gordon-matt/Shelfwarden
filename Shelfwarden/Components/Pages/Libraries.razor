@@ -134,15 +134,14 @@ else
 @code {
     private IReadOnlyList<LibraryDto>? libraries;
     private IReadOnlyDictionary<int, ScanStatusDto> statuses = new Dictionary<int, ScanStatusDto>();
-    private Timer? pollTimer;
+    private CancellationTokenSource? pollCts;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
         // Poll every 1.5s so the scan progress counters feel live without hammering Hangfire.
-        // The status query is just queue-count + an in-memory tracker lookup, so this is cheap.
-        pollTimer = new Timer(async _ => await RefreshStatusesAsync(),
-            state: null, dueTime: TimeSpan.FromSeconds(1.5), period: TimeSpan.FromSeconds(1.5));
+        pollCts = new CancellationTokenSource();
+        _ = Task.Run(() => PollLoopAsync(pollCts.Token));
     }
 
     private async Task LoadAsync()
@@ -232,6 +231,24 @@ else
 
     public void Dispose()
     {
-        pollTimer?.Dispose();
+        pollCts?.Cancel();
+        pollCts?.Dispose();
+    }
+
+    private async Task PollLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1.5), token);
+                if (token.IsCancellationRequested) break;
+                await RefreshStatusesAsync();
+            }
+            catch (TaskCanceledException)
+            {
+                break;
+            }
+        }
     }
 }

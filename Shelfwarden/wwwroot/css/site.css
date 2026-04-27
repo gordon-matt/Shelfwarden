@@ -1183,6 +1183,26 @@ ol.reading-list {
     position: relative;
 }
 
+/* Unified card grid used across books/library/home/collection/author pages.
+   Target: denser than the previous 6-per-row layout on desktop. */
+.book-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 576px) {
+    .book-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 992px) {
+    .book-grid {
+        grid-template-columns: repeat(10, minmax(0, 1fr));
+    }
+}
+
 .book-card-select {
     position: absolute;
     top: 8px;

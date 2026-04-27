@@ -192,19 +192,17 @@ else
     }
     else
     {
-        <div class="row g-3">
+        <div class="book-grid">
             @foreach (var book in results.Items)
             {
-                <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                    <div class="book-card-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
-                        @if (selectMode)
-                        {
-                            <input class="form-check-input book-card-select" type="checkbox"
-                                   checked="@selectedBookIds.Contains(book.Id)"
-                                   @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
-                        }
-                        <BookCard Book="book" />
-                    </div>
+                <div class="book-card-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
+                    @if (selectMode)
+                    {
+                        <input class="form-check-input book-card-select" type="checkbox"
+                               checked="@selectedBookIds.Contains(book.Id)"
+                               @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
+                    }
+                    <BookCard Book="book" />
                 </div>
             }
         </div>

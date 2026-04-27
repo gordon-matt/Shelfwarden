@@ -39,7 +39,29 @@ else
                     <span> · @author.SeriesGroups.Count series</span>
                 }
             </div>
-            @if (!string.IsNullOrWhiteSpace(author.Biography))
+            <AuthorizeView Roles="@Constants.Roles.Administrator">
+                <Authorized>
+                    <div class="mb-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleBioEdit">
+                            <i class="bi bi-pencil"></i> @(editingBio ? "Cancel bio edit" : "Edit bio")
+                        </button>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+            @if (editingBio)
+            {
+                <div class="author-bio-editor">
+                    <textarea class="form-control mb-2" rows="5" @bind="bioDraft"></textarea>
+                    <button class="btn btn-sm btn-primary" disabled="@savingBio" @onclick="SaveBioAsync">
+                        @if (savingBio)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        <i class="bi bi-check-lg"></i> Save bio
+                    </button>
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(author.Biography))
             {
                 <p class="author-bio mb-0">@author.Biography</p>
             }
@@ -109,19 +131,17 @@ else
                     }
                 </div>
             </div>
-            <div class="row g-3">
+            <div class="book-grid">
                 @foreach (var b in author.StandaloneBooks)
                 {
-                    <div class="col-6 col-md-4 col-lg-3 col-xl-2">
-                        <div class="book-card-wrap @(selectMode && selectedBookIds.Contains(b.Id) ? "selected" : "")">
-                            @if (selectMode)
-                            {
-                                <input class="form-check-input book-card-select" type="checkbox"
-                                       checked="@selectedBookIds.Contains(b.Id)"
-                                       @onchange="e => ToggleSelection(b.Id, (bool)(e.Value ?? false))" />
-                            }
-                            <BookCard Book="b" />
-                        </div>
+                    <div class="book-card-wrap @(selectMode && selectedBookIds.Contains(b.Id) ? "selected" : "")">
+                        @if (selectMode)
+                        {
+                            <input class="form-check-input book-card-select" type="checkbox"
+                                   checked="@selectedBookIds.Contains(b.Id)"
+                                   @onchange="e => ToggleSelection(b.Id, (bool)(e.Value ?? false))" />
+                        }
+                        <BookCard Book="b" />
                     </div>
                 }
             </div>
@@ -145,6 +165,9 @@ else
 
     private bool selectMode;
     private readonly HashSet<int> selectedBookIds = [];
+    private bool editingBio;
+    private bool savingBio;
+    private string? bioDraft;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -152,6 +175,8 @@ else
         loadFailed = false;
         selectMode = false;
         selectedBookIds.Clear();
+        editingBio = false;
+        bioDraft = null;
 
         var result = await AuthorService.GetDetailAsync(Id);
         if (result.IsSuccess)
@@ -189,5 +214,31 @@ else
         if (selectedBookIds.Count == 0) return;
         string ids = string.Join(',', selectedBookIds);
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=authors/{Id}");
+    }
+
+    private void ToggleBioEdit()
+    {
+        editingBio = !editingBio;
+        bioDraft = editingBio ? author?.Biography : bioDraft;
+    }
+
+    private async Task SaveBioAsync()
+    {
+        if (author is null) return;
+        savingBio = true;
+        try
+        {
+            var result = await AuthorService.UpdateBiographyAsync(author.Id, bioDraft);
+            if (result.IsSuccess)
+            {
+                // Keep already loaded series/standalone lists, only patch author header data.
+                author = author with { Biography = result.Value.Biography };
+                editingBio = false;
+            }
+        }
+        finally
+        {
+            savingBio = false;
+        }
     }
 }

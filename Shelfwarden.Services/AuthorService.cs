@@ -162,4 +162,22 @@ public class AuthorService(
             seriesGroups,
             standalone));
     }
+
+    public async Task<Result<AuthorDto>> UpdateBiographyAsync(int id, string? biography, CancellationToken cancellationToken = default)
+    {
+        var author = await authorRepository.FindOneAsync(new SearchOptions<Author>
+        {
+            Query = a => a.Id == id,
+            CancellationToken = cancellationToken,
+        });
+        if (author is null)
+        {
+            return Result.NotFound($"Author {id} not found.");
+        }
+
+        author.Biography = string.IsNullOrWhiteSpace(biography) ? null : biography.Trim();
+        await authorRepository.UpdateAsync(author);
+
+        return Result.Success(new AuthorDto(author.Id, author.Name, author.Biography));
+    }
 }

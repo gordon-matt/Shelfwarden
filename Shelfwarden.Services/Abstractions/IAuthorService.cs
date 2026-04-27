@@ -19,4 +19,10 @@ public interface IAuthorService
     /// book in (with covers for the collage), and a list of standalone books not in any series.
     /// </summary>
     Task<Result<AuthorDetailDto>> GetDetailAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an author's biography text. Name edits are intentionally out of scope for now
+    /// because names are scanner-owned metadata.
+    /// </summary>
+    Task<Result<AuthorDto>> UpdateBiographyAsync(int id, string? biography, CancellationToken cancellationToken = default);
 }
