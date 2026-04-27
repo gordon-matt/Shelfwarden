@@ -464,6 +464,11 @@ else
         saveSummary = null;
         try
         {
+            // Resolve/create the target series once per save. Previously this only worked when
+            // the user explicitly clicked a suggestion/pressed Enter, which made typed values
+            // appear to "not work".
+            int? resolvedSeriesId = await ResolveSeriesSelectionAsync();
+
             int updated = 0, failed = 0;
             foreach (var row in rows)
             {
@@ -471,7 +476,7 @@ else
                 var book = books.FirstOrDefault(b => b.Id == row.Id);
                 if (book is null) continue;
 
-                var request = BuildRequest(book, row);
+                var request = BuildRequest(book, row, resolvedSeriesId);
                 var result = await BookService.UpdateAsync(book.Id, request);
                 if (result.IsSuccess) updated++;
                 else
@@ -499,7 +504,40 @@ else
         }
     }
 
-    private UpdateBookRequest BuildRequest(BookDto book, RowModel row)
+    private async Task<int?> ResolveSeriesSelectionAsync()
+    {
+        if (!bulk.UpdateSeries)
+        {
+            return null;
+        }
+
+        // Empty input while "Update Series" is enabled means explicit clear.
+        if (string.IsNullOrWhiteSpace(seriesInput))
+        {
+            bulkSeries = null;
+            return null;
+        }
+
+        // If the selected DTO matches the typed text, keep it.
+        if (bulkSeries is not null &&
+            string.Equals(bulkSeries.Name, seriesInput.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return bulkSeries.Id;
+        }
+
+        // User typed something but didn't click a dropdown item → resolve/create now.
+        var result = await SeriesService.GetOrCreateAsync(seriesInput.Trim());
+        if (!result.IsSuccess)
+        {
+            throw new InvalidOperationException("Could not resolve the series for batch edit.");
+        }
+
+        bulkSeries = result.Value;
+        seriesInput = result.Value.Name;
+        return result.Value.Id;
+    }
+
+    private UpdateBookRequest BuildRequest(BookDto book, RowModel row, int? resolvedSeriesId)
     {
         // Authors / Genres / Tags either replace or append; if the section is disabled we
         // keep the book's current values verbatim. UpdateBookRequest is a full-replace shape
@@ -523,7 +561,7 @@ else
             : book.Tags.ToList();
 
         // Series: enabled = override (clearing if no series picked); disabled = keep current.
-        int? seriesId = bulk.UpdateSeries ? bulkSeries?.Id : book.Series?.Id;
+        int? seriesId = bulk.UpdateSeries ? resolvedSeriesId : book.Series?.Id;
         decimal? numberInSeries = seriesId is null ? null : row.NumberInSeries ?? book.NumberInSeries;
 
         // Publication block applies all four fields together (intentional; partial overrides

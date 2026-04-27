@@ -1,7 +1,9 @@
 @page "/libraries/{Id:int}"
 @attribute [Authorize]
+@implements IDisposable
 @inject ILibraryService LibraryService
 @inject IBookService BookService
+@inject IScanStatusService ScanStatusService
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(library?.Name ?? "Library") - Shelfwarden</PageTitle>
@@ -41,6 +43,18 @@ else
             </Authorized>
         </AuthorizeView>
     </div>
+    @if (scanIndicatorVisible)
+    {
+        <div class="scan-progress mb-3">
+            <div class="progress" role="progressbar" aria-label="Scanning" style="height: 4px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+                     style="width: 100%"></div>
+            </div>
+            <div class="small text-body-secondary mt-1">
+                <i class="bi bi-hourglass-split"></i> Scan queued and running in the background...
+            </div>
+        </div>
+    }
 
     @if (books is null)
     {
@@ -84,6 +98,9 @@ else
     private LibraryDto? library;
     private PagedList<BookListItemDto>? books;
     private readonly HashSet<int> selectedBookIds = [];
+    private bool scanIndicatorVisible;
+    private DateTime? optimisticBusyUntilUtc;
+    private CancellationTokenSource? pollCts;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -104,10 +121,74 @@ else
         }
     }
 
+    protected override void OnInitialized()
+    {
+        pollCts = new CancellationTokenSource();
+        _ = Task.Run(() => PollLoopAsync(pollCts.Token));
+    }
+
     private async Task ScanAsync()
     {
-        await LibraryService.ScheduleScanAsync(Id);
+        scanIndicatorVisible = true;
+        optimisticBusyUntilUtc = DateTime.UtcNow.AddSeconds(20);
+        StateHasChanged();
+        var result = await LibraryService.ScheduleScanAsync(Id);
+        if (!result.IsSuccess)
+        {
+            scanIndicatorVisible = false;
+            optimisticBusyUntilUtc = null;
+        }
     }
+
+    private async Task PollLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1.5), token);
+                if (token.IsCancellationRequested) break;
+                await RefreshScanIndicatorAsync(token);
+            }
+            catch (TaskCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task RefreshScanIndicatorAsync(CancellationToken cancellationToken)
+    {
+        var statusResult = await ScanStatusService.GetForLibraryAsync(Id, cancellationToken);
+        if (!statusResult.IsSuccess) return;
+
+        var status = statusResult.Value;
+        bool optimisticBusy = optimisticBusyUntilUtc is { } until && until > DateTime.UtcNow;
+        bool busy = IsBusy(status) || optimisticBusy;
+        bool changed = scanIndicatorVisible != busy;
+        scanIndicatorVisible = busy;
+
+        // Scan just finished: refresh library + books so last-scan timestamp/counts are current.
+        if (!IsBusy(status) && !optimisticBusy && changed && library is not null)
+        {
+            optimisticBusyUntilUtc = null;
+            await OnParametersSetAsync();
+        }
+
+        // Once the backend reports real busy state, we no longer need optimistic hold.
+        if (IsBusy(status))
+        {
+            optimisticBusyUntilUtc = null;
+        }
+
+        if (changed)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static bool IsBusy(ScanStatusDto? status)
+        => status is not null && (status.State == ScanState.Running || status.State == ScanState.Queued);
 
     private async Task DeleteAsync()
     {
@@ -137,5 +218,11 @@ else
         if (selectedBookIds.Count == 0) return;
         string ids = string.Join(',', selectedBookIds);
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=libraries/{Id}");
+    }
+
+    public void Dispose()
+    {
+        pollCts?.Cancel();
+        pollCts?.Dispose();
     }
 }

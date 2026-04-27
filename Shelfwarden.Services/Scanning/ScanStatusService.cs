@@ -82,8 +82,8 @@ public class ScanStatusService(
 
         try
         {
-            // Scan queue is reserved for scan jobs (see Constants.HangfireQueues.Scan), so we
-            // know args[0] is the library id and don't need to filter by method name.
+            // Running jobs: inspect processing across all queues/workers and keep only scanner
+            // jobs by method signature. This is more robust than assuming a specific queue name.
             foreach (var pair in monitoring.ProcessingJobs(0, 200))
             {
                 if (TryGetLibraryId(pair.Value?.Job, out int id))
@@ -92,10 +92,15 @@ public class ScanStatusService(
                 }
             }
 
-            long enqueued = monitoring.EnqueuedCount(Constants.HangfireQueues.Scan);
-            if (enqueued > 0)
+            // Enqueued jobs: walk every queue Hangfire knows about (not just "scan"), then
+            // filter by ScanLibraryAsync. Some installations route jobs differently.
+            var queues = monitoring.Queues();
+            foreach (var q in queues)
             {
-                foreach (var pair in monitoring.EnqueuedJobs(Constants.HangfireQueues.Scan, 0, (int)Math.Min(enqueued, 200)))
+                long enqueued = monitoring.EnqueuedCount(q.Name);
+                if (enqueued <= 0) continue;
+
+                foreach (var pair in monitoring.EnqueuedJobs(q.Name, 0, (int)Math.Min(enqueued, 200)))
                 {
                     if (TryGetLibraryId(pair.Value?.Job, out int id))
                     {

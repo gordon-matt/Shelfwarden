@@ -79,20 +79,18 @@ else
                 <h2 class="mb-0">Series</h2>
                 <a class="small text-decoration-none" href="series">Browse all series <i class="bi bi-arrow-right"></i></a>
             </div>
-            <div class="row g-3">
+            <div class="book-grid">
                 @foreach (var s in author.SeriesGroups)
                 {
-                    <div class="col-6 col-md-4 col-lg-3">
-                        <a class="series-tile" href="@($"books?series={s.SeriesId}")" title="@s.SeriesName">
-                            <SeriesCollage Covers="s.Covers" />
-                            <div class="series-tile-body">
-                                <div class="series-tile-name text-truncate">@s.SeriesName</div>
-                                <div class="series-tile-count text-secondary small">
-                                    @s.BookCount book@(s.BookCount == 1 ? "" : "s")
-                                </div>
+                    <a class="series-tile" href="@($"books?series={s.SeriesId}")" title="@s.SeriesName">
+                        <SeriesCollage Covers="s.Covers" />
+                        <div class="series-tile-body">
+                            <div class="series-tile-name text-truncate">@s.SeriesName</div>
+                            <div class="series-tile-count text-secondary small">
+                                @s.BookCount book@(s.BookCount == 1 ? "" : "s")
                             </div>
-                        </a>
-                    </div>
+                        </div>
+                    </a>
                 }
             </div>
         </section>

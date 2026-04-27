@@ -38,20 +38,18 @@ else if (series.Count == 0)
 }
 else
 {
-    <div class="row g-3">
+    <div class="book-grid">
         @foreach (var s in series)
         {
-            <div class="col-6 col-md-4 col-lg-3">
-                <a class="series-tile" href="@($"books?series={s.Id}")" title="@s.Name">
-                    <SeriesCollage Covers="s.Covers" />
-                    <div class="series-tile-body">
-                        <div class="series-tile-name text-truncate">@s.Name</div>
-                        <div class="series-tile-count text-secondary small">
-                            @s.BookCount book@(s.BookCount == 1 ? "" : "s")
-                        </div>
+            <a class="series-tile" href="@($"books?series={s.Id}")" title="@s.Name">
+                <SeriesCollage Covers="s.Covers" />
+                <div class="series-tile-body">
+                    <div class="series-tile-name text-truncate">@s.Name</div>
+                    <div class="series-tile-count text-secondary small">
+                        @s.BookCount book@(s.BookCount == 1 ? "" : "s")
                     </div>
-                </a>
-            </div>
+                </div>
+            </a>
         }
     </div>
 }
