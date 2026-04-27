@@ -1,0 +1,349 @@
+@page "/reading-lists/{Id:int}"
+@attribute [Authorize]
+@inject IReadingListService ReadingListService
+@inject IBookService BookService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(list?.Name ?? "Reading list") - Shelfwarden</PageTitle>
+
+@if (loading)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading reading list…</div>
+    </div>
+}
+else if (list is null)
+{
+    <div class="empty-state">
+        <i class="bi bi-question-circle empty-icon"></i>
+        <h3>Reading list not found</h3>
+        <p>It may have been deleted, or you don't have permission to see it.</p>
+        <a class="btn btn-outline-secondary" href="reading-lists">
+            <i class="bi bi-arrow-left"></i> Back to reading lists
+        </a>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+            <a href="reading-lists" class="text-secondary text-decoration-none small">
+                <i class="bi bi-arrow-left"></i> All reading lists
+            </a>
+            <h1 class="mb-1 mt-1">@list.Name</h1>
+            @if (!string.IsNullOrEmpty(list.Description))
+            {
+                <p class="text-secondary mb-0">@list.Description</p>
+            }
+        </div>
+        <div class="d-flex gap-2">
+            @if (list.Items.Count > 0 && firstUnreadId.HasValue)
+            {
+                <a class="btn btn-primary" href="@($"read/{firstUnreadId.Value}")">
+                    <i class="bi bi-book-half"></i> Read next
+                </a>
+            }
+            <button class="btn btn-outline-secondary" @onclick="() => editing = !editing">
+                <i class="bi bi-pencil"></i> @(editing ? "Cancel" : "Rename")
+            </button>
+            <button class="btn btn-outline-danger" @onclick="DeleteAsync">
+                <i class="bi bi-trash"></i> Delete
+            </button>
+        </div>
+    </div>
+
+    @if (editing)
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <EditForm Model="editModel" OnValidSubmit="SaveAsync" FormName="edit-reading-list">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <InputText class="form-control" @bind-Value="editModel.Name" />
+                            <ValidationMessage For="() => editModel.Name" class="text-danger small" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Description</label>
+                            <InputText class="form-control" @bind-Value="editModel.Description" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" disabled="@savingEdit">
+                            <i class="bi bi-check-lg"></i> Save
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Add a book</h5>
+            <div class="position-relative">
+                <input class="form-control" type="text" placeholder="Search books to add…"
+                       value="@searchInput" @oninput="OnSearchInput" @onfocus="() => showSearch = true" />
+                @if (showSearch && searchResults.Count > 0)
+                {
+                    <ul class="dropdown-menu d-block w-100 mt-1 shadow-sm" style="position: absolute; max-height: 280px; overflow-y: auto; z-index: 50;">
+                        @foreach (var b in searchResults)
+                        {
+                            <li>
+                                <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                                        @onclick="() => AddBookAsync(b)">
+                                    <span class="fw-semibold">@b.Title</span>
+                                    @if (!string.IsNullOrEmpty(b.PrimaryAuthor))
+                                    {
+                                        <span class="text-secondary small">— @b.PrimaryAuthor</span>
+                                    }
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (list.Items.Count == 0)
+    {
+        <div class="empty-state">
+            <i class="bi bi-bookmark-x empty-icon"></i>
+            <h3>This list is empty</h3>
+            <p>Use the search box above to queue up books to read.</p>
+        </div>
+    }
+    else
+    {
+        <ol class="reading-list">
+            @for (int i = 0; i < list.Items.Count; i++)
+            {
+                var entry = list.Items[i];
+                int index = i;
+                <li class="reading-list-item">
+                    <div class="reading-list-cover">
+                        @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
+                        {
+                            <img src="@($"covers/{entry.Book.Id}")" alt="@entry.Book.Title" loading="lazy" />
+                        }
+                        else
+                        {
+                            <i class="bi bi-book"></i>
+                        }
+                        @if (entry.Book.ProgressPercentage > 0)
+                        {
+                            <div class="reading-list-progress" role="progressbar"
+                                 aria-valuenow="@entry.Book.ProgressPercentage" aria-valuemin="0" aria-valuemax="100">
+                                <div class="bar" style="width: @($"{entry.Book.ProgressPercentage:0}%")"></div>
+                            </div>
+                        }
+                    </div>
+                    <div class="reading-list-meta">
+                        <a class="fw-semibold text-reset text-decoration-none" href="@($"books/{entry.Book.Id}")">
+                            @entry.Book.Title
+                        </a>
+                        @if (!string.IsNullOrEmpty(entry.Book.PrimaryAuthor))
+                        {
+                            <div class="small text-body-secondary">@entry.Book.PrimaryAuthor</div>
+                        }
+                        @if (!string.IsNullOrEmpty(entry.Book.SeriesName))
+                        {
+                            <div class="small text-body-secondary">
+                                <i class="bi bi-collection"></i> @entry.Book.SeriesName
+                                @if (entry.Book.NumberInSeries.HasValue) { <span> · #@entry.Book.NumberInSeries</span> }
+                            </div>
+                        }
+                    </div>
+                    <div class="reading-list-actions d-flex flex-column gap-1">
+                        <a class="btn btn-sm btn-primary" href="@($"read/{entry.Book.Id}")">
+                            <i class="bi bi-book-half"></i> Read
+                        </a>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
+                            <button class="btn btn-outline-secondary" title="Move up"
+                                    disabled="@(index == 0 || reordering)"
+                                    @onclick="() => MoveAsync(index, index - 1)">
+                                <i class="bi bi-arrow-up"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" title="Move down"
+                                    disabled="@(index == list.Items.Count - 1 || reordering)"
+                                    @onclick="() => MoveAsync(index, index + 1)">
+                                <i class="bi bi-arrow-down"></i>
+                            </button>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" title="Remove from list"
+                                @onclick="() => RemoveBookAsync(entry.Book.Id)">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </li>
+            }
+        </ol>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private ReadingListDetailDto? list;
+    private bool loading = true;
+    private bool editing;
+    private bool savingEdit;
+    private bool reordering;
+    private EditModel editModel = new();
+
+    private string? searchInput;
+    private bool showSearch;
+    private IReadOnlyList<BookListItemDto> searchResults = [];
+    private CancellationTokenSource? searchCts;
+
+    /// <summary>Id of the next book to read — first item that's not at 100% progress, or null when nothing remains.</summary>
+    private int? firstUnreadId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        await LoadAsync();
+        loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await ReadingListService.GetByIdAsync(Id);
+        if (result.IsSuccess)
+        {
+            list = result.Value;
+            editModel = new EditModel { Name = list.Name, Description = list.Description };
+            firstUnreadId = list.Items
+                .FirstOrDefault(i => i.Book.ProgressPercentage < 100)?.Book.Id;
+        }
+        else
+        {
+            list = null;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        savingEdit = true;
+        try
+        {
+            var result = await ReadingListService.UpdateAsync(Id, new UpdateReadingListRequest
+            {
+                Name = editModel.Name,
+                Description = editModel.Description,
+            });
+            if (result.IsSuccess)
+            {
+                editing = false;
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            savingEdit = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        var result = await ReadingListService.DeleteAsync(Id);
+        if (result.IsSuccess)
+        {
+            NavigationManager.NavigateTo("reading-lists");
+        }
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        searchInput = e.Value?.ToString();
+        searchCts?.Cancel();
+        searchCts = new CancellationTokenSource();
+        var token = searchCts.Token;
+        try
+        {
+            await Task.Delay(200, token);
+            if (string.IsNullOrWhiteSpace(searchInput))
+            {
+                searchResults = [];
+                showSearch = false;
+                return;
+            }
+
+            var result = await BookService.SearchAsync(new BookSearchRequest
+            {
+                Query = searchInput,
+                Page = 1,
+                PageSize = 8,
+            }, token);
+            if (token.IsCancellationRequested) return;
+
+            var existing = list?.Items.Select(i => i.Book.Id).ToHashSet() ?? [];
+            searchResults = result.IsSuccess
+                ? result.Value.Items.Where(b => !existing.Contains(b.Id)).ToList()
+                : [];
+            showSearch = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task AddBookAsync(BookListItemDto book)
+    {
+        var result = await ReadingListService.AddBookAsync(Id, book.Id);
+        if (result.IsSuccess)
+        {
+            searchInput = string.Empty;
+            searchResults = [];
+            showSearch = false;
+            await LoadAsync();
+        }
+    }
+
+    private async Task RemoveBookAsync(int bookId)
+    {
+        var result = await ReadingListService.RemoveBookAsync(Id, bookId);
+        if (result.IsSuccess)
+        {
+            await LoadAsync();
+        }
+    }
+
+    /// <summary>
+    /// Reorder by swapping the two adjacent positions. We send the *new* full ordering to the
+    /// server so the back-end is the source of truth and a concurrent edit can't shear the list.
+    /// </summary>
+    private async Task MoveAsync(int fromIndex, int toIndex)
+    {
+        if (list is null || reordering) return;
+        if (toIndex < 0 || toIndex >= list.Items.Count) return;
+
+        reordering = true;
+        try
+        {
+            var ids = list.Items.Select(i => i.Id).ToList();
+            (ids[fromIndex], ids[toIndex]) = (ids[toIndex], ids[fromIndex]);
+
+            var result = await ReadingListService.ReorderAsync(Id, ids);
+            if (result.IsSuccess)
+            {
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            reordering = false;
+        }
+    }
+
+    private sealed class EditModel
+    {
+        [Required, StringLength(256)]
+        public string Name { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+    }
+}

@@ -1,0 +1,186 @@
+@page "/collections"
+@attribute [Authorize]
+@inject ICollectionService CollectionService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Collections - Shelfwarden</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1 class="mb-0">Collections</h1>
+        <p class="text-secondary mb-0">Themed groupings of books — yours and any global ones from administrators.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="ShowCreate">
+        <i class="bi bi-plus-lg"></i> New collection
+    </button>
+</div>
+
+@if (creating)
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Create collection</h5>
+            <EditForm Model="newCollection" OnValidSubmit="CreateAsync" FormName="new-collection">
+                <DataAnnotationsValidator />
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="newCollection.Name" />
+                        <ValidationMessage For="() => newCollection.Name" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Description</label>
+                        <InputText class="form-control" @bind-Value="newCollection.Description" />
+                    </div>
+                    <AuthorizeView Roles="@Constants.Roles.Administrator" Context="adminCtx">
+                        <Authorized>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <InputCheckbox class="form-check-input" id="globalToggle" @bind-Value="newCollection.IsGlobal" />
+                                    <label class="form-check-label" for="globalToggle">
+                                        Make this collection visible to all users (global)
+                                    </label>
+                                </div>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
+                </div>
+                @if (errorMessage is not null)
+                {
+                    <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                }
+                <div class="mt-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@busy">
+                        <i class="bi bi-check-lg"></i> Create
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelCreate">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (collections is null)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading collections…</div>
+    </div>
+}
+else if (collections.Count == 0)
+{
+    <div class="empty-state">
+        <i class="bi bi-bookshelf empty-icon"></i>
+        <h3>No collections yet</h3>
+        <p>Group books into themed collections — "Sci-fi favourites", "To re-read", anything you like.</p>
+        <button class="btn btn-primary" @onclick="ShowCreate">
+            <i class="bi bi-plus-lg"></i> Create your first collection
+        </button>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var c in collections)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="library-tile">
+                    <a href="@($"collections/{c.Id}")" class="library-tile-banner text-decoration-none">
+                        <i class="bi bi-bookshelf"></i>
+                    </a>
+                    <div class="card-body">
+                        <h5 class="card-title d-flex justify-content-between align-items-start mb-2">
+                            <a href="@($"collections/{c.Id}")" class="text-decoration-none text-reset">@c.Name</a>
+                            @if (c.IsGlobal)
+                            {
+                                <span class="badge bg-info-subtle text-info-emphasis" title="Visible to all users">
+                                    <i class="bi bi-globe"></i> Global
+                                </span>
+                            }
+                        </h5>
+                        @if (!string.IsNullOrEmpty(c.Description))
+                        {
+                            <p class="card-text small text-body-secondary mb-2">@c.Description</p>
+                        }
+                        <p class="card-text small mb-0">
+                            <span class="chip"><i class="bi bi-book"></i> @c.BookCount book@(c.BookCount == 1 ? "" : "s")</span>
+                            <span class="chip ms-1" title="@c.CreatedAt.ToString("yyyy-MM-dd HH:mm")">
+                                <i class="bi bi-calendar3"></i> @c.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")
+                            </span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<CollectionDto>? collections;
+    private bool creating;
+    private bool busy;
+    private string? errorMessage;
+    private CreateModel newCollection = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await CollectionService.ListAsync();
+        collections = result.IsSuccess ? result.Value : [];
+    }
+
+    private void ShowCreate()
+    {
+        creating = true;
+        errorMessage = null;
+        newCollection = new CreateModel();
+    }
+
+    private void CancelCreate()
+    {
+        creating = false;
+        errorMessage = null;
+    }
+
+    private async Task CreateAsync()
+    {
+        busy = true;
+        errorMessage = null;
+        try
+        {
+            var result = await CollectionService.CreateAsync(new CreateCollectionRequest
+            {
+                Name = newCollection.Name,
+                Description = newCollection.Description,
+                IsGlobal = newCollection.IsGlobal,
+            });
+            if (result.IsSuccess)
+            {
+                creating = false;
+                NavigationManager.NavigateTo($"collections/{result.Value.Id}");
+            }
+            else
+            {
+                errorMessage = result.Errors.FirstOrDefault() ?? "Could not create collection.";
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private sealed class CreateModel
+    {
+        [Required, StringLength(256)]
+        public string Name { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+
+        public bool IsGlobal { get; set; }
+    }
+}

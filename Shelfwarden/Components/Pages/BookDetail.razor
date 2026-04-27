@@ -2,6 +2,8 @@
 @attribute [Authorize]
 @inject IBookService BookService
 @inject IBookmarkService BookmarkService
+@inject ICollectionService CollectionService
+@inject IReadingListService ReadingListService
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(book?.Title ?? "Book") - Shelfwarden</PageTitle>
@@ -166,6 +168,73 @@ else
                 <a class="btn btn-primary" href="@($"read/{book.Id}")">
                     <i class="bi bi-book-half"></i> Read
                 </a>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                            data-bs-toggle="dropdown" aria-expanded="false" @onclick="EnsureAddToLoadedAsync">
+                        <i class="bi bi-plus-circle"></i> Add to&hellip;
+                    </button>
+                    <ul class="dropdown-menu" style="min-width: 16rem;">
+                        <li><h6 class="dropdown-header">Collections</h6></li>
+                        @if (collections is null)
+                        {
+                            <li><span class="dropdown-item-text text-secondary small">Loading…</span></li>
+                        }
+                        else if (collections.Count == 0)
+                        {
+                            <li><span class="dropdown-item-text text-secondary small">No collections yet</span></li>
+                        }
+                        else
+                        {
+                            @foreach (var c in collections)
+                            {
+                                <li>
+                                    <button type="button" class="dropdown-item d-flex justify-content-between align-items-center"
+                                            @onclick="() => AddToCollectionAsync(c)">
+                                        <span><i class="bi bi-bookshelf"></i> @c.Name</span>
+                                        @if (c.IsGlobal)
+                                        {
+                                            <span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-globe"></i></span>
+                                        }
+                                    </button>
+                                </li>
+                            }
+                        }
+                        <li>
+                            <button type="button" class="dropdown-item text-primary"
+                                    @onclick="() => StartCreate(AddToTarget.Collection)">
+                                <i class="bi bi-plus-lg"></i> New collection&hellip;
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider" /></li>
+                        <li><h6 class="dropdown-header">Reading lists</h6></li>
+                        @if (readingLists is null)
+                        {
+                            <li><span class="dropdown-item-text text-secondary small">Loading…</span></li>
+                        }
+                        else if (readingLists.Count == 0)
+                        {
+                            <li><span class="dropdown-item-text text-secondary small">No reading lists yet</span></li>
+                        }
+                        else
+                        {
+                            @foreach (var l in readingLists)
+                            {
+                                <li>
+                                    <button type="button" class="dropdown-item"
+                                            @onclick="() => AddToReadingListAsync(l)">
+                                        <i class="bi bi-list-ol"></i> @l.Name
+                                    </button>
+                                </li>
+                            }
+                        }
+                        <li>
+                            <button type="button" class="dropdown-item text-primary"
+                                    @onclick="() => StartCreate(AddToTarget.ReadingList)">
+                                <i class="bi bi-plus-lg"></i> New reading list&hellip;
+                            </button>
+                        </li>
+                    </ul>
+                </div>
                 <a class="btn btn-outline-secondary" href="@($"covers/{book.Id}")" target="_blank" rel="noopener">
                     <i class="bi bi-image"></i> View cover
                 </a>
@@ -180,6 +249,38 @@ else
                     </Authorized>
                 </AuthorizeView>
             </div>
+
+            @if (creatingTarget is not null)
+            {
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            @(creatingTarget == AddToTarget.Collection ? "New collection" : "New reading list")
+                        </h6>
+                        <div class="d-flex gap-2 align-items-start flex-wrap">
+                            <input class="form-control" style="max-width: 24rem;"
+                                   placeholder="Name…" @bind="newName" @bind:event="oninput" />
+                            <button class="btn btn-primary" disabled="@(creating || string.IsNullOrWhiteSpace(newName))"
+                                    @onclick="CreateAndAddAsync">
+                                <i class="bi bi-check-lg"></i> Create &amp; add
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="CancelCreate">
+                                Cancel
+                            </button>
+                        </div>
+                        @if (addToError is not null)
+                        {
+                            <div class="alert alert-danger mt-2 mb-0">@addToError</div>
+                        }
+                    </div>
+                </div>
+            }
+            else if (addToFlash is not null)
+            {
+                <div class="alert alert-success mt-3 mb-0 py-2 small d-flex align-items-center gap-2">
+                    <i class="bi bi-check-circle"></i> @addToFlash
+                </div>
+            }
         </div>
     </div>
 }
@@ -191,6 +292,15 @@ else
     private BookDto? book;
     private bool loading = true;
     private readonly List<BookmarkDto> bookmarks = [];
+
+    private IReadOnlyList<CollectionDto>? collections;
+    private IReadOnlyList<ReadingListDto>? readingLists;
+    private bool addToLoaded;
+    private AddToTarget? creatingTarget;
+    private string newName = string.Empty;
+    private bool creating;
+    private string? addToError;
+    private string? addToFlash;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -227,6 +337,128 @@ else
         {
             bookmarks.Remove(bm);
         }
+    }
+
+    /// <summary>
+    /// Lazy-load the collections / reading lists the first time the dropdown opens —
+    /// the typical book detail visit doesn't touch them at all, so eagerly fetching is wasted work.
+    /// </summary>
+    private async Task EnsureAddToLoadedAsync()
+    {
+        if (addToLoaded) return;
+        addToLoaded = true;
+
+        var collectionsTask = CollectionService.ListAsync();
+        var listsTask = ReadingListService.ListAsync();
+        await Task.WhenAll(collectionsTask, listsTask);
+
+        collections = collectionsTask.Result.IsSuccess ? collectionsTask.Result.Value : [];
+        readingLists = listsTask.Result.IsSuccess ? listsTask.Result.Value : [];
+    }
+
+    private async Task AddToCollectionAsync(CollectionDto c)
+    {
+        var result = await CollectionService.AddBookAsync(c.Id, Id);
+        FlashAddTo(result.IsSuccess
+            ? $"Added to collection \"{c.Name}\"."
+            : (result.Errors.FirstOrDefault() ?? "Could not add to collection."), result.IsSuccess);
+    }
+
+    private async Task AddToReadingListAsync(ReadingListDto l)
+    {
+        var result = await ReadingListService.AddBookAsync(l.Id, Id);
+        FlashAddTo(result.IsSuccess
+            ? $"Added to reading list \"{l.Name}\"."
+            : (result.Errors.FirstOrDefault() ?? "Could not add to reading list."), result.IsSuccess);
+    }
+
+    private void StartCreate(AddToTarget target)
+    {
+        creatingTarget = target;
+        newName = string.Empty;
+        addToError = null;
+    }
+
+    private void CancelCreate()
+    {
+        creatingTarget = null;
+        addToError = null;
+    }
+
+    private async Task CreateAndAddAsync()
+    {
+        if (creatingTarget is null || string.IsNullOrWhiteSpace(newName)) return;
+
+        creating = true;
+        addToError = null;
+        try
+        {
+            if (creatingTarget == AddToTarget.Collection)
+            {
+                var created = await CollectionService.CreateAsync(new CreateCollectionRequest { Name = newName });
+                if (!created.IsSuccess)
+                {
+                    addToError = created.Errors.FirstOrDefault() ?? "Could not create collection.";
+                    return;
+                }
+                var added = await CollectionService.AddBookAsync(created.Value.Id, Id);
+                if (!added.IsSuccess)
+                {
+                    addToError = added.Errors.FirstOrDefault() ?? "Created collection but could not add the book.";
+                    return;
+                }
+
+                // Refresh the dropdown so the new collection appears next time.
+                addToLoaded = false;
+                await EnsureAddToLoadedAsync();
+                creatingTarget = null;
+                FlashAddTo($"Created collection \"{created.Value.Name}\" and added this book.", success: true);
+            }
+            else
+            {
+                var created = await ReadingListService.CreateAsync(new CreateReadingListRequest { Name = newName });
+                if (!created.IsSuccess)
+                {
+                    addToError = created.Errors.FirstOrDefault() ?? "Could not create reading list.";
+                    return;
+                }
+                var added = await ReadingListService.AddBookAsync(created.Value.Id, Id);
+                if (!added.IsSuccess)
+                {
+                    addToError = added.Errors.FirstOrDefault() ?? "Created list but could not add the book.";
+                    return;
+                }
+
+                addToLoaded = false;
+                await EnsureAddToLoadedAsync();
+                creatingTarget = null;
+                FlashAddTo($"Created reading list \"{created.Value.Name}\" and added this book.", success: true);
+            }
+        }
+        finally
+        {
+            creating = false;
+        }
+    }
+
+    private void FlashAddTo(string message, bool success)
+    {
+        if (success)
+        {
+            addToFlash = message;
+            addToError = null;
+        }
+        else
+        {
+            addToError = message;
+            addToFlash = null;
+        }
+    }
+
+    private enum AddToTarget
+    {
+        Collection,
+        ReadingList,
     }
 
     private static string DefaultBookmarkTitle(BookmarkDto bm)

@@ -1,5 +1,7 @@
 @inject IAuthProviderService AuthProvider
 @inject ILibraryService LibraryService
+@inject ICollectionService CollectionService
+@inject IReadingListService ReadingListService
 
 <aside class="app-sidebar @(Open ? "open" : "")" id="appSidebar">
     <a class="app-sidebar-brand" href="/" @onclick="CloseOnNavigate">
@@ -25,8 +27,46 @@
                     <i class="bi bi-collection"></i> Libraries
                 </NavLink>
             </li>
+            <li>
+                <NavLink class="nav-link" href="collections" @onclick="CloseOnNavigate">
+                    <i class="bi bi-bookshelf"></i>
+                    <span>Collections</span>
+                    @if (collections is { Count: > 0 })
+                    {
+                        <span class="badge text-bg-secondary ms-auto">@collections.Count</span>
+                    }
+                </NavLink>
+            </li>
+            <li>
+                <NavLink class="nav-link" href="reading-lists" @onclick="CloseOnNavigate">
+                    <i class="bi bi-list-ol"></i>
+                    <span>Reading lists</span>
+                    @if (readingLists is { Count: > 0 })
+                    {
+                        <span class="badge text-bg-secondary ms-auto">@readingLists.Count</span>
+                    }
+                </NavLink>
+            </li>
         </ul>
     </div>
+
+    @if (readingLists is { Count: > 0 })
+    {
+        <div class="app-sidebar-section">
+            <div class="app-sidebar-section-title">Reading next</div>
+            <ul class="app-sidebar-nav">
+                @foreach (var l in readingLists.Take(5))
+                {
+                    <li>
+                        <NavLink class="nav-link" href="@($"reading-lists/{l.Id}")" @onclick="CloseOnNavigate">
+                            <i class="bi bi-list-ol"></i>
+                            <span class="text-truncate">@l.Name</span>
+                        </NavLink>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
 
     @if (libraries is { Count: > 0 })
     {
@@ -91,22 +131,27 @@
     [Parameter] public EventCallback OnRequestClose { get; set; }
 
     private List<LibraryDto>? libraries;
+    private IReadOnlyList<CollectionDto>? collections;
+    private IReadOnlyList<ReadingListDto>? readingLists;
 
     protected override async Task OnInitializedAsync()
     {
-        // Best-effort: if the user isn't signed in (and the libraries endpoint requires auth)
-        // we just leave the section empty.
+        // Best-effort: if the user isn't signed in (and these endpoints require auth) we just
+        // leave the sections empty rather than blowing up the whole layout.
         try
         {
-            var result = await LibraryService.GetAllAsync();
-            if (result.IsSuccess)
-            {
-                libraries = result.Value.ToList();
-            }
+            var libsTask = LibraryService.GetAllAsync();
+            var collectionsTask = CollectionService.ListAsync();
+            var listsTask = ReadingListService.ListAsync();
+            await Task.WhenAll(libsTask, collectionsTask, listsTask);
+
+            if (libsTask.Result.IsSuccess) libraries = libsTask.Result.Value.ToList();
+            if (collectionsTask.Result.IsSuccess) collections = collectionsTask.Result.Value;
+            if (listsTask.Result.IsSuccess) readingLists = listsTask.Result.Value;
         }
         catch
         {
-            libraries = null;
+            // Anonymous browsing — leave the sidebar minimal.
         }
     }
 

@@ -1,0 +1,165 @@
+@page "/reading-lists"
+@attribute [Authorize]
+@inject IReadingListService ReadingListService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Reading lists - Shelfwarden</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1 class="mb-0">Reading lists</h1>
+        <p class="text-secondary mb-0">Ordered queues of books to read next.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="ShowCreate">
+        <i class="bi bi-plus-lg"></i> New list
+    </button>
+</div>
+
+@if (creating)
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Create reading list</h5>
+            <EditForm Model="newList" OnValidSubmit="CreateAsync" FormName="new-reading-list">
+                <DataAnnotationsValidator />
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="newList.Name" />
+                        <ValidationMessage For="() => newList.Name" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Description</label>
+                        <InputText class="form-control" @bind-Value="newList.Description" />
+                    </div>
+                </div>
+                @if (errorMessage is not null)
+                {
+                    <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                }
+                <div class="mt-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@busy">
+                        <i class="bi bi-check-lg"></i> Create
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelCreate">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (lists is null)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading reading lists…</div>
+    </div>
+}
+else if (lists.Count == 0)
+{
+    <div class="empty-state">
+        <i class="bi bi-list-ol empty-icon"></i>
+        <h3>No reading lists yet</h3>
+        <p>Reading lists keep an ordered queue — start one for the next thing you want to read.</p>
+        <button class="btn btn-primary" @onclick="ShowCreate">
+            <i class="bi bi-plus-lg"></i> Create your first list
+        </button>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var l in lists)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="library-tile">
+                    <a href="@($"reading-lists/{l.Id}")" class="library-tile-banner text-decoration-none">
+                        <i class="bi bi-list-ol"></i>
+                    </a>
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <a href="@($"reading-lists/{l.Id}")" class="text-decoration-none text-reset">@l.Name</a>
+                        </h5>
+                        @if (!string.IsNullOrEmpty(l.Description))
+                        {
+                            <p class="card-text small text-body-secondary mb-2">@l.Description</p>
+                        }
+                        <p class="card-text small mb-0">
+                            <span class="chip"><i class="bi bi-book"></i> @l.BookCount book@(l.BookCount == 1 ? "" : "s")</span>
+                            <span class="chip ms-1" title="@l.CreatedAt.ToString("yyyy-MM-dd HH:mm")">
+                                <i class="bi bi-calendar3"></i> @l.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")
+                            </span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<ReadingListDto>? lists;
+    private bool creating;
+    private bool busy;
+    private string? errorMessage;
+    private CreateModel newList = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await ReadingListService.ListAsync();
+        lists = result.IsSuccess ? result.Value : [];
+    }
+
+    private void ShowCreate()
+    {
+        creating = true;
+        errorMessage = null;
+        newList = new CreateModel();
+    }
+
+    private void CancelCreate()
+    {
+        creating = false;
+        errorMessage = null;
+    }
+
+    private async Task CreateAsync()
+    {
+        busy = true;
+        errorMessage = null;
+        try
+        {
+            var result = await ReadingListService.CreateAsync(new CreateReadingListRequest
+            {
+                Name = newList.Name,
+                Description = newList.Description,
+            });
+            if (result.IsSuccess)
+            {
+                creating = false;
+                NavigationManager.NavigateTo($"reading-lists/{result.Value.Id}");
+            }
+            else
+            {
+                errorMessage = result.Errors.FirstOrDefault() ?? "Could not create list.";
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private sealed class CreateModel
+    {
+        [Required, StringLength(256)]
+        public string Name { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+    }
+}
