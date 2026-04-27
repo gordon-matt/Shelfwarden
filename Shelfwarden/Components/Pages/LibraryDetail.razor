@@ -22,6 +22,19 @@ else
                 <p class="text-body-secondary mb-0">@library.Description</p>
             }
         </div>
+        <div class="d-flex align-items-center gap-2">
+            <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
+                <button type="button"
+                        class="btn @(viewMode == ViewMode.Grid ? "btn-primary" : "btn-outline-secondary")"
+                        title="Grid view" @onclick="() => viewMode = ViewMode.Grid">
+                    <i class="bi bi-grid-3x3-gap-fill"></i>
+                </button>
+                <button type="button"
+                        class="btn @(viewMode == ViewMode.List ? "btn-primary" : "btn-outline-secondary")"
+                        title="List view" @onclick="() => viewMode = ViewMode.List">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+            </div>
         <AuthorizeView Roles="@Constants.Roles.Administrator">
             <Authorized>
                 <div>
@@ -42,6 +55,7 @@ else
                 </div>
             </Authorized>
         </AuthorizeView>
+        </div>
     </div>
     @if (scanIndicatorVisible)
     {
@@ -77,17 +91,34 @@ else
                 <i class="bi bi-x-circle"></i> Clear
             </button>
         </div>
-        <div class="book-grid">
-            @foreach (var book in books.Items)
-            {
-                <div class="book-card-wrap @(selectedBookIds.Contains(book.Id) ? "selected" : "")">
-                    <input class="form-check-input book-card-select" type="checkbox"
-                           checked="@selectedBookIds.Contains(book.Id)"
-                           @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
-                    <BookCard Book="book" />
-                </div>
-            }
-        </div>
+        @if (viewMode == ViewMode.List)
+        {
+            <div class="book-list">
+                @foreach (var book in books.Items)
+                {
+                    <div class="book-list-wrap @(selectedBookIds.Contains(book.Id) ? "selected" : "")">
+                        <input class="form-check-input book-list-select" type="checkbox"
+                               checked="@selectedBookIds.Contains(book.Id)"
+                               @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
+                        <BookListRow Book="book" />
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="book-grid">
+                @foreach (var book in books.Items)
+                {
+                    <div class="book-card-wrap @(selectedBookIds.Contains(book.Id) ? "selected" : "")">
+                        <input class="form-check-input book-card-select" type="checkbox"
+                               checked="@selectedBookIds.Contains(book.Id)"
+                               @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
+                        <BookCard Book="book" />
+                    </div>
+                }
+            </div>
+        }
     }
 }
 
@@ -98,9 +129,11 @@ else
     private LibraryDto? library;
     private PagedList<BookListItemDto>? books;
     private readonly HashSet<int> selectedBookIds = [];
+    private ViewMode viewMode = ViewMode.Grid;
     private bool scanIndicatorVisible;
     private DateTime? optimisticBusyUntilUtc;
     private CancellationTokenSource? pollCts;
+    private enum ViewMode { Grid, List }
 
     protected override async Task OnParametersSetAsync()
     {

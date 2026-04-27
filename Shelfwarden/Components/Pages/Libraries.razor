@@ -47,7 +47,7 @@ else
         {
             var status = GetStatus(lib.Id);
             bool showBusy = IsBusy(status) || HasOptimisticBusy(lib.Id);
-            <div class="col-md-6 col-lg-4">
+            <div class="col-md-6 col-lg-3">
                 <div class="library-tile">
                     <a href="@($"libraries/{lib.Id}")" class="library-tile-banner text-decoration-none">
                         <i class="bi bi-bookshelf"></i>

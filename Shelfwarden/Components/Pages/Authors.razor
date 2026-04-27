@@ -39,23 +39,21 @@ else if (authors.Count == 0)
 }
 else
 {
-    <div class="row g-3">
+    <div class="author-grid">
         @foreach (var a in authors)
         {
-            <div class="col-6 col-md-4 col-lg-3 col-xl-2">
-                <a class="author-tile" href="@($"authors/{a.Id}")" title="@a.Name">
-                    <div class="author-avatar">
-                        <img src="@($"author-photos/{a.Id}")" alt="@a.Name"
-                             loading="lazy"
-                             onerror="this.classList.add('d-none');this.parentElement.classList.add('no-photo')" />
-                        <i class="bi bi-person placeholder-icon"></i>
-                    </div>
-                    <div class="author-tile-name text-truncate">@a.Name</div>
-                    <div class="author-tile-count text-secondary small">
-                        @a.BookCount book@(a.BookCount == 1 ? "" : "s")
-                    </div>
-                </a>
-            </div>
+            <a class="author-tile" href="@($"authors/{a.Id}")" title="@a.Name">
+                <div class="author-avatar">
+                    <img src="@($"author-photos/{a.Id}")" alt="@a.Name"
+                         loading="lazy"
+                         onerror="this.classList.add('d-none');this.parentElement.classList.add('no-photo')" />
+                    <i class="bi bi-person placeholder-icon"></i>
+                </div>
+                <div class="author-tile-name text-truncate">@a.Name</div>
+                <div class="author-tile-count text-secondary small">
+                    @a.BookCount book@(a.BookCount == 1 ? "" : "s")
+                </div>
+            </a>
         }
     </div>
 }
