@@ -1,0 +1,21 @@
+@inherits LayoutComponentBase
+
+@* Minimal centred shell used only by the first-run wizard. We strip out the sidebar /
+   topbar so a half-configured server can't render NavLinks pointing at libraries that
+   don't exist yet. The layout intentionally lives here (not in Shared) because the only
+   page that uses it is /setup. *@
+<div class="setup-shell">
+    <div class="setup-card">
+        <div class="setup-brand">
+            <i class="bi bi-shield-shaded"></i>
+            <span class="ms-2">Shelfwarden</span>
+        </div>
+        @Body
+    </div>
+</div>
+
+<div id="blazor-error-ui" class="alert alert-danger m-3 d-none">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>

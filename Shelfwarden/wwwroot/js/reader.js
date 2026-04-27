@@ -1,21 +1,33 @@
-// Reader-specific JS interop. EPUB rendering is delegated to epub.js (loaded from a CDN
-// the first time `mountEpub` is called); PDF rendering is just a thin wrapper around an
-// <iframe> that points at pdf.js's bundled viewer. Keeping the surface area small so the
-// Blazor side is the source of truth for navigation / progress save scheduling.
+// Reader-specific JS interop. EPUB rendering is delegated to epub.js, PDF rendering to
+// pdf.js — both libraries are self-hosted under wwwroot/lib (see libman.json) so the
+// reader works offline and we don't depend on any CDN's uptime. Blazor stays the source
+// of truth for navigation / progress save scheduling; this file is the thin glue that
+// translates between Blazor calls and the underlying viewer libraries.
 
 (function () {
     if (window.shelfwardenReader) return;
 
     var state = {
-        epub: null,        // VersionEPub.js Book instance
-        rendition: null,   // VersionEPub.js Rendition instance
-        dotnetRef: null,   // DotNetObjectReference for progress callbacks
+        epub: null,
+        rendition: null,
+        dotnetRef: null,
         scriptLoaded: false,
         pendingProgressTimer: null,
-        currentCfi: null,        // Last CFI emitted by the EPUB rendition; used by bookmark create.
-        currentPercent: 0,       // Last percent for the same.
-        pdfFrameId: null,        // The iframe element id we mounted into so we can goto pages later.
-        pdfBaseUrl: null,        // The /files/{id} URL for the active PDF (used for re-navigation).
+        currentCfi: null,
+        currentPercent: 0,
+
+        // PDF state
+        pdfScriptLoaded: false,
+        pdfDoc: null,
+        pdfContainerId: null,
+        pdfContainer: null,
+        pdfPageCount: 0,
+        pdfCurrentPage: 1,
+        pdfPageObserver: null,
+        pdfPageElements: new Map(),
+        pdfRenderedPages: new Set(),
+        pdfDotnetRef: null,
+        pdfRenderQueue: Promise.resolve(),
     };
 
     function loadScript(src) {
@@ -44,6 +56,17 @@
         state.scriptLoaded = true;
     }
 
+    async function ensurePdfJsLoaded() {
+        if (state.pdfScriptLoaded && window.pdfjsLib) return;
+        await loadScript('lib/pdfjs/build/pdf.min.js');
+        // pdf.js needs an explicit pointer to its worker script. We host the worker file
+        // alongside the main library so the same origin / cache-control policy applies.
+        if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdfjs/build/pdf.worker.min.js';
+        }
+        state.pdfScriptLoaded = true;
+    }
+
     function scheduleProgressPush(percent, cfi) {
         if (!state.dotnetRef) return;
         if (state.pendingProgressTimer) clearTimeout(state.pendingProgressTimer);
@@ -54,6 +77,121 @@
                 console.warn('Progress push failed', err);
             }
         }, 750);
+    }
+
+    var pdfProgressTimer = null;
+    function schedulePdfProgressPush() {
+        if (!state.pdfDotnetRef || !state.pdfPageCount) return;
+        if (pdfProgressTimer) clearTimeout(pdfProgressTimer);
+        pdfProgressTimer = setTimeout(function () {
+            var percent = Math.round((state.pdfCurrentPage / state.pdfPageCount) * 100);
+            try {
+                state.pdfDotnetRef.invokeMethodAsync('OnProgress', percent, state.pdfCurrentPage, null);
+            } catch (err) {
+                console.warn('PDF progress push failed', err);
+            }
+        }, 750);
+    }
+
+    /**
+     * Render one PDF page onto its placeholder canvas. Pages render lazily as they scroll into
+     * view because rendering every page up-front is prohibitively expensive on large PDFs.
+     */
+    async function renderPdfPage(pageNum) {
+        if (!state.pdfDoc || state.pdfRenderedPages.has(pageNum)) return;
+        state.pdfRenderedPages.add(pageNum);
+
+        // Serialise renders so a fast scroll doesn't queue 500 concurrent canvas allocations
+        // (pdf.js will happily try and OOM the tab).
+        state.pdfRenderQueue = state.pdfRenderQueue.then(async function () {
+            var pageWrapper = state.pdfPageElements.get(pageNum);
+            if (!pageWrapper) return;
+
+            try {
+                var page = await state.pdfDoc.getPage(pageNum);
+                var canvas = pageWrapper.querySelector('canvas');
+                if (!canvas) return;
+
+                // Scale to fit the container width while honouring devicePixelRatio so the
+                // page is sharp on hi-DPI screens.
+                var dpr = window.devicePixelRatio || 1;
+                var availableWidth = state.pdfContainer.clientWidth - 32;
+                var unscaledViewport = page.getViewport({ scale: 1 });
+                var scale = Math.max(0.5, availableWidth / unscaledViewport.width);
+                var viewport = page.getViewport({ scale: scale * dpr });
+
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                canvas.style.width = (viewport.width / dpr) + 'px';
+                canvas.style.height = (viewport.height / dpr) + 'px';
+
+                var ctx = canvas.getContext('2d');
+                await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+            } catch (err) {
+                console.warn('Failed to render PDF page ' + pageNum, err);
+                state.pdfRenderedPages.delete(pageNum);
+            }
+        });
+    }
+
+    function buildPdfPagePlaceholders() {
+        state.pdfContainer.innerHTML = '';
+        state.pdfPageElements.clear();
+        state.pdfRenderedPages.clear();
+
+        for (var i = 1; i <= state.pdfPageCount; i++) {
+            var pageWrapper = document.createElement('div');
+            pageWrapper.className = 'pdf-page';
+            pageWrapper.dataset.page = i;
+
+            var canvas = document.createElement('canvas');
+            pageWrapper.appendChild(canvas);
+
+            var label = document.createElement('div');
+            label.className = 'pdf-page-label';
+            label.textContent = 'Page ' + i + ' / ' + state.pdfPageCount;
+            pageWrapper.appendChild(label);
+
+            state.pdfContainer.appendChild(pageWrapper);
+            state.pdfPageElements.set(i, pageWrapper);
+        }
+    }
+
+    function setupPdfObserver() {
+        if (state.pdfPageObserver) state.pdfPageObserver.disconnect();
+
+        // 0.5 means a page becomes "current" once its midpoint crosses the viewport
+        // midpoint, which matches what users intuitively think of as the current page.
+        state.pdfPageObserver = new IntersectionObserver(function (entries) {
+            // Among visible pages, pick the one closest to the viewport centre.
+            var bestPage = null;
+            var bestRatio = 0;
+            entries.forEach(function (entry) {
+                if (entry.intersectionRatio > bestRatio) {
+                    bestRatio = entry.intersectionRatio;
+                    bestPage = parseInt(entry.target.dataset.page, 10);
+                }
+                if (entry.isIntersecting) {
+                    var pageNum = parseInt(entry.target.dataset.page, 10);
+                    renderPdfPage(pageNum);
+                    // Pre-render the next/previous page so smooth scrolling doesn't show a
+                    // blank page momentarily.
+                    if (pageNum + 1 <= state.pdfPageCount) renderPdfPage(pageNum + 1);
+                    if (pageNum - 1 >= 1) renderPdfPage(pageNum - 1);
+                }
+            });
+            if (bestPage && bestPage !== state.pdfCurrentPage) {
+                state.pdfCurrentPage = bestPage;
+                schedulePdfProgressPush();
+            }
+        }, {
+            root: state.pdfContainer,
+            threshold: [0.1, 0.5, 0.9],
+        });
+
+        state.pdfPageElements.forEach(function (el) {
+            state.pdfPageObserver.observe(el);
+        });
     }
 
     window.shelfwardenReader = {
@@ -138,33 +276,100 @@
         },
 
         /**
-         * Point an <iframe> at the streamed PDF URL. Modern Chromium/Firefox/Safari ship a
-         * native PDF viewer so we don't need to ship pdf.js ourselves for v1. Pagination /
-         * automatic progress tracking can come in a follow-up using pdf.js directly — for
-         * now the user can manually mark progress via the bottom bar.
+         * Mount pdf.js into the given container. Pages are rendered lazily as they scroll into
+         * view (cheap on huge PDFs) and the current page is reported back to Blazor whenever
+         * it changes so we can persist reading progress and pick the right "current page" for
+         * bookmarks. Resumes from `resumePage` if provided.
          */
-        mountPdf: function (iframeId, url) {
-            var frame = document.getElementById(iframeId);
-            if (!frame) return;
-            // Append #toolbar=1 — Chromium honours this to keep the toolbar visible. Other
-            // browsers ignore unknown PDF fragment options.
-            state.pdfFrameId = iframeId;
-            state.pdfBaseUrl = url;
-            frame.src = url + '#toolbar=1';
+        mountPdf: async function (containerId, url, dotnetRef, resumePage) {
+            await ensurePdfJsLoaded();
+            this.disposePdf();
+
+            var container = document.getElementById(containerId);
+            if (!container) {
+                console.warn('mountPdf: container not found', containerId);
+                return { pageCount: 0 };
+            }
+
+            state.pdfContainerId = containerId;
+            state.pdfContainer = container;
+            state.pdfDotnetRef = dotnetRef;
+            state.pdfCurrentPage = 1;
+
+            try {
+                state.pdfDoc = await window.pdfjsLib.getDocument(url).promise;
+            } catch (err) {
+                console.warn('mountPdf: failed to load PDF', err);
+                container.innerHTML = '<div class="empty-state"><i class="bi bi-file-earmark-x empty-icon"></i><h3>Couldn\'t open this PDF</h3></div>';
+                return { pageCount: 0 };
+            }
+
+            state.pdfPageCount = state.pdfDoc.numPages;
+            buildPdfPagePlaceholders();
+            setupPdfObserver();
+
+            if (resumePage && resumePage > 1 && resumePage <= state.pdfPageCount) {
+                // Wait a tick so the placeholders have been laid out before scrollIntoView.
+                setTimeout(function () {
+                    var el = state.pdfPageElements.get(resumePage);
+                    if (el) el.scrollIntoView({ block: 'start' });
+                }, 0);
+            }
+
+            return { pageCount: state.pdfPageCount };
         },
 
         /**
-         * Re-navigate the iframe to a specific PDF page. Browsers honour the standard
-         * #page=N fragment for built-in PDF viewers (Chromium / Firefox / Safari all do).
-         * Resetting `src` is required because changing only the hash on the same URL is a
-         * no-op for cross-document navigation in some browsers.
+         * Returns the active PDF page number. Used by the bookmark button so the caller
+         * doesn't have to ask the user.
+         */
+        getPdfPage: function () {
+            return state.pdfCurrentPage || 1;
+        },
+
+        /**
+         * Scroll a specific page into view. Triggers the lazy renderer too so the destination
+         * page is ready by the time the scroll lands.
          */
         gotoPdfPage: function (pageNumber) {
-            if (!state.pdfFrameId || !state.pdfBaseUrl) return false;
-            var frame = document.getElementById(state.pdfFrameId);
-            if (!frame) return false;
-            frame.src = state.pdfBaseUrl + '#page=' + (pageNumber || 1) + '&toolbar=1';
+            if (!state.pdfPageElements.size || !pageNumber) return false;
+            var clamped = Math.max(1, Math.min(state.pdfPageCount, pageNumber));
+            var el = state.pdfPageElements.get(clamped);
+            if (!el) return false;
+            renderPdfPage(clamped);
+            el.scrollIntoView({ block: 'start', behavior: 'smooth' });
             return true;
+        },
+
+        nextPdfPage: function () {
+            return this.gotoPdfPage((state.pdfCurrentPage || 1) + 1);
+        },
+
+        prevPdfPage: function () {
+            return this.gotoPdfPage((state.pdfCurrentPage || 1) - 1);
+        },
+
+        disposePdf: function () {
+            if (pdfProgressTimer) { clearTimeout(pdfProgressTimer); pdfProgressTimer = null; }
+            if (state.pdfPageObserver) {
+                state.pdfPageObserver.disconnect();
+                state.pdfPageObserver = null;
+            }
+            if (state.pdfDoc) {
+                try { state.pdfDoc.destroy(); } catch (e) { }
+                state.pdfDoc = null;
+            }
+            if (state.pdfContainer) {
+                state.pdfContainer.innerHTML = '';
+            }
+            state.pdfContainer = null;
+            state.pdfContainerId = null;
+            state.pdfPageCount = 0;
+            state.pdfCurrentPage = 1;
+            state.pdfPageElements.clear();
+            state.pdfRenderedPages.clear();
+            state.pdfDotnetRef = null;
+            state.pdfRenderQueue = Promise.resolve();
         },
     };
 })();

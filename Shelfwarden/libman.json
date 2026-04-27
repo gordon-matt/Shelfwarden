@@ -34,6 +34,15 @@
       "files": [ "dist/jszip.min.js" ]
     },
     {
+      "provider": "jsdelivr",
+      "library": "pdfjs-dist@3.11.174",
+      "destination": "wwwroot/lib/pdfjs/",
+      "files": [
+        "build/pdf.min.js",
+        "build/pdf.worker.min.js"
+      ]
+    },
+    {
       "library": "bootswatch@5.3.3",
       "destination": "wwwroot/lib/bootswatch/dist/",
       "files": [

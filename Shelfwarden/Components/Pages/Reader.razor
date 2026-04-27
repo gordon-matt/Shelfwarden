@@ -33,6 +33,15 @@
                 <i class="bi bi-chevron-right"></i>
             </button>
         }
+        else if (book?.FileFormat == EbookFormat.Pdf)
+        {
+            <button class="btn btn-sm btn-outline-secondary" @onclick="PrevPdfPage" title="Previous page (←)">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="NextPdfPage" title="Next page (→)">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        }
         @if (book is not null)
         {
             <button class="btn btn-sm btn-outline-secondary" @onclick="AddBookmarkAsync" title="Bookmark this spot">
@@ -102,7 +111,7 @@
         }
         else if (book.FileFormat == EbookFormat.Pdf)
         {
-            <iframe id="pdf-viewer" title="@book.Title"></iframe>
+            <div id="pdf-viewer" class="pdf-viewer" tabindex="0" @onkeydown="HandlePdfKeyDown"></div>
         }
         else
         {
@@ -131,11 +140,26 @@
         else if (book?.FileFormat == EbookFormat.Pdf)
         {
             <span class="text-secondary">
-                <i class="bi bi-info-circle"></i> Use your browser's PDF controls to navigate
+                <i class="bi bi-bookmark"></i>
+                @if (pdfPageCount > 0)
+                {
+                    <text>Page @pdfCurrentPage of @pdfPageCount</text>
+                    @if (progressPercent.HasValue)
+                    {
+                        <span class="ms-2">@($"({progressPercent.Value:0}% read)")</span>
+                    }
+                }
+                else
+                {
+                    <text>Loading…</text>
+                }
             </span>
-            <button class="btn btn-sm btn-outline-primary ms-auto" @onclick="MarkPdfAsReadAsync" disabled="@savingPdf">
-                <i class="bi bi-check2-circle"></i> Mark as read
-            </button>
+            @if (lastSavedAt.HasValue)
+            {
+                <span class="ms-auto text-secondary small">
+                    <i class="bi bi-cloud-check"></i> Saved @FormatRelative(lastSavedAt.Value)
+                </span>
+            }
         }
     </div>
 </div>
@@ -147,9 +171,10 @@
     private string? loadError;
     private double? progressPercent;
     private DateTime? lastSavedAt;
-    private bool savingPdf;
     private DotNetObjectReference<Reader>? selfRef;
     private bool jsMounted;
+    private int pdfPageCount;
+    private int pdfCurrentPage = 1;
 
     private readonly List<BookmarkDto> bookmarks = [];
     private bool showBookmarks;
@@ -207,26 +232,41 @@
         }
         else if (book.FileFormat == EbookFormat.Pdf)
         {
-            await JS.InvokeVoidAsync("shelfwardenReader.mountPdf", "pdf-viewer", fileUrl);
-
-            // Restore percentage on the bottom bar so the user can see they've been here.
+            int? resumePage = null;
             var progressResult = await BookService.GetProgressAsync(Id);
             if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
             {
                 progressPercent = dto.Percentage;
                 lastSavedAt = dto.LastReadAt;
+                resumePage = dto.PageNumber;
             }
+
+            selfRef = DotNetObjectReference.Create(this);
+            var mount = await JS.InvokeAsync<PdfMountResult>(
+                "shelfwardenReader.mountPdf", "pdf-viewer", fileUrl, selfRef, resumePage);
+            pdfPageCount = mount.PageCount;
+            pdfCurrentPage = resumePage ?? 1;
         }
     }
 
     private async Task PrevPage() => await JS.InvokeVoidAsync("shelfwardenReader.prevPage");
     private async Task NextPage() => await JS.InvokeVoidAsync("shelfwardenReader.nextPage");
+    private async Task PrevPdfPage() => await JS.InvokeVoidAsync("shelfwardenReader.prevPdfPage");
+    private async Task NextPdfPage() => await JS.InvokeVoidAsync("shelfwardenReader.nextPdfPage");
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "ArrowLeft") await PrevPage();
         else if (e.Key == "ArrowRight") await NextPage();
     }
+
+    private async Task HandlePdfKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowLeft" || e.Key == "PageUp") await PrevPdfPage();
+        else if (e.Key == "ArrowRight" || e.Key == "PageDown") await NextPdfPage();
+    }
+
+    private record PdfMountResult(int PageCount);
 
     /// <summary>
     /// Called from JS via <see cref="DotNetObjectReference"/> whenever the rendered location
@@ -238,6 +278,7 @@
     {
         progressPercent = percentage;
         lastSavedCfi = cfi;
+        if (page.HasValue) pdfCurrentPage = page.Value;
         var result = await BookService.SaveProgressAsync(Id, new SaveProgressRequest
         {
             Percentage = Math.Clamp(percentage, 0, 100),
@@ -281,14 +322,18 @@
         }
         else if (book.FileFormat == EbookFormat.Pdf)
         {
-            // Without pdf.js we can't know the live page; ask the user (browser prompt is OK
-            // for v1 — a self-hosted pdf.js is on the roadmap).
-            string? raw = await JS.InvokeAsync<string?>("prompt", "Page number to bookmark:", "");
-            if (string.IsNullOrWhiteSpace(raw) || !int.TryParse(raw, out int p) || p <= 0)
+            // pdf.js tracks the visible page via IntersectionObserver, so we can ask the
+            // viewer directly instead of forcing the user to type a number.
+            try
             {
-                return;
+                pageNumber = await JS.InvokeAsync<int>("shelfwardenReader.getPdfPage");
             }
-            pageNumber = p;
+            catch (JSDisconnectedException) { }
+
+            if (!pageNumber.HasValue || pageNumber.Value <= 0)
+            {
+                pageNumber = pdfCurrentPage > 0 ? pdfCurrentPage : 1;
+            }
         }
 
         var request = new CreateBookmarkRequest
@@ -338,28 +383,6 @@
 
     private sealed record EpubLocation(string? Cfi, double? Percent);
 
-    private async Task MarkPdfAsReadAsync()
-    {
-        savingPdf = true;
-        try
-        {
-            var result = await BookService.SaveProgressAsync(Id, new SaveProgressRequest
-            {
-                Percentage = 100,
-                PageNumber = book?.PageCount,
-            });
-            if (result.IsSuccess)
-            {
-                progressPercent = 100;
-                lastSavedAt = result.Value.LastReadAt;
-            }
-        }
-        finally
-        {
-            savingPdf = false;
-        }
-    }
-
     private static string FormatRelative(DateTime utc)
     {
         var delta = DateTime.UtcNow - utc;
@@ -374,6 +397,7 @@
         try
         {
             await JS.InvokeVoidAsync("shelfwardenReader.disposeEpub");
+            await JS.InvokeVoidAsync("shelfwardenReader.disposePdf");
         }
         catch (JSDisconnectedException)
         {

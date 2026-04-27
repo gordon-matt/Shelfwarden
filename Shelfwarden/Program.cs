@@ -55,6 +55,11 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Bounce every non-exempt request to /setup until the first-run wizard is done. Runs after
+// auth so the wizard can render an authoritative "you're signed in as X" if needed, and
+// before MapRazorComponents/MapControllers so it can short-circuit Blazor and MVC routes.
+app.UseMiddleware<SetupRedirectMiddleware>();
+
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = [new HangfireAuthorizationFilter()],

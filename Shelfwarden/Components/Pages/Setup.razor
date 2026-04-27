@@ -1,0 +1,267 @@
+@page "/setup"
+@layout SetupLayout
+@inject IAuthProviderService AuthProvider
+@inject ISetupService SetupService
+@inject NavigationManager Nav
+
+<PageTitle>First-run setup - Shelfwarden</PageTitle>
+
+@* The wizard is anonymous on purpose — when Identity is the auth provider the user hasn't
+   even created an admin account yet. Each mutating action goes through the SetupController
+   so it has an HttpContext (for SignIn) and so the redirect-after-POST keeps Blazor's
+   circuit state out of the picture. *@
+
+@if (status is null)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+    </div>
+}
+else if (status.SetupComplete)
+{
+    <h1 class="h3 mb-3">All set</h1>
+    <p>Setup is already complete. <a href="/">Go to the dashboard</a>.</p>
+}
+else
+{
+    <div class="setup-stepper" aria-label="Setup progress">
+        @foreach (var s in steps)
+        {
+            <div class="setup-step @(s.Id == CurrentStep ? "active" : null) @(IsStepDone(s.Id) ? "done" : null)">
+                <span class="setup-step-bullet">
+                    @if (IsStepDone(s.Id))
+                    {
+                        <i class="bi bi-check-lg"></i>
+                    }
+                    else
+                    {
+                        @s.Number
+                    }
+                </span>
+                <span class="setup-step-label">@s.Label</span>
+            </div>
+        }
+    </div>
+
+    @if (errorMessage is not null)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    @switch (CurrentStep)
+    {
+        case "welcome":
+            <h1 class="h3 mb-2">Welcome to Shelfwarden</h1>
+            <p class="text-secondary">
+                You're three short steps away from your first library. We'll set up an
+                administrator, point at a folder of books, and we're done.
+            </p>
+            <ul class="text-secondary small">
+                <li>Authentication mode: <strong>@status.AuthProvider</strong></li>
+                @if (status.LibraryCount > 0)
+                {
+                    <li>@status.LibraryCount library(ies) already exist — you can go straight to "Finish".</li>
+                }
+            </ul>
+            <div class="setup-actions">
+                <a class="btn btn-primary" href="@NextLinkAfterWelcome()">
+                    Get started <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+            break;
+
+        case "admin":
+            <h1 class="h3 mb-2">Create your administrator</h1>
+            <p class="text-secondary">
+                Pick the email and password you'd like to use to sign in. We'll replace the
+                default <code>admin@@shelfwarden.local</code> account with these values.
+            </p>
+            <form method="post" action="/setup/identity-admin" class="setup-form">
+                <AntiforgeryToken />
+                <div class="mb-3">
+                    <label class="form-label" for="setup-email">Email</label>
+                    <input id="setup-email" name="Email" type="email" class="form-control"
+                           value="@adminEmail" required autocomplete="username" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="setup-name">Display name</label>
+                    <input id="setup-name" name="DisplayName" type="text" class="form-control"
+                           value="Administrator" maxlength="128" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="setup-password">Password</label>
+                    <input id="setup-password" name="Password" type="password" class="form-control"
+                           required minlength="6" autocomplete="new-password" />
+                    <div class="form-text">At least 6 characters.</div>
+                </div>
+                <div class="setup-actions">
+                    <a class="btn btn-outline-secondary" href="/setup">Back</a>
+                    <button class="btn btn-primary" type="submit">
+                        Save and continue <i class="bi bi-arrow-right ms-1"></i>
+                    </button>
+                </div>
+            </form>
+            break;
+
+        case "library":
+            @if (status.AuthProvider == nameof(Shelfwarden.Services.AuthProvider.Keycloak)
+                 && !status.CallerIsAdministrator)
+            {
+                <h1 class="h3 mb-2">Sign in as an administrator</h1>
+                <p class="text-secondary">
+                    Shelfwarden is configured to use Keycloak for authentication. Sign in
+                    with a user that has the <code>Administrator</code> realm role to finish setup.
+                </p>
+                <div class="setup-actions">
+                    <a class="btn btn-primary" href="/auth/login?returnUrl=%2Fsetup%3Fstep%3Dlibrary">
+                        Sign in with Keycloak <i class="bi bi-box-arrow-in-right ms-1"></i>
+                    </a>
+                </div>
+            }
+            else
+            {
+                <h1 class="h3 mb-2">Add your first library</h1>
+                <p class="text-secondary">
+                    Point Shelfwarden at one or more folders that contain your ebooks. We'll scan
+                    these in the background after setup finishes.
+                </p>
+                <form method="post" action="/setup/library" class="setup-form">
+                    <AntiforgeryToken />
+                    <div class="mb-3">
+                        <label class="form-label" for="setup-lib-name">Library name</label>
+                        <input id="setup-lib-name" name="name" type="text" class="form-control"
+                               value="@libraryName" maxlength="256" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="setup-lib-folders">Folders (one per line)</label>
+                        <textarea id="setup-lib-folders" name="folders" class="form-control" rows="4"
+                                  placeholder="@FolderPlaceholder()" required>@libraryFolders</textarea>
+                        <div class="form-text">Absolute paths. We'll create them later if they don't exist.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="setup-lib-desc">Description (optional)</label>
+                        <input id="setup-lib-desc" name="description" type="text" class="form-control"
+                               maxlength="2048" />
+                    </div>
+                    <div class="setup-actions">
+                        <a class="btn btn-link" href="/setup?step=done">Skip — set up later</a>
+                        <button class="btn btn-primary" type="submit">
+                            Create library <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </form>
+            }
+            break;
+
+        case "done":
+            <h1 class="h3 mb-2">You're ready to go</h1>
+            <p class="text-secondary">
+                @if (status.LibraryCount > 0)
+                {
+                    <text>Shelfwarden has @status.LibraryCount library(ies) configured. We'll start scanning
+                    once you head to the dashboard.</text>
+                }
+                else
+                {
+                    <text>You skipped the library step — no problem. Head to <em>Libraries</em> in the
+                    sidebar after sign-in to add one.</text>
+                }
+            </p>
+            <form method="post" action="/setup/complete" class="setup-form">
+                <AntiforgeryToken />
+                <div class="setup-actions">
+                    <a class="btn btn-outline-secondary" href="/setup?step=library">Back</a>
+                    <button class="btn btn-success" type="submit">
+                        Finish <i class="bi bi-check2 ms-1"></i>
+                    </button>
+                </div>
+            </form>
+            break;
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? Step { get; set; }
+    [SupplyParameterFromQuery] public string? Error { get; set; }
+
+    private SetupStatusDto? status;
+    private string? errorMessage;
+    private string adminEmail = "admin@shelfwarden.local";
+    private string libraryName = "My Library";
+    private string libraryFolders = "";
+
+    private record StepDescriptor(string Id, int Number, string Label);
+
+    private List<StepDescriptor> steps = [];
+
+    private string CurrentStep => ResolveStep(Step);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await SetupService.GetStatusAsync();
+        if (result.IsSuccess)
+        {
+            status = result.Value;
+            BuildSteps();
+        }
+        else
+        {
+            errorMessage = result.Errors.FirstOrDefault() ?? "Failed to load setup state.";
+        }
+    }
+
+    private void BuildSteps()
+    {
+        steps.Clear();
+        steps.Add(new StepDescriptor("welcome", 1, "Welcome"));
+
+        int n = 2;
+        if (status?.AuthProvider == nameof(Shelfwarden.Services.AuthProvider.Identity))
+        {
+            steps.Add(new StepDescriptor("admin", n++, "Administrator"));
+        }
+
+        steps.Add(new StepDescriptor("library", n++, "First library"));
+        steps.Add(new StepDescriptor("done", n, "Finish"));
+    }
+
+    private string ResolveStep(string? requested)
+    {
+        if (status is null) return "welcome";
+        if (string.IsNullOrEmpty(requested)) return "welcome";
+
+        bool valid = steps.Any(s => s.Id.Equals(requested, StringComparison.OrdinalIgnoreCase));
+        return valid ? requested.ToLowerInvariant() : "welcome";
+    }
+
+    private bool IsStepDone(string stepId)
+    {
+        int currentIndex = steps.FindIndex(s => s.Id == CurrentStep);
+        int targetIndex = steps.FindIndex(s => s.Id == stepId);
+        return currentIndex >= 0 && targetIndex >= 0 && targetIndex < currentIndex;
+    }
+
+    private string NextLinkAfterWelcome()
+    {
+        if (status?.AuthProvider == nameof(Shelfwarden.Services.AuthProvider.Identity))
+        {
+            return "/setup?step=admin";
+        }
+        return "/setup?step=library";
+    }
+
+    private static string FolderPlaceholder()
+    {
+        return OperatingSystem.IsWindows()
+            ? "D:\\Books\nE:\\Comics"
+            : "/srv/books\n/srv/manga";
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(Error))
+        {
+            errorMessage = Error;
+        }
+    }
+}

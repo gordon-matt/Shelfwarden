@@ -17,6 +17,17 @@ public class ServerSettingsService(
     private static readonly SemaphoreSlim loadLock = new(1, 1);
     private static volatile bool isLoaded;
 
+    /// <summary>
+    /// Forces the next <see cref="GetAsync"/> to re-read all settings from the database. Used by
+    /// the first-run wizard which writes <c>setup.complete</c> via the bare repository (bypassing
+    /// the admin check that <see cref="SetAsync"/> enforces).
+    /// </summary>
+    public static void InvalidateCache()
+    {
+        cache.Clear();
+        isLoaded = false;
+    }
+
     public async Task<Result<ServerSettingsDto>> GetAsync(CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
