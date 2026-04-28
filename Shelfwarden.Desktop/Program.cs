@@ -5,6 +5,7 @@ using Hangfire;
 using Serilog;
 using Shelfwarden;
 using Shelfwarden.Components;
+using Shelfwarden.Components.Layout;
 using Shelfwarden.Desktop;
 using Shelfwarden.Infrastructure;
 using Shelfwarden.Services;
@@ -66,6 +67,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddShelfwardenDatabase(builder.Configuration);
 builder.Services.AddShelfwardenRepositories();
 builder.Services.AddShelfwardenServices();
+builder.Services.AddScoped<ISidebarNavRefreshService, SidebarNavRefreshService>();
 var authProvider = builder.Services.AddShelfwardenAuthentication(builder.Configuration);
 builder.Services.AddShelfwardenHangfire(builder.Configuration);
 
@@ -122,5 +124,5 @@ static async Task OnElectronAppReadyAsync()
 
     var window = await Electron.WindowManager.CreateWindowAsync(options);
     window.OnReadyToShow += () => window.Show();
-    window.OnClosed += () => Electron.App.Quit();
+    // Avoid App.Quit() on OnClosed — bridge can leave Ready after close; quit-on-last-window is default.
 }

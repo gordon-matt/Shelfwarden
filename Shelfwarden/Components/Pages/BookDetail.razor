@@ -4,6 +4,7 @@
 @inject IBookmarkService BookmarkService
 @inject ICollectionService CollectionService
 @inject IReadingListService ReadingListService
+@inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(book?.Title ?? "Book") - Shelfwarden</PageTitle>
@@ -411,6 +412,7 @@ else
                     return;
                 }
 
+                SidebarNavRefresh.NotifyNavigationDataChanged();
                 // Refresh the dropdown so the new collection appears next time.
                 addToLoaded = false;
                 await EnsureAddToLoadedAsync();
@@ -432,6 +434,7 @@ else
                     return;
                 }
 
+                SidebarNavRefresh.NotifyNavigationDataChanged();
                 addToLoaded = false;
                 await EnsureAddToLoadedAsync();
                 creatingTarget = null;

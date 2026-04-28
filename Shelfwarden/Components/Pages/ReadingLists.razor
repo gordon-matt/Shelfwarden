@@ -1,6 +1,7 @@
 @page "/reading-lists"
 @attribute [Authorize]
 @inject IReadingListService ReadingListService
+@inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
 <PageTitle>Reading lists - Shelfwarden</PageTitle>
@@ -142,6 +143,7 @@ else
             if (result.IsSuccess)
             {
                 creating = false;
+                SidebarNavRefresh.NotifyNavigationDataChanged();
                 NavigationManager.NavigateTo($"reading-lists/{result.Value.Id}");
             }
             else

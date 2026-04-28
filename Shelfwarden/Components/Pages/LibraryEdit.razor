@@ -2,6 +2,7 @@
 @page "/libraries/{Id:int}/edit"
 @attribute [Authorize(Roles = Constants.Roles.Administrator)]
 @inject ILibraryService LibraryService
+@inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(IsCreate ? "New library" : $"Edit {model.Name}") - Shelfwarden</PageTitle>
@@ -124,7 +125,11 @@
                     Description = model.Description,
                     Folders = nonEmpty,
                 });
-                if (result.IsSuccess) NavigationManager.NavigateTo("libraries");
+                if (result.IsSuccess)
+                {
+                    SidebarNavRefresh.NotifyNavigationDataChanged();
+                    NavigationManager.NavigateTo("libraries");
+                }
                 else saveError = string.Join("; ", result.Errors);
             }
             else
@@ -135,7 +140,11 @@
                     Description = model.Description,
                     Folders = nonEmpty,
                 });
-                if (result.IsSuccess) NavigationManager.NavigateTo("libraries");
+                if (result.IsSuccess)
+                {
+                    SidebarNavRefresh.NotifyNavigationDataChanged();
+                    NavigationManager.NavigateTo("libraries");
+                }
                 else saveError = string.Join("; ", result.Errors);
             }
         }

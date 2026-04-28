@@ -2,6 +2,7 @@ using Hangfire;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Shelfwarden.Components;
+using Shelfwarden.Components.Layout;
 using Shelfwarden.Infrastructure;
 using Shelfwarden.Services;
 
@@ -24,6 +25,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddShelfwardenDatabase(builder.Configuration);
 builder.Services.AddShelfwardenRepositories();
 builder.Services.AddShelfwardenServices();
+builder.Services.AddScoped<ISidebarNavRefreshService, SidebarNavRefreshService>();
 var authProvider = builder.Services.AddShelfwardenAuthentication(builder.Configuration);
 builder.Services.AddShelfwardenHangfire(builder.Configuration);
 

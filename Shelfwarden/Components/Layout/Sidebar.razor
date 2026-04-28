@@ -1,7 +1,9 @@
+@implements IDisposable
 @inject IAuthProviderService AuthProvider
 @inject ILibraryService LibraryService
 @inject ICollectionService CollectionService
 @inject IReadingListService ReadingListService
+@inject ISidebarNavRefreshService SidebarNavRefresh
 
 <aside class="app-sidebar @(Open ? "open" : "")" id="appSidebar">
     <a class="app-sidebar-brand" href="/" @onclick="CloseOnNavigate">
@@ -144,7 +146,24 @@
     private IReadOnlyList<CollectionDto>? collections;
     private IReadOnlyList<ReadingListDto>? readingLists;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
+    {
+        SidebarNavRefresh.NavigationDataChanged += OnNavigationDataChanged;
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadSidebarDataAsync();
+
+    private void OnNavigationDataChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadSidebarDataAsync();
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>Reloads libraries, collections, and reading lists shown in the sidebar.</summary>
+    private async Task LoadSidebarDataAsync()
     {
         // Best-effort: if the user isn't signed in (and these endpoints require auth) we just
         // leave the sections empty rather than blowing up the whole layout.
@@ -164,6 +183,8 @@
             // Anonymous browsing — leave the sidebar minimal.
         }
     }
+
+    void IDisposable.Dispose() => SidebarNavRefresh.NavigationDataChanged -= OnNavigationDataChanged;
 
     private async Task CloseOnNavigate()
     {

@@ -4,6 +4,7 @@
 @inject ILibraryService LibraryService
 @inject IBookService BookService
 @inject IScanStatusService ScanStatusService
+@inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(library?.Name ?? "Library") - Shelfwarden</PageTitle>
@@ -228,6 +229,7 @@ else
         var result = await LibraryService.DeleteAsync(Id);
         if (result.IsSuccess)
         {
+            SidebarNavRefresh.NotifyNavigationDataChanged();
             NavigationManager.NavigateTo("libraries");
         }
     }

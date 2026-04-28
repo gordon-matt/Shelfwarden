@@ -3,6 +3,7 @@
 @inject ICollectionService CollectionService
 @inject IBookService BookService
 @inject IUserContextService UserContext
+@inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(collection?.Name ?? "Collection") - Shelfwarden</PageTitle>
@@ -221,6 +222,7 @@ else
         var result = await CollectionService.DeleteAsync(Id);
         if (result.IsSuccess)
         {
+            SidebarNavRefresh.NotifyNavigationDataChanged();
             NavigationManager.NavigateTo("collections");
         }
     }

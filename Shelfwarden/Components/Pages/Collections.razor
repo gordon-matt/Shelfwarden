@@ -1,6 +1,7 @@
 @page "/collections"
 @attribute [Authorize]
 @inject ICollectionService CollectionService
+@inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
 <PageTitle>Collections - Shelfwarden</PageTitle>
@@ -161,6 +162,7 @@ else
             if (result.IsSuccess)
             {
                 creating = false;
+                SidebarNavRefresh.NotifyNavigationDataChanged();
                 NavigationManager.NavigateTo($"collections/{result.Value.Id}");
             }
             else

@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inject IReadingListService ReadingListService
 @inject IBookService BookService
+@inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(list?.Name ?? "Reading list") - Shelfwarden</PageTitle>
@@ -239,6 +240,7 @@ else
             if (result.IsSuccess)
             {
                 editing = false;
+                SidebarNavRefresh.NotifyNavigationDataChanged();
                 await LoadAsync();
             }
         }
@@ -253,6 +255,7 @@ else
         var result = await ReadingListService.DeleteAsync(Id);
         if (result.IsSuccess)
         {
+            SidebarNavRefresh.NotifyNavigationDataChanged();
             NavigationManager.NavigateTo("reading-lists");
         }
     }
