@@ -35,11 +35,7 @@ public class AuthorService(
         {
             Query = a => a.Id == id,
         });
-        if (author is null)
-        {
-            return Result.NotFound();
-        }
-        return Result.Success(new AuthorDto(author.Id, author.Name, author.Biography));
+        return author is null ? (Result<AuthorDto>)Result.NotFound() : Result.Success(new AuthorDto(author.Id, author.Name, author.Biography));
     }
 
     public async Task<Result<AuthorDto>> GetOrCreateAsync(string name, CancellationToken cancellationToken = default)

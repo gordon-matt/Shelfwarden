@@ -1,9 +1,5 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Shelfwarden.Data.Entities;
-using Shelfwarden.Models;
-using Shelfwarden.Services;
 
 namespace Shelfwarden.Controllers;
 
@@ -15,7 +11,7 @@ namespace Shelfwarden.Controllers;
 /// can't be reused after install.
 /// </summary>
 [AllowAnonymous]
-[Microsoft.AspNetCore.Mvc.Route("setup")]
+[Route("setup")]
 public class SetupController(
     ILogger<SetupController> logger,
     IAuthProviderService authProvider,
@@ -107,7 +103,9 @@ public class SetupController(
 
         await signInManager.SignInAsync(admin, isPersistent: true);
         if (logger.IsEnabled(LogLevel.Information))
+        {
             logger.LogInformation("[Setup] Administrator '{Email}' provisioned and signed in", admin.Email);
+        }
 
         return Redirect("/setup?step=library");
     }
@@ -145,12 +143,9 @@ public class SetupController(
             Folders = folderList,
         }, cancellationToken);
 
-        if (!result.IsSuccess)
-        {
-            return RedirectWithError("library", result.Errors.FirstOrDefault() ?? "Could not create the library.");
-        }
-
-        return Redirect("/setup?step=done");
+        return !result.IsSuccess
+            ? RedirectWithError("library", result.Errors.FirstOrDefault() ?? "Could not create the library.")
+            : Redirect("/setup?step=done");
     }
 
     /// <summary>

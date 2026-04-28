@@ -57,7 +57,10 @@ public sealed class ScanProgressTracker : IScanProgressTracker
     {
         // Lookup-and-replace: callers run on a single scan worker per library, so we don't need
         // to retry on concurrent writes. The dictionary key is the only contention point.
-        if (!entries.TryGetValue(libraryId, out var existing)) return;
+        if (!entries.TryGetValue(libraryId, out var existing))
+        {
+            return;
+        }
 
         update(existing.Builder);
         entries[libraryId] = existing;

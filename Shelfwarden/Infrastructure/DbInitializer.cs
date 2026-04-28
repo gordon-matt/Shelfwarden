@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Identity;
-using Shelfwarden.Services;
 
 namespace Shelfwarden.Infrastructure;
 
@@ -35,13 +34,15 @@ public static class DbInitializer
     private static async Task SeedRolesAsync(IServiceProvider services, ILogger logger)
     {
         var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
-        foreach (var role in new[] { Constants.Roles.Administrator, Constants.Roles.User })
+        foreach (string? role in new[] { Constants.Roles.Administrator, Constants.Roles.User })
         {
             if (!await roleManager.RoleExistsAsync(role))
             {
                 await roleManager.CreateAsync(new ApplicationRole(role));
                 if (logger.IsEnabled(LogLevel.Information))
+                {
                     logger.LogInformation("Seeded role {Role}", role);
+                }
             }
         }
     }
@@ -81,6 +82,8 @@ public static class DbInitializer
 
         await userManager.AddToRoleAsync(admin, Constants.Roles.Administrator);
         if (logger.IsEnabled(LogLevel.Information))
+        {
             logger.LogInformation("Seeded default administrator '{UserName}'", userName);
+        }
     }
 }

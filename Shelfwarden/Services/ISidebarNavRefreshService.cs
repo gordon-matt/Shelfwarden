@@ -1,4 +1,4 @@
-namespace Shelfwarden.Components.Layout;
+namespace Shelfwarden.Services;
 
 /// <summary>
 /// Lets pages notify <see cref="Sidebar"/> that sidebar-backed data (libraries, reading lists,

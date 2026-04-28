@@ -1,14 +1,10 @@
-using ElectronNET;
 using ElectronNET.API;
 using ElectronNET.API.Entities;
 using Hangfire;
 using Serilog;
 using Shelfwarden;
-using Shelfwarden.Components;
-using Shelfwarden.Components.Layout;
 using Shelfwarden.Desktop;
 using Shelfwarden.Infrastructure;
-using Shelfwarden.Services;
 
 // ────────────────────────────────────────────────────────────────────────────────
 // Desktop entry point. This is the Electron-wrapped variant of Shelfwarden.
@@ -123,6 +119,5 @@ static async Task OnElectronAppReadyAsync()
     }
 
     var window = await Electron.WindowManager.CreateWindowAsync(options);
-    window.OnReadyToShow += () => window.Show();
-    // Avoid App.Quit() on OnClosed — bridge can leave Ready after close; quit-on-last-window is default.
+    window.OnReadyToShow += window.Show;
 }

@@ -89,8 +89,10 @@ public class LibraryService(
         await folderRepository.InsertAsync(folders);
 
         if (logger.IsEnabled(LogLevel.Information))
+        {
             logger.LogInformation("Created library {LibraryId} '{Name}' with {FolderCount} folder(s)",
                 library.Id, library.Name, folders.Count);
+        }
 
         return await GetByIdAsync(library.Id, cancellationToken);
     }
@@ -191,7 +193,9 @@ public class LibraryService(
         string jobId = backgroundJobs.Enqueue<IScannerService>(s => s.ScanLibraryAsync(id, CancellationToken.None));
 
         if (logger.IsEnabled(LogLevel.Information))
+        {
             logger.LogInformation("Enqueued scan for library {LibraryId} as Hangfire job {JobId}", id, jobId);
+        }
 
         return Result.Success();
     }

@@ -48,7 +48,7 @@ public class DashboardService(
             SortDescending = true,
         }, cancellationToken);
 
-        IReadOnlyList<BookListItemDto> recentlyAdded = recentResult.IsSuccess
+        var recentlyAdded = recentResult.IsSuccess
             ? recentResult.Value.Items
             : [];
 

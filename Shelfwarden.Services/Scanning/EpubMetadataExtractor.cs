@@ -51,7 +51,7 @@ public sealed class EpubMetadataExtractor(ILogger<EpubMetadataExtractor> logger)
             string? description = NullIfWhitespace(book.Description)
                 ?? metadata.Descriptions.Select(d => d.Description).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s));
             string? isbn = ExtractIsbn(metadata);
-            DateTime? publishedOn = ExtractPublishedOn(metadata);
+            var publishedOn = ExtractPublishedOn(metadata);
 
             var genres = metadata.Subjects
                 .Select(s => s.Subject)
@@ -126,7 +126,10 @@ public sealed class EpubMetadataExtractor(ILogger<EpubMetadataExtractor> logger)
         foreach (var id in metadata.Identifiers ?? [])
         {
             string? value = id.Identifier;
-            if (string.IsNullOrWhiteSpace(value)) continue;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
             // Common formats: "urn:isbn:9781234567890", "isbn:..." or "ISBN 978..."
             string lower = value.ToLowerInvariant();
             if (lower.Contains("isbn"))

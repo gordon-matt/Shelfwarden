@@ -86,31 +86,33 @@ public class ServerSettingsService(
 
         cache[key] = value;
         if (logger.IsEnabled(LogLevel.Information))
+        {
             logger.LogInformation("Server setting '{Key}' updated", key);
+        }
 
         return Result.Success();
     }
 
-    public Task<Result> SetThemeAsync(string theme, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(theme)
-            || !Constants.BootswatchThemes.All.Contains(theme, StringComparer.OrdinalIgnoreCase))
-        {
-            return Task.FromResult<Result>(Result.Invalid(
-                new ValidationError(nameof(theme), $"'{theme}' is not a known Bootswatch theme.")));
-        }
-
-        return SetAsync(Constants.ServerSettingKeys.Theme, theme.ToLowerInvariant(), cancellationToken);
-    }
+    public Task<Result> SetThemeAsync(string theme, CancellationToken cancellationToken = default) => string.IsNullOrWhiteSpace(theme)
+            || !Constants.BootswatchThemes.All.Contains(theme, StringComparer.OrdinalIgnoreCase)
+            ? Task.FromResult<Result>(Result.Invalid(
+                new ValidationError(nameof(theme), $"'{theme}' is not a known Bootswatch theme.")))
+            : SetAsync(Constants.ServerSettingKeys.Theme, theme.ToLowerInvariant(), cancellationToken);
 
     private async Task EnsureLoadedAsync(CancellationToken cancellationToken)
     {
-        if (isLoaded) return;
+        if (isLoaded)
+        {
+            return;
+        }
 
         await loadLock.WaitAsync(cancellationToken);
         try
         {
-            if (isLoaded) return;
+            if (isLoaded)
+            {
+                return;
+            }
 
             var rows = await repository.FindAsync(new SearchOptions<ServerSetting>
             {
@@ -128,7 +130,7 @@ public class ServerSettingsService(
         }
     }
 
-    private static string? GetCached(string key) => cache.TryGetValue(key, out var v) ? v : null;
+    private static string? GetCached(string key) => cache.TryGetValue(key, out string? v) ? v : null;
 
     private static string? NullIfWhitespace(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
 }

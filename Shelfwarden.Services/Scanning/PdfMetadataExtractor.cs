@@ -1,7 +1,6 @@
 using Docnet.Core;
 using Docnet.Core.Converters;
 using Docnet.Core.Models;
-using Docnet.Core.Readers;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
@@ -37,7 +36,7 @@ public sealed class PdfMetadataExtractor(ILogger<PdfMetadataExtractor> logger) :
             string? subject = NullIfWhitespace(info.Subject);
             string? keywords = NullIfWhitespace(info.Keywords);
 
-            var authors = string.IsNullOrEmpty(author)
+            string[] authors = string.IsNullOrEmpty(author)
                 ? Array.Empty<string>()
                 : author
                     .Split([',', ';', '&'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -45,7 +44,7 @@ public sealed class PdfMetadataExtractor(ILogger<PdfMetadataExtractor> logger) :
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray();
 
-            var tags = string.IsNullOrEmpty(keywords)
+            string[] tags = string.IsNullOrEmpty(keywords)
                 ? Array.Empty<string>()
                 : keywords
                     .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -82,12 +81,18 @@ public sealed class PdfMetadataExtractor(ILogger<PdfMetadataExtractor> logger) :
         try
         {
             using var docReader = DocLib.Instance.GetDocReader(filePath, CoverPageDimensions);
-            if (docReader.GetPageCount() == 0) return null;
+            if (docReader.GetPageCount() == 0)
+            {
+                return null;
+            }
 
             using var pageReader = docReader.GetPageReader(0);
             int width = pageReader.GetPageWidth();
             int height = pageReader.GetPageHeight();
-            if (width <= 0 || height <= 0) return null;
+            if (width <= 0 || height <= 0)
+            {
+                return null;
+            }
 
             // PDFium hands back BGRA pixels; ImageSharp can wrap them directly. The naive
             // transparency remover paints any transparent pixel white, which matches what

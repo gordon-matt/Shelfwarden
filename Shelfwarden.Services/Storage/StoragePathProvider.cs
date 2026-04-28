@@ -61,7 +61,11 @@ public sealed class StoragePathProvider : IStoragePathProvider
 
     public string? GetCoverFilePath(int bookId, string? extension)
     {
-        if (string.IsNullOrWhiteSpace(extension)) return null;
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            return null;
+        }
+
         string ext = extension.StartsWith('.') ? extension[1..] : extension;
         return Path.Combine(CoversDirectory, $"{bookId}.{ext}");
     }
@@ -71,7 +75,10 @@ public sealed class StoragePathProvider : IStoragePathProvider
         DeleteAllForBook(bookId);
 
         string ext = cover.Extension.TrimStart('.').ToLowerInvariant();
-        if (string.IsNullOrEmpty(ext)) ext = "jpg";
+        if (string.IsNullOrEmpty(ext))
+        {
+            ext = "jpg";
+        }
 
         string filename = $"{bookId}.{ext}";
         string fullPath = Path.Combine(CoversDirectory, filename);
@@ -79,7 +86,9 @@ public sealed class StoragePathProvider : IStoragePathProvider
         await File.WriteAllBytesAsync(fullPath, cover.Data, cancellationToken);
 
         if (logger.IsEnabled(LogLevel.Debug))
+        {
             logger.LogDebug("Saved cover for book {BookId} -> {Path}", bookId, fullPath);
+        }
 
         // Stored as a relative path so the database is portable across deployments.
         return filename;
@@ -87,11 +96,18 @@ public sealed class StoragePathProvider : IStoragePathProvider
 
     public void DeleteCover(string? relativePath)
     {
-        if (string.IsNullOrWhiteSpace(relativePath)) return;
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return;
+        }
+
         string fullPath = Path.Combine(CoversDirectory, relativePath);
         try
         {
-            if (File.Exists(fullPath)) File.Delete(fullPath);
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+            }
         }
         catch (Exception ex)
         {

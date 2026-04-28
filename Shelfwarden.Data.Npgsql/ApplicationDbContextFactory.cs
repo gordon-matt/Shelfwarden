@@ -4,10 +4,8 @@ namespace Shelfwarden.Data.Npgsql;
 
 public class ApplicationDbContextFactory(IConfiguration configuration) : IDbContextFactory
 {
-    private DbContextOptions<ApplicationDbContext>? _options;
-
     private DbContextOptions<ApplicationDbContext> Options
-        => _options ??= BuildOptions(configuration.GetConnectionString("DefaultConnection"));
+        => field ??= BuildOptions(configuration.GetConnectionString("DefaultConnection"));
 
     public DbContext GetContext() => new ApplicationDbContext(Options);
 

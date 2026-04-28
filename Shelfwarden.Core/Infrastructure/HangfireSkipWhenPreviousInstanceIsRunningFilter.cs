@@ -1,6 +1,5 @@
 using Hangfire.Common;
 using Hangfire.States;
-using Hangfire.Storage;
 
 namespace Shelfwarden.Infrastructure;
 
@@ -19,7 +18,7 @@ public sealed class SkipWhenPreviousInstanceIsRunningAttribute : JobFilterAttrib
             return;
         }
 
-        var fingerprint = context.BackgroundJob.Job.ToString();
+        string fingerprint = context.BackgroundJob.Job.ToString();
         var monitoringApi = context.Storage.GetMonitoringApi();
 
         long processingCount = monitoringApi.ProcessingCount();

@@ -29,11 +29,31 @@ public class BookService(
 
         var predicate = PredicateBuilder.New<Book>(true);
 
-        if (request.LibraryId is int libId) predicate = predicate.And(b => b.LibraryId == libId);
-        if (request.SeriesId is int sId) predicate = predicate.And(b => b.SeriesId == sId);
-        if (request.AuthorId is int aId) predicate = predicate.And(b => b.BookAuthors.Any(ba => ba.AuthorId == aId));
-        if (request.GenreId is int gId) predicate = predicate.And(b => b.BookGenres.Any(bg => bg.GenreId == gId));
-        if (request.AwaitingReview) predicate = predicate.And(b => b.UpdatedAt == null);
+        if (request.LibraryId is int libId)
+        {
+            predicate = predicate.And(b => b.LibraryId == libId);
+        }
+
+        if (request.SeriesId is int sId)
+        {
+            predicate = predicate.And(b => b.SeriesId == sId);
+        }
+
+        if (request.AuthorId is int aId)
+        {
+            predicate = predicate.And(b => b.BookAuthors.Any(ba => ba.AuthorId == aId));
+        }
+
+        if (request.GenreId is int gId)
+        {
+            predicate = predicate.And(b => b.BookGenres.Any(bg => bg.GenreId == gId));
+        }
+
+        if (request.AwaitingReview)
+        {
+            predicate = predicate.And(b => b.UpdatedAt == null);
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Query))
         {
             string q = request.Query.Trim();
@@ -91,12 +111,7 @@ public class BookService(
             SplitQuery = true,
         });
 
-        if (book is null)
-        {
-            return Result.NotFound($"Book {id} not found.");
-        }
-
-        return Result.Success(MapBook(book));
+        return book is null ? (Result<BookDto>)Result.NotFound($"Book {id} not found.") : Result.Success(MapBook(book));
     }
 
     public async Task<Result<BookDto>> UpdateAsync(int id, UpdateBookRequest request, CancellationToken cancellationToken = default)
@@ -160,7 +175,9 @@ public class BookService(
 
         await bookRepository.DeleteAsync(book);
         if (logger.IsEnabled(LogLevel.Information))
+        {
             logger.LogInformation("Deleted book {BookId} ({Title})", id, book.Title);
+        }
 
         return Result.Success();
     }
@@ -179,7 +196,7 @@ public class BookService(
             CancellationToken = cancellationToken,
         });
 
-        BookProgressDto? dto = existing is null
+        var dto = existing is null
             ? null
             : new BookProgressDto(existing.BookId, existing.Percentage, existing.PageNumber, existing.Location, existing.LastReadAt);
 
@@ -257,13 +274,19 @@ public class BookService(
         var desiredIds = desired.ToHashSet();
 
         var toRemove = existing.Where(ba => !desiredIds.Contains(ba.AuthorId)).ToList();
-        if (toRemove.Count > 0) await bookAuthorRepository.DeleteAsync(toRemove);
+        if (toRemove.Count > 0)
+        {
+            await bookAuthorRepository.DeleteAsync(toRemove);
+        }
 
         var toAdd = desired
             .Where(aid => !existingIds.Contains(aid))
             .Select((aid, idx) => new BookAuthor { BookId = bookId, AuthorId = aid, Position = idx })
             .ToList();
-        if (toAdd.Count > 0) await bookAuthorRepository.InsertAsync(toAdd);
+        if (toAdd.Count > 0)
+        {
+            await bookAuthorRepository.InsertAsync(toAdd);
+        }
     }
 
     private async Task SyncBookGenresAsync(int bookId, IReadOnlyList<int> genreIds)
@@ -277,13 +300,19 @@ public class BookService(
         var desiredIds = genreIds.Distinct().ToHashSet();
 
         var toRemove = existing.Where(bg => !desiredIds.Contains(bg.GenreId)).ToList();
-        if (toRemove.Count > 0) await bookGenreRepository.DeleteAsync(toRemove);
+        if (toRemove.Count > 0)
+        {
+            await bookGenreRepository.DeleteAsync(toRemove);
+        }
 
         var toAdd = desiredIds
             .Where(gid => !existingIds.Contains(gid))
             .Select(gid => new BookGenre { BookId = bookId, GenreId = gid })
             .ToList();
-        if (toAdd.Count > 0) await bookGenreRepository.InsertAsync(toAdd);
+        if (toAdd.Count > 0)
+        {
+            await bookGenreRepository.InsertAsync(toAdd);
+        }
     }
 
     private async Task SyncBookTagsAsync(int bookId, IReadOnlyList<string> tagNames)
@@ -304,7 +333,7 @@ public class BookService(
         var byNormalized = existingTags.ToDictionary(t => t.NormalizedName, StringComparer.OrdinalIgnoreCase);
 
         var toCreate = new List<Tag>();
-        foreach (var name in normalised)
+        foreach (string? name in normalised)
         {
             if (!byNormalized.ContainsKey(name.ToLowerInvariant()))
             {
@@ -314,7 +343,10 @@ public class BookService(
         if (toCreate.Count > 0)
         {
             var created = await tagRepository.InsertAsync(toCreate);
-            foreach (var t in created) byNormalized[t.NormalizedName] = t;
+            foreach (var t in created)
+            {
+                byNormalized[t.NormalizedName] = t;
+            }
         }
 
         // Sync the join table.
@@ -328,14 +360,20 @@ public class BookService(
             .ToHashSet();
 
         var toRemove = existingJoins.Where(bt => !desiredTagIds.Contains(bt.TagId)).ToList();
-        if (toRemove.Count > 0) await bookTagRepository.DeleteAsync(toRemove);
+        if (toRemove.Count > 0)
+        {
+            await bookTagRepository.DeleteAsync(toRemove);
+        }
 
         var existingJoinIds = existingJoins.Select(bt => bt.TagId).ToHashSet();
         var toAddJoins = desiredTagIds
             .Where(tid => !existingJoinIds.Contains(tid))
             .Select(tid => new BookTag { BookId = bookId, TagId = tid })
             .ToList();
-        if (toAddJoins.Count > 0) await bookTagRepository.InsertAsync(toAddJoins);
+        if (toAddJoins.Count > 0)
+        {
+            await bookTagRepository.InsertAsync(toAddJoins);
+        }
     }
 
     private static string? NullIfWhitespace(string? s)

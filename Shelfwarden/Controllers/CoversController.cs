@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Shelfwarden.Services.Storage;
 
@@ -12,7 +11,7 @@ namespace Shelfwarden.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[Microsoft.AspNetCore.Mvc.Route("covers")]
+[Route("covers")]
 public class CoversController(
     IStoragePathProvider storage,
     IRepository<Book> bookRepository) : ControllerBase

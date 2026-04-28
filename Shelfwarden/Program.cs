@@ -2,9 +2,7 @@ using Hangfire;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Shelfwarden.Components;
-using Shelfwarden.Components.Layout;
 using Shelfwarden.Infrastructure;
-using Shelfwarden.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

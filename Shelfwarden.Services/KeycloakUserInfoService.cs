@@ -24,7 +24,10 @@ public class KeycloakUserInfoService(
         CancellationToken cancellationToken = default)
     {
         var ids = userIds.Distinct().ToHashSet();
-        if (ids.Count == 0) return new Dictionary<string, UserInfo>();
+        if (ids.Count == 0)
+        {
+            return new Dictionary<string, UserInfo>();
+        }
 
         var allUsers = await FetchAllUsersAsync(cancellationToken);
         return allUsers
@@ -44,10 +47,16 @@ public class KeycloakUserInfoService(
     private async Task<IReadOnlyList<UserInfo>> FetchAllUsersAsync(CancellationToken cancellationToken)
     {
         var config = GetAdminConfig();
-        if (config is null) return [];
+        if (config is null)
+        {
+            return [];
+        }
 
         string? token = await GetAdminTokenAsync(config, cancellationToken);
-        if (string.IsNullOrWhiteSpace(token)) return [];
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return [];
+        }
 
         try
         {
@@ -61,7 +70,10 @@ public class KeycloakUserInfoService(
             if (response.IsError || response.Response is null)
             {
                 if (logger.IsEnabled(LogLevel.Warning))
+                {
                     logger.LogWarning("Failed to list Keycloak users: {Error}", response.ErrorMessage);
+                }
+
                 return [];
             }
 
@@ -78,7 +90,10 @@ public class KeycloakUserInfoService(
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Warning))
+            {
                 logger.LogWarning(ex, "Exception listing Keycloak users");
+            }
+
             return [];
         }
     }
@@ -96,7 +111,10 @@ public class KeycloakUserInfoService(
             if (response.IsError || response.Response is null)
             {
                 if (logger.IsEnabled(LogLevel.Warning))
+                {
                     logger.LogWarning("Failed to obtain Keycloak admin token: {Error}", response.ErrorMessage);
+                }
+
                 return null;
             }
 
@@ -105,7 +123,10 @@ public class KeycloakUserInfoService(
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Warning))
+            {
                 logger.LogWarning(ex, "Exception obtaining Keycloak admin token");
+            }
+
             return null;
         }
     }
@@ -113,11 +134,17 @@ public class KeycloakUserInfoService(
     private AdminConfig? GetAdminConfig()
     {
         string? authority = configuration["Authentication:Keycloak:Authority"];
-        if (string.IsNullOrWhiteSpace(authority)) return null;
+        if (string.IsNullOrWhiteSpace(authority))
+        {
+            return null;
+        }
 
         string baseUrl = ExtractBaseUrl(authority);
         string realm = ExtractRealm(authority);
-        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(realm)) return null;
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(realm))
+        {
+            return null;
+        }
 
         string clientId = configuration["Authentication:Keycloak:AdminClientId"]
             ?? configuration["Authentication:Keycloak:ClientId"]
@@ -127,9 +154,9 @@ public class KeycloakUserInfoService(
             ?? configuration["Authentication:Keycloak:ClientSecret"]
             ?? string.Empty;
 
-        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret)) return null;
-
-        return new AdminConfig(baseUrl, realm, clientId, clientSecret);
+        return string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret)
+            ? null
+            : new AdminConfig(baseUrl, realm, clientId, clientSecret);
     }
 
     private static string ExtractBaseUrl(string authority)
@@ -147,7 +174,6 @@ public class KeycloakUserInfoService(
     private static string BuildDisplayName(KcUser user)
     {
         string fullName = $"{user.FirstName} {user.LastName}".Trim();
-        if (!string.IsNullOrEmpty(fullName)) return fullName;
-        return user.UserName ?? user.Id ?? string.Empty;
+        return !string.IsNullOrEmpty(fullName) ? fullName : user.UserName ?? user.Id ?? string.Empty;
     }
 }

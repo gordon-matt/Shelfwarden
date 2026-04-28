@@ -30,11 +30,7 @@ public class GenreService(IRepository<Genre> genreRepository) : IGenreService
         {
             Query = g => g.Id == id,
         });
-        if (genre is null)
-        {
-            return Result.NotFound();
-        }
-        return Result.Success(new GenreDto(genre.Id, genre.Name));
+        return genre is null ? (Result<GenreDto>)Result.NotFound() : Result.Success(new GenreDto(genre.Id, genre.Name));
     }
 
     public async Task<Result<GenreDto>> GetOrCreateAsync(string name, CancellationToken cancellationToken = default)

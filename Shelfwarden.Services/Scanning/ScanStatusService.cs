@@ -1,6 +1,5 @@
 using System.Globalization;
 using Hangfire;
-using Hangfire.Storage.Monitoring;
 
 namespace Shelfwarden.Services.Scanning;
 
@@ -64,14 +63,12 @@ public class ScanStatusService(
         return Result.Success<IReadOnlyDictionary<int, ScanStatusDto>>(map);
     }
 
-    private static ScanState ResolveState(int libraryId, HashSet<int> running, HashSet<int> queued, DateTime? lastScannedAt)
-    {
+    private static ScanState ResolveState(int libraryId, HashSet<int> running, HashSet<int> queued, DateTime? lastScannedAt) =>
         // Order matters: a queue can momentarily contain both an enqueued retry and a running
         // job, but the user cares most about "is something happening right now?".
-        if (running.Contains(libraryId)) return ScanState.Running;
-        if (queued.Contains(libraryId)) return ScanState.Queued;
-        return lastScannedAt.HasValue ? ScanState.Succeeded : ScanState.Idle;
-    }
+        running.Contains(libraryId)
+            ? ScanState.Running
+            : queued.Contains(libraryId) ? ScanState.Queued : lastScannedAt.HasValue ? ScanState.Succeeded : ScanState.Idle;
 
     private (HashSet<int> Running, HashSet<int> Queued) GetActiveLibraryIds()
     {
@@ -98,7 +95,10 @@ public class ScanStatusService(
             foreach (var q in queues)
             {
                 long enqueued = monitoring.EnqueuedCount(q.Name);
-                if (enqueued <= 0) continue;
+                if (enqueued <= 0)
+                {
+                    continue;
+                }
 
                 foreach (var pair in monitoring.EnqueuedJobs(q.Name, 0, (int)Math.Min(enqueued, 200)))
                 {
@@ -121,8 +121,15 @@ public class ScanStatusService(
     private static bool TryGetLibraryId(Hangfire.Common.Job? job, out int libraryId)
     {
         libraryId = 0;
-        if (job?.Method?.Name != ScanMethodName) return false;
-        if (job.Args is null || job.Args.Count == 0) return false;
+        if (job?.Method?.Name != ScanMethodName)
+        {
+            return false;
+        }
+
+        if (job.Args is null || job.Args.Count == 0)
+        {
+            return false;
+        }
 
         // Hangfire deserialises ints back to int, but be defensive about strings too.
         try

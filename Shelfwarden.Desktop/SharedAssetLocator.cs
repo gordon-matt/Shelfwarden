@@ -40,11 +40,6 @@ internal static class SharedAssetLocator
 
         string? desktopDir = Path.GetDirectoryName(thisFilePath);
         string? repoDir = Path.GetDirectoryName(desktopDir);
-        if (repoDir is null)
-        {
-            return null;
-        }
-
-        return Path.Combine(repoDir, "Shelfwarden", "wwwroot");
+        return repoDir is null ? null : Path.Combine(repoDir, "Shelfwarden", "wwwroot");
     }
 }

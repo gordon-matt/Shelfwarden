@@ -48,8 +48,15 @@ public class ReadingListService(
             Query = l => l.Id == id,
             CancellationToken = cancellationToken,
         });
-        if (list is null) return Result.NotFound();
-        if (list.OwnerUserId != userId) return Result.Forbidden();
+        if (list is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (list.OwnerUserId != userId)
+        {
+            return Result.Forbidden();
+        }
 
         // Pull items in queue order. We then load the books separately so the BookListItemDto
         // projection has access to the navigations it needs (Series + BookAuthors.Author).
@@ -62,7 +69,7 @@ public class ReadingListService(
 
         var bookIds = items.Select(i => i.BookId).ToList();
         var books = bookIds.Count == 0
-            ? new List<Book>()
+            ? []
             : (await bookRepository.FindAsync(new SearchOptions<Book>
             {
                 Query = b => bookIds.Contains(b.Id),
@@ -131,8 +138,15 @@ public class ReadingListService(
             Query = l => l.Id == id,
             CancellationToken = cancellationToken,
         });
-        if (list is null) return Result.NotFound();
-        if (list.OwnerUserId != userId) return Result.Forbidden();
+        if (list is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (list.OwnerUserId != userId)
+        {
+            return Result.Forbidden();
+        }
 
         list.Name = request.Name.Trim();
         list.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
@@ -159,8 +173,15 @@ public class ReadingListService(
             Query = l => l.Id == id,
             CancellationToken = cancellationToken,
         });
-        if (list is null) return Result.NotFound();
-        if (list.OwnerUserId != userId) return Result.Forbidden();
+        if (list is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (list.OwnerUserId != userId)
+        {
+            return Result.Forbidden();
+        }
 
         await listRepository.DeleteAsync(list);
         return Result.Success();
@@ -179,15 +200,25 @@ public class ReadingListService(
             Query = l => l.Id == readingListId,
             CancellationToken = cancellationToken,
         });
-        if (list is null) return Result.NotFound("Reading list not found.");
-        if (list.OwnerUserId != userId) return Result.Forbidden();
+        if (list is null)
+        {
+            return Result.NotFound("Reading list not found.");
+        }
+
+        if (list.OwnerUserId != userId)
+        {
+            return Result.Forbidden();
+        }
 
         var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
         {
             Query = b => b.Id == bookId,
             CancellationToken = cancellationToken,
         });
-        if (book is null) return Result.NotFound("Book not found.");
+        if (book is null)
+        {
+            return Result.NotFound("Book not found.");
+        }
 
         var existing = await itemRepository.FindOneAsync(new SearchOptions<ReadingListItem>
         {
@@ -200,7 +231,7 @@ public class ReadingListService(
             return Result.Success();
         }
 
-        var maxPosition = (await itemRepository.FindAsync(
+        int maxPosition = (await itemRepository.FindAsync(
                 new SearchOptions<ReadingListItem> { Query = i => i.ReadingListId == readingListId },
                 i => i.Position))
             .DefaultIfEmpty(-1)
@@ -228,15 +259,25 @@ public class ReadingListService(
             Query = l => l.Id == readingListId,
             CancellationToken = cancellationToken,
         });
-        if (list is null) return Result.NotFound();
-        if (list.OwnerUserId != userId) return Result.Forbidden();
+        if (list is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (list.OwnerUserId != userId)
+        {
+            return Result.Forbidden();
+        }
 
         var entry = await itemRepository.FindOneAsync(new SearchOptions<ReadingListItem>
         {
             Query = i => i.ReadingListId == readingListId && i.BookId == bookId,
             CancellationToken = cancellationToken,
         });
-        if (entry is null) return Result.NotFound();
+        if (entry is null)
+        {
+            return Result.NotFound();
+        }
 
         await itemRepository.DeleteAsync(entry);
 
@@ -259,8 +300,15 @@ public class ReadingListService(
             Query = l => l.Id == readingListId,
             CancellationToken = cancellationToken,
         });
-        if (list is null) return Result.NotFound();
-        if (list.OwnerUserId != userId) return Result.Forbidden();
+        if (list is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (list.OwnerUserId != userId)
+        {
+            return Result.Forbidden();
+        }
 
         var items = (await itemRepository.FindAsync(new SearchOptions<ReadingListItem>
         {
@@ -273,7 +321,11 @@ public class ReadingListService(
         int newPos = 0;
         foreach (int itemId in orderedItemIds)
         {
-            if (!byId.TryGetValue(itemId, out var item)) continue;
+            if (!byId.TryGetValue(itemId, out var item))
+            {
+                continue;
+            }
+
             if (item.Position != newPos)
             {
                 item.Position = newPos;

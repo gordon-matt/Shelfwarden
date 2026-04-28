@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;

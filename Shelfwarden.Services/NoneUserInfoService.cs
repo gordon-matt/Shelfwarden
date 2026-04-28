@@ -19,7 +19,7 @@ public class NoneUserInfoService : IUserInfoService
     {
         IReadOnlyDictionary<string, UserInfo> result = userIds.Contains(Constants.DefaultUserId)
             ? new Dictionary<string, UserInfo> { [Constants.DefaultUserId] = DefaultUser }
-            : new Dictionary<string, UserInfo>();
+            : [];
         return Task.FromResult(result);
     }
 

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http.Extensions;
-using Shelfwarden.Services;
 
 namespace Shelfwarden.Infrastructure;
 
@@ -52,7 +51,9 @@ public class SetupRedirectMiddleware(RequestDelegate next, ILogger<SetupRedirect
         }
 
         if (logger.IsEnabled(LogLevel.Debug))
+        {
             logger.LogDebug("Redirecting {Path} to /setup (setup not complete)", context.Request.GetEncodedPathAndQuery());
+        }
 
         // 302 keeps GETs simple. POSTs would be lost but the wizard isn't expected to redirect
         // mid-form-submit; non-exempt POSTs during setup are anomalies (likely bots).
@@ -66,7 +67,7 @@ public class SetupRedirectMiddleware(RequestDelegate next, ILogger<SetupRedirect
             return false;
         }
 
-        foreach (var prefix in ExemptPrefixes)
+        foreach (string prefix in ExemptPrefixes)
         {
             if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {

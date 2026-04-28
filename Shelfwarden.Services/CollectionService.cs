@@ -50,9 +50,15 @@ public class CollectionService(
             Query = c => c.Id == id,
             CancellationToken = cancellationToken,
         });
-        if (collection is null) return Result.NotFound();
+        if (collection is null)
+        {
+            return Result.NotFound();
+        }
 
-        if (!CanRead(collection, userId)) return Result.Forbidden();
+        if (!CanRead(collection, userId))
+        {
+            return Result.Forbidden();
+        }
 
         var bookIds = (await collectionBookRepository.FindAsync(
                 new SearchOptions<CollectionBook> { Query = cb => cb.CollectionId == id },
@@ -128,8 +134,15 @@ public class CollectionService(
             Query = c => c.Id == id,
             CancellationToken = cancellationToken,
         });
-        if (collection is null) return Result.NotFound();
-        if (!CanModify(collection, userId)) return Result.Forbidden();
+        if (collection is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (!CanModify(collection, userId))
+        {
+            return Result.Forbidden();
+        }
 
         collection.Name = request.Name.Trim();
         collection.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
@@ -156,8 +169,15 @@ public class CollectionService(
             Query = c => c.Id == id,
             CancellationToken = cancellationToken,
         });
-        if (collection is null) return Result.NotFound();
-        if (!CanModify(collection, userId)) return Result.Forbidden();
+        if (collection is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (!CanModify(collection, userId))
+        {
+            return Result.Forbidden();
+        }
 
         // Cascade delete handles CollectionBook rows on the database side (configured in
         // CollectionBookMap). Just drop the parent.
@@ -178,15 +198,25 @@ public class CollectionService(
             Query = c => c.Id == collectionId,
             CancellationToken = cancellationToken,
         });
-        if (collection is null) return Result.NotFound("Collection not found.");
-        if (!CanModify(collection, userId)) return Result.Forbidden();
+        if (collection is null)
+        {
+            return Result.NotFound("Collection not found.");
+        }
+
+        if (!CanModify(collection, userId))
+        {
+            return Result.Forbidden();
+        }
 
         var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
         {
             Query = b => b.Id == bookId,
             CancellationToken = cancellationToken,
         });
-        if (book is null) return Result.NotFound("Book not found.");
+        if (book is null)
+        {
+            return Result.NotFound("Book not found.");
+        }
 
         var existing = await collectionBookRepository.FindOneAsync(new SearchOptions<CollectionBook>
         {
@@ -220,15 +250,25 @@ public class CollectionService(
             Query = c => c.Id == collectionId,
             CancellationToken = cancellationToken,
         });
-        if (collection is null) return Result.NotFound();
-        if (!CanModify(collection, userId)) return Result.Forbidden();
+        if (collection is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (!CanModify(collection, userId))
+        {
+            return Result.Forbidden();
+        }
 
         var entry = await collectionBookRepository.FindOneAsync(new SearchOptions<CollectionBook>
         {
             Query = cb => cb.CollectionId == collectionId && cb.BookId == bookId,
             CancellationToken = cancellationToken,
         });
-        if (entry is null) return Result.NotFound();
+        if (entry is null)
+        {
+            return Result.NotFound();
+        }
 
         await collectionBookRepository.DeleteAsync(entry);
         return Result.Success();

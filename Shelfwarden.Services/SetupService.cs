@@ -74,8 +74,10 @@ public class SetupService(
         await folderRepository.InsertAsync(folders);
 
         if (logger.IsEnabled(LogLevel.Information))
+        {
             logger.LogInformation("[Setup] Created initial library {LibraryId} '{Name}' with {FolderCount} folder(s)",
                 library.Id, library.Name, folders.Count);
+        }
 
         return Result.Success(new LibraryDto(
             library.Id,
@@ -122,7 +124,9 @@ public class SetupService(
         ServerSettingsService.InvalidateCache();
 
         if (logger.IsEnabled(LogLevel.Information))
+        {
             logger.LogInformation("[Setup] First-run wizard marked complete");
+        }
 
         return Result.Success();
     }

@@ -11,7 +11,7 @@ namespace Shelfwarden.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[Microsoft.AspNetCore.Mvc.Route("files")]
+[Route("files")]
 public class BookFilesController(
     ILogger<BookFilesController> logger,
     IRepository<Book> bookRepository) : ControllerBase
@@ -33,7 +33,10 @@ public class BookFilesController(
         if (!System.IO.File.Exists(book.FilePath))
         {
             if (logger.IsEnabled(LogLevel.Warning))
+            {
                 logger.LogWarning("Book {BookId} references missing file at {Path}", bookId, book.FilePath);
+            }
+
             return NotFound();
         }
 
@@ -80,9 +83,12 @@ public class BookFilesController(
             : book.Title;
 
         // Strip filesystem-illegal characters so this round-trips into Save-As cleanly.
-        var invalid = Path.GetInvalidFileNameChars();
-        var sanitised = new string([.. baseName.Where(c => !invalid.Contains(c))]).Trim();
-        if (string.IsNullOrEmpty(sanitised)) sanitised = $"book-{book.Id}";
+        char[] invalid = Path.GetInvalidFileNameChars();
+        string sanitised = new string([.. baseName.Where(c => !invalid.Contains(c))]).Trim();
+        if (string.IsNullOrEmpty(sanitised))
+        {
+            sanitised = $"book-{book.Id}";
+        }
 
         return sanitised + ext;
     }

@@ -11,7 +11,6 @@ using Shelfwarden.Data.MySql;
 using Shelfwarden.Data.Npgsql;
 using Shelfwarden.Data.Sql;
 using Shelfwarden.Data.Sqlite;
-using Shelfwarden.Services;
 
 namespace Shelfwarden.Infrastructure;
 
@@ -62,13 +61,19 @@ internal static class ServiceCollectionExtensions
 
                 case Constants.DatabaseProviders.SqlServer:
                     if (string.IsNullOrEmpty(connectionString))
+                    {
                         throw new InvalidOperationException("Hangfire requires a connection string when using SqlServer.");
+                    }
+
                     services.AddShelfwardenSqlServerHangfire(connectionString);
                     break;
 
                 case Constants.DatabaseProviders.Npgsql:
                     if (string.IsNullOrEmpty(connectionString))
+                    {
                         throw new InvalidOperationException("Hangfire requires a connection string when using Npgsql.");
+                    }
+
                     services.AddShelfwardenNpgsqlHangfire(connectionString);
                     break;
 
@@ -208,7 +213,9 @@ internal static class ServiceCollectionExtensions
                 options.Events.OnRedirectToIdentityProvider = context =>
                 {
                     if (!string.IsNullOrWhiteSpace(publicOrigin))
+                    {
                         context.ProtocolMessage.RedirectUri = publicOrigin + "/signin-oidc";
+                    }
 
                     if (useBackchannel && !string.IsNullOrEmpty(authority))
                     {

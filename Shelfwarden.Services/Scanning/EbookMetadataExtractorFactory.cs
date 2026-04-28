@@ -25,9 +25,9 @@ public sealed class EbookMetadataExtractorFactory : IEbookMetadataExtractorFacto
     public IEbookMetadataExtractor? GetFor(string filePath)
     {
         string ext = Path.GetExtension(filePath);
-        if (string.IsNullOrEmpty(ext)) return null;
-
-        return ExtensionToFormat.TryGetValue(ext, out var format)
+        return string.IsNullOrEmpty(ext)
+            ? null
+            : ExtensionToFormat.TryGetValue(ext, out var format)
             && extractorsByFormat.TryGetValue(format, out var extractor)
             ? extractor
             : null;

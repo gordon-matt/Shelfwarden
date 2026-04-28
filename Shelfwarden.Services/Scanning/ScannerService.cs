@@ -101,7 +101,10 @@ public sealed class ScannerService(
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (!supportedExtensions.Contains(Path.GetExtension(filePath))) continue;
+                if (!supportedExtensions.Contains(Path.GetExtension(filePath)))
+                {
+                    continue;
+                }
 
                 filesScanned++;
                 seenFilePaths.Add(filePath);
@@ -117,8 +120,15 @@ public sealed class ScannerService(
                         genreCache,
                         cancellationToken);
 
-                    if (added) booksAdded++;
-                    if (updated) booksUpdated++;
+                    if (added)
+                    {
+                        booksAdded++;
+                    }
+
+                    if (updated)
+                    {
+                        booksUpdated++;
+                    }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -187,7 +197,10 @@ public sealed class ScannerService(
     {
         var fileInfo = new FileInfo(filePath);
         var extractor = extractorFactory.GetFor(filePath);
-        if (extractor is null) return (false, false);
+        if (extractor is null)
+        {
+            return (false, false);
+        }
 
         bool exists = existingByPath.TryGetValue(filePath, out var book);
 
@@ -286,7 +299,11 @@ public sealed class ScannerService(
 
         if (authorNames.Count == 0)
         {
-            if (existing.Count > 0) await bookAuthorRepository.DeleteAsync(existing);
+            if (existing.Count > 0)
+            {
+                await bookAuthorRepository.DeleteAsync(existing);
+            }
+
             return;
         }
 
@@ -294,7 +311,10 @@ public sealed class ScannerService(
         foreach (string raw in authorNames)
         {
             string name = raw.Trim();
-            if (name.Length == 0) continue;
+            if (name.Length == 0)
+            {
+                continue;
+            }
 
             string key = name.ToLowerInvariant();
             if (!cache.TryGetValue(key, out var author))
@@ -318,13 +338,19 @@ public sealed class ScannerService(
         var existingIds = existing.Select(ba => ba.AuthorId).ToHashSet();
 
         var toRemove = existing.Where(ba => !desiredIds.Contains(ba.AuthorId)).ToList();
-        if (toRemove.Count > 0) await bookAuthorRepository.DeleteAsync(toRemove);
+        if (toRemove.Count > 0)
+        {
+            await bookAuthorRepository.DeleteAsync(toRemove);
+        }
 
         var toAdd = desiredIds
             .Where(id => !existingIds.Contains(id))
             .Select((id, idx) => new BookAuthor { BookId = bookId, AuthorId = id, Position = idx })
             .ToList();
-        if (toAdd.Count > 0) await bookAuthorRepository.InsertAsync(toAdd);
+        if (toAdd.Count > 0)
+        {
+            await bookAuthorRepository.InsertAsync(toAdd);
+        }
     }
 
     private async Task SyncGenresAsync(int bookId, IReadOnlyList<string> genreNames, Dictionary<string, Genre> cache)
@@ -336,7 +362,11 @@ public sealed class ScannerService(
 
         if (genreNames.Count == 0)
         {
-            if (existing.Count > 0) await bookGenreRepository.DeleteAsync(existing);
+            if (existing.Count > 0)
+            {
+                await bookGenreRepository.DeleteAsync(existing);
+            }
+
             return;
         }
 
@@ -344,7 +374,10 @@ public sealed class ScannerService(
         foreach (string raw in genreNames)
         {
             string name = raw.Trim();
-            if (name.Length == 0) continue;
+            if (name.Length == 0)
+            {
+                continue;
+            }
 
             string key = name.ToLowerInvariant();
             if (!cache.TryGetValue(key, out var genre))
@@ -368,13 +401,19 @@ public sealed class ScannerService(
         var existingIds = existing.Select(bg => bg.GenreId).ToHashSet();
 
         var toRemove = existing.Where(bg => !desiredIds.Contains(bg.GenreId)).ToList();
-        if (toRemove.Count > 0) await bookGenreRepository.DeleteAsync(toRemove);
+        if (toRemove.Count > 0)
+        {
+            await bookGenreRepository.DeleteAsync(toRemove);
+        }
 
         var toAdd = desiredIds
             .Where(id => !existingIds.Contains(id))
             .Select(id => new BookGenre { BookId = bookId, GenreId = id })
             .ToList();
-        if (toAdd.Count > 0) await bookGenreRepository.InsertAsync(toAdd);
+        if (toAdd.Count > 0)
+        {
+            await bookGenreRepository.InsertAsync(toAdd);
+        }
     }
 
     private async Task ResolveSeriesAsync(Book book, string? seriesName, Dictionary<string, Series> cache)
@@ -408,16 +447,15 @@ public sealed class ScannerService(
 
     private async Task SaveCoverAsync(Book book, EbookCoverImage? cover, CancellationToken cancellationToken)
     {
-        if (cover is null) return;
+        if (cover is null)
+        {
+            return;
+        }
 
         string relativePath = await storage.SaveCoverAsync(book.Id, cover, cancellationToken);
         book.CoverImagePath = relativePath;
         await bookRepository.UpdateAsync(book);
     }
 
-    private static string? Truncate(string? value, int max)
-    {
-        if (string.IsNullOrEmpty(value)) return value;
-        return value.Length <= max ? value : value[..max];
-    }
+    private static string? Truncate(string? value, int max) => string.IsNullOrEmpty(value) ? value : value.Length <= max ? value : value[..max];
 }
