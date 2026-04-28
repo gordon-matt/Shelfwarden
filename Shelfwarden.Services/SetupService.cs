@@ -20,10 +20,7 @@ public class SetupService(
         var settings = await serverSettings.GetAsync(cancellationToken);
         bool complete = settings.IsSuccess && settings.Value.SetupComplete;
 
-        var libraries = await libraryRepository.FindAsync(
-            new SearchOptions<Library> { CancellationToken = cancellationToken },
-            l => l.Id);
-        int libraryCount = libraries.Count();
+        int libraryCount = await libraryRepository.CountAsync();
 
         bool requiresIdentityAdmin = authProviderService.Provider == AuthProvider.Identity
             && !userContext.IsAuthenticated();
@@ -57,6 +54,7 @@ public class SetupService(
             Query = l => l.Name == request.Name,
             CancellationToken = cancellationToken,
         });
+
         if (existing is not null)
         {
             return Result.Conflict($"A library named '{request.Name}' already exists.");
@@ -71,6 +69,7 @@ public class SetupService(
         var folders = folderPaths
             .Select(p => new LibraryFolder { LibraryId = library.Id, Path = p })
             .ToList();
+
         await folderRepository.InsertAsync(folders);
 
         if (logger.IsEnabled(LogLevel.Information))

@@ -10,8 +10,8 @@
         string returnUrl = Uri.EscapeDataString(NavigationManager.Uri);
         string target = AuthProvider.Provider switch
         {
-            Shelfwarden.Services.AuthProvider.Identity => $"Identity/Account/Login?ReturnUrl=/{returnUrl}",
-            Shelfwarden.Services.AuthProvider.Keycloak => $"auth/login?returnUrl={returnUrl}",
+            Shelfwarden.Services.Auth.AuthProvider.Identity => $"Identity/Account/Login?ReturnUrl=/{returnUrl}",
+            Shelfwarden.Services.Auth.AuthProvider.Keycloak => $"auth/login?returnUrl={returnUrl}",
             _ => "/",
         };
         NavigationManager.NavigateTo(target, forceLoad: true);

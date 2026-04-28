@@ -11,19 +11,19 @@
         <p class="text-secondary mb-0">
             @switch (AuthProvider.Provider)
             {
-                case Shelfwarden.Services.AuthProvider.Identity:
+                case Shelfwarden.Services.Auth.AuthProvider.Identity:
                     <text>Local users managed by ASP.NET Identity.</text>
                     break;
-                case Shelfwarden.Services.AuthProvider.Keycloak:
+                case Shelfwarden.Services.Auth.AuthProvider.Keycloak:
                     <text>Users are managed in your Keycloak realm; this is a read-only view.</text>
                     break;
-                case Shelfwarden.Services.AuthProvider.None:
+                case Shelfwarden.Services.Auth.AuthProvider.None:
                     <text>Authentication is disabled — only the synthetic local user exists.</text>
                     break;
             }
         </p>
     </div>
-    @if (AuthProvider.Provider == Shelfwarden.Services.AuthProvider.Identity)
+    @if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Identity)
     {
         <a class="btn btn-primary" href="Identity/Account/Register">
             <i class="bi bi-person-plus"></i> New user

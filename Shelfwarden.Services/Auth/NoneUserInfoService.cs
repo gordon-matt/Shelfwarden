@@ -1,4 +1,4 @@
-namespace Shelfwarden.Services;
+namespace Shelfwarden.Services.Auth;
 
 /// <summary>
 /// User info implementation for the "None" authentication mode (desktop / kiosk). There is

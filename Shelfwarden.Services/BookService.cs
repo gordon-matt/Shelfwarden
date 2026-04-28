@@ -168,6 +168,7 @@ public class BookService(
         {
             Query = b => b.Id == id,
         });
+
         if (book is null)
         {
             return Result.NotFound();
@@ -270,8 +271,7 @@ public class BookService(
         })).ToList();
 
         var existingIds = existing.Select(ba => ba.AuthorId).ToHashSet();
-        var desired = authorIds.Distinct().ToList();
-        var desiredIds = desired.ToHashSet();
+        var desiredIds = authorIds.Distinct().ToHashSet();
 
         var toRemove = existing.Where(ba => !desiredIds.Contains(ba.AuthorId)).ToList();
         if (toRemove.Count > 0)
@@ -279,10 +279,11 @@ public class BookService(
             await bookAuthorRepository.DeleteAsync(toRemove);
         }
 
-        var toAdd = desired
+        var toAdd = desiredIds
             .Where(aid => !existingIds.Contains(aid))
             .Select((aid, idx) => new BookAuthor { BookId = bookId, AuthorId = aid, Position = idx })
             .ToList();
+
         if (toAdd.Count > 0)
         {
             await bookAuthorRepository.InsertAsync(toAdd);
@@ -409,10 +410,4 @@ public class BookService(
             .ToList(),
         b.CreatedAt,
         b.LastScannedAt);
-
-    private sealed class ParameterReplacer(System.Linq.Expressions.ParameterExpression target) : System.Linq.Expressions.ExpressionVisitor
-    {
-        protected override System.Linq.Expressions.Expression VisitParameter(System.Linq.Expressions.ParameterExpression node)
-            => target;
-    }
 }

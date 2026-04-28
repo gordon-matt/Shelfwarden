@@ -104,7 +104,7 @@ else
             break;
 
         case "library":
-            @if (status.AuthProvider == nameof(Shelfwarden.Services.AuthProvider.Keycloak)
+            @if (status.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Keycloak)
                  && !status.CallerIsAdministrator)
             {
                 <h1 class="h3 mb-2">Sign in as an administrator</h1>
@@ -216,7 +216,7 @@ else
         steps.Add(new StepDescriptor("welcome", 1, "Welcome"));
 
         int n = 2;
-        if (status?.AuthProvider == nameof(Shelfwarden.Services.AuthProvider.Identity))
+        if (status?.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Identity))
         {
             steps.Add(new StepDescriptor("admin", n++, "Administrator"));
         }
@@ -243,7 +243,7 @@ else
 
     private string NextLinkAfterWelcome()
     {
-        if (status?.AuthProvider == nameof(Shelfwarden.Services.AuthProvider.Identity))
+        if (status?.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Identity))
         {
             return "/setup?step=admin";
         }

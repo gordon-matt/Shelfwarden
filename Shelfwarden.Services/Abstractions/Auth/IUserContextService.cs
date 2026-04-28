@@ -1,4 +1,4 @@
-namespace Shelfwarden.Services;
+namespace Shelfwarden.Services.Auth;
 
 /// <summary>
 /// Wraps access to the currently signed-in user. Implementations resolve identity from

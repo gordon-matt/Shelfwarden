@@ -22,7 +22,8 @@ public class SeriesService(
         var seriesList = (await seriesRepository.FindAsync(options)).ToList();
         var ids = seriesList.Select(s => s.Id).ToList();
 
-        var counts = (await bookRepository.FindAsync(
+        var counts = (await bookRepository
+            .FindAsync(
                 new SearchOptions<Book> { Query = b => b.SeriesId != null && ids.Contains(b.SeriesId.Value) },
                 b => new { b.SeriesId }))
             .Where(x => x.SeriesId.HasValue)
@@ -32,6 +33,7 @@ public class SeriesService(
         IReadOnlyList<SeriesDto> result = seriesList
             .Select(s => new SeriesDto(s.Id, s.Name, s.Description, counts.GetValueOrDefault(s.Id, 0)))
             .ToList();
+
         return Result.Success(result);
     }
 
@@ -41,15 +43,13 @@ public class SeriesService(
         {
             Query = s => s.Id == id,
         });
+
         if (series is null)
         {
             return Result.NotFound();
         }
 
-        int count = (await bookRepository.FindAsync(
-                new SearchOptions<Book> { Query = b => b.SeriesId == id },
-                b => b.Id))
-            .Count();
+        int count = await bookRepository.CountAsync(b => b.SeriesId == id);
 
         return Result.Success(new SeriesDto(series.Id, series.Name, series.Description, count));
     }
@@ -68,6 +68,7 @@ public class SeriesService(
         {
             Query = s => s.NormalizedName == normalised,
         });
+
         if (existing is not null)
         {
             return Result.Success(new SeriesDto(existing.Id, existing.Name, existing.Description, BookCount: 0));
@@ -78,6 +79,7 @@ public class SeriesService(
             Name = trimmed,
             NormalizedName = normalised,
         });
+
         return Result.Success(new SeriesDto(created.Id, created.Name, created.Description, BookCount: 0));
     }
 

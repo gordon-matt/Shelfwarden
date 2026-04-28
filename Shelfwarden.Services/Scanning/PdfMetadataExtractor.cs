@@ -37,7 +37,7 @@ public sealed class PdfMetadataExtractor(ILogger<PdfMetadataExtractor> logger) :
             string? keywords = NullIfWhitespace(info.Keywords);
 
             string[] authors = string.IsNullOrEmpty(author)
-                ? Array.Empty<string>()
+                ? []
                 : author
                     .Split([',', ';', '&'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .Where(a => !string.IsNullOrWhiteSpace(a))
@@ -45,7 +45,7 @@ public sealed class PdfMetadataExtractor(ILogger<PdfMetadataExtractor> logger) :
                     .ToArray();
 
             string[] tags = string.IsNullOrEmpty(keywords)
-                ? Array.Empty<string>()
+                ? []
                 : keywords
                     .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .Distinct(StringComparer.OrdinalIgnoreCase)

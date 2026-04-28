@@ -19,7 +19,7 @@ public class AuthorService(
         if (!string.IsNullOrWhiteSpace(query))
         {
             string needle = query.Trim().ToLowerInvariant();
-            options.Query = a => EF.Functions.Like(a.NormalizedName, $"%{needle}%");
+            options.Query = a => a.NormalizedName.Contains(needle);
         }
 
         var authors = await authorRepository.FindAsync(options);

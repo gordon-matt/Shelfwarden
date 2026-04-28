@@ -17,7 +17,6 @@ public sealed class ScannerService(
     IStoragePathProvider storage,
     IScanProgressTracker progressTracker,
     IRepository<Library> libraryRepository,
-    IRepository<LibraryFolder> folderRepository,
     IRepository<Book> bookRepository,
     IRepository<Author> authorRepository,
     IRepository<BookAuthor> bookAuthorRepository,
@@ -157,6 +156,7 @@ public sealed class ScannerService(
         {
             storage.DeleteCover(orphan.CoverImagePath);
         }
+
         if (orphans.Count > 0)
         {
             await bookRepository.DeleteAsync(orphans);
@@ -347,6 +347,7 @@ public sealed class ScannerService(
             .Where(id => !existingIds.Contains(id))
             .Select((id, idx) => new BookAuthor { BookId = bookId, AuthorId = id, Position = idx })
             .ToList();
+
         if (toAdd.Count > 0)
         {
             await bookAuthorRepository.InsertAsync(toAdd);

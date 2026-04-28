@@ -4,7 +4,7 @@ using NETCore.Keycloak.Client.HttpClients.Implementation;
 using NETCore.Keycloak.Client.Models.Auth;
 using NETCore.Keycloak.Client.Models.Users;
 
-namespace Shelfwarden.Services;
+namespace Shelfwarden.Services.Auth;
 
 /// <summary>
 /// User info service backed by the Keycloak Admin REST API. Used when

@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 
-namespace Shelfwarden.Services;
+namespace Shelfwarden.Services.Auth;
 
 public class UserContextService(IHttpContextAccessor httpContextAccessor) : IUserContextService
 {

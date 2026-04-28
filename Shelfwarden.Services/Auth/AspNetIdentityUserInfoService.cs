@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
-namespace Shelfwarden.Services;
+namespace Shelfwarden.Services.Auth;
 
 /// <summary>
 /// Resolves user info by querying the local ASP.NET Core Identity tables. Used when
@@ -57,6 +57,7 @@ public class AspNetIdentityUserInfoService(
                 user.DisplayName ?? user.UserName,
                 roles.ToList()));
         }
+
         return result;
     }
 }

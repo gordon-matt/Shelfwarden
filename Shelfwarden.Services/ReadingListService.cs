@@ -23,7 +23,8 @@ public class ReadingListService(
         });
 
         var ids = rows.Select(l => l.Id).ToList();
-        var counts = (await itemRepository.FindAsync(
+        var counts = (await itemRepository
+            .FindAsync(
                 new SearchOptions<ReadingListItem> { Query = i => ids.Contains(i.ReadingListId) },
                 i => i.ReadingListId))
             .GroupBy(id => id)
@@ -32,6 +33,7 @@ public class ReadingListService(
         IReadOnlyList<ReadingListDto> dtos = rows
             .Select(l => Map(l, counts.GetValueOrDefault(l.Id, 0)))
             .ToList();
+
         return Result.Success(dtos);
     }
 
@@ -48,6 +50,7 @@ public class ReadingListService(
             Query = l => l.Id == id,
             CancellationToken = cancellationToken,
         });
+
         if (list is null)
         {
             return Result.NotFound();
@@ -122,6 +125,7 @@ public class ReadingListService(
             OwnerUserId = userId,
             CreatedAt = DateTime.UtcNow,
         });
+
         return Result.Success(Map(inserted, BookCount: 0));
     }
 
@@ -152,10 +156,7 @@ public class ReadingListService(
         list.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         var updated = await listRepository.UpdateAsync(list);
 
-        int count = (await itemRepository.FindAsync(
-                new SearchOptions<ReadingListItem> { Query = i => i.ReadingListId == id },
-                i => i.Id))
-            .Count();
+        int count = await itemRepository.CountAsync(i => i.ReadingListId == id);
 
         return Result.Success(Map(updated, count));
     }
@@ -243,6 +244,7 @@ public class ReadingListService(
             BookId = bookId,
             Position = maxPosition + 1,
         });
+
         return Result.Success();
     }
 
@@ -319,6 +321,7 @@ public class ReadingListService(
         var byId = items.ToDictionary(i => i.Id);
         var toUpdate = new List<ReadingListItem>();
         int newPos = 0;
+
         foreach (int itemId in orderedItemIds)
         {
             if (!byId.TryGetValue(itemId, out var item))

@@ -1,4 +1,4 @@
-namespace Shelfwarden.Services;
+namespace Shelfwarden.Services.Auth;
 
 public enum AuthProvider
 {
@@ -13,11 +13,4 @@ public interface IAuthProviderService
     AuthProvider Provider { get; }
 
     string? KeycloakAuthority { get; }
-}
-
-public class AuthProviderService(AuthProvider provider, string? keycloakAuthority) : IAuthProviderService
-{
-    public AuthProvider Provider { get; } = provider;
-
-    public string? KeycloakAuthority { get; } = keycloakAuthority;
 }

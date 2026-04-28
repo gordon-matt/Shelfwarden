@@ -6,3 +6,4 @@ global using Shelfwarden.Data;
 global using Shelfwarden.Data.Entities;
 global using Shelfwarden.Enums;
 global using Shelfwarden.Models;
+global using Shelfwarden.Services.Auth;

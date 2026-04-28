@@ -31,10 +31,15 @@ public interface IScanProgressTracker
 public sealed class ScanProgressBuilder
 {
     public int FilesScanned { get; set; }
+
     public int BooksAdded { get; set; }
+
     public int BooksUpdated { get; set; }
+
     public int BooksRemoved { get; set; }
+
     public int Errors { get; set; }
+
     public string? CurrentFile { get; set; }
 }
 

@@ -120,7 +120,7 @@
                     <i class="bi bi-person-circle fs-5 text-secondary"></i>
                     <div class="flex-grow-1 text-truncate">
                         <div class="text-truncate small fw-semibold">@context.User.Identity?.Name</div>
-                        @if (AuthProvider.Provider != Shelfwarden.Services.AuthProvider.None)
+                        @if (AuthProvider.Provider != Shelfwarden.Services.Auth.AuthProvider.None)
                         {
                             <a class="small text-decoration-none" href="@LogoutUrl">Sign out</a>
                         }
@@ -196,15 +196,15 @@
 
     private string LoginUrl => AuthProvider.Provider switch
     {
-        Shelfwarden.Services.AuthProvider.Identity => "Identity/Account/Login",
-        Shelfwarden.Services.AuthProvider.Keycloak => "auth/login",
+        Shelfwarden.Services.Auth.AuthProvider.Identity => "Identity/Account/Login",
+        Shelfwarden.Services.Auth.AuthProvider.Keycloak => "auth/login",
         _ => "/",
     };
 
     private string LogoutUrl => AuthProvider.Provider switch
     {
-        Shelfwarden.Services.AuthProvider.Identity => "Identity/Account/Logout",
-        Shelfwarden.Services.AuthProvider.Keycloak => "auth/logout",
+        Shelfwarden.Services.Auth.AuthProvider.Identity => "Identity/Account/Logout",
+        Shelfwarden.Services.Auth.AuthProvider.Keycloak => "auth/logout",
         _ => "/",
     };
 }

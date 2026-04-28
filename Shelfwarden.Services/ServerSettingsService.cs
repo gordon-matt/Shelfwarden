@@ -93,8 +93,9 @@ public class ServerSettingsService(
         return Result.Success();
     }
 
-    public Task<Result> SetThemeAsync(string theme, CancellationToken cancellationToken = default) => string.IsNullOrWhiteSpace(theme)
-            || !Constants.BootswatchThemes.All.Contains(theme, StringComparer.OrdinalIgnoreCase)
+    public Task<Result> SetThemeAsync(string theme, CancellationToken cancellationToken = default) =>
+        string.IsNullOrWhiteSpace(theme) ||
+        !Constants.BootswatchThemes.All.Contains(theme, StringComparer.OrdinalIgnoreCase)
             ? Task.FromResult<Result>(Result.Invalid(
                 new ValidationError(nameof(theme), $"'{theme}' is not a known Bootswatch theme.")))
             : SetAsync(Constants.ServerSettingKeys.Theme, theme.ToLowerInvariant(), cancellationToken);

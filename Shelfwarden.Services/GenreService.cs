@@ -21,6 +21,7 @@ public class GenreService(IRepository<Genre> genreRepository) : IGenreService
         IReadOnlyList<GenreDto> result = genres
             .Select(g => new GenreDto(g.Id, g.Name))
             .ToList();
+
         return Result.Success(result);
     }
 
@@ -30,6 +31,7 @@ public class GenreService(IRepository<Genre> genreRepository) : IGenreService
         {
             Query = g => g.Id == id,
         });
+
         return genre is null ? (Result<GenreDto>)Result.NotFound() : Result.Success(new GenreDto(genre.Id, genre.Name));
     }
 
@@ -47,6 +49,7 @@ public class GenreService(IRepository<Genre> genreRepository) : IGenreService
         {
             Query = g => g.NormalizedName == normalised,
         });
+
         if (existing is not null)
         {
             return Result.Success(new GenreDto(existing.Id, existing.Name));
@@ -57,6 +60,7 @@ public class GenreService(IRepository<Genre> genreRepository) : IGenreService
             Name = trimmed,
             NormalizedName = normalised,
         });
+
         return Result.Success(new GenreDto(created.Id, created.Name));
     }
 }

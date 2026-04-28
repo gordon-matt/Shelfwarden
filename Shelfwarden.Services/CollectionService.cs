@@ -148,10 +148,7 @@ public class CollectionService(
         collection.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         var updated = await collectionRepository.UpdateAsync(collection);
 
-        int count = (await collectionBookRepository.FindAsync(
-                new SearchOptions<CollectionBook> { Query = cb => cb.CollectionId == id },
-                cb => cb.Id))
-            .Count();
+        int count = await collectionBookRepository.CountAsync(cb => cb.CollectionId == id);
 
         return Result.Success(Map(updated, count));
     }
@@ -169,6 +166,7 @@ public class CollectionService(
             Query = c => c.Id == id,
             CancellationToken = cancellationToken,
         });
+
         if (collection is null)
         {
             return Result.NotFound();

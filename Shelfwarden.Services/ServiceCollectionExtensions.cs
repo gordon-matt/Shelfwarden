@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Shelfwarden.Services.Auth;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
 

@@ -1,4 +1,4 @@
-namespace Shelfwarden.Services;
+namespace Shelfwarden.Services.Auth;
 
 /// <summary>
 /// Provider-agnostic service for looking up basic user information by ID. Decouples the

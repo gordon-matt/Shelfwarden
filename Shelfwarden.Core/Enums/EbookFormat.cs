@@ -19,7 +19,7 @@ public static class EbookFormatExtensions
             return EbookFormat.Unknown;
         }
 
-        string ext = System.IO.Path.GetExtension(path);
+        string ext = Path.GetExtension(path);
         return ext.ToLowerInvariant() switch
         {
             ".epub" => EbookFormat.Epub,

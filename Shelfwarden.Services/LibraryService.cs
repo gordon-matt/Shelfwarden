@@ -47,10 +47,7 @@ public class LibraryService(
             return Result.NotFound($"Library {id} not found.");
         }
 
-        int bookCount = (await bookRepository.FindAsync(
-                new SearchOptions<Book> { Query = b => b.LibraryId == id },
-                b => b.Id))
-            .Count();
+        int bookCount = await bookRepository.CountAsync(b => b.LibraryId == id);
 
         return Result.Success(MapLibrary(library, bookCount));
     }
@@ -133,6 +130,7 @@ public class LibraryService(
         var toRemove = existingFolders
             .Where(f => !desiredFolders.Contains(f.Path, StringComparer.OrdinalIgnoreCase))
             .ToList();
+
         if (toRemove.Count > 0)
         {
             await folderRepository.DeleteAsync(toRemove);
@@ -162,6 +160,7 @@ public class LibraryService(
         {
             Query = x => x.Id == id,
         });
+
         if (library is null)
         {
             return Result.NotFound();

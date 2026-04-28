@@ -1,4 +1,4 @@
-namespace Shelfwarden.Services;
+namespace Shelfwarden.Services.Auth;
 
 /// <summary>
 /// User context implementation for the "None" authentication mode. Always returns the

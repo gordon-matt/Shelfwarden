@@ -106,10 +106,12 @@ public class BookmarkService(
             Query = b => b.Id == id,
             CancellationToken = cancellationToken,
         });
+
         if (bookmark is null)
         {
             return Result.NotFound();
         }
+
         if (bookmark.UserId != userId)
         {
             return Result.Forbidden();
