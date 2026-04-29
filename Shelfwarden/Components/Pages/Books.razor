@@ -263,6 +263,12 @@
     [SupplyParameterFromQuery(Name = "author")]
     public int? AuthorFromUrl { get; set; }
 
+    [SupplyParameterFromQuery(Name = "genreId")]
+    public int? GenreFromUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "genre")]
+    public int? GenreAliasFromUrl { get; set; }
+
     private enum ViewMode { Grid, List }
 
     private readonly List<BookListItemDto> results = [];
@@ -350,6 +356,11 @@
         if (AuthorFromUrl is { } aId && authorId != aId.ToString())
         {
             authorId = aId.ToString();
+        }
+        int? incomingGenreId = GenreFromUrl ?? GenreAliasFromUrl;
+        if (incomingGenreId is { } gId && genreId != gId.ToString())
+        {
+            genreId = gId.ToString();
         }
         dotNetRef ??= DotNetObjectReference.Create(this);
         await ResetAndLoadAsync();
