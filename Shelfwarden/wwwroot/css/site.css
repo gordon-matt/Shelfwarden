@@ -1248,18 +1248,27 @@ ol.reading-list {
     border-radius: var(--bs-border-radius);
 }
 
+.book-browse-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.book-browse-content {
+    min-width: 0;
+}
+
 .book-letter-rail {
-    position: fixed;
-    right: 0.65rem;
-    top: 52%;
-    transform: translateY(-50%);
-    z-index: 1005;
+    position: sticky;
+    top: 5.25rem;
+    z-index: 5;
     display: flex;
     flex-direction: column;
     gap: 0.12rem;
     padding: 0.3rem 0.25rem;
     border-radius: 0.6rem;
-    background-color: color-mix(in srgb, var(--bs-body-bg) 80%, transparent);
+    background-color: var(--bs-body-bg);
     border: 1px solid var(--bs-border-color);
 }
 
@@ -1297,8 +1306,16 @@ ol.reading-list {
 }
 
 @media (max-width: 991.98px) {
+    .book-browse-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .book-letter-rail {
-        right: 0.25rem;
+        position: static;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-bottom: 0.75rem;
     }
 }
 

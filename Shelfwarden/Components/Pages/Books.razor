@@ -150,101 +150,102 @@
     </button>
 </div>
 
-<div class="book-letter-rail" role="group" aria-label="Book title letter filter">
-    @foreach (var filter in LetterFilters)
-    {
-        bool active = string.Equals(startsWithFilter ?? string.Empty, filter.Value, StringComparison.Ordinal);
-        <button type="button"
-                class="book-letter-btn @(active ? "active" : null) @(filter.Value.Length == 0 ? "book-letter-btn-all" : null)"
-                title="Show @filter.Label titles"
-                @onclick="() => ApplyStartsWithFilterAsync(filter.Value)">
-            @filter.Label
-        </button>
-    }
-</div>
-
-@if (isLoadingMore && results.Count == 0)
-{
-    <div class="text-center text-secondary py-5">
-        <div class="spinner-border" role="status"></div>
-        <div class="mt-2">Loading books…</div>
-    </div>
-}
-else if (results.Count == 0)
-{
-    <div class="empty-state">
-        <i class="bi bi-search empty-icon"></i>
-        <h3>No matching books</h3>
-        <p>
-            @if (HasActiveFilters)
-            {
-                <span>Try clearing some filters or running a library scan to import more books.</span>
-            }
-            else
-            {
-                <span>You don't have any books yet. <a href="libraries">Add a library</a> to get started.</span>
-            }
-        </p>
-        @if (HasActiveFilters)
+<div class="book-browse-layout">
+    <div class="book-browse-content">
+        @if (isLoadingMore && results.Count == 0)
         {
-            <button class="btn btn-outline-secondary" @onclick="ClearFiltersAsync">
-                <i class="bi bi-x-circle"></i> Clear filters
+            <div class="text-center text-secondary py-5">
+                <div class="spinner-border" role="status"></div>
+                <div class="mt-2">Loading books…</div>
+            </div>
+        }
+        else if (results.Count == 0)
+        {
+            <div class="empty-state">
+                <i class="bi bi-search empty-icon"></i>
+                <h3>No matching books</h3>
+                <p>
+                    @if (HasActiveFilters)
+                    {
+                        <span>Try clearing some filters or running a library scan to import more books.</span>
+                    }
+                    else
+                    {
+                        <span>You don't have any books yet. <a href="libraries">Add a library</a> to get started.</span>
+                    }
+                </p>
+                @if (HasActiveFilters)
+                {
+                    <button class="btn btn-outline-secondary" @onclick="ClearFiltersAsync">
+                        <i class="bi bi-x-circle"></i> Clear filters
+                    </button>
+                }
+            </div>
+        }
+        else if (viewMode == ViewMode.List)
+        {
+            <div class="book-list">
+                @foreach (var book in results)
+                {
+                    <div class="book-list-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
+                        @if (selectMode)
+                        {
+                            <input class="form-check-input book-list-select" type="checkbox"
+                                   checked="@selectedBookIds.Contains(book.Id)"
+                                   @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
+                        }
+                        <BookListRow Book="book" />
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="book-grid">
+                @foreach (var book in results)
+                {
+                    <div class="book-card-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
+                        @if (selectMode)
+                        {
+                            <input class="form-check-input book-card-select" type="checkbox"
+                                   checked="@selectedBookIds.Contains(book.Id)"
+                                   @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
+                        }
+                        <BookCard Book="book" />
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="mt-4 d-flex justify-content-between align-items-center">
+            <small class="text-body-secondary">
+                Showing @(results.Count == 0 ? 0 : 1)-@results.Count
+                of @totalCount
+            </small>
+            @if (isLoadingMore)
+            {
+                <span class="text-secondary small"><span class="spinner-border spinner-border-sm me-1"></span>Loading more...</span>
+            }
+        </div>
+        @if (hasMorePages || isLoadingMore)
+        {
+            <div class="infinite-scroll-sentinel" @ref="infiniteScrollSentinel"></div>
+        }
+    </div>
+
+    <div class="book-letter-rail" role="group" aria-label="Book title letter filter">
+        @foreach (var filter in LetterFilters)
+        {
+            bool active = string.Equals(startsWithFilter ?? string.Empty, filter.Value, StringComparison.Ordinal);
+            <button type="button"
+                    class="book-letter-btn @(active ? "active" : null) @(filter.Value.Length == 0 ? "book-letter-btn-all" : null)"
+                    title="Show @filter.Label titles"
+                    @onclick="() => ApplyStartsWithFilterAsync(filter.Value)">
+                @filter.Label
             </button>
         }
     </div>
-}
-else
-{
-    @if (viewMode == ViewMode.List)
-    {
-        <div class="book-list">
-            @foreach (var book in results)
-            {
-                <div class="book-list-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
-                    @if (selectMode)
-                    {
-                        <input class="form-check-input book-list-select" type="checkbox"
-                               checked="@selectedBookIds.Contains(book.Id)"
-                               @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
-                    }
-                    <BookListRow Book="book" />
-                </div>
-            }
-        </div>
-    }
-    else
-    {
-        <div class="book-grid">
-            @foreach (var book in results)
-            {
-                <div class="book-card-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
-                    @if (selectMode)
-                    {
-                        <input class="form-check-input book-card-select" type="checkbox"
-                               checked="@selectedBookIds.Contains(book.Id)"
-                               @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
-                    }
-                    <BookCard Book="book" />
-                </div>
-            }
-        </div>
-    }
-
-    <div class="mt-4 d-flex justify-content-between align-items-center">
-        <small class="text-body-secondary">
-            Showing @(results.Count == 0 ? 0 : 1)-@results.Count
-            of @totalCount
-        </small>
-        @if (isLoadingMore)
-        {
-            <span class="text-secondary small"><span class="spinner-border spinner-border-sm me-1"></span>Loading more...</span>
-        }
-    </div>
-    @if (hasMorePages || isLoadingMore)
-    {
-        <div class="infinite-scroll-sentinel" @ref="infiniteScrollSentinel"></div>
-    }
-}
+</div>
 
 @code {
     [SupplyParameterFromQuery(Name = "q")]
