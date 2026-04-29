@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Shelfwarden.Extensions;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services.Scanning;
@@ -279,15 +280,16 @@ public sealed class ScannerService(
 
     private static void ApplyMetadata(Book book, EbookMetadata metadata)
     {
-        book.Title = metadata.Title;
-        book.Subtitle = metadata.Subtitle;
-        book.Description = metadata.Description;
-        book.Language = Truncate(metadata.Language, 16);
-        book.Publisher = Truncate(metadata.Publisher, 256);
-        book.Isbn = Truncate(metadata.Isbn, 32);
-        book.PublishedOn = metadata.PublishedOn;
-        book.PageCount = metadata.PageCount;
-        book.NumberInSeries = metadata.NumberInSeries;
+        book.Title = book.Title.Or(metadata.Title)!;
+        book.SortTitle = book.SortTitle.Or(BuildSortTitle(metadata.Title));
+        book.Subtitle = book.Subtitle.Or(metadata.Subtitle);
+        book.Description = book.Description.Or(metadata.Description);
+        book.Language = book.Language.Or(Truncate(metadata.Language, 16));
+        book.Publisher = book.Publisher.Or(Truncate(metadata.Publisher, 256));
+        book.Isbn = book.Isbn.Or(Truncate(metadata.Isbn, 32));
+        book.PublishedOn = book.PublishedOn.Or(metadata.PublishedOn);
+        book.PageCount = book.PageCount.Or(metadata.PageCount);
+        book.NumberInSeries = book.NumberInSeries.Or(metadata.NumberInSeries);
     }
 
     private async Task SyncAuthorsAsync(int bookId, IReadOnlyList<string> authorNames, Dictionary<string, Author> cache)
@@ -459,4 +461,29 @@ public sealed class ScannerService(
     }
 
     private static string? Truncate(string? value, int max) => string.IsNullOrEmpty(value) ? value : value.Length <= max ? value : value[..max];
+
+    private static string BuildSortTitle(string title)
+    {
+        string trimmed = title.Trim();
+        if (trimmed.Length == 0)
+        {
+            return title;
+        }
+
+        // Ignore leading articles for library sorting (e.g. "The Hobbit" -> "Hobbit").
+        string[] articles = ["a ", "an ", "the "];
+        string lower = trimmed.ToLowerInvariant();
+        foreach (string article in articles)
+        {
+            if (!lower.StartsWith(article, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string withoutArticle = trimmed[article.Length..].TrimStart();
+            return withoutArticle.Length == 0 ? trimmed : withoutArticle;
+        }
+
+        return trimmed;
+    }
 }
