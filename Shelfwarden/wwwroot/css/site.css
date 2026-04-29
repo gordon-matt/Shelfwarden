@@ -1248,6 +1248,60 @@ ol.reading-list {
     border-radius: var(--bs-border-radius);
 }
 
+.book-letter-rail {
+    position: fixed;
+    right: 0.65rem;
+    top: 52%;
+    transform: translateY(-50%);
+    z-index: 1005;
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+    padding: 0.3rem 0.25rem;
+    border-radius: 0.6rem;
+    background-color: color-mix(in srgb, var(--bs-body-bg) 80%, transparent);
+    border: 1px solid var(--bs-border-color);
+}
+
+.book-letter-btn {
+    border: 0;
+    background: transparent;
+    color: var(--bs-secondary-color);
+    font-size: 0.68rem;
+    line-height: 1;
+    border-radius: 0.25rem;
+    width: 1.2rem;
+    height: 1.2rem;
+    padding: 0;
+}
+
+.book-letter-btn-all {
+    width: 2rem;
+    font-size: 0.56rem;
+    font-weight: 600;
+}
+
+    .book-letter-btn:hover {
+        background-color: var(--bs-secondary-bg);
+        color: var(--bs-emphasis-color);
+    }
+
+    .book-letter-btn.active {
+        background-color: var(--bs-primary);
+        color: var(--bs-light);
+    }
+
+.infinite-scroll-sentinel {
+    width: 100%;
+    height: 1px;
+}
+
+@media (max-width: 991.98px) {
+    .book-letter-rail {
+        right: 0.25rem;
+    }
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
    Batch edit page — Apply-to-all sections + per-row Excel-ish grid.
    ────────────────────────────────────────────────────────────────────────── */

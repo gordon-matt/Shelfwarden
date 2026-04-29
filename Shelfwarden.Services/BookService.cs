@@ -60,6 +60,24 @@ public class BookService(
             predicate = predicate.And(b => b.Title.Contains(q));
         }
 
+        if (!string.IsNullOrWhiteSpace(request.StartsWith))
+        {
+            string startsWith = request.StartsWith.Trim();
+            if (startsWith == "#")
+            {
+                predicate = predicate.And(b =>
+                    b.Title.Length > 0 &&
+                    !((b.Title[0] >= 'A' && b.Title[0] <= 'Z') || (b.Title[0] >= 'a' && b.Title[0] <= 'z')));
+            }
+            else if (startsWith.Length == 1 && char.IsLetter(startsWith[0]))
+            {
+                char upper = char.ToUpperInvariant(startsWith[0]);
+                string lower = char.ToLowerInvariant(upper).ToString();
+                string upperText = upper.ToString();
+                predicate = predicate.And(b => b.Title.StartsWith(upperText) || b.Title.StartsWith(lower));
+            }
+        }
+
         options.Query = predicate;
 
         options.OrderBy = request.SortBy switch

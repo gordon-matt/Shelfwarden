@@ -8,6 +8,12 @@ public record PagedList<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int
 
 public record BookSearchRequest
 {
+    /// <summary>
+    /// Restrict results by first title character.
+    /// Use "#" for titles that start with a number or symbol.
+    /// </summary>
+    public string? StartsWith { get; init; }
+
     public int? LibraryId { get; init; }
 
     public int? SeriesId { get; init; }

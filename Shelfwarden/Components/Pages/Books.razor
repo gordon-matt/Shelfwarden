@@ -1,21 +1,20 @@
 @page "/books"
 @attribute [Authorize]
+@implements IAsyncDisposable
 @inject IBookService BookService
 @inject ILibraryService LibraryService
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService
 @inject IGenreService GenreService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Books - Shelfwarden</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="mb-0">Books</h1>
     <div class="d-flex align-items-center gap-3">
-        @if (results is not null)
-        {
-            <span class="text-secondary small">@results.TotalCount result@(results.TotalCount == 1 ? "" : "s")</span>
-        }
+        <span class="text-secondary small">@totalCount result@(totalCount == 1 ? "" : "s")</span>
         <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
             <button type="button"
                     class="btn @(viewMode == ViewMode.Grid ? "btn-primary" : "btn-outline-secondary")"
@@ -51,7 +50,7 @@
         <span class="text-secondary small">
             <i class="bi bi-check2-square"></i> @selectedBookIds.Count selected
         </span>
-        <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllOnPage" disabled="@(results is null || results.Items.Count == 0)">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllOnPage" disabled="@(results.Count == 0)">
             <i class="bi bi-list-check"></i> Select page
         </button>
         <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
@@ -151,14 +150,27 @@
     </button>
 </div>
 
-@if (results is null)
+<div class="book-letter-rail" role="group" aria-label="Book title letter filter">
+    @foreach (var filter in LetterFilters)
+    {
+        bool active = string.Equals(startsWithFilter ?? string.Empty, filter.Value, StringComparison.Ordinal);
+        <button type="button"
+                class="book-letter-btn @(active ? "active" : null) @(filter.Value.Length == 0 ? "book-letter-btn-all" : null)"
+                title="Show @filter.Label titles"
+                @onclick="() => ApplyStartsWithFilterAsync(filter.Value)">
+            @filter.Label
+        </button>
+    }
+</div>
+
+@if (isLoadingMore && results.Count == 0)
 {
     <div class="text-center text-secondary py-5">
         <div class="spinner-border" role="status"></div>
         <div class="mt-2">Loading books…</div>
     </div>
 }
-else if (results.Items.Count == 0)
+else if (results.Count == 0)
 {
     <div class="empty-state">
         <i class="bi bi-search empty-icon"></i>
@@ -186,7 +198,7 @@ else
     @if (viewMode == ViewMode.List)
     {
         <div class="book-list">
-            @foreach (var book in results.Items)
+            @foreach (var book in results)
             {
                 <div class="book-list-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
                     @if (selectMode)
@@ -203,7 +215,7 @@ else
     else
     {
         <div class="book-grid">
-            @foreach (var book in results.Items)
+            @foreach (var book in results)
             {
                 <div class="book-card-wrap @(selectMode && selectedBookIds.Contains(book.Id) ? "selected" : "")">
                     @if (selectMode)
@@ -218,23 +230,20 @@ else
         </div>
     }
 
-    <nav class="mt-4 d-flex justify-content-between align-items-center" aria-label="Books pagination">
+    <div class="mt-4 d-flex justify-content-between align-items-center">
         <small class="text-body-secondary">
-            Showing @((pageNumber - 1) * pageSize + 1)–@Math.Min(pageNumber * pageSize, results.TotalCount)
-            of @results.TotalCount
+            Showing @(results.Count == 0 ? 0 : 1)-@results.Count
+            of @totalCount
         </small>
-        <ul class="pagination pagination-sm mb-0">
-            <li class="page-item @(pageNumber <= 1 ? "disabled" : "")">
-                <button class="page-link" @onclick="() => GoTo(pageNumber - 1)" disabled="@(pageNumber <= 1)">Previous</button>
-            </li>
-            <li class="page-item disabled">
-                <span class="page-link">@pageNumber / @Math.Max(results.TotalPages, 1)</span>
-            </li>
-            <li class="page-item @(pageNumber >= results.TotalPages ? "disabled" : "")">
-                <button class="page-link" @onclick="() => GoTo(pageNumber + 1)" disabled="@(pageNumber >= results.TotalPages)">Next</button>
-            </li>
-        </ul>
-    </nav>
+        @if (isLoadingMore)
+        {
+            <span class="text-secondary small"><span class="spinner-border spinner-border-sm me-1"></span>Loading more...</span>
+        }
+    </div>
+    @if (hasMorePages || isLoadingMore)
+    {
+        <div class="infinite-scroll-sentinel" @ref="infiniteScrollSentinel"></div>
+    }
 }
 
 @code {
@@ -252,7 +261,17 @@ else
 
     private enum ViewMode { Grid, List }
 
-    private PagedList<BookListItemDto>? results;
+    private readonly List<BookListItemDto> results = [];
+    private readonly string observerKey = $"books-page-{Guid.NewGuid():N}";
+    private static readonly (string Value, string Label)[] LetterFilters =
+    [
+        (string.Empty, "All"),
+        ("#", "#"),
+        ("A", "A"), ("B", "B"), ("C", "C"), ("D", "D"), ("E", "E"), ("F", "F"), ("G", "G"),
+        ("H", "H"), ("I", "I"), ("J", "J"), ("K", "K"), ("L", "L"), ("M", "M"), ("N", "N"),
+        ("O", "O"), ("P", "P"), ("Q", "Q"), ("R", "R"), ("S", "S"), ("T", "T"), ("U", "U"),
+        ("V", "V"), ("W", "W"), ("X", "X"), ("Y", "Y"), ("Z", "Z")
+    ];
     private string? query;
     private string libraryId = "";
     private string authorId = "";
@@ -261,9 +280,15 @@ else
     private bool awaitingReview;
     private BookSortBy sortBy = BookSortBy.Title;
     private bool sortDescending;
-    private int pageNumber = 1;
+    private int nextPageToLoad = 1;
     private ViewMode viewMode = ViewMode.Grid;
     private int pageSize = 24;
+    private int totalCount;
+    private bool hasMorePages;
+    private bool isLoadingMore;
+    private string? startsWithFilter;
+    private ElementReference infiniteScrollSentinel;
+    private DotNetObjectReference<Books>? dotNetRef;
 
     private bool selectMode;
     private readonly HashSet<int> selectedBookIds = [];
@@ -279,6 +304,7 @@ else
         || !string.IsNullOrEmpty(seriesId)
         || !string.IsNullOrEmpty(genreId)
         || awaitingReview
+        || !string.IsNullOrWhiteSpace(startsWithFilter)
         || !string.IsNullOrWhiteSpace(query);
 
     protected override async Task OnInitializedAsync()
@@ -304,7 +330,6 @@ else
         if (!string.IsNullOrWhiteSpace(QueryFromUrl) && QueryFromUrl != query)
         {
             query = QueryFromUrl;
-            pageNumber = 1;
         }
         if (string.Equals(ViewFromUrl, "list", StringComparison.OrdinalIgnoreCase))
         {
@@ -315,14 +340,13 @@ else
         if (SeriesFromUrl is { } sId && seriesId != sId.ToString())
         {
             seriesId = sId.ToString();
-            pageNumber = 1;
         }
         if (AuthorFromUrl is { } aId && authorId != aId.ToString())
         {
             authorId = aId.ToString();
-            pageNumber = 1;
         }
-        await LoadAsync();
+        dotNetRef ??= DotNetObjectReference.Create(this);
+        await ResetAndLoadAsync();
     }
 
     private async Task SetViewMode(ViewMode mode)
@@ -331,17 +355,49 @@ else
         viewMode = mode;
         // List rows are larger so render fewer per page; grid uses the dense default.
         pageSize = mode == ViewMode.List ? 12 : 24;
-        pageNumber = 1;
-        await LoadAsync();
+        await ResetAndLoadAsync();
     }
 
-    private async Task LoadAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!hasMorePages && !isLoadingMore)
+        {
+            return;
+        }
+
+        await JSRuntime.InvokeVoidAsync(
+            "shelfwarden.observeInfiniteScroll",
+            observerKey,
+            infiniteScrollSentinel,
+            dotNetRef,
+            nameof(LoadMoreAsync));
+    }
+
+    private async Task ResetAndLoadAsync()
+    {
+        results.Clear();
+        nextPageToLoad = 1;
+        totalCount = 0;
+        hasMorePages = false;
+        await LoadMoreAsync();
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreAsync()
+    {
+        if (isLoadingMore || !hasMorePages && nextPageToLoad > 1)
+        {
+            return;
+        }
+
+        isLoadingMore = true;
+
         var result = await BookService.SearchAsync(new BookSearchRequest
         {
-            Page = pageNumber,
+            Page = nextPageToLoad,
             PageSize = pageSize,
             Query = string.IsNullOrWhiteSpace(query) ? null : query,
+            StartsWith = startsWithFilter,
             LibraryId = ParseId(libraryId),
             AuthorId = ParseId(authorId),
             SeriesId = ParseId(seriesId),
@@ -351,13 +407,26 @@ else
             SortDescending = sortDescending,
         });
 
-        results = result.IsSuccess ? result.Value : new PagedList<BookListItemDto>([], 0, pageNumber, pageSize);
+        if (result.IsSuccess)
+        {
+            var page = result.Value;
+            results.AddRange(page.Items);
+            totalCount = page.TotalCount;
+            hasMorePages = nextPageToLoad < page.TotalPages;
+            nextPageToLoad++;
+        }
+        else
+        {
+            hasMorePages = false;
+        }
+
+        isLoadingMore = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task ApplyFilters()
     {
-        pageNumber = 1;
-        await LoadAsync();
+        await ResetAndLoadAsync();
     }
 
     private async Task ClearFiltersAsync()
@@ -368,8 +437,8 @@ else
         seriesId = "";
         genreId = "";
         awaitingReview = false;
-        pageNumber = 1;
-        await LoadAsync();
+        startsWithFilter = null;
+        await ResetAndLoadAsync();
     }
 
     private async Task OnQueryKeyUp(KeyboardEventArgs e)
@@ -378,14 +447,6 @@ else
         {
             await ApplyFilters();
         }
-    }
-
-    private async Task GoTo(int target)
-    {
-        if (results is null) return;
-        if (target < 1 || target > results.TotalPages) return;
-        pageNumber = target;
-        await LoadAsync();
     }
 
     private void ToggleSelectMode()
@@ -402,8 +463,7 @@ else
 
     private void SelectAllOnPage()
     {
-        if (results is null) return;
-        foreach (var b in results.Items) selectedBookIds.Add(b.Id);
+        foreach (var b in results) selectedBookIds.Add(b.Id);
     }
 
     private void ClearSelection() => selectedBookIds.Clear();
@@ -416,6 +476,34 @@ else
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=books");
     }
 
+    private async Task ApplyStartsWithFilterAsync(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            startsWithFilter = null;
+        }
+        else
+        {
+            startsWithFilter = string.Equals(startsWithFilter, value, StringComparison.Ordinal) ? null : value;
+        }
+
+        await ResetAndLoadAsync();
+    }
+
     private static int? ParseId(string raw) =>
         int.TryParse(raw, out int id) && id > 0 ? id : null;
+
+    public async ValueTask DisposeAsync()
+    {
+        dotNetRef?.Dispose();
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("shelfwarden.disconnectInfiniteScroll", observerKey);
+        }
+        catch
+        {
+            // Ignore disposal-time JS failures during teardown.
+        }
+    }
 }
