@@ -1255,6 +1255,10 @@ ol.reading-list {
     align-items: start;
 }
 
+.book-browse-layout-no-rail {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .book-browse-content {
     min-width: 0;
 }

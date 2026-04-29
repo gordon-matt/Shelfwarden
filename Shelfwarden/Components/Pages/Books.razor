@@ -150,7 +150,7 @@
     </button>
 </div>
 
-<div class="book-browse-layout">
+<div class="book-browse-layout @(!UseLetterRail ? "book-browse-layout-no-rail" : null)">
     <div class="book-browse-content">
         @if (isLoadingMore && results.Count == 0)
         {
@@ -233,18 +233,21 @@
         }
     </div>
 
-    <div class="book-letter-rail" role="group" aria-label="Book title letter filter">
-        @foreach (var filter in LetterFilters)
-        {
-            bool active = string.Equals(startsWithFilter ?? string.Empty, filter.Value, StringComparison.Ordinal);
-            <button type="button"
-                    class="book-letter-btn @(active ? "active" : null) @(filter.Value.Length == 0 ? "book-letter-btn-all" : null)"
-                    title="Show @filter.Label titles"
-                    @onclick="() => ApplyStartsWithFilterAsync(filter.Value)">
-                @filter.Label
-            </button>
-        }
-    </div>
+    @if (UseLetterRail)
+    {
+        <div class="book-letter-rail" role="group" aria-label="Book title letter filter">
+            @foreach (var filter in LetterFilters)
+            {
+                bool active = string.Equals(startsWithFilter ?? string.Empty, filter.Value, StringComparison.Ordinal);
+                <button type="button"
+                        class="book-letter-btn @(active ? "active" : null) @(filter.Value.Length == 0 ? "book-letter-btn-all" : null)"
+                        title="Show @filter.Label titles"
+                        @onclick="() => ApplyStartsWithFilterAsync(filter.Value)">
+                    @filter.Label
+                </button>
+            }
+        </div>
+    }
 </div>
 
 @code {
@@ -308,6 +311,8 @@
         || !string.IsNullOrWhiteSpace(startsWithFilter)
         || !string.IsNullOrWhiteSpace(query);
 
+    private bool UseLetterRail => string.IsNullOrEmpty(seriesId);
+
     protected override async Task OnInitializedAsync()
     {
         // Load filter options + first page in parallel — they're independent queries.
@@ -361,6 +366,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!UseLetterRail)
+        {
+            return;
+        }
+
         if (!hasMorePages && !isLoadingMore)
         {
             return;
@@ -380,7 +390,14 @@
         nextPageToLoad = 1;
         totalCount = 0;
         hasMorePages = false;
-        await LoadMoreAsync();
+        if (!UseLetterRail)
+        {
+            await LoadAllSeriesBooksAsync();
+        }
+        else
+        {
+            await LoadMoreAsync();
+        }
     }
 
     [JSInvokable]
@@ -421,6 +438,52 @@
             hasMorePages = false;
         }
 
+        isLoadingMore = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadAllSeriesBooksAsync()
+    {
+        isLoadingMore = true;
+        const int seriesPageSize = 200;
+        int page = 1;
+
+        while (true)
+        {
+            var result = await BookService.SearchAsync(new BookSearchRequest
+            {
+                Page = page,
+                PageSize = seriesPageSize,
+                Query = string.IsNullOrWhiteSpace(query) ? null : query,
+                LibraryId = ParseId(libraryId),
+                AuthorId = ParseId(authorId),
+                SeriesId = ParseId(seriesId),
+                GenreId = ParseId(genreId),
+                AwaitingReview = awaitingReview,
+                SortBy = sortBy,
+                SortDescending = sortDescending,
+            });
+
+            if (!result.IsSuccess)
+            {
+                hasMorePages = false;
+                break;
+            }
+
+            var chunk = result.Value;
+            results.AddRange(chunk.Items);
+            totalCount = chunk.TotalCount;
+
+            if (page >= chunk.TotalPages)
+            {
+                break;
+            }
+
+            page++;
+        }
+
+        hasMorePages = false;
+        nextPageToLoad = page + 1;
         isLoadingMore = false;
         await InvokeAsync(StateHasChanged);
     }
