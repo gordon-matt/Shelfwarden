@@ -9,6 +9,23 @@ public record AuthorListItemDto(
     string? Biography,
     int BookCount);
 
+/// <summary>Candidate author match returned by OpenLibrary search.</summary>
+public record OpenLibraryAuthorMatchDto(
+    string OpenLibraryId,
+    string Name,
+    string? BirthDate,
+    string? DeathDate,
+    bool HasBio,
+    bool HasPhoto,
+    string? BioPreview);
+
+/// <summary>Outcome of importing OpenLibrary author metadata into Shelfwarden.</summary>
+public record AuthorOpenLibraryImportResultDto(
+    int AuthorId,
+    string OpenLibraryId,
+    bool BiographyUpdated,
+    bool PhotoUpdated);
+
 /// <summary>
 /// Detailed author projection used on <c>/authors/{id}</c>. Pre-buckets the author's books into
 /// <see cref="SeriesGroups"/> (one entry per series the author has any book in) and

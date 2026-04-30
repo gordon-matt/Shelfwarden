@@ -1,11 +1,18 @@
+using OpenLibraryNET.Loader;
+using OpenLibraryNET.Utility;
+using Shelfwarden.Services.Storage;
+
 namespace Shelfwarden.Services;
 
 public class AuthorService(
+    ILogger<AuthorService> logger,
     IRepository<Author> authorRepository,
     IRepository<Book> bookRepository,
     IRepository<BookAuthor> bookAuthorRepository,
     IRepository<BookProgress> progressRepository,
-    IUserContextService userContext) : IAuthorService
+    IUserContextService userContext,
+    IHttpClientFactory httpClientFactory,
+    IStoragePathProvider storagePathProvider) : IAuthorService
 {
     public async Task<Result<IReadOnlyList<AuthorDto>>> SearchAsync(string? query, int limit = 50, CancellationToken cancellationToken = default)
     {
@@ -175,5 +182,189 @@ public class AuthorService(
         await authorRepository.UpdateAsync(author);
 
         return Result.Success(new AuthorDto(author.Id, author.Name, author.Biography));
+    }
+
+    public async Task<Result<IReadOnlyList<OpenLibraryAuthorMatchDto>>> SearchOpenLibraryAuthorsAsync(string query, int limit = 8, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return Result.Invalid(new ValidationError(nameof(query), "Search query is required."));
+        }
+
+        int clampedLimit = Math.Clamp(limit, 1, 20);
+        string trimmed = query.Trim();
+
+        try
+        {
+            var client = httpClientFactory.CreateClient();
+            var rows = await OLSearchLoader.GetAuthorSearchResultsAsync(
+                client,
+                trimmed,
+                new KeyValuePair<string, string>("limit", clampedLimit.ToString()));
+
+            var baseMatches = (rows ?? [])
+                .Select(a => new
+                {
+                    Id = NormalizeOpenLibraryAuthorId(a.ID),
+                    Name = a.Name,
+                })
+                .Where(a => !string.IsNullOrWhiteSpace(a.Id) && !string.IsNullOrWhiteSpace(a.Name))
+                .GroupBy(a => a.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList();
+
+            var matches = new List<OpenLibraryAuthorMatchDto>(baseMatches.Count);
+            foreach (var candidate in baseMatches)
+            {
+                // Search endpoint is intentionally lightweight; hydrate each candidate from
+                // /authors/{id}.json so users can choose from real bio/photo-rich records.
+                var detail = await OLAuthorLoader.GetDataAsync(client, candidate.Id);
+                if (detail is null)
+                {
+                    matches.Add(new OpenLibraryAuthorMatchDto(
+                        candidate.Id,
+                        candidate.Name,
+                        null,
+                        null,
+                        HasBio: false,
+                        HasPhoto: false,
+                        BioPreview: null));
+                    continue;
+                }
+
+                matches.Add(new OpenLibraryAuthorMatchDto(
+                    NormalizeOpenLibraryAuthorId(detail.ID),
+                    string.IsNullOrWhiteSpace(detail.Name) ? candidate.Name : detail.Name.Trim(),
+                    string.IsNullOrWhiteSpace(detail.BirthDate) ? null : detail.BirthDate.Trim(),
+                    string.IsNullOrWhiteSpace(detail.DeathDate) ? null : detail.DeathDate.Trim(),
+                    !string.IsNullOrWhiteSpace(detail.Bio),
+                    detail.PhotosIDs.Count > 0,
+                    BuildBioPreview(detail.Bio)));
+            }
+
+            IReadOnlyList<OpenLibraryAuthorMatchDto> result = matches;
+            return Result.Success(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "OpenLibrary author search failed for query '{Query}'", trimmed);
+            return Result.Error("Failed to search OpenLibrary.");
+        }
+    }
+
+    public async Task<Result<AuthorOpenLibraryImportResultDto>> ImportFromOpenLibraryAsync(int authorId, string openLibraryAuthorId, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        string olid = NormalizeOpenLibraryAuthorId(openLibraryAuthorId);
+        if (string.IsNullOrWhiteSpace(olid))
+        {
+            return Result.Invalid(new ValidationError(nameof(openLibraryAuthorId), "A valid OpenLibrary author id is required."));
+        }
+
+        var author = await authorRepository.FindOneAsync(new SearchOptions<Author>
+        {
+            Query = a => a.Id == authorId,
+            CancellationToken = cancellationToken,
+        });
+        if (author is null)
+        {
+            return Result.NotFound($"Author {authorId} not found.");
+        }
+
+        try
+        {
+            var client = httpClientFactory.CreateClient();
+            var source = await OLAuthorLoader.GetDataAsync(client, olid);
+            if (source is null)
+            {
+                return Result.NotFound($"OpenLibrary author '{olid}' was not found.");
+            }
+
+            string? importedBio = string.IsNullOrWhiteSpace(source.Bio) ? null : source.Bio.Trim();
+            bool biographyUpdated = !string.Equals(author.Biography, importedBio, StringComparison.Ordinal);
+            if (biographyUpdated)
+            {
+                author.Biography = importedBio;
+                await authorRepository.UpdateAsync(author);
+            }
+
+            bool photoUpdated = false;
+            int photoId = source.PhotosIDs.FirstOrDefault();
+            if (photoId > 0)
+            {
+                photoUpdated = await TrySaveAuthorPhotoAsync(client, authorId, photoId, cancellationToken);
+            }
+
+            return Result.Success(new AuthorOpenLibraryImportResultDto(authorId, olid, biographyUpdated, photoUpdated));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "OpenLibrary import failed for author {AuthorId} using match {OpenLibraryAuthorId}", authorId, openLibraryAuthorId);
+            return Result.Error("Failed to import OpenLibrary author metadata.");
+        }
+    }
+
+    private async Task<bool> TrySaveAuthorPhotoAsync(HttpClient client, int authorId, int photoId, CancellationToken cancellationToken)
+    {
+        var (ok, bytes) = await OLImageLoader.TryGetAuthorPhotoAsync(
+            client,
+            AuthorPhotoIdType.ID,
+            photoId.ToString(),
+            ImageSize.Medium);
+
+        if (!ok || bytes is null || bytes.Length == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            string? existing = storagePathProvider.FindAuthorPhotoPath(authorId);
+            if (!string.IsNullOrWhiteSpace(existing) && File.Exists(existing))
+            {
+                File.Delete(existing);
+            }
+
+            string path = Path.Combine(storagePathProvider.AuthorPhotosDirectory, $"{authorId}.jpg");
+            await File.WriteAllBytesAsync(path, bytes, cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to persist OpenLibrary photo for author {AuthorId}", authorId);
+            return false;
+        }
+    }
+
+    private static string NormalizeOpenLibraryAuthorId(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        string value = raw.Trim();
+        if (value.StartsWith("/authors/", StringComparison.OrdinalIgnoreCase))
+        {
+            value = value["/authors/".Length..];
+        }
+
+        return value;
+    }
+
+    private static string? BuildBioPreview(string? bio)
+    {
+        if (string.IsNullOrWhiteSpace(bio))
+        {
+            return null;
+        }
+
+        string trimmed = bio.Trim();
+        const int max = 180;
+        return trimmed.Length <= max ? trimmed : $"{trimmed[..max]}...";
     }
 }

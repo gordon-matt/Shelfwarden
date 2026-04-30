@@ -25,4 +25,14 @@ public interface IAuthorService
     /// because names are scanner-owned metadata.
     /// </summary>
     Task<Result<AuthorDto>> UpdateBiographyAsync(int id, string? biography, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches OpenLibrary authors for a user-provided name and returns candidate matches.
+    /// </summary>
+    Task<Result<IReadOnlyList<OpenLibraryAuthorMatchDto>>> SearchOpenLibraryAuthorsAsync(string query, int limit = 8, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Imports bio/photo metadata for an existing author from a selected OpenLibrary author id.
+    /// </summary>
+    Task<Result<AuthorOpenLibraryImportResultDto>> ImportFromOpenLibraryAsync(int authorId, string openLibraryAuthorId, CancellationToken cancellationToken = default);
 }

@@ -890,10 +890,27 @@ ol.reading-list {
     transition: transform 0.15s ease;
 }
 
+.author-tile-shell {
+    position: relative;
+}
+
     .author-tile:hover {
         transform: translateY(-2px);
         color: inherit;
     }
+
+.author-tile-edit {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.35rem;
+    z-index: 3;
+    opacity: 0;
+    transition: opacity 160ms ease;
+}
+
+.author-tile-shell:hover .author-tile-edit {
+    opacity: 1;
+}
 
 .author-avatar {
     position: relative;
@@ -1269,6 +1286,7 @@ ol.reading-list {
     z-index: 5;
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.12rem;
     padding: 0.3rem 0.25rem;
     border-radius: 0.6rem;
