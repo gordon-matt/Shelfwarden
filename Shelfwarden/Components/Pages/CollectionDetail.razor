@@ -133,20 +133,57 @@ else
     }
     else
     {
-        <div class="book-grid">
-            @foreach (var b in collection.Books)
-            {
-                <div class="book-card-wrapper">
-                    <BookCard Book="b" />
-                    @if (canModify)
-                    {
-                        <button class="btn btn-sm btn-danger book-card-remove" title="Remove from collection"
-                                @onclick="() => RemoveBookAsync(b.Id)">
-                            <i class="bi bi-x-lg"></i>
+        <div class="book-browse-layout">
+            <div class="book-browse-content">
+                @if (FilteredBooks.Count == 0)
+                {
+                    <div class="alert alert-secondary d-flex flex-wrap align-items-center gap-2">
+                        <span>No books in this collection match the <strong>@startsWithFilter</strong> filter.</span>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => ApplyStartsWithFilter(string.Empty)">
+                            Show all
                         </button>
+                    </div>
+                }
+                else
+                {
+                    @if (!string.IsNullOrWhiteSpace(startsWithFilter))
+                    {
+                        <div class="d-flex justify-content-end mb-2">
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => ApplyStartsWithFilter(string.Empty)">
+                                <i class="bi bi-x-circle"></i> Clear title filter
+                            </button>
+                        </div>
                     }
-                </div>
-            }
+                    <div class="book-grid">
+                        @foreach (var b in FilteredBooks)
+                        {
+                            <div class="book-card-wrapper">
+                                <BookCard Book="b" />
+                                @if (canModify)
+                                {
+                                    <button class="btn btn-sm btn-danger book-card-remove" title="Remove from collection"
+                                            @onclick="() => RemoveBookAsync(b.Id)">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="book-letter-rail" role="group" aria-label="Book title letter filter">
+                @foreach (var filter in LetterFilters)
+                {
+                    bool active = string.Equals(startsWithFilter ?? string.Empty, filter.Value, StringComparison.Ordinal);
+                    <button type="button"
+                            class="book-letter-btn @(active ? "active" : null) @(filter.Value.Length == 0 ? "book-letter-btn-all" : null)"
+                            title="Show @filter.Label titles"
+                            @onclick="() => ApplyStartsWithFilter(filter.Value)">
+                        @filter.Label
+                    </button>
+                }
+            </div>
         </div>
     }
 }
@@ -167,6 +204,18 @@ else
     private bool showSearch;
     private IReadOnlyList<BookListItemDto> searchResults = [];
     private CancellationTokenSource? searchCts;
+    private string? startsWithFilter;
+    private static readonly (string Value, string Label)[] LetterFilters =
+    [
+        (string.Empty, "All"),
+        ("#", "#"),
+        ("A", "A"), ("B", "B"), ("C", "C"), ("D", "D"), ("E", "E"), ("F", "F"), ("G", "G"),
+        ("H", "H"), ("I", "I"), ("J", "J"), ("K", "K"), ("L", "L"), ("M", "M"), ("N", "N"),
+        ("O", "O"), ("P", "P"), ("Q", "Q"), ("R", "R"), ("S", "S"), ("T", "T"), ("U", "U"),
+        ("V", "V"), ("W", "W"), ("X", "X"), ("Y", "Y"), ("Z", "Z")
+    ];
+    private IReadOnlyList<BookListItemDto> FilteredBooks =>
+        collection?.Books.Where(MatchesStartsWithFilter).ToList() ?? [];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -281,6 +330,39 @@ else
         {
             await LoadAsync();
         }
+    }
+
+    private void ApplyStartsWithFilter(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            startsWithFilter = null;
+        }
+        else
+        {
+            startsWithFilter = string.Equals(startsWithFilter, value, StringComparison.Ordinal) ? null : value;
+        }
+    }
+
+    private bool MatchesStartsWithFilter(BookListItemDto book)
+    {
+        if (string.IsNullOrWhiteSpace(startsWithFilter))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(book.Title))
+        {
+            return false;
+        }
+
+        if (startsWithFilter == "#")
+        {
+            char first = book.Title[0];
+            return !char.IsLetter(first);
+        }
+
+        return book.Title.StartsWith(startsWithFilter, StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class EditModel
