@@ -1,9 +1,11 @@
 @page "/books/{Id:int}"
 @attribute [Authorize]
+@implements IAsyncDisposable
 @inject IBookService BookService
 @inject IBookmarkService BookmarkService
 @inject ICollectionService CollectionService
 @inject IReadingListService ReadingListService
+@inject IAudiobookService AudiobookService
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
@@ -169,6 +171,33 @@ else
                 <a class="btn btn-primary" href="@($"read/{book.Id}")">
                     <i class="bi bi-book-half"></i> Read
                 </a>
+                @if (audiobookSupported)
+                {
+                    @if (audiobook is null || audiobook.State is AudiobookState.None or AudiobookState.Failed)
+                    {
+                        <button class="btn btn-outline-primary" type="button" @onclick="OpenVoicePicker">
+                            <i class="bi bi-headphones"></i> Generate Audio
+                        </button>
+                    }
+                    else if (audiobook.State == AudiobookState.Completed)
+                    {
+                        <button class="btn btn-success" type="button" @onclick="ToggleListen">
+                            <i class="bi bi-volume-up"></i>
+                            @(showPlayer ? "Hide Player" : "Listen")
+                        </button>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="OpenVoicePicker"
+                                title="Regenerate with a different voice">
+                            <i class="bi bi-arrow-repeat"></i> Regenerate
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-outline-primary" type="button" disabled>
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            @(audiobook.State == AudiobookState.Pending ? "Queued…" : "Generating…")
+                        </button>
+                    }
+                }
                 <div class="dropdown">
                     <button class="btn btn-outline-secondary dropdown-toggle" type="button"
                             data-bs-toggle="dropdown" aria-expanded="false" @onclick="EnsureAddToLoadedAsync">
@@ -254,6 +283,80 @@ else
                 </AuthorizeView>
             </div>
 
+            @if (audiobookSupported && audiobook is not null && audiobook.State != AudiobookState.None)
+            {
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                            <div>
+                                <h3 class="h6 mb-1">
+                                    <i class="bi bi-headphones"></i> Audiobook
+                                    <span class="badge ms-1 @StatusBadgeClass(audiobook.State)">@FormatState(audiobook.State)</span>
+                                </h3>
+                                <div class="small text-body-secondary">
+                                    Voice: <code>@audiobook.VoiceName</code>
+                                    @if (audiobook.State == AudiobookState.Completed && audiobook.OutputSizeBytes is long sz)
+                                    {
+                                        <text> · @FormatBytes(sz)</text>
+                                    }
+                                    @if (audiobook.State == AudiobookState.Completed && audiobook.DurationSeconds is double secs && secs > 0)
+                                    {
+                                        <text> · @FormatDuration(secs)</text>
+                                    }
+                                </div>
+                            </div>
+                            @if (audiobook.State is AudiobookState.Pending or AudiobookState.Running)
+                            {
+                                <div class="text-end small text-body-secondary">
+                                    @if (audiobook.TotalChunks > 0)
+                                    {
+                                        <text>@audiobook.CompletedChunks / @audiobook.TotalChunks chunks</text>
+                                    }
+                                    else
+                                    {
+                                        <text>Preparing&hellip;</text>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        @if (audiobook.State is AudiobookState.Pending or AudiobookState.Running)
+                        {
+                            <div class="progress mt-3" style="height: 0.5rem;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                     role="progressbar"
+                                     style="width: @((audiobook.PercentComplete ?? 0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%;"
+                                     aria-valuenow="@(audiobook.PercentComplete ?? 0)"
+                                     aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <p class="small text-body-secondary mt-2 mb-0">
+                                Audiobook generation runs in the background — feel free to navigate away and come
+                                back later. Status updates automatically.
+                            </p>
+                        }
+                        else if (audiobook.State == AudiobookState.Failed)
+                        {
+                            <div class="alert alert-danger mt-3 mb-0 py-2 small">
+                                <strong>Generation failed.</strong>
+                                @if (!string.IsNullOrWhiteSpace(audiobook.ErrorMessage))
+                                {
+                                    <text> @audiobook.ErrorMessage</text>
+                                }
+                            </div>
+                        }
+                        else if (audiobook.State == AudiobookState.Completed && showPlayer)
+                        {
+                            <audio controls preload="metadata" class="w-100 mt-3" src="@($"audiobooks/{book.Id}")"></audio>
+                            <p class="small text-body-secondary mt-2 mb-0">
+                                <a href="@($"audiobooks/{book.Id}")" download="@($"{book.Title}.m4a")">
+                                    <i class="bi bi-download"></i> Download .m4a
+                                </a>
+                            </p>
+                        }
+                    </div>
+                </div>
+            }
+
             @if (creatingTarget is not null)
             {
                 <div class="card mt-3">
@@ -287,6 +390,51 @@ else
             }
         </div>
     </div>
+
+    <VoicePickerModal IsOpen="voicePickerOpen"
+                      InitialVoiceName="@(audiobook?.VoiceName ?? "af_heart")"
+                      OnClose="CloseVoicePicker"
+                      OnSelected="OnVoiceSelected" />
+
+    @if (pendingVoiceConfirmation is not null && book is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Generate audiobook?</h5>
+                        <button type="button" class="btn-close" aria-label="Close" @onclick="CancelGenerate"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>
+                            We'll generate an audiobook of <strong>@book.Title</strong> using voice
+                            <code>@pendingVoiceConfirmation</code>.
+                        </p>
+                        <p class="mb-0">
+                            <strong>This can take a long time</strong> — typically several hours for a full novel,
+                            depending on your CPU. The job runs in the background and you can navigate away; the
+                            "Listen" button will appear here when it's finished.
+                        </p>
+                        @if (generateError is not null)
+                        {
+                            <div class="alert alert-danger mt-3 mb-0 py-2 small">@generateError</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CancelGenerate">Cancel</button>
+                        <button type="button" class="btn btn-primary" disabled="@enqueuingGenerate" @onclick="ConfirmGenerateAsync">
+                            @if (enqueuingGenerate)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            Yes, start generating
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
 }
 
 @code {
@@ -296,6 +444,15 @@ else
     private BookDto? book;
     private bool loading = true;
     private readonly List<BookmarkDto> bookmarks = [];
+
+    private AudiobookDto? audiobook;
+    private bool audiobookSupported;
+    private bool showPlayer;
+    private bool voicePickerOpen;
+    private string? pendingVoiceConfirmation;
+    private bool enqueuingGenerate;
+    private string? generateError;
+    private System.Threading.Timer? pollTimer;
 
     private IReadOnlyList<CollectionDto>? collections;
     private IReadOnlyList<ReadingListDto>? readingLists;
@@ -313,6 +470,11 @@ else
         book = result.IsSuccess ? result.Value : null;
 
         bookmarks.Clear();
+        audiobook = null;
+        showPlayer = false;
+        audiobookSupported = false;
+        StopPolling();
+
         if (book is not null)
         {
             var bmResult = await BookmarkService.ListAsync(Id);
@@ -320,9 +482,157 @@ else
             {
                 bookmarks.AddRange(bmResult.Value);
             }
+
+            audiobookSupported = book.FileFormat is EbookFormat.Epub or EbookFormat.Pdf;
+            if (audiobookSupported)
+            {
+                await RefreshAudiobookStatusAsync();
+                EnsurePollingMatchesState();
+            }
         }
 
         loading = false;
+    }
+
+    private async Task RefreshAudiobookStatusAsync()
+    {
+        var status = await AudiobookService.GetStatusAsync(Id);
+        if (status.IsSuccess)
+        {
+            audiobook = status.Value;
+        }
+    }
+
+    /// <summary>
+    /// Start (or stop) the background poller depending on whether the current audiobook is in
+    /// a non-terminal state. We use a Timer rather than a Task.Delay loop so the page is happy
+    /// to be disposed without waiting for the next tick.
+    /// </summary>
+    private void EnsurePollingMatchesState()
+    {
+        bool needsPolling = audiobook is { State: AudiobookState.Pending or AudiobookState.Running };
+        if (needsPolling && pollTimer is null)
+        {
+            pollTimer = new System.Threading.Timer(async _ =>
+            {
+                try
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        await RefreshAudiobookStatusAsync();
+                        EnsurePollingMatchesState();
+                        StateHasChanged();
+                    });
+                }
+                catch
+                {
+                    // Page is being torn down; the timer will be disposed shortly.
+                }
+            }, state: null, dueTime: TimeSpan.FromSeconds(3), period: TimeSpan.FromSeconds(3));
+        }
+        else if (!needsPolling && pollTimer is not null)
+        {
+            StopPolling();
+        }
+    }
+
+    private void StopPolling()
+    {
+        pollTimer?.Dispose();
+        pollTimer = null;
+    }
+
+    private void OpenVoicePicker()
+    {
+        generateError = null;
+        voicePickerOpen = true;
+    }
+
+    private void CloseVoicePicker()
+    {
+        voicePickerOpen = false;
+    }
+
+    private void OnVoiceSelected(string voiceName)
+    {
+        voicePickerOpen = false;
+        pendingVoiceConfirmation = voiceName;
+        generateError = null;
+    }
+
+    private void CancelGenerate()
+    {
+        pendingVoiceConfirmation = null;
+        generateError = null;
+    }
+
+    private async Task ConfirmGenerateAsync()
+    {
+        if (string.IsNullOrEmpty(pendingVoiceConfirmation)) return;
+
+        enqueuingGenerate = true;
+        generateError = null;
+        try
+        {
+            var result = await AudiobookService.GenerateAsync(Id, new GenerateAudiobookRequest
+            {
+                VoiceName = pendingVoiceConfirmation,
+            });
+
+            if (!result.IsSuccess)
+            {
+                generateError = result.Errors.FirstOrDefault() ?? "Could not start generation.";
+                return;
+            }
+
+            audiobook = result.Value;
+            pendingVoiceConfirmation = null;
+            showPlayer = false;
+            EnsurePollingMatchesState();
+        }
+        finally
+        {
+            enqueuingGenerate = false;
+        }
+    }
+
+    private void ToggleListen()
+    {
+        showPlayer = !showPlayer;
+    }
+
+    private static string FormatState(AudiobookState state) => state switch
+    {
+        AudiobookState.Pending => "Queued",
+        AudiobookState.Running => "Generating",
+        AudiobookState.Completed => "Ready",
+        AudiobookState.Failed => "Failed",
+        _ => "—",
+    };
+
+    private static string StatusBadgeClass(AudiobookState state) => state switch
+    {
+        AudiobookState.Pending => "text-bg-info",
+        AudiobookState.Running => "text-bg-primary",
+        AudiobookState.Completed => "text-bg-success",
+        AudiobookState.Failed => "text-bg-danger",
+        _ => "text-bg-secondary",
+    };
+
+    private static string FormatDuration(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        return ts.TotalHours >= 1
+            ? $"{(int)ts.TotalHours}h {ts.Minutes}m"
+            : ts.TotalMinutes >= 1
+                ? $"{ts.Minutes}m {ts.Seconds}s"
+                : $"{ts.Seconds}s";
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        StopPolling();
+        return ValueTask.CompletedTask;
     }
 
     private async Task DeleteAsync()

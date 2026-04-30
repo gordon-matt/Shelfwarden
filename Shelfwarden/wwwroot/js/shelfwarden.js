@@ -45,3 +45,26 @@ window.shelfwarden = {
         }
     }
 };
+
+// Tiny audio helper for the voice-picker modal. Centralised so we only ever have to wire
+// JS interop in one place — the modal hands us its own <audio> ElementReference and a URL,
+// and we drive it from there.
+window.shelfwardenAudio = {
+    play: function (element, url) {
+        if (!element) return;
+        try {
+            element.pause();
+        } catch (_) { /* element may not have started yet */ }
+        element.src = url;
+        element.currentTime = 0;
+        return element.play();
+    },
+    stop: function (element) {
+        if (!element) return;
+        try {
+            element.pause();
+            element.removeAttribute('src');
+            element.load();
+        } catch (_) { /* swallow */ }
+    }
+};

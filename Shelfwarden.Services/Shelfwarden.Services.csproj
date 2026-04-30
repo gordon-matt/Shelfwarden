@@ -12,6 +12,7 @@
 		<PackageReference Include="Docnet.Core" Version="2.6.0" />
 		<PackageReference Include="Hangfire.Core" Version="1.8.23" />
 		<PackageReference Include="Keycloak.NETCore.Client" Version="1.0.2" />
+		<PackageReference Include="KokoroSharp.CPU" Version="0.6.7" />
 		<PackageReference Include="LinqKit.Core" Version="1.2.11" />
 		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.9" />
 		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.7" />
@@ -20,6 +21,8 @@
 		<PackageReference Include="PdfPig" Version="0.1.14" />
 		<PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
 		<PackageReference Include="VersOne.Epub" Version="3.3.6" />
+		<PackageReference Include="Xabe.FFmpeg" Version="6.0.2" />
+		<PackageReference Include="Xabe.FFmpeg.Downloader" Version="6.0.2" />
 	</ItemGroup>
 
 	<ItemGroup>

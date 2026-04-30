@@ -40,11 +40,85 @@ public sealed class StoragePathProvider : IStoragePathProvider
 
         AuthorPhotosDirectory = Path.GetFullPath(authorPhotosBase);
         Directory.CreateDirectory(AuthorPhotosDirectory);
+
+        // Audiobooks live alongside covers / author photos by default. Operators on small
+        // volumes will likely want to redirect this somewhere bigger because each generated
+        // file lands at tens of megabytes.
+        string? audiobooksConfigured = configuration["Storage:AudiobooksPath"];
+        string audiobooksBase = string.IsNullOrWhiteSpace(audiobooksConfigured)
+            ? Path.Combine(Path.GetDirectoryName(CoversDirectory) ?? AppContext.BaseDirectory, "audiobooks")
+            : Path.IsPathRooted(audiobooksConfigured)
+                ? audiobooksConfigured
+                : Path.Combine(AppContext.BaseDirectory, audiobooksConfigured);
+
+        AudiobooksDirectory = Path.GetFullPath(audiobooksBase);
+        Directory.CreateDirectory(AudiobooksDirectory);
+
+        // Kokoro model + ffmpeg binaries are large and slow to download. Persist them under
+        // the app data root so they survive container restarts when the operator mounts the
+        // storage directory as a volume.
+        string? ttsCacheConfigured = configuration["Storage:TtsCachePath"];
+        string ttsCacheBase = string.IsNullOrWhiteSpace(ttsCacheConfigured)
+            ? Path.Combine(Path.GetDirectoryName(CoversDirectory) ?? AppContext.BaseDirectory, "tts-cache")
+            : Path.IsPathRooted(ttsCacheConfigured)
+                ? ttsCacheConfigured
+                : Path.Combine(AppContext.BaseDirectory, ttsCacheConfigured);
+
+        TtsCacheDirectory = Path.GetFullPath(ttsCacheBase);
+        Directory.CreateDirectory(TtsCacheDirectory);
     }
 
     public string CoversDirectory { get; }
 
     public string AuthorPhotosDirectory { get; }
+
+    public string AudiobooksDirectory { get; }
+
+    public string TtsCacheDirectory { get; }
+
+    public string GetAudiobookWorkingDirectory(int bookId)
+    {
+        string path = Path.Combine(AudiobooksDirectory, "_tmp", bookId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    public string GetAudiobookFilePath(int bookId)
+        => Path.Combine(AudiobooksDirectory, $"{bookId}.m4a");
+
+    public string GetVoiceSamplePath(string voiceName)
+    {
+        // Voice names are short ASCII tokens (e.g. "af_heart") so this is safe to use
+        // directly as a filename — but sanitise just in case a future voice introduces
+        // anything exotic.
+        char[] invalid = Path.GetInvalidFileNameChars();
+        string safe = new(voiceName.Where(c => !invalid.Contains(c)).ToArray());
+        string dir = Path.Combine(AudiobooksDirectory, "_voicesamples");
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, $"{safe}.wav");
+    }
+
+    public void DeleteAudiobook(int bookId)
+    {
+        try
+        {
+            string filePath = GetAudiobookFilePath(bookId);
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+
+            string working = Path.Combine(AudiobooksDirectory, "_tmp", bookId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (Directory.Exists(working))
+            {
+                Directory.Delete(working, recursive: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to delete audiobook artefacts for book {BookId}", bookId);
+        }
+    }
 
     public string? FindAuthorPhotoPath(int authorId)
     {

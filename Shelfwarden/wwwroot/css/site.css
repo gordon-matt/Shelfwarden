@@ -1502,3 +1502,19 @@ ol.reading-list {
 }
 
 
+
+/* Voice picker modal — keeps the list scrollable when the user has dozens of voices loaded. */
+.voice-picker-list {
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.voice-picker-list [role="button"] {
+    cursor: pointer;
+    user-select: none;
+}
+
+.voice-picker-list [role="button"]:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: -2px;
+}

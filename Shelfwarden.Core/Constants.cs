@@ -44,6 +44,7 @@ public static class Constants
         public const string Default = "default";
         public const string Critical = "critical";
         public const string Scan = "scan";
+        public const string Tts = "tts";
     }
 
     public static class Schemas

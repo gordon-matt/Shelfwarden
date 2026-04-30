@@ -240,6 +240,68 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.ToTable("Users", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Audiobook", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BookId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CompletedChunks")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("DurationSeconds")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2048)
+                        .IsUnicode(true)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("OutputFileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<long?>("OutputSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RequestedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalChunks")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoiceName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookId")
+                        .IsUnique();
+
+                    b.ToTable("Audiobooks", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Author", b =>
                 {
                     b.Property<int>("Id")
@@ -882,6 +944,17 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Audiobook", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
+                        .WithMany()
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Book");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>

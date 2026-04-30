@@ -232,6 +232,66 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.ToTable("Users", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Audiobook", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BookId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CompletedChunks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("DurationSeconds")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2048)
+                        .IsUnicode(true)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OutputFileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("OutputSizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RequestedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalChunks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("VoiceName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookId")
+                        .IsUnique();
+
+                    b.ToTable("Audiobooks", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Author", b =>
                 {
                     b.Property<int>("Id")
@@ -840,6 +900,17 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Audiobook", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
+                        .WithMany()
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Book");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>

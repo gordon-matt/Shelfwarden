@@ -1,0 +1,290 @@
+@inject IAudiobookService AudiobookService
+@implements IAsyncDisposable
+
+@if (IsOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-headphones"></i> Pick a voice
+                    </h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseAsync"></button>
+                </div>
+                <div class="modal-body">
+                    @if (loadError is not null)
+                    {
+                        <div class="alert alert-danger py-2">@loadError</div>
+                    }
+
+                    @if (loading)
+                    {
+                        <div class="text-center text-secondary py-4">
+                            <div class="spinner-border" role="status"></div>
+                            <div class="mt-2 small">Loading voices…</div>
+                        </div>
+                    }
+                    else if (voices.Count == 0)
+                    {
+                        <div class="alert alert-warning py-2 mb-0">
+                            No Kokoro voices are loaded. Make sure the <code>KokoroSharp.CPU</code> package
+                            content has been restored — voices live next to the binary in a <code>voices</code>
+                            folder.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control form-control-sm" placeholder="Filter by name…"
+                                       @bind="filterText" @bind:event="oninput" />
+                            </div>
+                            <div class="col-sm-4">
+                                <select class="form-select form-select-sm" @bind="filterLanguage">
+                                    <option value="">All languages</option>
+                                    @foreach (var lang in availableLanguages)
+                                    {
+                                        <option value="@lang">@lang</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        <p class="small text-body-secondary mb-2">
+                            Press the play button next to a voice to hear a preview reading
+                            <em>"The quick brown fox jumps over the lazy dog."</em> The first preview for
+                            each voice takes a couple of seconds while we synthesise it.
+                        </p>
+
+                        <div class="list-group list-group-flush voice-picker-list">
+                            @foreach (var voice in FilteredVoices)
+                            {
+                                bool isSelected = string.Equals(selectedVoiceName, voice.Name, StringComparison.OrdinalIgnoreCase);
+                                @* Use a <div> for the row (not a <button>) so we can put the play
+                                   button inside without nesting. The div is keyboard-accessible via
+                                   role="button" + tabindex. *@
+                                <div role="button"
+                                     tabindex="0"
+                                     class="list-group-item list-group-item-action d-flex align-items-center gap-2 @(isSelected ? "active" : null)"
+                                     @onclick="() => SelectVoice(voice)"
+                                     @onkeydown="e => OnVoiceKeyDown(e, voice)">
+                                    <span class="badge text-bg-secondary text-uppercase">@voice.Gender[0]</span>
+                                    <div class="flex-grow-1 text-start">
+                                        <div class="fw-semibold">@voice.DisplayName</div>
+                                        <div class="small @(isSelected ? "text-white-50" : "text-body-secondary")">
+                                            @voice.Language · <code class="@(isSelected ? "text-white" : null)">@voice.Name</code>
+                                        </div>
+                                    </div>
+                                    <button type="button"
+                                            class="btn btn-sm @(isSelected ? "btn-light" : "btn-outline-secondary")"
+                                            title="Play preview"
+                                            @onclick:stopPropagation="true"
+                                            @onclick="() => PlayPreviewAsync(voice)">
+                                        @if (string.Equals(playingVoiceName, voice.Name, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-play-fill"></i>
+                                        }
+                                    </button>
+                                </div>
+                            }
+                            @if (FilteredVoices.Count == 0)
+                            {
+                                <div class="text-secondary small py-3 text-center">No voices match the current filter.</div>
+                            }
+                        </div>
+
+                        @if (previewError is not null)
+                        {
+                            <div class="alert alert-warning mt-3 mb-0 py-2 small">@previewError</div>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseAsync">Cancel</button>
+                    <button type="button" class="btn btn-primary"
+                            disabled="@(string.IsNullOrEmpty(selectedVoiceName))"
+                            @onclick="ConfirmAsync">
+                        <i class="bi bi-check-lg"></i> Use this voice
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+
+    @* Hidden audio element used to play voice previews. Sits outside the iterated list so we
+       only reuse one element regardless of how many previews the user kicks off. *@
+    <audio @ref="audioElement" preload="none" style="display: none;" @onended="OnPreviewEnded"></audio>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string? InitialVoiceName { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<string> OnSelected { get; set; }
+
+    [Inject] private IJSRuntime Js { get; set; } = default!;
+
+    private bool loading;
+    private bool hasLoaded;
+    private string? loadError;
+    private string? previewError;
+    private string? playingVoiceName;
+    private string? selectedVoiceName;
+    private string filterText = string.Empty;
+    private string filterLanguage = string.Empty;
+    private IReadOnlyList<KokoroVoiceDto> voices = [];
+    private string[] availableLanguages = [];
+    private ElementReference audioElement;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsOpen)
+        {
+            hasLoaded = false;
+            return;
+        }
+
+        if (!hasLoaded)
+        {
+            hasLoaded = true;
+            selectedVoiceName = InitialVoiceName;
+            await LoadVoicesAsync();
+        }
+        else if (selectedVoiceName is null && !string.IsNullOrEmpty(InitialVoiceName))
+        {
+            selectedVoiceName = InitialVoiceName;
+        }
+    }
+
+    private async Task LoadVoicesAsync()
+    {
+        loading = true;
+        loadError = null;
+        previewError = null;
+        try
+        {
+            var result = await AudiobookService.GetVoicesAsync();
+            if (result.IsSuccess)
+            {
+                voices = result.Value;
+                availableLanguages = voices
+                    .Select(v => v.Language)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+                if (string.IsNullOrEmpty(selectedVoiceName) && voices.Count > 0)
+                {
+                    selectedVoiceName = voices[0].Name;
+                }
+            }
+            else
+            {
+                loadError = result.Errors.FirstOrDefault() ?? "Could not load voices.";
+            }
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private IReadOnlyList<KokoroVoiceDto> FilteredVoices
+    {
+        get
+        {
+            IEnumerable<KokoroVoiceDto> q = voices;
+            if (!string.IsNullOrWhiteSpace(filterLanguage))
+            {
+                q = q.Where(v => string.Equals(v.Language, filterLanguage, StringComparison.OrdinalIgnoreCase));
+            }
+            if (!string.IsNullOrWhiteSpace(filterText))
+            {
+                string term = filterText.Trim();
+                q = q.Where(v =>
+                    v.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    v.Name.Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+            return q.ToList();
+        }
+    }
+
+    private void SelectVoice(KokoroVoiceDto voice)
+    {
+        selectedVoiceName = voice.Name;
+    }
+
+    private void OnVoiceKeyDown(KeyboardEventArgs e, KokoroVoiceDto voice)
+    {
+        // Mirror native button keyboard semantics — Enter / Space activate the row.
+        if (e.Key == "Enter" || e.Key == " ")
+        {
+            SelectVoice(voice);
+        }
+    }
+
+    private async Task PlayPreviewAsync(KokoroVoiceDto voice)
+    {
+        previewError = null;
+        playingVoiceName = voice.Name;
+        StateHasChanged();
+
+        try
+        {
+            string url = $"audiobooks/voices/{Uri.EscapeDataString(voice.Name)}/preview";
+            // Ask the browser to load + play the preview. Using JS interop because a single
+            // <audio> element with a dynamic src bound through Razor races with re-renders.
+            await Js.InvokeVoidAsync("shelfwardenAudio.play", audioElement, url);
+        }
+        catch (Exception ex)
+        {
+            previewError = ex.Message;
+            playingVoiceName = null;
+        }
+    }
+
+    private void OnPreviewEnded()
+    {
+        playingVoiceName = null;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (string.IsNullOrEmpty(selectedVoiceName)) return;
+        await StopPreviewAsync();
+        await OnSelected.InvokeAsync(selectedVoiceName);
+    }
+
+    private async Task CloseAsync()
+    {
+        await StopPreviewAsync();
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task StopPreviewAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("shelfwardenAudio.stop", audioElement);
+        }
+        catch
+        {
+            // Ignore — element may have been disposed already.
+        }
+        finally
+        {
+            playingVoiceName = null;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await StopPreviewAsync();
+    }
+}

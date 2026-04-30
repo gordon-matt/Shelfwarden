@@ -103,6 +103,15 @@ internal static class ServiceCollectionExtensions
                 options.WorkerCount = 1; // serialise scans
             });
 
+            // Dedicated TTS server. Audiobook generation is long-running and CPU-bound; one
+            // worker prevents two books from competing for the same Kokoro engine instance.
+            services.AddHangfireServer(options =>
+            {
+                options.ServerName = "tts";
+                options.Queues = [Constants.HangfireQueues.Tts];
+                options.WorkerCount = 1;
+            });
+
             return services;
         }
 

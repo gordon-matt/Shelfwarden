@@ -35,4 +35,35 @@ public interface IStoragePathProvider
 
     /// <summary>Delete the cover file (if any) currently associated with <paramref name="relativePath"/>.</summary>
     void DeleteCover(string? relativePath);
+
+    /// <summary>
+    /// Absolute path to the directory where finished audiobook files (.m4a) are stored. Files
+    /// are named <c>{bookId}.m4a</c> so they can be located deterministically from a book id.
+    /// </summary>
+    string AudiobooksDirectory { get; }
+
+    /// <summary>
+    /// Absolute path to a per-book working directory used while a TTS job is running.
+    /// Created on demand. Holds raw PCM chunk files so partial work survives a process
+    /// restart and the job can resume from the next missing chunk.
+    /// </summary>
+    string GetAudiobookWorkingDirectory(int bookId);
+
+    /// <summary>
+    /// Absolute path to the cached short voice-preview WAV for <paramref name="voiceName"/>.
+    /// File may not yet exist; the caller is responsible for generating it on first use.
+    /// </summary>
+    string GetVoiceSamplePath(string voiceName);
+
+    /// <summary>
+    /// Absolute path to the directory KokoroSharp / FFmpeg downloads land in. Lives under the
+    /// app data root so the binaries persist across builds and Docker layer rebuilds.
+    /// </summary>
+    string TtsCacheDirectory { get; }
+
+    /// <summary>Absolute path to the encoded audiobook file for <paramref name="bookId"/>, regardless of whether it exists.</summary>
+    string GetAudiobookFilePath(int bookId);
+
+    /// <summary>Delete the encoded audiobook + any working files for <paramref name="bookId"/>.</summary>
+    void DeleteAudiobook(int bookId);
 }

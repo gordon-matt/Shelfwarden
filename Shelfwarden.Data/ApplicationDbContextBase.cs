@@ -52,6 +52,8 @@ public abstract class ApplicationDbContextBase
 
     public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
 
+    public DbSet<Audiobook> Audiobooks => Set<Audiobook>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
