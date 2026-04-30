@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Shelfwarden.Extensions;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services.Scanning;
@@ -280,16 +279,16 @@ public sealed class ScannerService(
 
     private static void ApplyMetadata(Book book, EbookMetadata metadata)
     {
-        book.Title = book.Title.Or(metadata.Title)!;
-        book.SortTitle = book.SortTitle.Or(BuildSortTitle(metadata.Title));
-        book.Subtitle = book.Subtitle.Or(metadata.Subtitle);
-        book.Description = book.Description.Or(metadata.Description);
-        book.Language = book.Language.Or(Truncate(metadata.Language, 16));
-        book.Publisher = book.Publisher.Or(Truncate(metadata.Publisher, 256));
-        book.Isbn = book.Isbn.Or(Truncate(metadata.Isbn, 32));
-        book.PublishedOn = book.PublishedOn.Or(metadata.PublishedOn);
-        book.PageCount = book.PageCount.Or(metadata.PageCount);
-        book.NumberInSeries = book.NumberInSeries.Or(metadata.NumberInSeries);
+        book.Title ??= metadata.Title;
+        book.SortTitle ??= BuildSortTitle(metadata.Title);
+        book.Subtitle ??= metadata.Subtitle;
+        book.Description ??= metadata.Description;
+        book.Language ??= Truncate(metadata.Language, 16);
+        book.Publisher ??= Truncate(metadata.Publisher, 256);
+        book.Isbn ??= Truncate(metadata.Isbn, 32);
+        book.PublishedOn ??= metadata.PublishedOn;
+        book.PageCount ??= metadata.PageCount;
+        book.NumberInSeries ??= metadata.NumberInSeries;
     }
 
     private async Task SyncAuthorsAsync(int bookId, IReadOnlyList<string> authorNames, Dictionary<string, Author> cache)

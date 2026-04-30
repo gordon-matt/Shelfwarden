@@ -56,8 +56,8 @@ public class BookService(
 
         if (!string.IsNullOrWhiteSpace(request.Query))
         {
-            string q = request.Query.Trim();
-            predicate = predicate.And(b => b.Title.Contains(q));
+            string q = request.Query.Trim().ToUpperInvariant();
+            predicate = predicate.And(b => b.Title.ToUpper().Contains(q));
         }
 
         if (!string.IsNullOrWhiteSpace(request.StartsWith))
