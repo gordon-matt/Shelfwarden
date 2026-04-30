@@ -45,7 +45,11 @@ else
             <div class="author-tile author-tile-shell">
                 <a class="author-tile" href="@($"authors/{a.Id}")" title="@a.Name">
                     <div class="author-avatar">
-                        <img src="@GetAuthorPhotoUrl(a.Id)" alt="@a.Name"
+                        @{
+                            string photoUrl = GetAuthorPhotoUrl(a.Id);
+                        }
+                        <img src="@photoUrl" alt="@a.Name"
+                             @key="photoUrl"
                              loading="lazy"
                              onerror="this.classList.add('d-none');this.parentElement.classList.add('no-photo')" />
                         <i class="bi bi-person placeholder-icon"></i>
@@ -59,7 +63,7 @@ else
                     <Authorized>
                         <button type="button"
                                 class="btn btn-sm btn-outline-secondary author-tile-edit"
-                                title="Match author with OpenLibrary"
+                                title="Edit author"
                                 @onclick="() => OpenAuthorMatchModalAsync(a)">
                             <i class="bi bi-pencil-square"></i>
                         </button>
@@ -70,108 +74,12 @@ else
     </div>
 }
 
-@if (isAuthorMatchModalOpen && selectedAuthor is not null)
-{
-    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Match Author from OpenLibrary</h5>
-                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseAuthorMatchModal"></button>
-                </div>
-                <div class="modal-body">
-                    <label class="form-label">Author name</label>
-                    <div class="input-group mb-3">
-                        <input class="form-control" @bind="authorMatchQuery" @bind:event="oninput" />
-                        <button type="button" class="btn btn-primary" @onclick="SearchOpenLibraryAsync" disabled="@isSearchingOpenLibrary">
-                            @if (isSearchingOpenLibrary)
-                            {
-                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                            }
-                            <i class="bi bi-search"></i> Search
-                        </button>
-                    </div>
-
-                    @if (!string.IsNullOrWhiteSpace(authorMatchError))
-                    {
-                        <div class="alert alert-danger py-2">@authorMatchError</div>
-                    }
-
-                    @if (openLibraryMatches.Count == 0 && hasSearchedOpenLibrary && string.IsNullOrWhiteSpace(authorMatchError))
-                    {
-                        <div class="alert alert-secondary py-2 mb-0">No OpenLibrary author matches were found.</div>
-                    }
-                    else if (openLibraryMatches.Count > 0)
-                    {
-                        <div class="d-flex flex-column gap-2">
-                            @foreach (var match in openLibraryMatches)
-                            {
-                                bool isSelected = pendingMatchSelection?.OpenLibraryId == match.OpenLibraryId;
-                                <button type="button"
-                                        class="btn text-start border @(isSelected ? "btn-primary" : "btn-outline-secondary")"
-                                        @onclick="() => SelectMatch(match)">
-                                    <div class="d-flex justify-content-between align-items-start gap-2">
-                                        <div>
-                                            <div class="fw-semibold">@match.Name</div>
-                                            <div class="small opacity-75">
-                                                <span>@match.OpenLibraryId</span>
-                                                @if (!string.IsNullOrWhiteSpace(match.BirthDate) || !string.IsNullOrWhiteSpace(match.DeathDate))
-                                                {
-                                                    <span> · @match.BirthDate-@match.DeathDate</span>
-                                                }
-                                                <span> · Bio: @(match.HasBio ? "yes" : "no")</span>
-                                                <span> · Photo: @(match.HasPhoto ? "yes" : "no")</span>
-                                            </div>
-                                            @if (!string.IsNullOrWhiteSpace(match.BioPreview))
-                                            {
-                                                <div class="small mt-1">@match.BioPreview</div>
-                                            }
-                                        </div>
-                                        <span class="badge @(isSelected ? "bg-light text-dark" : "bg-secondary-subtle text-secondary-emphasis")">
-                                            @(isSelected ? "Selected" : "Select")
-                                        </span>
-                                    </div>
-                                </button>
-                            }
-                        </div>
-                    }
-
-                    @if (isAwaitingImportConfirmation && pendingMatchSelection is not null)
-                    {
-                        <div class="alert alert-warning mt-3 mb-0">
-                            <div class="fw-semibold mb-1">Are you sure?</div>
-                            <div class="small">This will import biography/photo for <strong>@selectedAuthor.Name</strong> from OpenLibrary match <strong>@pendingMatchSelection.OpenLibraryId</strong>.</div>
-                        </div>
-                    }
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseAuthorMatchModal">Cancel</button>
-                    @if (!isAwaitingImportConfirmation)
-                    {
-                        <button type="button"
-                                class="btn btn-primary"
-                                disabled="@(pendingMatchSelection is null)"
-                                @onclick="StartImportConfirmation">
-                            Continue
-                        </button>
-                    }
-                    else
-                    {
-                        <button type="button" class="btn btn-outline-secondary" @onclick="CancelImportConfirmation">Back</button>
-                        <button type="button" class="btn btn-danger" @onclick="ConfirmImportAsync" disabled="@isImportingOpenLibrary">
-                            @if (isImportingOpenLibrary)
-                            {
-                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                            }
-                            Yes, import
-                        </button>
-                    }
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="modal-backdrop fade show"></div>
-}
+<AuthorProfileModal IsOpen="@isAuthorEditModalOpen"
+                    AuthorId="@selectedAuthorId"
+                    AuthorName="@selectedAuthorName"
+                    CurrentBiography="@selectedAuthorBiography"
+                    OnClose="CloseAuthorEditModalAsync"
+                    OnSaved="OnAuthorSavedAsync" />
 
 @code {
     private IReadOnlyList<AuthorListItemDto>? authors;
@@ -179,16 +87,10 @@ else
     private CancellationTokenSource? searchCts;
     private readonly Dictionary<int, long> authorPhotoVersions = [];
 
-    private bool isAuthorMatchModalOpen;
-    private AuthorListItemDto? selectedAuthor;
-    private string authorMatchQuery = string.Empty;
-    private bool isSearchingOpenLibrary;
-    private bool hasSearchedOpenLibrary;
-    private bool isImportingOpenLibrary;
-    private bool isAwaitingImportConfirmation;
-    private string? authorMatchError;
-    private IReadOnlyList<OpenLibraryAuthorMatchDto> openLibraryMatches = [];
-    private OpenLibraryAuthorMatchDto? pendingMatchSelection;
+    private bool isAuthorEditModalOpen;
+    private int selectedAuthorId;
+    private string selectedAuthorName = string.Empty;
+    private string? selectedAuthorBiography;
 
     protected override async Task OnInitializedAsync()
     {
@@ -231,109 +133,22 @@ else
 
     private async Task OpenAuthorMatchModalAsync(AuthorListItemDto author)
     {
-        selectedAuthor = author;
-        isAuthorMatchModalOpen = true;
-        authorMatchQuery = author.Name;
-        authorMatchError = null;
-        hasSearchedOpenLibrary = false;
-        isAwaitingImportConfirmation = false;
-        pendingMatchSelection = null;
-        openLibraryMatches = [];
-        await SearchOpenLibraryAsync();
+        selectedAuthorId = author.Id;
+        selectedAuthorName = author.Name;
+        selectedAuthorBiography = author.Biography;
+        isAuthorEditModalOpen = true;
     }
 
-    private void CloseAuthorMatchModal()
+    private Task CloseAuthorEditModalAsync()
     {
-        isAuthorMatchModalOpen = false;
-        selectedAuthor = null;
-        authorMatchQuery = string.Empty;
-        authorMatchError = null;
-        hasSearchedOpenLibrary = false;
-        isAwaitingImportConfirmation = false;
-        pendingMatchSelection = null;
-        openLibraryMatches = [];
-        isSearchingOpenLibrary = false;
-        isImportingOpenLibrary = false;
+        isAuthorEditModalOpen = false;
+        return Task.CompletedTask;
     }
 
-    private async Task SearchOpenLibraryAsync()
+    private async Task OnAuthorSavedAsync()
     {
-        authorMatchError = null;
-        hasSearchedOpenLibrary = true;
-        isAwaitingImportConfirmation = false;
-        pendingMatchSelection = null;
-
-        if (string.IsNullOrWhiteSpace(authorMatchQuery))
-        {
-            openLibraryMatches = [];
-            authorMatchError = "Please enter an author name to search.";
-            return;
-        }
-
-        isSearchingOpenLibrary = true;
-        try
-        {
-            var result = await AuthorService.SearchOpenLibraryAuthorsAsync(authorMatchQuery, 10);
-            openLibraryMatches = result.IsSuccess ? result.Value : [];
-            if (!result.IsSuccess)
-            {
-                authorMatchError = "OpenLibrary search failed.";
-            }
-        }
-        finally
-        {
-            isSearchingOpenLibrary = false;
-        }
-    }
-
-    private void SelectMatch(OpenLibraryAuthorMatchDto match)
-    {
-        pendingMatchSelection = match;
-        isAwaitingImportConfirmation = false;
-        authorMatchError = null;
-    }
-
-    private void StartImportConfirmation()
-    {
-        if (pendingMatchSelection is null)
-        {
-            return;
-        }
-
-        isAwaitingImportConfirmation = true;
-    }
-
-    private void CancelImportConfirmation()
-    {
-        isAwaitingImportConfirmation = false;
-    }
-
-    private async Task ConfirmImportAsync()
-    {
-        if (selectedAuthor is null || pendingMatchSelection is null)
-        {
-            return;
-        }
-
-        isImportingOpenLibrary = true;
-        authorMatchError = null;
-        try
-        {
-            var result = await AuthorService.ImportFromOpenLibraryAsync(selectedAuthor.Id, pendingMatchSelection.OpenLibraryId);
-            if (!result.IsSuccess)
-            {
-                authorMatchError = "Import failed. Please try a different match.";
-                return;
-            }
-
-            authorPhotoVersions[selectedAuthor.Id] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            await LoadAsync();
-            CloseAuthorMatchModal();
-        }
-        finally
-        {
-            isImportingOpenLibrary = false;
-        }
+        authorPhotoVersions[selectedAuthorId] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        await LoadAsync();
     }
 
     private string GetAuthorPhotoUrl(int authorId)

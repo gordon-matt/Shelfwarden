@@ -26,6 +26,13 @@ public record AuthorOpenLibraryImportResultDto(
     bool BiographyUpdated,
     bool PhotoUpdated);
 
+/// <summary>Outcome of manually updating author biography and/or photo.</summary>
+public record AuthorProfileUpdateResultDto(
+    int AuthorId,
+    string? Biography,
+    bool BiographyUpdated,
+    bool PhotoUpdated);
+
 /// <summary>
 /// Detailed author projection used on <c>/authors/{id}</c>. Pre-buckets the author's books into
 /// <see cref="SeriesGroups"/> (one entry per series the author has any book in) and

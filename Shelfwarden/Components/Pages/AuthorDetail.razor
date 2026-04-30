@@ -26,7 +26,8 @@ else
 
     <div class="author-header mb-4">
         <div class="author-header-photo">
-            <img src="@($"author-photos/{author.Id}")" alt="@author.Name"
+            <img src="@GetAuthorPhotoUrl(author.Id)" alt="@author.Name"
+                 @key="GetAuthorPhotoUrl(author.Id)"
                  onerror="this.classList.add('d-none');this.parentElement.classList.add('no-photo')" />
             <i class="bi bi-person placeholder-icon"></i>
         </div>
@@ -42,26 +43,13 @@ else
             <AuthorizeView Roles="@Constants.Roles.Administrator">
                 <Authorized>
                     <div class="mb-2">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleBioEdit">
-                            <i class="bi bi-pencil"></i> @(editingBio ? "Cancel bio edit" : "Edit bio")
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenAuthorEditModal">
+                            <i class="bi bi-pencil-square"></i> Edit author
                         </button>
                     </div>
                 </Authorized>
             </AuthorizeView>
-            @if (editingBio)
-            {
-                <div class="author-bio-editor">
-                    <textarea class="form-control mb-2" rows="5" @bind="bioDraft"></textarea>
-                    <button class="btn btn-sm btn-primary" disabled="@savingBio" @onclick="SaveBioAsync">
-                        @if (savingBio)
-                        {
-                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                        }
-                        <i class="bi bi-check-lg"></i> Save bio
-                    </button>
-                </div>
-            }
-            else if (!string.IsNullOrWhiteSpace(author.Biography))
+            @if (!string.IsNullOrWhiteSpace(author.Biography))
             {
                 <p class="author-bio mb-0">@author.Biography</p>
             }
@@ -155,6 +143,13 @@ else
     }
 }
 
+<AuthorProfileModal IsOpen="@isAuthorEditModalOpen"
+                    AuthorId="@Id"
+                    AuthorName="@(author?.Name ?? string.Empty)"
+                    CurrentBiography="@author?.Biography"
+                    OnClose="CloseAuthorEditModalAsync"
+                    OnSaved="OnAuthorSavedAsync" />
+
 @code {
     [Parameter] public int Id { get; set; }
 
@@ -163,9 +158,8 @@ else
 
     private bool selectMode;
     private readonly HashSet<int> selectedBookIds = [];
-    private bool editingBio;
-    private bool savingBio;
-    private string? bioDraft;
+    private bool isAuthorEditModalOpen;
+    private readonly Dictionary<int, long> authorPhotoVersions = [];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -173,8 +167,7 @@ else
         loadFailed = false;
         selectMode = false;
         selectedBookIds.Clear();
-        editingBio = false;
-        bioDraft = null;
+        isAuthorEditModalOpen = false;
 
         var result = await AuthorService.GetDetailAsync(Id);
         if (result.IsSuccess)
@@ -214,29 +207,30 @@ else
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=authors/{Id}");
     }
 
-    private void ToggleBioEdit()
+    private void OpenAuthorEditModal()
     {
-        editingBio = !editingBio;
-        bioDraft = editingBio ? author?.Biography : bioDraft;
+        isAuthorEditModalOpen = true;
     }
 
-    private async Task SaveBioAsync()
+    private Task CloseAuthorEditModalAsync()
     {
-        if (author is null) return;
-        savingBio = true;
-        try
+        isAuthorEditModalOpen = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task OnAuthorSavedAsync()
+    {
+        authorPhotoVersions[Id] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var result = await AuthorService.GetDetailAsync(Id);
+        if (result.IsSuccess && author is not null)
         {
-            var result = await AuthorService.UpdateBiographyAsync(author.Id, bioDraft);
-            if (result.IsSuccess)
-            {
-                // Keep already loaded series/standalone lists, only patch author header data.
-                author = author with { Biography = result.Value.Biography };
-                editingBio = false;
-            }
+            author = result.Value;
         }
-        finally
-        {
-            savingBio = false;
-        }
+    }
+
+    private string GetAuthorPhotoUrl(int authorId)
+    {
+        long version = authorPhotoVersions.GetValueOrDefault(authorId, 0);
+        return $"author-photos/{authorId}?v={version}";
     }
 }

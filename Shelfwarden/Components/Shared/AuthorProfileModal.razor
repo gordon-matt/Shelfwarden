@@ -1,0 +1,359 @@
+@inject IAuthorService AuthorService
+
+@if (IsOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Author</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseAsync"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-3">
+                        <li class="nav-item">
+                            <button type="button"
+                                    class="nav-link @(activeTab == ModalTab.Manual ? "active" : null)"
+                                    @onclick="() => SetTabAsync(ModalTab.Manual)">
+                                Manual Edit
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button type="button"
+                                    class="nav-link @(activeTab == ModalTab.Match ? "active" : null)"
+                                    @onclick="() => SetTabAsync(ModalTab.Match)">
+                                Match
+                            </button>
+                        </li>
+                    </ul>
+
+                    @if (!string.IsNullOrWhiteSpace(statusMessage))
+                    {
+                        <div class="alert alert-info py-2">@statusMessage</div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(errorMessage))
+                    {
+                        <div class="alert alert-danger py-2">@errorMessage</div>
+                    }
+
+                    @if (activeTab == ModalTab.Manual)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Biography</label>
+                            <textarea class="form-control" rows="8" @bind="manualBiography"></textarea>
+                        </div>
+                        <div>
+                            <label class="form-label">Photo</label>
+                            <InputFile OnChange="OnPhotoSelectedAsync" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,image/*" />
+                            @if (!string.IsNullOrWhiteSpace(selectedPhotoName))
+                            {
+                                <div class="small text-body-secondary mt-1">Selected: @selectedPhotoName</div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <label class="form-label">Author name</label>
+                        <div class="input-group mb-3">
+                            <input class="form-control" @bind="authorMatchQuery" @bind:event="oninput" />
+                            <button type="button" class="btn btn-primary" @onclick="SearchOpenLibraryAsync" disabled="@isSearchingOpenLibrary">
+                                @if (isSearchingOpenLibrary)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                }
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
+
+                        @if (openLibraryMatches.Count == 0 && hasSearchedOpenLibrary && string.IsNullOrWhiteSpace(errorMessage))
+                        {
+                            <div class="alert alert-secondary py-2 mb-0">No OpenLibrary author matches were found.</div>
+                        }
+                        else if (openLibraryMatches.Count > 0)
+                        {
+                            <div class="d-flex flex-column gap-2">
+                                @foreach (var match in openLibraryMatches)
+                                {
+                                    bool isSelected = pendingMatchSelection?.OpenLibraryId == match.OpenLibraryId;
+                                    <button type="button"
+                                            class="btn text-start border @(isSelected ? "btn-primary" : "btn-outline-secondary")"
+                                            @onclick="() => SelectMatch(match)">
+                                        <div class="d-flex justify-content-between align-items-start gap-2">
+                                            <div>
+                                                <div class="fw-semibold">@match.Name</div>
+                                                <div class="small opacity-75">
+                                                    <span>@match.OpenLibraryId</span>
+                                                    @if (!string.IsNullOrWhiteSpace(match.BirthDate) || !string.IsNullOrWhiteSpace(match.DeathDate))
+                                                    {
+                                                        <span> · @match.BirthDate-@match.DeathDate</span>
+                                                    }
+                                                    <span> · Bio: @(match.HasBio ? "yes" : "no")</span>
+                                                    <span> · Photo: @(match.HasPhoto ? "yes" : "no")</span>
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(match.BioPreview))
+                                                {
+                                                    <div class="small mt-1">@match.BioPreview</div>
+                                                }
+                                            </div>
+                                            <span class="badge @(isSelected ? "bg-light text-dark" : "bg-secondary-subtle text-secondary-emphasis")">
+                                                @(isSelected ? "Selected" : "Select")
+                                            </span>
+                                        </div>
+                                    </button>
+                                }
+                            </div>
+                        }
+
+                        @if (isAwaitingImportConfirmation && pendingMatchSelection is not null)
+                        {
+                            <div class="alert alert-warning mt-3 mb-0">
+                                <div class="fw-semibold mb-1">Are you sure?</div>
+                                <div class="small">This will import biography/photo for <strong>@AuthorName</strong> from OpenLibrary match <strong>@pendingMatchSelection.OpenLibraryId</strong>.</div>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseAsync">Close</button>
+                    @if (activeTab == ModalTab.Manual)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="SaveManualAsync" disabled="@isSavingManual">
+                            @if (isSavingManual)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            Save
+                        </button>
+                    }
+                    else if (!isAwaitingImportConfirmation)
+                    {
+                        <button type="button"
+                                class="btn btn-primary"
+                                disabled="@(pendingMatchSelection is null)"
+                                @onclick="StartImportConfirmation">
+                            Continue
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CancelImportConfirmation">Back</button>
+                        <button type="button" class="btn btn-danger" @onclick="ConfirmImportAsync" disabled="@isImportingOpenLibrary">
+                            @if (isImportingOpenLibrary)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            Yes, import
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public int AuthorId { get; set; }
+    [Parameter] public string AuthorName { get; set; } = string.Empty;
+    [Parameter] public string? CurrentBiography { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private enum ModalTab { Manual, Match }
+    private ModalTab activeTab = ModalTab.Manual;
+
+    private string? manualBiography;
+    private byte[]? selectedPhotoBytes;
+    private string? selectedPhotoExtension;
+    private string? selectedPhotoName;
+    private bool isSavingManual;
+
+    private string authorMatchQuery = string.Empty;
+    private bool isSearchingOpenLibrary;
+    private bool hasSearchedOpenLibrary;
+    private bool isImportingOpenLibrary;
+    private bool isAwaitingImportConfirmation;
+    private IReadOnlyList<OpenLibraryAuthorMatchDto> openLibraryMatches = [];
+    private OpenLibraryAuthorMatchDto? pendingMatchSelection;
+
+    private string? statusMessage;
+    private string? errorMessage;
+    private bool hasLoadedForCurrentOpenState;
+
+    protected override void OnParametersSet()
+    {
+        if (!IsOpen)
+        {
+            hasLoadedForCurrentOpenState = false;
+            return;
+        }
+
+        if (hasLoadedForCurrentOpenState)
+        {
+            return;
+        }
+
+        hasLoadedForCurrentOpenState = true;
+        activeTab = ModalTab.Manual;
+        manualBiography = CurrentBiography;
+        selectedPhotoBytes = null;
+        selectedPhotoExtension = null;
+        selectedPhotoName = null;
+        statusMessage = null;
+        errorMessage = null;
+
+        authorMatchQuery = AuthorName;
+        hasSearchedOpenLibrary = false;
+        isAwaitingImportConfirmation = false;
+        pendingMatchSelection = null;
+        openLibraryMatches = [];
+    }
+
+    private async Task SetTabAsync(ModalTab tab)
+    {
+        if (activeTab == tab)
+        {
+            return;
+        }
+
+        activeTab = tab;
+        statusMessage = null;
+        errorMessage = null;
+        isAwaitingImportConfirmation = false;
+
+        if (tab == ModalTab.Match && !hasSearchedOpenLibrary)
+        {
+            await SearchOpenLibraryAsync();
+        }
+    }
+
+    private async Task OnPhotoSelectedAsync(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file is null)
+        {
+            selectedPhotoBytes = null;
+            selectedPhotoExtension = null;
+            selectedPhotoName = null;
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        selectedPhotoBytes = ms.ToArray();
+        selectedPhotoName = file.Name;
+        selectedPhotoExtension = Path.GetExtension(file.Name);
+    }
+
+    private async Task SaveManualAsync()
+    {
+        isSavingManual = true;
+        errorMessage = null;
+        statusMessage = null;
+        try
+        {
+            var result = await AuthorService.UpdateProfileAsync(
+                AuthorId,
+                manualBiography,
+                selectedPhotoBytes,
+                selectedPhotoExtension);
+
+            if (!result.IsSuccess)
+            {
+                errorMessage = "Manual update failed.";
+                return;
+            }
+
+            statusMessage = "Author profile updated.";
+            await OnSaved.InvokeAsync();
+            await CloseAsync();
+        }
+        finally
+        {
+            isSavingManual = false;
+        }
+    }
+
+    private async Task SearchOpenLibraryAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+        hasSearchedOpenLibrary = true;
+        isAwaitingImportConfirmation = false;
+        pendingMatchSelection = null;
+
+        if (string.IsNullOrWhiteSpace(authorMatchQuery))
+        {
+            openLibraryMatches = [];
+            errorMessage = "Please enter an author name to search.";
+            return;
+        }
+
+        isSearchingOpenLibrary = true;
+        try
+        {
+            var result = await AuthorService.SearchOpenLibraryAuthorsAsync(authorMatchQuery, 10);
+            openLibraryMatches = result.IsSuccess ? result.Value : [];
+            if (!result.IsSuccess)
+            {
+                errorMessage = "OpenLibrary search failed.";
+            }
+        }
+        finally
+        {
+            isSearchingOpenLibrary = false;
+        }
+    }
+
+    private void SelectMatch(OpenLibraryAuthorMatchDto match)
+    {
+        pendingMatchSelection = match;
+        isAwaitingImportConfirmation = false;
+        errorMessage = null;
+        statusMessage = null;
+    }
+
+    private void StartImportConfirmation()
+    {
+        if (pendingMatchSelection is null) return;
+        isAwaitingImportConfirmation = true;
+    }
+
+    private void CancelImportConfirmation() => isAwaitingImportConfirmation = false;
+
+    private async Task ConfirmImportAsync()
+    {
+        if (pendingMatchSelection is null)
+        {
+            return;
+        }
+
+        isImportingOpenLibrary = true;
+        errorMessage = null;
+        statusMessage = null;
+        try
+        {
+            var result = await AuthorService.ImportFromOpenLibraryAsync(AuthorId, pendingMatchSelection.OpenLibraryId);
+            if (!result.IsSuccess)
+            {
+                errorMessage = "Import failed. Please try a different match.";
+                return;
+            }
+
+            statusMessage = "OpenLibrary metadata imported.";
+            await OnSaved.InvokeAsync();
+            await CloseAsync();
+        }
+        finally
+        {
+            isImportingOpenLibrary = false;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

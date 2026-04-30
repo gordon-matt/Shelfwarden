@@ -166,24 +166,6 @@ public class AuthorService(
             standalone));
     }
 
-    public async Task<Result<AuthorDto>> UpdateBiographyAsync(int id, string? biography, CancellationToken cancellationToken = default)
-    {
-        var author = await authorRepository.FindOneAsync(new SearchOptions<Author>
-        {
-            Query = a => a.Id == id,
-            CancellationToken = cancellationToken,
-        });
-        if (author is null)
-        {
-            return Result.NotFound($"Author {id} not found.");
-        }
-
-        author.Biography = string.IsNullOrWhiteSpace(biography) ? null : biography.Trim();
-        await authorRepository.UpdateAsync(author);
-
-        return Result.Success(new AuthorDto(author.Id, author.Name, author.Biography));
-    }
-
     public async Task<Result<IReadOnlyList<OpenLibraryAuthorMatchDto>>> SearchOpenLibraryAuthorsAsync(string query, int limit = 8, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -308,6 +290,49 @@ public class AuthorService(
         }
     }
 
+    public async Task<Result<AuthorProfileUpdateResultDto>> UpdateProfileAsync(
+        int authorId,
+        string? biography,
+        byte[]? photoBytes,
+        string? photoExtension,
+        CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var author = await authorRepository.FindOneAsync(new SearchOptions<Author>
+        {
+            Query = a => a.Id == authorId,
+            CancellationToken = cancellationToken,
+        });
+        if (author is null)
+        {
+            return Result.NotFound($"Author {authorId} not found.");
+        }
+
+        string? incomingBio = string.IsNullOrWhiteSpace(biography) ? null : biography.Trim();
+        bool biographyUpdated = !string.Equals(author.Biography, incomingBio, StringComparison.Ordinal);
+        if (biographyUpdated)
+        {
+            author.Biography = incomingBio;
+            await authorRepository.UpdateAsync(author);
+        }
+
+        bool photoUpdated = false;
+        if (photoBytes is { Length: > 0 })
+        {
+            photoUpdated = await SaveAuthorPhotoAsync(authorId, photoBytes, photoExtension, cancellationToken);
+        }
+
+        return Result.Success(new AuthorProfileUpdateResultDto(
+            authorId,
+            author.Biography,
+            biographyUpdated,
+            photoUpdated));
+    }
+
     private async Task<bool> TrySaveAuthorPhotoAsync(HttpClient client, int authorId, int photoId, CancellationToken cancellationToken)
     {
         var (ok, bytes) = await OLImageLoader.TryGetAuthorPhotoAsync(
@@ -323,21 +348,28 @@ public class AuthorService(
 
         try
         {
-            string? existing = storagePathProvider.FindAuthorPhotoPath(authorId);
-            if (!string.IsNullOrWhiteSpace(existing) && File.Exists(existing))
-            {
-                File.Delete(existing);
-            }
-
-            string path = Path.Combine(storagePathProvider.AuthorPhotosDirectory, $"{authorId}.jpg");
-            await File.WriteAllBytesAsync(path, bytes, cancellationToken);
-            return true;
+            return await SaveAuthorPhotoAsync(authorId, bytes, "jpg", cancellationToken);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to persist OpenLibrary photo for author {AuthorId}", authorId);
             return false;
         }
+    }
+
+    private async Task<bool> SaveAuthorPhotoAsync(int authorId, byte[] bytes, string? extension, CancellationToken cancellationToken)
+    {
+        string normalizedExt = NormalizeImageExtension(extension);
+
+        string? existing = storagePathProvider.FindAuthorPhotoPath(authorId);
+        if (!string.IsNullOrWhiteSpace(existing) && File.Exists(existing))
+        {
+            File.Delete(existing);
+        }
+
+        string path = Path.Combine(storagePathProvider.AuthorPhotosDirectory, $"{authorId}.{normalizedExt}");
+        await File.WriteAllBytesAsync(path, bytes, cancellationToken);
+        return true;
     }
 
     private static string NormalizeOpenLibraryAuthorId(string raw)
@@ -366,5 +398,24 @@ public class AuthorService(
         string trimmed = bio.Trim();
         const int max = 180;
         return trimmed.Length <= max ? trimmed : $"{trimmed[..max]}...";
+    }
+
+    private static string NormalizeImageExtension(string? extension)
+    {
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            return "jpg";
+        }
+
+        string ext = extension.Trim().TrimStart('.').ToLowerInvariant();
+        return ext switch
+        {
+            "jpg" or "jpeg" => "jpg",
+            "png" => "png",
+            "gif" => "gif",
+            "webp" => "webp",
+            "bmp" => "bmp",
+            _ => "jpg",
+        };
     }
 }
