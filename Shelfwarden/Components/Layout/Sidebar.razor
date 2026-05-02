@@ -4,10 +4,18 @@
 @inject ICollectionService CollectionService
 @inject IReadingListService ReadingListService
 @inject ISidebarNavRefreshService SidebarNavRefresh
+@inject IServerSettingsService ServerSettings
 
 <aside class="app-sidebar @(Open ? "open" : "")" id="appSidebar">
     <a class="app-sidebar-brand" href="/" @onclick="CloseOnNavigate">
-        <img src="@Assets["img/logo.png"]" style="max-width:200px" />
+        @if (Constants.BootswatchThemes.IsDarkColorScheme(theme))
+        {
+            <img src="@Assets["img/Logo_Light.png"]" style="max-width:200px" />
+        }
+        else
+        {
+            <img src="@Assets["img/Logo.png"]" style="max-width:200px" />
+        }
     </a>
 
     <div class="app-sidebar-section">
@@ -145,7 +153,8 @@
 @code {
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback OnRequestClose { get; set; }
-
+    
+    private string theme = Constants.ServerSettingDefaults.Theme;
     private List<LibraryDto>? libraries;
     private IReadOnlyList<CollectionDto>? collections;
     private IReadOnlyList<ReadingListDto>? readingLists;
@@ -155,7 +164,16 @@
         SidebarNavRefresh.NavigationDataChanged += OnNavigationDataChanged;
     }
 
-    protected override async Task OnInitializedAsync() => await LoadSidebarDataAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSidebarDataAsync();
+
+        var result = await ServerSettings.GetAsync();
+        if (result.IsSuccess)
+        {
+            theme = result.Value.Theme;
+        }
+    }
 
     private void OnNavigationDataChanged(object? sender, EventArgs e)
     {

@@ -1,59 +1,144 @@
+@implements IAsyncDisposable
 @inject IServerSettingsService ServerSettings
 @inject IJSRuntime JS
 
-@* Theme is a server-wide setting so only admins can change it. Rendered as a self-contained
-   Bootstrap dropdown so it works inside the topbar (or anywhere else we need it). *@
+@* Theme is a server-wide setting so only admins can change it. *@
+@* Modal only — opener button is <ThemePickerOpener /> in the topbar (see MainLayout). *@
 <AuthorizeView Roles="@Constants.Roles.Administrator">
     <Authorized>
-        <div class="dropdown">
-            <button class="btn btn-sm btn-outline-secondary border-0" type="button"
-                    data-bs-toggle="dropdown" aria-expanded="false" title="Theme">
-                <i class="bi bi-palette"></i>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                <li><h6 class="dropdown-header">Bootswatch theme</h6></li>
-                @foreach (string t in Constants.BootswatchThemes.All)
-                {
-                    <li>
-                        <button type="button"
-                                class="dropdown-item @(string.Equals(t, current, StringComparison.OrdinalIgnoreCase) ? "active" : "")"
-                                @onclick="() => SelectAsync(t)">
-                            @TitleCase(t)
-                            @if (string.Equals(t, current, StringComparison.OrdinalIgnoreCase))
+        <div class="modal fade" id="themePickerModal" tabindex="-1" aria-labelledby="themePickerModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title fs-5" id="themePickerModalLabel">Bootswatch theme</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-body-secondary mb-2">
+                            Select a theme to preview it immediately. Save with <strong>OK</strong>, or
+                            <strong>Cancel</strong> / close to restore the previous theme.
+                        </p>
+                        <div class="list-group theme-picker-theme-list">
+                            @foreach (string t in Constants.BootswatchThemes.All)
                             {
-                                <i class="bi bi-check2 ms-2"></i>
+                                bool isPreview = string.Equals(t, _previewTheme, StringComparison.OrdinalIgnoreCase);
+                                bool isSaved = string.Equals(t, _committedTheme, StringComparison.OrdinalIgnoreCase);
+                                <button type="button"
+                                        class="list-group-item list-group-item-action d-flex align-items-center justify-content-between gap-2 @(isPreview ? "active" : null)"
+                                        @onclick="() => PreviewThemeAsync(t)">
+                                    <span>@TitleCase(t)</span>
+                                    @if (isSaved)
+                                    {
+                                        <span class="badge rounded-pill ms-2">Saved</span>
+                                    }
+                                </button>
                             }
-                        </button>
-                    </li>
-                }
-            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CancelAsync">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="OkAsync">OK</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </Authorized>
 </AuthorizeView>
 
 @code {
-    private string current = Constants.ServerSettingDefaults.Theme;
+    private DotNetObjectReference<ThemePicker>? _dotNetRef;
+
+    /// <summary>Last theme persisted to server settings (last OK).</summary>
+    private string _committedTheme = Constants.ServerSettingDefaults.Theme;
+
+    /// <summary>Theme currently applied in the browser (may differ while the modal is open).</summary>
+    private string _previewTheme = Constants.ServerSettingDefaults.Theme;
+
+    private bool _closedWithOk;
 
     protected override async Task OnInitializedAsync()
     {
         var result = await ServerSettings.GetAsync();
         if (result.IsSuccess)
         {
-            current = result.Value.Theme;
+            _committedTheme = result.Value.Theme;
+            _previewTheme = _committedTheme;
         }
     }
 
-    private async Task SelectAsync(string theme)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (string.Equals(theme, current, StringComparison.OrdinalIgnoreCase)) return;
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("shelfwarden.registerThemeModalDismiss", "themePickerModal", _dotNetRef);
+        }
+    }
 
-        var result = await ServerSettings.SetThemeAsync(theme);
-        if (!result.IsSuccess) return;
+    private async Task PreviewThemeAsync(string theme)
+    {
+        if (string.Equals(theme, _previewTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
-        current = theme;
-        // Swap the stylesheet href in-place so the change is instant — no full reload.
+        await ApplyThemeToDomAsync(theme);
+        StateHasChanged();
+    }
+
+    private async Task OkAsync()
+    {
+        var result = await ServerSettings.SetThemeAsync(_previewTheme);
+        if (!result.IsSuccess)
+        {
+            return;
+        }
+
+        _committedTheme = _previewTheme;
+        _closedWithOk = true;
+        await JS.InvokeVoidAsync("shelfwarden.hideModal", "themePickerModal");
+    }
+
+    private async Task CancelAsync()
+    {
+        await ApplyThemeToDomAsync(_committedTheme);
+        await JS.InvokeVoidAsync("shelfwarden.hideModal", "themePickerModal");
+    }
+
+    private async Task ApplyThemeToDomAsync(string theme)
+    {
         string colorScheme = Constants.BootswatchThemes.IsDarkColorScheme(theme) ? "dark" : "light";
-        await JS.InvokeVoidAsync("shelfwarden.setThemeHref", $"lib/bootswatch/dist/{theme}/bootstrap.min.css", colorScheme);
+        await JS.InvokeVoidAsync(
+            "shelfwarden.setThemeHref",
+            $"lib/bootswatch/dist/{theme}/bootstrap.min.css",
+            colorScheme);
+        _previewTheme = theme;
+    }
+
+    [JSInvokable]
+    public async Task OnThemeModalDismissed()
+    {
+        if (_closedWithOk)
+        {
+            _closedWithOk = false;
+            return;
+        }
+
+        if (!string.Equals(_previewTheme, _committedTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            await ApplyThemeToDomAsync(_committedTheme);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dotNetRef is not null)
+        {
+            _dotNetRef.Dispose();
+            _dotNetRef = null;
+        }
     }
 
     private static string TitleCase(string s) =>

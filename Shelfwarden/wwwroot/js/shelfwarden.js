@@ -2,12 +2,9 @@
 // is a single-purpose helper; keep things flat so the C# call sites read naturally.
 window.shelfwarden = {
     _observers: new Map(),
+    _themeModalDismissRegistered: new Set(),
     /**
-     * Live-swap the active Bootswatch stylesheet without a full page reload. Looks up the
-     * <link id="theme-stylesheet"> element in App.razor and points it at a new URL.
-     * @param {string} href Path under wwwroot to the new theme's bootstrap.min.css.
-     */
-    /**
+     * Live-swap the active Bootswatch stylesheet without a full page reload.
      * @param {string} href Path under wwwroot to the new theme's bootstrap.min.css.
      * @param {string} [dataBsTheme] Optional "dark" | "light" — must match Bootswatch dark vs light
      *   themes so Bootstrap + Bootswatch CSS variable overrides (e.g. emphasis + sidebar) apply.
@@ -19,6 +16,32 @@ window.shelfwarden = {
         }
         if (dataBsTheme === 'dark' || dataBsTheme === 'light') {
             document.documentElement.setAttribute('data-bs-theme', dataBsTheme);
+        }
+    },
+
+    /** One-time: wires Bootstrap's hidden.bs.modal so Blazor can revert an uncommitted theme preview. */
+    registerThemeModalDismiss: function (modalId, dotNetRef) {
+        if (window.shelfwarden._themeModalDismissRegistered.has(modalId)) {
+            return;
+        }
+        var el = document.getElementById(modalId);
+        if (!el) {
+            return;
+        }
+        el.addEventListener('hidden.bs.modal', function () {
+            dotNetRef.invokeMethodAsync('OnThemeModalDismissed');
+        });
+        window.shelfwarden._themeModalDismissRegistered.add(modalId);
+    },
+
+    hideModal: function (modalId) {
+        var el = document.getElementById(modalId);
+        if (!el || typeof bootstrap === 'undefined') {
+            return;
+        }
+        var inst = bootstrap.Modal.getInstance(el);
+        if (inst) {
+            inst.hide();
         }
     },
 

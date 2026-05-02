@@ -8,6 +8,9 @@
     <div class="app-main">
         <Topbar OnToggleSidebar="ToggleSidebar" />
 
+        @* Theme modal lives here (not inside .app-topbar) so it stacks above Bootstrap's body backdrop. *@
+        <ThemePicker />
+
         <main class="app-content">
             @Body
         </main>

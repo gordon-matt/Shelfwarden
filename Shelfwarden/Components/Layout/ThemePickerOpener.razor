@@ -1,0 +1,10 @@
+@* Palette button only — modal markup lives in <ThemePicker /> under MainLayout so Bootstrap's
+   body-appended backdrop does not sit above the dialog (stacking context from .app-topbar). *@
+<AuthorizeView Roles="@Constants.Roles.Administrator">
+    <Authorized>
+        <button type="button" class="btn btn-sm btn-outline-secondary border-0" title="Theme"
+                data-bs-toggle="modal" data-bs-target="#themePickerModal">
+            <i class="bi bi-palette"></i>
+        </button>
+    </Authorized>
+</AuthorizeView>
