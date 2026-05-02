@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Shelfwarden.Services;
 
 namespace Shelfwarden.Controllers;
 
@@ -14,6 +15,7 @@ namespace Shelfwarden.Controllers;
 [Route("files")]
 public class BookFilesController(
     ILogger<BookFilesController> logger,
+    IShelfAccessService shelfAccessService,
     IRepository<Book> bookRepository) : ControllerBase
 {
     [HttpGet("{bookId:int}")]
@@ -28,6 +30,11 @@ public class BookFilesController(
         if (book is null || string.IsNullOrEmpty(book.FilePath))
         {
             return NotFound();
+        }
+
+        if (!await shelfAccessService.CanAccessShelfAsync(book.ShelfId, cancellationToken))
+        {
+            return Forbid();
         }
 
         if (!System.IO.File.Exists(book.FilePath))

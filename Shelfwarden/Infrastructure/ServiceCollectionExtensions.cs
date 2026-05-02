@@ -51,8 +51,10 @@ internal static class ServiceCollectionExtensions
         public IServiceCollection AddShelfwardenHangfire(IConfiguration configuration)
         {
             string provider = configuration["Database:Provider"] ?? Constants.DatabaseProviders.Sqlite;
-            string? connectionString = configuration.GetConnectionString("Hangfire")
-                ?? configuration.GetConnectionString("DefaultConnection");
+            string? hangfireExplicit = configuration.GetConnectionString("Hangfire");
+            string? connectionString = string.IsNullOrWhiteSpace(hangfireExplicit)
+                ? configuration.GetConnectionString("DefaultConnection")
+                : hangfireExplicit;
 
             switch (provider)
             {

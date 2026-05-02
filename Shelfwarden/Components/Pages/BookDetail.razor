@@ -272,9 +272,13 @@ else
                 <a class="btn btn-outline-secondary" href="@($"covers/{book.Id}?v={book.CoverCacheVersion}")" target="_blank" rel="noopener">
                     <i class="bi bi-image"></i> View cover
                 </a>
-                <a class="btn btn-outline-secondary" href="@($"books/{book.Id}/edit")">
-                    <i class="bi bi-pencil"></i> Edit
-                </a>
+                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                    <Authorized>
+                        <a class="btn btn-outline-secondary" href="@($"books/{book.Id}/edit")">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                    </Authorized>
+                </AuthorizeView>
                 <AuthorizeView Roles="@Constants.Roles.Administrator">
                     <Authorized>
                         <button class="btn btn-outline-danger" @onclick="DeleteAsync">

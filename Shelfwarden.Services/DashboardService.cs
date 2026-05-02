@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Shelfwarden.Services;
 
 /// <summary>
@@ -8,6 +10,7 @@ namespace Shelfwarden.Services;
 public class DashboardService(
     IUserContextService userContext,
     IBookService bookService,
+    IShelfAccessService shelfAccessService,
     IRepository<Shelf> shelfRepository,
     IRepository<Book> bookRepository,
     IRepository<Author> authorRepository,
@@ -21,20 +24,29 @@ public class DashboardService(
     {
         string? userId = userContext.GetCurrentUserId();
 
-        // Headline counts in parallel — cheap server-side counts, no projections to ship.
-        var shelfCountTask = shelfRepository.CountAsync();
-        var bookCountTask = bookRepository.CountAsync();
+        IReadOnlySet<int>? accessibleShelves = await shelfAccessService.GetAccessibleShelfIdsAsync(cancellationToken);
+
+        int shelfCount = accessibleShelves is null
+            ? await shelfRepository.CountAsync()
+            : accessibleShelves.Count;
+
+        int bookCount = accessibleShelves is null
+            ? await bookRepository.CountAsync()
+            : accessibleShelves.Count == 0
+                ? 0
+                : await bookRepository.CountAsync(b => accessibleShelves.Contains(b.ShelfId));
+
         var authorCountTask = authorRepository.CountAsync();
         var seriesCountTask = seriesRepository.CountAsync();
         var finishedCountTask = string.IsNullOrEmpty(userId)
             ? Task.FromResult(0)
             : progressRepository.CountAsync(p => p.UserId == userId && p.Percentage >= FinishedThresholdPercent);
 
-        await Task.WhenAll(shelfCountTask, bookCountTask, authorCountTask, seriesCountTask, finishedCountTask);
+        await Task.WhenAll(authorCountTask, seriesCountTask, finishedCountTask);
 
         var stats = new DashboardStatsDto(
-            ShelfCount: shelfCountTask.Result,
-            BookCount: bookCountTask.Result,
+            ShelfCount: shelfCount,
+            BookCount: bookCount,
             AuthorCount: authorCountTask.Result,
             SeriesCount: seriesCountTask.Result,
             FinishedCount: finishedCountTask.Result);
@@ -79,7 +91,13 @@ public class DashboardService(
                     SplitQuery = true,
                 });
 
-                var byId = books.ToDictionary(b => b.Id);
+                var bookRows = books.ToList();
+                if (accessibleShelves is not null)
+                {
+                    bookRows = bookRows.Where(b => accessibleShelves.Contains(b.ShelfId)).ToList();
+                }
+
+                var byId = bookRows.ToDictionary(b => b.Id);
                 var progressById = inProgress.ToDictionary(p => p.BookId);
 
                 continueReading = bookIds

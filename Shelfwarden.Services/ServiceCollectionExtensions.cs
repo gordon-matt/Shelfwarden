@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
         {
             services.AddHttpContextAccessor();
             services.AddScoped<IUserContextService, UserContextService>();
+            services.AddScoped<IShelfAccessService, ShelfAccessService>();
 
             services.AddScoped<IShelfService, ShelfService>();
             services.AddScoped<IBookService, BookService>();

@@ -85,7 +85,9 @@ public class SetupService(
             shelf.LastScannedAt,
             shelf.CreatedAt,
             BookCount: 0,
-            Folders: folders.Select(f => new ShelfFolderDto(f.Id, f.Path)).ToList()));
+            Folders: folders.Select(f => new ShelfFolderDto(f.Id, f.Path)).ToList(),
+            AllowedUserIds: [],
+            AllowedRoleNames: []));
     }
 
     public async Task<Result> CompleteAsync(CancellationToken cancellationToken = default)

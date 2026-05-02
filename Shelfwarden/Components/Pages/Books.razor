@@ -27,39 +27,47 @@
                 <i class="bi bi-list-ul"></i>
             </button>
         </div>
-        <button type="button"
-                class="btn btn-sm @(selectMode ? "btn-primary" : "btn-outline-secondary")"
-                title="Toggle select mode"
-                @onclick="ToggleSelectMode">
-            <i class="bi bi-check2-square"></i>
-            @if (selectMode)
-            {
-                <span class="ms-1">@selectedBookIds.Count selected</span>
-            }
-            else
-            {
-                <span class="ms-1">Select</span>
-            }
-        </button>
+        <AuthorizeView Roles="@Constants.Roles.Administrator">
+            <Authorized>
+                <button type="button"
+                        class="btn btn-sm @(selectMode ? "btn-primary" : "btn-outline-secondary")"
+                        title="Toggle select mode"
+                        @onclick="ToggleSelectMode">
+                    <i class="bi bi-check2-square"></i>
+                    @if (selectMode)
+                    {
+                        <span class="ms-1">@selectedBookIds.Count selected</span>
+                    }
+                    else
+                    {
+                        <span class="ms-1">Select</span>
+                    }
+                </button>
+            </Authorized>
+        </AuthorizeView>
     </div>
 </div>
 
 @if (selectMode)
 {
-    <div class="selection-toolbar mb-3">
-        <span class="text-secondary small">
-            <i class="bi bi-check2-square"></i> @selectedBookIds.Count selected
-        </span>
-        <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllOnPage" disabled="@(results.Count == 0)">
-            <i class="bi bi-list-check"></i> Select page
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
-            <i class="bi bi-x-circle"></i> Clear
-        </button>
-        <button class="btn btn-sm btn-primary ms-auto" @onclick="GoToBatchEdit" disabled="@(selectedBookIds.Count == 0)">
-            <i class="bi bi-pencil-square"></i> Batch edit
-        </button>
-    </div>
+    <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <Authorized>
+            <div class="selection-toolbar mb-3">
+                <span class="text-secondary small">
+                    <i class="bi bi-check2-square"></i> @selectedBookIds.Count selected
+                </span>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllOnPage" disabled="@(results.Count == 0)">
+                    <i class="bi bi-list-check"></i> Select page
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
+                    <i class="bi bi-x-circle"></i> Clear
+                </button>
+                <button class="btn btn-sm btn-primary ms-auto" @onclick="GoToBatchEdit" disabled="@(selectedBookIds.Count == 0)">
+                    <i class="bi bi-pencil-square"></i> Batch edit
+                </button>
+            </div>
+        </Authorized>
+    </AuthorizeView>
 }
 
 <div class="card mb-3">

@@ -16,4 +16,19 @@ public class UserContextService(IHttpContextAccessor httpContextAccessor) : IUse
 
     public bool IsAdministrator()
         => httpContextAccessor.HttpContext?.User?.IsInRole(Constants.Roles.Administrator) ?? false;
+
+    public IReadOnlyList<string> GetRoleNames()
+    {
+        var user = httpContextAccessor.HttpContext?.User;
+        if (user is null)
+        {
+            return [];
+        }
+
+        return user.Claims
+            .Where(c => c.Type == ClaimTypes.Role)
+            .Select(c => c.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
 }

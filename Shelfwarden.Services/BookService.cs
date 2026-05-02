@@ -1,10 +1,13 @@
 using LinqKit;
+using Microsoft.EntityFrameworkCore;
+using Shelfwarden.Data.Entities;
 
 namespace Shelfwarden.Services;
 
 public class BookService(
     ILogger<BookService> logger,
     IUserContextService userContext,
+    IShelfAccessService shelfAccessService,
     IRepository<Book> bookRepository,
     IRepository<BookAuthor> bookAuthorRepository,
     IRepository<BookGenre> bookGenreRepository,
@@ -29,7 +32,29 @@ public class BookService(
 
         var predicate = PredicateBuilder.New<Book>(true);
 
-        if (request.ShelfId is int sid)
+        IReadOnlySet<int>? accessibleShelves = await shelfAccessService.GetAccessibleShelfIdsAsync(cancellationToken);
+        if (accessibleShelves is not null)
+        {
+            if (accessibleShelves.Count == 0)
+            {
+                return Result.Success(new PagedList<BookListItemDto>([], 0, page, pageSize));
+            }
+
+            if (request.ShelfId is int sid)
+            {
+                if (!accessibleShelves.Contains(sid))
+                {
+                    return Result.Success(new PagedList<BookListItemDto>([], 0, page, pageSize));
+                }
+
+                predicate = predicate.And(b => b.ShelfId == sid);
+            }
+            else
+            {
+                predicate = predicate.And(b => accessibleShelves.Contains(b.ShelfId));
+            }
+        }
+        else if (request.ShelfId is int sid)
         {
             predicate = predicate.And(b => b.ShelfId == sid);
         }
@@ -122,21 +147,36 @@ public class BookService(
         {
             Query = b => b.Id == id,
             Include = q => q
+                .Include(b => b.Shelf)
+                    .ThenInclude(s => s.UserAccessEntries)
+                .Include(b => b.Shelf)
+                    .ThenInclude(s => s.RoleAccessEntries)
                 .Include(b => b.Series)
                 .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author)
                 .Include(b => b.BookGenres).ThenInclude(bg => bg.Genre)
                 .Include(b => b.BookTags).ThenInclude(bt => bt.Tag),
             SplitQuery = true,
+            CancellationToken = cancellationToken,
         });
 
-        return book is null ? (Result<BookDto>)Result.NotFound($"Book {id} not found.") : Result.Success(MapBook(book));
+        if (book is null)
+        {
+            return Result.NotFound($"Book {id} not found.");
+        }
+
+        if (!ShelfAccessEvaluator.CanAccessShelf(book.Shelf, userContext))
+        {
+            return Result.NotFound($"Book {id} not found.");
+        }
+
+        return Result.Success(MapBook(book));
     }
 
     public async Task<Result<BookDto>> UpdateAsync(int id, UpdateBookRequest request, CancellationToken cancellationToken = default)
     {
-        if (!userContext.IsAuthenticated())
+        if (!userContext.IsAdministrator())
         {
-            return Result.Unauthorized();
+            return Result.Forbidden();
         }
 
         var book = await bookRepository.FindOneAsync(new SearchOptions<Book>

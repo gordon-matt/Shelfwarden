@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Shelfwarden.Models;
+using Shelfwarden.Services;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Controllers;
@@ -17,6 +18,7 @@ namespace Shelfwarden.Controllers;
 [Route("covers")]
 public class CoversController(
     IStoragePathProvider storage,
+    IShelfAccessService shelfAccessService,
     IRepository<Book> bookRepository) : ControllerBase
 {
     [HttpGet("{bookId:int}")]
@@ -31,6 +33,11 @@ public class CoversController(
         if (book is null || string.IsNullOrEmpty(book.CoverImagePath))
         {
             return NotFound();
+        }
+
+        if (!await shelfAccessService.CanAccessShelfAsync(book.ShelfId, cancellationToken))
+        {
+            return Forbid();
         }
 
         string fullPath = Path.Combine(storage.CoversDirectory, book.CoverImagePath);

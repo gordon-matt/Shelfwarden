@@ -856,6 +856,54 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.ToTable("ShelfFolders", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.ShelfRoleAccess", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("NormalizedRoleName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<int>("ShelfId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShelfId", "NormalizedRoleName")
+                        .IsUnique();
+
+                    b.ToTable("ShelfRoleAccess", "app");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.ShelfUserAccess", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ShelfId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShelfId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("ShelfUserAccess", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Tag", b =>
                 {
                     b.Property<int>("Id")
@@ -1107,6 +1155,28 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("Shelf");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.ShelfRoleAccess", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Shelf", "Shelf")
+                        .WithMany("RoleAccessEntries")
+                        .HasForeignKey("ShelfId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Shelf");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.ShelfUserAccess", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Shelf", "Shelf")
+                        .WithMany("UserAccessEntries")
+                        .HasForeignKey("ShelfId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Shelf");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Author", b =>
                 {
                     b.Navigation("BookAuthors");
@@ -1150,6 +1220,10 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("Books");
 
                     b.Navigation("Folders");
+
+                    b.Navigation("RoleAccessEntries");
+
+                    b.Navigation("UserAccessEntries");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Tag", b =>

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Shelfwarden.Services;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Controllers;
@@ -15,6 +16,7 @@ namespace Shelfwarden.Controllers;
 public class AudiobooksController(
     IRepository<Audiobook> audiobookRepository,
     IAudiobookService audiobookService,
+    IShelfAccessService shelfAccessService,
     IStoragePathProvider storage) : ControllerBase
 {
     [HttpGet("{bookId:int}")]
@@ -31,6 +33,11 @@ public class AudiobooksController(
             || string.IsNullOrEmpty(audiobook.OutputFileName))
         {
             return NotFound();
+        }
+
+        if (!await shelfAccessService.CanAccessBookAsync(bookId, cancellationToken))
+        {
+            return Forbid();
         }
 
         string fullPath = storage.GetAudiobookFilePath(bookId);

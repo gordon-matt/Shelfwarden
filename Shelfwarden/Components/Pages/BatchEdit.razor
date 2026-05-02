@@ -1,5 +1,5 @@
 @page "/books/batch-edit"
-@attribute [Authorize]
+@attribute [Authorize(Roles = Constants.Roles.Administrator)]
 @inject IBookService BookService
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService

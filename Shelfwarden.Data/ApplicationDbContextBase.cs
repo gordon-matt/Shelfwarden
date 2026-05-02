@@ -22,6 +22,10 @@ public abstract class ApplicationDbContextBase
 
     public DbSet<ShelfFolder> ShelfFolders => Set<ShelfFolder>();
 
+    public DbSet<ShelfUserAccess> ShelfUserAccess => Set<ShelfUserAccess>();
+
+    public DbSet<ShelfRoleAccess> ShelfRoleAccess => Set<ShelfRoleAccess>();
+
     public DbSet<Book> Books => Set<Book>();
 
     public DbSet<Author> Authors => Set<Author>();

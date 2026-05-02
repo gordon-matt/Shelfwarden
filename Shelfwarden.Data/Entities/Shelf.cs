@@ -16,6 +16,11 @@ public class Shelf : BaseEntity<int>
     public virtual ICollection<ShelfFolder> Folders { get; set; } = [];
 
     public virtual ICollection<Book> Books { get; set; } = [];
+
+    /// <summary>When non-empty (together with <see cref="RoleAccessEntries"/>), only matching users/roles may view this shelf.</summary>
+    public virtual ICollection<ShelfUserAccess> UserAccessEntries { get; set; } = [];
+
+    public virtual ICollection<ShelfRoleAccess> RoleAccessEntries { get; set; } = [];
 }
 
 public class ShelfMap : IEntityTypeConfiguration<Shelf>

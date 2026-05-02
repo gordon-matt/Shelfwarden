@@ -85,7 +85,11 @@ else
                 <i class="bi bi-bookshelf empty-icon"></i>
                 <h3>No books yet</h3>
                 <p>Create a shelf and run a scan to import your first books.</p>
-                <a class="btn btn-primary" href="shelves"><i class="bi bi-plus-lg"></i> Add a shelf</a>
+                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                    <Authorized>
+                        <a class="btn btn-primary" href="shelves/new"><i class="bi bi-plus-lg"></i> Add a shelf</a>
+                    </Authorized>
+                </AuthorizeView>
             </div>
         }
         else

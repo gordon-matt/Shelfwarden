@@ -14,4 +14,7 @@ public interface IUserContextService
     bool IsAuthenticated();
 
     bool IsAdministrator();
+
+    /// <summary>Role names from the current principal (claim type Role).</summary>
+    IReadOnlyList<string> GetRoleNames();
 }

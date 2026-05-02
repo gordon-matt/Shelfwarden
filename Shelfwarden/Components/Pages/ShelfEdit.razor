@@ -2,6 +2,7 @@
 @page "/shelves/{Id:int}/edit"
 @attribute [Authorize(Roles = Constants.Roles.Administrator)]
 @inject IShelfService ShelfService
+@inject IUserInfoService UserInfoService
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
@@ -27,6 +28,61 @@
         <label class="form-label">Description</label>
         <InputTextArea class="form-control" rows="3" @bind-Value="model.Description" />
         <ValidationMessage For="@(() => model.Description)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Who can see this shelf</label>
+        <p class="form-text mb-2">
+            Leave both sections empty to allow <strong>every signed-in user</strong> to browse this shelf.
+            If you add users or roles, only those accounts (or administrators) will see it.
+        </p>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <span class="form-label d-block small text-body-secondary">Roles</span>
+                <div class="border rounded p-3 bg-body-secondary bg-opacity-10">
+                    <div class="form-check">
+                        <InputCheckbox class="form-check-input" id="role-admin" @bind-Value="allowRoleAdministrator" />
+                        <label class="form-check-label" for="role-admin">@Constants.Roles.Administrator</label>
+                    </div>
+                    <div class="form-check">
+                        <InputCheckbox class="form-check-input" id="role-user" @bind-Value="allowRoleUser" />
+                        <label class="form-check-label" for="role-user">@Constants.Roles.User</label>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <span class="form-label d-block small text-body-secondary">Users</span>
+                @if (catalogUsers is null)
+                {
+                    <p class="text-secondary small mb-0"><em>Loading users…</em></p>
+                }
+                else if (catalogUsers.Count == 0)
+                {
+                    <p class="text-secondary small mb-0">No users returned — cannot assign individuals.</p>
+                }
+                else
+                {
+                    <div class="border rounded p-2 shelf-user-checklist" style="max-height: 220px; overflow-y: auto;">
+                        @foreach (var u in catalogUsers)
+                        {
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="@($"u-{u.Id}")"
+                                       checked="@selectedUserIds.Contains(u.Id)"
+                                       @onchange="e => ToggleUser(u.Id, (bool)(e.Value ?? false))" />
+                                <label class="form-check-label" for="@($"u-{u.Id}")">
+                                    @(u.Email ?? u.UserName)
+                                    @if (!string.IsNullOrEmpty(u.DisplayName) && !string.Equals(u.DisplayName, u.UserName, StringComparison.Ordinal))
+                                    {
+                                        <span class="text-secondary small">(@u.DisplayName)</span>
+                                    }
+                                </label>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
     </div>
 
     <div class="mb-3">
@@ -78,6 +134,16 @@
     private string? saveError;
     private bool saving;
 
+    private IReadOnlyList<UserInfo>? catalogUsers;
+    private readonly HashSet<string> selectedUserIds = new(StringComparer.Ordinal);
+    private bool allowRoleAdministrator;
+    private bool allowRoleUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        catalogUsers = await UserInfoService.GetAllUsersAsync();
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (Id is int id)
@@ -85,9 +151,21 @@
             var result = await ShelfService.GetByIdAsync(id);
             if (result.IsSuccess)
             {
-                model.Name = result.Value.Name;
-                model.Description = result.Value.Description;
-                folders = result.Value.Folders.Select(f => f.Path).DefaultIfEmpty(string.Empty).ToList();
+                var dto = result.Value;
+                model.Name = dto.Name;
+                model.Description = dto.Description;
+                folders = dto.Folders.Select(f => f.Path).DefaultIfEmpty(string.Empty).ToList();
+                selectedUserIds.Clear();
+                foreach (string uid in dto.AllowedUserIds)
+                {
+                    selectedUserIds.Add(uid);
+                }
+
+                allowRoleAdministrator = dto.AllowedRoleNames.Any(r =>
+                    string.Equals(r, Constants.Roles.Administrator, StringComparison.OrdinalIgnoreCase));
+                allowRoleUser = dto.AllowedRoleNames.Any(r =>
+                    string.Equals(r, Constants.Roles.User, StringComparison.OrdinalIgnoreCase));
+
                 loadError = null;
             }
             else
@@ -95,6 +173,40 @@
                 loadError = "Shelf not found.";
             }
         }
+        else
+        {
+            selectedUserIds.Clear();
+            allowRoleAdministrator = false;
+            allowRoleUser = false;
+        }
+    }
+
+    private void ToggleUser(string userId, bool on)
+    {
+        if (on)
+        {
+            selectedUserIds.Add(userId);
+        }
+        else
+        {
+            selectedUserIds.Remove(userId);
+        }
+    }
+
+    private IReadOnlyList<string> BuildRoleNames()
+    {
+        var list = new List<string>();
+        if (allowRoleAdministrator)
+        {
+            list.Add(Constants.Roles.Administrator);
+        }
+
+        if (allowRoleUser)
+        {
+            list.Add(Constants.Roles.User);
+        }
+
+        return list;
     }
 
     private void AddFolder() => folders.Add(string.Empty);
@@ -117,13 +229,18 @@
         saveError = null;
         try
         {
-            if (Id is int id)
+            var roleNames = BuildRoleNames();
+            var userIds = selectedUserIds.ToList();
+
+            if (Id is int shelfId)
             {
-                var result = await ShelfService.UpdateAsync(id, new UpdateShelfRequest
+                var result = await ShelfService.UpdateAsync(shelfId, new UpdateShelfRequest
                 {
                     Name = model.Name,
                     Description = model.Description,
                     Folders = nonEmpty,
+                    AllowedUserIds = userIds,
+                    AllowedRoleNames = roleNames,
                 });
                 if (result.IsSuccess)
                 {
@@ -139,6 +256,8 @@
                     Name = model.Name,
                     Description = model.Description,
                     Folders = nonEmpty,
+                    AllowedUserIds = userIds,
+                    AllowedRoleNames = roleNames,
                 });
                 if (result.IsSuccess)
                 {

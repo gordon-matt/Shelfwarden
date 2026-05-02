@@ -15,6 +15,8 @@ public class NoneUserContextService : IUserContextService
 
     public bool IsAdministrator() => true;
 
+    public IReadOnlyList<string> GetRoleNames() => [Constants.Roles.Administrator];
+
     string? IUserContextService.GetCurrentUserId() => GetCurrentUserId();
 
     string? IUserContextService.GetCurrentUserName() => GetCurrentUserName();
