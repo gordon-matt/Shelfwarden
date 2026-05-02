@@ -65,6 +65,11 @@ public class AudiobookService(
             return Result.Unauthorized();
         }
 
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
         var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
         {
             Query = b => b.Id == bookId,
@@ -152,6 +157,16 @@ public class AudiobookService(
 
     public Task<Result<IReadOnlyList<KokoroVoiceDto>>> GetVoicesAsync(CancellationToken cancellationToken = default)
     {
+        if (!userContext.IsAuthenticated())
+        {
+            return Task.FromResult(Result<IReadOnlyList<KokoroVoiceDto>>.Unauthorized());
+        }
+
+        if (!userContext.IsAdministrator())
+        {
+            return Task.FromResult(Result<IReadOnlyList<KokoroVoiceDto>>.Forbidden());
+        }
+
         var voices = kokoroProvider.GetVoices();
         IReadOnlyList<KokoroVoiceDto> dtos = voices
             .Select(MapVoice)
@@ -167,6 +182,11 @@ public class AudiobookService(
         if (!userContext.IsAuthenticated())
         {
             return Result.Unauthorized();
+        }
+
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
         }
 
         var voice = kokoroProvider.FindVoice(voiceName);
@@ -204,6 +224,11 @@ public class AudiobookService(
             return Result.Unauthorized();
         }
 
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
         var existing = await audiobookRepository.FindOneAsync(new SearchOptions<Audiobook>
         {
             Query = a => a.BookId == bookId,
@@ -236,6 +261,11 @@ public class AudiobookService(
         if (!userContext.IsAuthenticated())
         {
             return Result.Unauthorized();
+        }
+
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
         }
 
         var existing = await audiobookRepository.FindOneAsync(new SearchOptions<Audiobook>

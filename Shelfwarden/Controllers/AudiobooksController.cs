@@ -1,14 +1,14 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Shelfwarden;
 using Shelfwarden.Services;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Controllers;
 
 /// <summary>
-/// Streams generated audiobooks (.m4a) and the cached short voice-preview WAVs. Both flows
-/// require authentication so audiobook URLs aren't accidentally usable as a public download
-/// link, and both lean on the storage abstraction so no consumer ever builds a path from
-/// configuration directly.
+/// Streams generated audiobooks (.m4a). Completed books require authentication plus shelf access.
+/// Voice previews require an administrator (same policy as starting generation).
 /// </summary>
 [ApiController]
 [Authorize]
@@ -53,6 +53,7 @@ public class AudiobooksController(
     }
 
     [HttpGet("voices/{voiceName}/preview")]
+    [Authorize(Roles = Constants.Roles.Administrator)]
     public async Task<IActionResult> GetVoicePreview(string voiceName, CancellationToken cancellationToken)
     {
         var result = await audiobookService.EnsureVoiceSampleAsync(voiceName, cancellationToken);

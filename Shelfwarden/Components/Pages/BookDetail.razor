@@ -6,6 +6,7 @@
 @inject ICollectionService CollectionService
 @inject IReadingListService ReadingListService
 @inject IAudiobookService AudiobookService
+@inject IUserContextService UserContext
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 @inject IJSRuntime Js
@@ -176,9 +177,12 @@ else
                 {
                     @if (audiobook is null || audiobook.State is AudiobookState.None or AudiobookState.Failed)
                     {
-                        <button class="btn btn-outline-primary" type="button" @onclick="OpenVoicePicker">
-                            <i class="bi bi-headphones"></i> Generate Audio
-                        </button>
+                        @if (UserContext.IsAdministrator())
+                        {
+                            <button class="btn btn-outline-primary" type="button" @onclick="OpenVoicePicker">
+                                <i class="bi bi-headphones"></i> Generate Audio
+                            </button>
+                        }
                     }
                     else if (audiobook.State == AudiobookState.Completed)
                     {
@@ -186,10 +190,13 @@ else
                             <i class="bi bi-volume-up"></i>
                             @(showPlayer ? "Hide Player" : "Listen")
                         </button>
-                        <button class="btn btn-outline-secondary" type="button" @onclick="OpenVoicePicker"
-                                title="Regenerate with a different voice">
-                            <i class="bi bi-arrow-repeat"></i> Regenerate
-                        </button>
+                        @if (UserContext.IsAdministrator())
+                        {
+                            <button class="btn btn-outline-secondary" type="button" @onclick="OpenVoicePicker"
+                                    title="Regenerate with a different voice">
+                                <i class="bi bi-arrow-repeat"></i> Regenerate
+                            </button>
+                        }
                     }
                     else
                     {
@@ -329,26 +336,29 @@ else
                             }
                         </div>
 
-                        <div class="d-flex flex-wrap gap-2 mt-3">
-                            @if (audiobook.State is AudiobookState.Pending or AudiobookState.Running or AudiobookState.Failed)
-                            {
-                                <button type="button" class="btn btn-sm btn-outline-danger"
-                                        disabled="@audiobookActionBusy"
-                                        @onclick="CancelAudiobookGenerationAsync">
-                                    <i class="bi bi-x-circle"></i>
-                                    @(audiobook.State == AudiobookState.Failed ? "Clear and try again" : "Cancel generation")
-                                </button>
-                            }
-                            @if (audiobook.State == AudiobookState.Completed)
-                            {
-                                <button type="button" class="btn btn-sm btn-outline-danger"
-                                        disabled="@audiobookActionBusy"
-                                        title="Remove the file so you can generate again with another voice"
-                                        @onclick="DeleteFinishedAudiobookAsync">
-                                    <i class="bi bi-trash"></i> Delete audiobook
-                                </button>
-                            }
-                        </div>
+                        @if (UserContext.IsAdministrator())
+                        {
+                            <div class="d-flex flex-wrap gap-2 mt-3">
+                                @if (audiobook.State is AudiobookState.Pending or AudiobookState.Running or AudiobookState.Failed)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            disabled="@audiobookActionBusy"
+                                            @onclick="CancelAudiobookGenerationAsync">
+                                        <i class="bi bi-x-circle"></i>
+                                        @(audiobook.State == AudiobookState.Failed ? "Clear and try again" : "Cancel generation")
+                                    </button>
+                                }
+                                @if (audiobook.State == AudiobookState.Completed)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            disabled="@audiobookActionBusy"
+                                            title="Remove the file so you can generate again with another voice"
+                                            @onclick="DeleteFinishedAudiobookAsync">
+                                        <i class="bi bi-trash"></i> Delete audiobook
+                                    </button>
+                                }
+                            </div>
+                        }
 
                         @if (generateError is not null)
                         {
@@ -596,6 +606,11 @@ else
 
     private void OpenVoicePicker()
     {
+        if (!UserContext.IsAdministrator())
+        {
+            return;
+        }
+
         generateError = null;
         voicePickerOpen = true;
     }
@@ -620,7 +635,10 @@ else
 
     private async Task ConfirmGenerateAsync()
     {
-        if (string.IsNullOrEmpty(pendingVoiceConfirmation)) return;
+        if (string.IsNullOrEmpty(pendingVoiceConfirmation) || !UserContext.IsAdministrator())
+        {
+            return;
+        }
 
         enqueuingGenerate = true;
         generateError = null;
