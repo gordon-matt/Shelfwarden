@@ -231,7 +231,7 @@ body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Section heading (used on Home / Library detail / Book detail)
+   Section heading (used on Home / Shelf detail / Book detail)
    ────────────────────────────────────────────────────────────────────────── */
 
 .section-header {
@@ -507,10 +507,10 @@ body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Library card on the libraries page
+   Shelf card on the shelves page
    ────────────────────────────────────────────────────────────────────────── */
 
-.library-tile {
+.shelf-tile {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -521,13 +521,13 @@ body {
     transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
-    .library-tile:hover {
+    .shelf-tile:hover {
         border-color: var(--bs-primary-border-subtle);
         transform: translateY(-2px);
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
     }
 
-.library-tile-banner {
+.shelf-tile-banner {
     height: 80px;
     background: linear-gradient(135deg, var(--bs-primary), var(--bs-info));
     display: flex;
@@ -537,15 +537,15 @@ body {
     font-size: 2rem;
 }
 
-/* `.library-tile` is a custom card variant — it uses `.card-body` for the inner section
+/* `.shelf-tile` is a custom card variant — it uses `.card-body` for the inner section
    but the parent isn't `.card`, so Bootstrap's `--bs-card-spacer-*` vars aren't in scope.
    Provide explicit padding here so the body content doesn't kiss the tile edges. */
-.library-tile > .card-body {
+.shelf-tile > .card-body {
     padding: 1rem 1.1rem;
     flex: 1 1 auto;
 }
 
-.library-tile > .card-footer {
+.shelf-tile > .card-footer {
     padding: 0.6rem 1.1rem;
     border-top: 1px solid var(--bs-border-color);
 }
@@ -1246,7 +1246,7 @@ ol.reading-list {
     position: relative;
 }
 
-/* Unified card grid used across books/library/home/collection/author pages.
+/* Unified card grid used across books/shelves/home/collection/author pages.
    Target: denser than the previous 6-per-row layout on desktop. */
 .book-grid {
     display: grid;
@@ -1417,7 +1417,7 @@ ol.reading-list {
 
 /* ──────────────────────────────────────────────────────────────────────────
    First-run wizard — minimal centred shell, doesn't share the app layout so
-   that a half-configured server can't render NavLinks pointing at libraries
+   that a half-configured server can't render NavLinks pointing at shelves
    that don't exist yet.
    ────────────────────────────────────────────────────────────────────────── */
 

@@ -14,7 +14,7 @@ public record BookSearchRequest
     /// </summary>
     public string? StartsWith { get; init; }
 
-    public int? LibraryId { get; init; }
+    public int? ShelfId { get; init; }
 
     public int? SeriesId { get; init; }
 

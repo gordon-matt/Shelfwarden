@@ -1,40 +1,40 @@
-@page "/libraries"
+@page "/shelves"
 @attribute [Authorize]
 @implements IDisposable
-@inject ILibraryService LibraryService
+@inject IShelfService ShelfService
 @inject IScanStatusService ScanStatusService
 @inject NavigationManager NavigationManager
 
-<PageTitle>Libraries - Shelfwarden</PageTitle>
+<PageTitle>Shelves - Shelfwarden</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="mb-0">Libraries</h1>
+    <h1 class="mb-0">Shelves</h1>
     <AuthorizeView Roles="@Constants.Roles.Administrator">
         <Authorized>
-            <a class="btn btn-primary" href="libraries/new">
-                <i class="bi bi-plus-lg"></i> New library
+            <a class="btn btn-primary" href="shelves/new">
+                <i class="bi bi-plus-lg"></i> New shelf
             </a>
         </Authorized>
     </AuthorizeView>
 </div>
 
-@if (libraries is null)
+@if (shelves is null)
 {
     <div class="text-center text-secondary py-5">
         <div class="spinner-border" role="status"></div>
-        <div class="mt-2">Loading libraries…</div>
+        <div class="mt-2">Loading shelves…</div>
     </div>
 }
-else if (libraries.Count == 0)
+else if (shelves.Count == 0)
 {
     <div class="empty-state">
         <i class="bi bi-collection empty-icon"></i>
-        <h3>No libraries yet</h3>
-        <p>Administrators can create a library pointed at one or more folders to start indexing books.</p>
+        <h3>No shelves yet</h3>
+        <p>Administrators can create a shelf pointed at one or more folders to start indexing books.</p>
         <AuthorizeView Roles="@Constants.Roles.Administrator">
             <Authorized>
-                <a class="btn btn-primary" href="libraries/new">
-                    <i class="bi bi-plus-lg"></i> Create a library
+                <a class="btn btn-primary" href="shelves/new">
+                    <i class="bi bi-plus-lg"></i> Create a shelf
                 </a>
             </Authorized>
         </AuthorizeView>
@@ -43,18 +43,18 @@ else if (libraries.Count == 0)
 else
 {
     <div class="row g-3">
-        @foreach (var lib in libraries)
+        @foreach (var lib in shelves)
         {
             var status = GetStatus(lib.Id);
             bool showBusy = IsBusy(status) || HasOptimisticBusy(lib.Id);
             <div class="col-md-6 col-lg-3">
-                <div class="library-tile">
-                    <a href="@($"libraries/{lib.Id}")" class="library-tile-banner text-decoration-none">
+                <div class="shelf-tile">
+                    <a href="@($"shelves/{lib.Id}")" class="shelf-tile-banner text-decoration-none">
                         <i class="bi bi-bookshelf"></i>
                     </a>
                     <div class="card-body">
                         <h5 class="card-title d-flex justify-content-between align-items-start mb-2">
-                            <a href="@($"libraries/{lib.Id}")" class="text-decoration-none text-reset">@lib.Name</a>
+                            <a href="@($"shelves/{lib.Id}")" class="text-decoration-none text-reset">@lib.Name</a>
                             @RenderStatusBadge(status)
                         </h5>
                         @if (!string.IsNullOrEmpty(lib.Description))
@@ -129,7 +129,7 @@ else
                                     <i class="bi bi-arrow-clockwise"></i>
                                     @(showBusy ? "Scanning..." : "Scan")
                                 </button>
-                                <a class="btn btn-sm btn-outline-secondary ms-1" href="@($"libraries/{lib.Id}/edit")">
+                                <a class="btn btn-sm btn-outline-secondary ms-1" href="@($"shelves/{lib.Id}/edit")">
                                     <i class="bi bi-pencil"></i> Edit
                                 </a>
                             </div>
@@ -142,7 +142,7 @@ else
 }
 
 @code {
-    private IReadOnlyList<LibraryDto>? libraries;
+    private IReadOnlyList<ShelfDto>? shelves;
     private IReadOnlyDictionary<int, ScanStatusDto> statuses = new Dictionary<int, ScanStatusDto>();
     private readonly Dictionary<int, DateTime> optimisticBusyUntil = [];
     private CancellationTokenSource? pollCts;
@@ -157,11 +157,11 @@ else
 
     private async Task LoadAsync()
     {
-        var libsTask = LibraryService.GetAllAsync();
+        var libsTask = ShelfService.GetAllAsync();
         var statusTask = ScanStatusService.GetAllAsync();
         await Task.WhenAll(libsTask, statusTask);
 
-        libraries = libsTask.Result.IsSuccess ? libsTask.Result.Value : [];
+        shelves = libsTask.Result.IsSuccess ? libsTask.Result.Value : [];
         if (statusTask.Result.IsSuccess) statuses = statusTask.Result.Value;
     }
 
@@ -173,8 +173,8 @@ else
         var snapshot = result.Value;
 
         // If anything just transitioned out of running we want fresh book counts /
-        // LastScannedAt — easier to just reload the libraries list once that happens.
-        bool needLibraryReload = statuses.Any(kv =>
+        // LastScannedAt — easier to just reload the shelves list once that happens.
+        bool needShelfReload = statuses.Any(kv =>
             kv.Value.State == ScanState.Running
             && snapshot.TryGetValue(kv.Key, out var fresh)
             && fresh.State != ScanState.Running);
@@ -182,10 +182,10 @@ else
         statuses = snapshot;
         PruneOptimisticBusy();
 
-        if (needLibraryReload)
+        if (needShelfReload)
         {
-            var libsResult = await LibraryService.GetAllAsync();
-            if (libsResult.IsSuccess) libraries = libsResult.Value;
+            var libsResult = await ShelfService.GetAllAsync();
+            if (libsResult.IsSuccess) shelves = libsResult.Value;
         }
 
         await InvokeAsync(StateHasChanged);
@@ -195,7 +195,7 @@ else
     {
         optimisticBusyUntil[id] = DateTime.UtcNow.AddSeconds(20);
         await InvokeAsync(StateHasChanged);
-        var scheduled = await LibraryService.ScheduleScanAsync(id);
+        var scheduled = await ShelfService.ScheduleScanAsync(id);
         if (!scheduled.IsSuccess)
         {
             optimisticBusyUntil.Remove(id);
@@ -213,14 +213,14 @@ else
         await RefreshStatusesAsync();
     }
 
-    private ScanStatusDto? GetStatus(int libraryId) =>
-        statuses.TryGetValue(libraryId, out var s) ? s : null;
+    private ScanStatusDto? GetStatus(int shelfId) =>
+        statuses.TryGetValue(shelfId, out var s) ? s : null;
 
     private static bool IsBusy(ScanStatusDto? status) =>
         status is not null && (status.State == ScanState.Running || status.State == ScanState.Queued);
 
-    private bool HasOptimisticBusy(int libraryId)
-        => optimisticBusyUntil.TryGetValue(libraryId, out var until) && until > DateTime.UtcNow;
+    private bool HasOptimisticBusy(int shelfId)
+        => optimisticBusyUntil.TryGetValue(shelfId, out var until) && until > DateTime.UtcNow;
 
     private void PruneOptimisticBusy()
     {

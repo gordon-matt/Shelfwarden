@@ -29,9 +29,9 @@ public class BookService(
 
         var predicate = PredicateBuilder.New<Book>(true);
 
-        if (request.LibraryId is int libId)
+        if (request.ShelfId is int sid)
         {
-            predicate = predicate.And(b => b.LibraryId == libId);
+            predicate = predicate.And(b => b.ShelfId == sid);
         }
 
         if (request.SeriesId is int sId)
@@ -413,7 +413,7 @@ public class BookService(
         b.FileSizeBytes,
         b.FileFormat,
         b.CoverImagePath,
-        b.LibraryId,
+        b.ShelfId,
         b.Series is null ? null : new SeriesDto(b.Series.Id, b.Series.Name, b.Series.Description, BookCount: 0),
         b.NumberInSeries,
         b.BookAuthors
@@ -427,5 +427,6 @@ public class BookService(
             .Select(bt => bt.Tag.Name)
             .ToList(),
         b.CreatedAt,
-        b.LastScannedAt);
+        b.LastScannedAt,
+        b.UpdatedAt);
 }

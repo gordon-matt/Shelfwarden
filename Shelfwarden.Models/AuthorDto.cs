@@ -59,7 +59,7 @@ public record AuthorSeriesGroupDto(
     IReadOnlyList<SeriesCoverDto> Covers);
 
 /// <summary>Tuple of (book id, cover path) used to build series collages without a second fetch.</summary>
-public record SeriesCoverDto(int BookId, string? CoverImagePath);
+public record SeriesCoverDto(int BookId, string? CoverImagePath, long CoverCacheVersion);
 
 /// <summary>
 /// All series a user can browse. Mirrors <see cref="AuthorListItemDto"/> in shape — name +

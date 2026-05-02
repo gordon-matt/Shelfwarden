@@ -10,7 +10,7 @@ public record SetupStatusDto(
     bool RequiresIdentityAdmin,
     bool CallerIsAdministrator,
     bool CallerIsAuthenticated,
-    int LibraryCount);
+    int ShelfCount);
 
 /// <summary>Form posted to <c>POST /setup/identity-admin</c> by the Identity-mode wizard step.</summary>
 public record SetupAdminRequest

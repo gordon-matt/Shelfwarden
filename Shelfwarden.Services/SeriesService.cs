@@ -109,7 +109,7 @@ public class SeriesService(
                     OrderBy = q => q.OrderBy(b => b.NumberInSeries).ThenBy(b => b.SortTitle ?? b.Title),
                     CancellationToken = cancellationToken,
                 },
-                b => new { b.Id, b.SeriesId, b.CoverImagePath }))
+                b => new { b.Id, b.SeriesId, b.CoverImagePath, b.LastScannedAt, b.UpdatedAt, b.CreatedAt }))
             .ToList();
 
         var bySeries = bookRows
@@ -124,7 +124,10 @@ public class SeriesService(
                 rows ??= [];
                 var covers = rows
                     .Take(4)
-                    .Select(r => new SeriesCoverDto(r.Id, r.CoverImagePath))
+                    .Select(r => new SeriesCoverDto(
+                        r.Id,
+                        r.CoverImagePath,
+                        BookCoverCaching.GetCoverCacheVersion(r.LastScannedAt, r.UpdatedAt, r.CreatedAt)))
                     .ToList();
                 return new SeriesListItemDto(s.Id, s.Name, s.Description, rows.Count, covers);
             })

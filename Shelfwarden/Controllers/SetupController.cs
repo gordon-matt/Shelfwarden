@@ -22,7 +22,7 @@ public class SetupController(
     /// Identity-mode admin bootstrap. Either creates the admin user (first install) or updates
     /// the credentials of the seeded admin (e.g. the user is replacing the default
     /// <c>admin@shelfwarden.local / Admin123!</c>). Signs the user in on success and redirects
-    /// the browser back to the wizard's library step.
+    /// the browser back to the wizard's shelf step.
     /// </summary>
     [HttpPost("identity-admin")]
     [ValidateAntiForgeryToken]
@@ -107,16 +107,16 @@ public class SetupController(
             logger.LogInformation("[Setup] Administrator '{Email}' provisioned and signed in", admin.Email);
         }
 
-        return Redirect("/setup?step=library");
+        return Redirect("/setup?step=shelf");
     }
 
     /// <summary>
-    /// Handles the wizard's library form. Pure HTML form posts go through here so the user
+    /// Handles the wizard's shelf form. Pure HTML form posts go through here so the user
     /// gets a clean redirect after submission (no Blazor state to worry about across reloads).
     /// </summary>
-    [HttpPost("library")]
+    [HttpPost("shelf")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateLibrary(
+    public async Task<IActionResult> CreateShelf(
         [FromForm] string name,
         [FromForm] string folders,
         [FromForm] string? description,
@@ -133,10 +133,10 @@ public class SetupController(
 
         if (string.IsNullOrWhiteSpace(name) || folderList.Count == 0)
         {
-            return RedirectWithError("library", "A name and at least one folder are required.");
+            return RedirectWithError("shelf", "A name and at least one folder are required.");
         }
 
-        var result = await setupService.CreateInitialLibraryAsync(new CreateLibraryRequest
+        var result = await setupService.CreateInitialShelfAsync(new CreateShelfRequest
         {
             Name = name.Trim(),
             Description = description?.Trim(),
@@ -144,7 +144,7 @@ public class SetupController(
         }, cancellationToken);
 
         return !result.IsSuccess
-            ? RedirectWithError("library", result.Errors.FirstOrDefault() ?? "Could not create the library.")
+            ? RedirectWithError("shelf", result.Errors.FirstOrDefault() ?? "Could not create the shelf.")
             : Redirect("/setup?step=done");
     }
 

@@ -128,7 +128,7 @@ else
                     <div class="reading-list-cover">
                         @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
                         {
-                            <img src="@($"covers/{entry.Book.Id}")" alt="@entry.Book.Title" loading="lazy" />
+                            <img src="@($"covers/{entry.Book.Id}?v={entry.Book.CoverCacheVersion}")" alt="@entry.Book.Title" loading="lazy" />
                         }
                         else
                         {

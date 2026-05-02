@@ -1,17 +1,17 @@
 namespace Shelfwarden.Models;
 
-public record LibraryDto(
+public record ShelfDto(
     int Id,
     string Name,
     string? Description,
     DateTime? LastScannedAt,
     DateTime CreatedAt,
     int BookCount,
-    IReadOnlyList<LibraryFolderDto> Folders);
+    IReadOnlyList<ShelfFolderDto> Folders);
 
-public record LibraryFolderDto(int Id, string Path);
+public record ShelfFolderDto(int Id, string Path);
 
-public record CreateLibraryRequest
+public record CreateShelfRequest
 {
     [Required, StringLength(256)]
     public required string Name { get; init; }
@@ -23,7 +23,7 @@ public record CreateLibraryRequest
     public required IReadOnlyList<string> Folders { get; init; }
 }
 
-public record UpdateLibraryRequest
+public record UpdateShelfRequest
 {
     [Required, StringLength(256)]
     public required string Name { get; init; }

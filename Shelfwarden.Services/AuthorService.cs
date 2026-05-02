@@ -147,7 +147,10 @@ public class AuthorService(
                 g.Count(),
                 g.OrderBy(b => b.NumberInSeries)
                     .Take(4)
-                    .Select(b => new SeriesCoverDto(b.Id, b.CoverImagePath))
+                    .Select(b => new SeriesCoverDto(
+                        b.Id,
+                        b.CoverImagePath,
+                        BookCoverCaching.GetCoverCacheVersion(b.LastScannedAt, b.UpdatedAt, b.CreatedAt)))
                     .ToList()))
             .OrderBy(s => s.SeriesName, StringComparer.OrdinalIgnoreCase)
             .ToList();

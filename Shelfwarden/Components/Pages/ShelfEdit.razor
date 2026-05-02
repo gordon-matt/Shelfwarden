@@ -1,20 +1,20 @@
-@page "/libraries/new"
-@page "/libraries/{Id:int}/edit"
+@page "/shelves/new"
+@page "/shelves/{Id:int}/edit"
 @attribute [Authorize(Roles = Constants.Roles.Administrator)]
-@inject ILibraryService LibraryService
+@inject IShelfService ShelfService
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
-<PageTitle>@(IsCreate ? "New library" : $"Edit {model.Name}") - Shelfwarden</PageTitle>
+<PageTitle>@(IsCreate ? "New shelf" : $"Edit {model.Name}") - Shelfwarden</PageTitle>
 
-<h1 class="mb-3">@(IsCreate ? "New library" : "Edit library")</h1>
+<h1 class="mb-3">@(IsCreate ? "New shelf" : "Edit shelf")</h1>
 
 @if (loadError is not null)
 {
     <div class="alert alert-danger">@loadError</div>
 }
 
-<EditForm Model="model" OnValidSubmit="SaveAsync" FormName="library-form">
+<EditForm Model="model" OnValidSubmit="SaveAsync" FormName="shelf-form">
     <DataAnnotationsValidator />
 
     <div class="mb-3">
@@ -37,7 +37,7 @@
             int captured = i;
             <div class="input-group mb-1">
                 <span class="input-group-text"><i class="bi bi-folder"></i></span>
-                <input class="form-control" placeholder="/path/to/library" value="@folders[captured]"
+                <input class="form-control" placeholder="/path/to/books" value="@folders[captured]"
                        @oninput="@(e => folders[captured] = e.Value?.ToString() ?? string.Empty)" />
                 <button class="btn btn-outline-danger" type="button" @onclick="() => RemoveFolder(captured)" disabled="@(folders.Count == 1)">
                     <i class="bi bi-trash"></i>
@@ -62,7 +62,7 @@
             }
             Save
         </button>
-        <a class="btn btn-link" href="libraries">Cancel</a>
+        <a class="btn btn-link" href="shelves">Cancel</a>
     </div>
 </EditForm>
 
@@ -72,7 +72,7 @@
 
     private bool IsCreate => Id is null;
 
-    private LibraryFormModel model = new();
+    private ShelfFormModel model = new();
     private List<string> folders = [string.Empty];
     private string? loadError;
     private string? saveError;
@@ -82,7 +82,7 @@
     {
         if (Id is int id)
         {
-            var result = await LibraryService.GetByIdAsync(id);
+            var result = await ShelfService.GetByIdAsync(id);
             if (result.IsSuccess)
             {
                 model.Name = result.Value.Name;
@@ -92,7 +92,7 @@
             }
             else
             {
-                loadError = "Library not found.";
+                loadError = "Shelf not found.";
             }
         }
     }
@@ -119,7 +119,7 @@
         {
             if (Id is int id)
             {
-                var result = await LibraryService.UpdateAsync(id, new UpdateLibraryRequest
+                var result = await ShelfService.UpdateAsync(id, new UpdateShelfRequest
                 {
                     Name = model.Name,
                     Description = model.Description,
@@ -128,13 +128,13 @@
                 if (result.IsSuccess)
                 {
                     SidebarNavRefresh.NotifyNavigationDataChanged();
-                    NavigationManager.NavigateTo("libraries");
+                    NavigationManager.NavigateTo("shelves");
                 }
                 else saveError = string.Join("; ", result.Errors);
             }
             else
             {
-                var result = await LibraryService.CreateAsync(new CreateLibraryRequest
+                var result = await ShelfService.CreateAsync(new CreateShelfRequest
                 {
                     Name = model.Name,
                     Description = model.Description,
@@ -143,7 +143,7 @@
                 if (result.IsSuccess)
                 {
                     SidebarNavRefresh.NotifyNavigationDataChanged();
-                    NavigationManager.NavigateTo("libraries");
+                    NavigationManager.NavigateTo("shelves");
                 }
                 else saveError = string.Join("; ", result.Errors);
             }
@@ -154,7 +154,7 @@
         }
     }
 
-    private sealed class LibraryFormModel
+    private sealed class ShelfFormModel
     {
         [Required, StringLength(256)]
         public string Name { get; set; } = string.Empty;

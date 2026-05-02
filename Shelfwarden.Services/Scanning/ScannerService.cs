@@ -6,19 +6,19 @@ using Shelfwarden.Services.Storage;
 namespace Shelfwarden.Services.Scanning;
 
 /// <summary>
-/// Recursive library scanner. For every supported file under the library's folders this:
-///   1. Looks up the existing <see cref="Book"/> by <c>(LibraryId, FilePath)</c>.
+/// Recursive shelf scanner. For every supported file under the shelf's folders this:
+///   1. Looks up the existing <see cref="Book"/> by <c>(ShelfId, FilePath)</c>.
 ///   2. Skips it when <see cref="FileInfo.LastWriteTimeUtc"/> + size match the stored values.
 ///   3. Otherwise extracts metadata (via <see cref="IEbookMetadataExtractor"/>), persists/updates
 ///      the book + author/series/genre relations, and writes the cover bytes to disk.
-/// At the end it removes books whose files have disappeared and stamps <see cref="Library.LastScannedAt"/>.
+/// At the end it removes books whose files have disappeared and stamps <see cref="Shelf.LastScannedAt"/>.
 /// </summary>
 public sealed class ScannerService(
     ILogger<ScannerService> logger,
     IEbookMetadataExtractorFactory extractorFactory,
     IStoragePathProvider storage,
     IScanProgressTracker progressTracker,
-    IRepository<Library> libraryRepository,
+    IRepository<Shelf> shelfRepository,
     IRepository<Book> bookRepository,
     IRepository<Author> authorRepository,
     IRepository<BookAuthor> bookAuthorRepository,
@@ -26,37 +26,37 @@ public sealed class ScannerService(
     IRepository<Genre> genreRepository,
     IRepository<BookGenre> bookGenreRepository) : IScannerService
 {
-    public async Task<Result<ScanResult>> ScanLibraryAsync(int libraryId, CancellationToken cancellationToken = default)
+    public async Task<Result<ScanResult>> ScanShelfAsync(int shelfId, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
 
-        var library = await libraryRepository.FindOneAsync(new SearchOptions<Library>
+        var shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
         {
-            Query = l => l.Id == libraryId,
-            Include = q => q.Include(l => l.Folders),
+            Query = s => s.Id == shelfId,
+            Include = q => q.Include(s => s.Folders),
         });
 
-        if (library is null)
+        if (shelf is null)
         {
-            logger.LogWarning("Scan requested for library {LibraryId}, but it no longer exists", libraryId);
-            return Result.NotFound($"Library {libraryId} no longer exists.");
+            logger.LogWarning("Scan requested for shelf {ShelfId}, but it no longer exists", shelfId);
+            return Result.NotFound($"Shelf {shelfId} no longer exists.");
         }
 
-        logger.LogInformation("Scan started for library {LibraryId} '{Name}' ({FolderCount} folder(s))",
-            libraryId, library.Name, library.Folders.Count);
+        logger.LogInformation("Scan started for shelf {ShelfId} '{Name}' ({FolderCount} folder(s))",
+            shelfId, shelf.Name, shelf.Folders.Count);
 
-        progressTracker.Start(libraryId);
+        progressTracker.Start(shelfId);
         try
         {
-            return await ScanInternalAsync(library, libraryId, sw, cancellationToken);
+            return await ScanInternalAsync(shelf, shelfId, sw, cancellationToken);
         }
         finally
         {
-            progressTracker.Finish(libraryId);
+            progressTracker.Finish(shelfId);
         }
     }
 
-    private async Task<Result<ScanResult>> ScanInternalAsync(Library library, int libraryId, Stopwatch sw, CancellationToken cancellationToken)
+    private async Task<Result<ScanResult>> ScanInternalAsync(Shelf shelf, int shelfId, Stopwatch sw, CancellationToken cancellationToken)
     {
         int filesScanned = 0;
         int booksAdded = 0;
@@ -67,22 +67,25 @@ public sealed class ScannerService(
         var supportedExtensions = new HashSet<string>(extractorFactory.SupportedExtensions, StringComparer.OrdinalIgnoreCase);
         var seenFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // Must canonicalize paths: OrdinalIgnoreCase does not treat "D:/a.epub" and "D:\a.epub"
+        // as equal. Without this, the same file can be inserted twice, orphans mis-detected, and
+        // metadata/covers end up on the wrong row.
         var existingByPath = (await bookRepository.FindAsync(new SearchOptions<Book>
         {
-            Query = b => b.LibraryId == libraryId,
-        })).ToDictionary(b => b.FilePath, StringComparer.OrdinalIgnoreCase);
+            Query = b => b.ShelfId == shelfId,
+        })).ToDictionary(b => CanonicalFilePath(b.FilePath), StringComparer.OrdinalIgnoreCase);
 
         var authorCache = new Dictionary<string, Author>(StringComparer.OrdinalIgnoreCase);
         var seriesCache = new Dictionary<string, Series>(StringComparer.OrdinalIgnoreCase);
         var genreCache = new Dictionary<string, Genre>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var folder in library.Folders)
+        foreach (var folder in shelf.Folders)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             if (!Directory.Exists(folder.Path))
             {
-                logger.LogWarning("Library {LibraryId} folder '{Path}' does not exist; skipping", libraryId, folder.Path);
+                logger.LogWarning("Shelf {ShelfId} folder '{Path}' does not exist; skipping", shelfId, folder.Path);
                 continue;
             }
 
@@ -108,13 +111,14 @@ public sealed class ScannerService(
                 }
 
                 filesScanned++;
-                seenFilePaths.Add(filePath);
+                string canonicalFilePath = CanonicalFilePath(filePath);
+                seenFilePaths.Add(canonicalFilePath);
 
                 try
                 {
                     var (added, updated) = await ProcessFileAsync(
-                        libraryId,
-                        filePath,
+                        shelfId,
+                        canonicalFilePath,
                         existingByPath,
                         authorCache,
                         seriesCache,
@@ -137,13 +141,13 @@ public sealed class ScannerService(
                     errors++;
                 }
 
-                progressTracker.Update(libraryId, p =>
+                progressTracker.Update(shelfId, p =>
                 {
                     p.FilesScanned = filesScanned;
                     p.BooksAdded = booksAdded;
                     p.BooksUpdated = booksUpdated;
                     p.Errors = errors;
-                    p.CurrentFile = Path.GetFileName(filePath);
+                    p.CurrentFile = Path.GetFileName(canonicalFilePath);
                 });
             }
         }
@@ -163,11 +167,11 @@ public sealed class ScannerService(
         {
             await bookRepository.DeleteAsync(orphans);
             booksRemoved = orphans.Count;
-            progressTracker.Update(libraryId, p => p.BooksRemoved = booksRemoved);
+            progressTracker.Update(shelfId, p => p.BooksRemoved = booksRemoved);
         }
 
-        library.LastScannedAt = DateTime.UtcNow;
-        await libraryRepository.UpdateAsync(library);
+        shelf.LastScannedAt = DateTime.UtcNow;
+        await shelfRepository.UpdateAsync(shelf);
 
         sw.Stop();
 
@@ -182,14 +186,14 @@ public sealed class ScannerService(
         };
 
         logger.LogInformation(
-            "Scan finished for library {LibraryId} in {Duration:c}: {Files} files, +{Added}/~{Updated}/-{Removed} books, {Errors} error(s)",
-            libraryId, result.Duration, result.FilesScanned, result.BooksAdded, result.BooksUpdated, result.BooksRemoved, result.Errors);
+            "Scan finished for shelf {ShelfId} in {Duration:c}: {Files} files, +{Added}/~{Updated}/-{Removed} books, {Errors} error(s)",
+            shelfId, result.Duration, result.FilesScanned, result.BooksAdded, result.BooksUpdated, result.BooksRemoved, result.Errors);
 
         return Result.Success(result);
     }
 
     private async Task<(bool Added, bool Updated)> ProcessFileAsync(
-        int libraryId,
+        int shelfId,
         string filePath,
         Dictionary<string, Book> existingByPath,
         Dictionary<string, Author> authorCache,
@@ -240,7 +244,7 @@ public sealed class ScannerService(
         {
             book = new Book
             {
-                LibraryId = libraryId,
+                ShelfId = shelfId,
                 FilePath = filePath,
                 FileFormat = extractor.Format,
 
@@ -266,6 +270,7 @@ public sealed class ScannerService(
         }
         else
         {
+            book.FilePath = filePath;
             book.FileSizeBytes = fileInfo.Length;
             book.FileLastModified = fileInfo.LastWriteTimeUtc;
             book.FileFormat = extractor.Format;
@@ -465,6 +470,23 @@ public sealed class ScannerService(
         await bookRepository.UpdateAsync(book);
     }
 
+    private static string CanonicalFilePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch
+        {
+            return path.Trim();
+        }
+    }
+
     private static string? Truncate(string? value, int max) => string.IsNullOrEmpty(value) ? value : value.Length <= max ? value : value[..max];
 
     private static string BuildSortTitle(string title)
@@ -475,7 +497,7 @@ public sealed class ScannerService(
             return title;
         }
 
-        // Ignore leading articles for library sorting (e.g. "The Hobbit" -> "Hobbit").
+        // Ignore leading articles for sort-title (e.g. "The Hobbit" -> "Hobbit").
         string[] articles = ["a ", "an ", "the "];
         string lower = trimmed.ToLowerInvariant();
         foreach (string article in articles)

@@ -21,18 +21,18 @@ public class BookEntityTests : IClassFixture<InMemoryDbFixture>
     public async Task InsertedBookCanBeRetrievedThroughRepository()
     {
         using var scope = _fixture.CreateScope();
-        var libraries = scope.ServiceProvider.GetRequiredService<IRepository<Library>>();
+        var shelves = scope.ServiceProvider.GetRequiredService<IRepository<Shelf>>();
         var books = scope.ServiceProvider.GetRequiredService<IRepository<Book>>();
 
-        var library = await libraries.InsertAsync(new Library
+        var shelf = await shelves.InsertAsync(new Shelf
         {
-            Name = "Test Library",
+            Name = "Test Shelf",
             CreatedAt = DateTime.UtcNow,
         });
 
         await books.InsertAsync(new Book
         {
-            LibraryId = library.Id,
+            ShelfId = shelf.Id,
             Title = "The Hobbit",
             FilePath = @"C:\Books\hobbit.epub",
             FileFormat = EbookFormat.Epub,
@@ -46,7 +46,7 @@ public class BookEntityTests : IClassFixture<InMemoryDbFixture>
         });
 
         Assert.NotNull(found);
-        Assert.Equal(library.Id, found.LibraryId);
+        Assert.Equal(shelf.Id, found.ShelfId);
         Assert.Equal(EbookFormat.Epub, found.FileFormat);
     }
 }

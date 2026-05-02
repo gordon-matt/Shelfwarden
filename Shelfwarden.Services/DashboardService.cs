@@ -8,7 +8,7 @@ namespace Shelfwarden.Services;
 public class DashboardService(
     IUserContextService userContext,
     IBookService bookService,
-    IRepository<Library> libraryRepository,
+    IRepository<Shelf> shelfRepository,
     IRepository<Book> bookRepository,
     IRepository<Author> authorRepository,
     IRepository<Series> seriesRepository,
@@ -22,7 +22,7 @@ public class DashboardService(
         string? userId = userContext.GetCurrentUserId();
 
         // Headline counts in parallel — cheap server-side counts, no projections to ship.
-        var libraryCountTask = libraryRepository.CountAsync();
+        var shelfCountTask = shelfRepository.CountAsync();
         var bookCountTask = bookRepository.CountAsync();
         var authorCountTask = authorRepository.CountAsync();
         var seriesCountTask = seriesRepository.CountAsync();
@@ -30,10 +30,10 @@ public class DashboardService(
             ? Task.FromResult(0)
             : progressRepository.CountAsync(p => p.UserId == userId && p.Percentage >= FinishedThresholdPercent);
 
-        await Task.WhenAll(libraryCountTask, bookCountTask, authorCountTask, seriesCountTask, finishedCountTask);
+        await Task.WhenAll(shelfCountTask, bookCountTask, authorCountTask, seriesCountTask, finishedCountTask);
 
         var stats = new DashboardStatsDto(
-            LibraryCount: libraryCountTask.Result,
+            ShelfCount: shelfCountTask.Result,
             BookCount: bookCountTask.Result,
             AuthorCount: authorCountTask.Result,
             SeriesCount: seriesCountTask.Result,
@@ -84,25 +84,11 @@ public class DashboardService(
 
                 continueReading = bookIds
                     .Where(byId.ContainsKey)
-                    .Select(id => MapListItem(byId[id], progressById[id].Percentage))
+                    .Select(id => BookProjections.ToListItem(byId[id], progressById[id].Percentage))
                     .ToList();
             }
         }
 
         return Result.Success(new DashboardDto(stats, continueReading, recentlyAdded));
     }
-
-    private static BookListItemDto MapListItem(Book b, double progressPercentage) => new(
-        b.Id,
-        b.Title,
-        b.Subtitle,
-        PrimaryAuthor: b.BookAuthors
-            .OrderBy(ba => ba.Position)
-            .Select(ba => ba.Author.Name)
-            .FirstOrDefault() ?? string.Empty,
-        SeriesName: b.Series?.Name,
-        NumberInSeries: b.NumberInSeries,
-        CoverImagePath: b.CoverImagePath,
-        FileFormat: b.FileFormat,
-        ProgressPercentage: progressPercentage);
 }

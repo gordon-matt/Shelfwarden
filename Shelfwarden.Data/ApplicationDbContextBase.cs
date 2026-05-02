@@ -18,9 +18,9 @@ public abstract class ApplicationDbContextBase
     {
     }
 
-    public DbSet<Library> Libraries => Set<Library>();
+    public DbSet<Shelf> Shelves => Set<Shelf>();
 
-    public DbSet<LibraryFolder> LibraryFolders => Set<LibraryFolder>();
+    public DbSet<ShelfFolder> ShelfFolders => Set<ShelfFolder>();
 
     public DbSet<Book> Books => Set<Book>();
 

@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
+using Shelfwarden.Models;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Controllers;
@@ -6,8 +8,9 @@ namespace Shelfwarden.Controllers;
 /// <summary>
 /// Streams extracted cover images from <see cref="IStoragePathProvider.CoversDirectory"/>.
 /// Files are stored as <c>{bookId}.{ext}</c>, but we deliberately do not trust the requested
-/// extension — we look up the book's actual cover path and serve that. Caches aggressively
-/// since cover bytes are content-addressable per (book, scan).
+/// extension — we look up the book's actual cover path and serve that.
+/// Book IDs are reused after DB resets — combine with <c>?v=</c> (see <see cref="BookCoverCaching"/>)
+/// so browsers never show another edition's cached bytes at the same URL.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -17,7 +20,6 @@ public class CoversController(
     IRepository<Book> bookRepository) : ControllerBase
 {
     [HttpGet("{bookId:int}")]
-    [ResponseCache(Duration = 60 * 60 * 24 * 7, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> Get(int bookId, CancellationToken cancellationToken)
     {
         var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
@@ -39,6 +41,14 @@ public class CoversController(
 
         // Use the file's actual extension to set the content type — never trust the URL.
         string contentType = MimeFromExtension(Path.GetExtension(fullPath));
+
+        // Never allow shared proxies to pin /covers/{id}: IDs recycle; UI passes ?v=ticks to bust caches.
+        Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue
+        {
+            Private = true,
+            MaxAge = TimeSpan.Zero,
+            MustRevalidate = true,
+        };
 
         // Tag the response with last-modified so browsers revalidate cheaply on the next scan.
         var lastModified = System.IO.File.GetLastWriteTimeUtc(fullPath);

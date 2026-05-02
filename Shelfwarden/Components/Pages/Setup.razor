@@ -53,14 +53,14 @@ else
         case "welcome":
             <h1 class="h3 mb-2">Welcome to Shelfwarden</h1>
             <p class="text-secondary">
-                You're three short steps away from your first library. We'll set up an
+                You're three short steps away from your first shelf. We'll set up an
                 administrator, point at a folder of books, and we're done.
             </p>
             <ul class="text-secondary small">
                 <li>Authentication mode: <strong>@status.AuthProvider</strong></li>
-                @if (status.LibraryCount > 0)
+                @if (status.ShelfCount > 0)
                 {
-                    <li>@status.LibraryCount library(ies) already exist — you can go straight to "Finish".</li>
+                    <li>@status.ShelfCount shelf(s) already exist — you can go straight to "Finish".</li>
                 }
             </ul>
             <div class="setup-actions">
@@ -103,7 +103,7 @@ else
             </form>
             break;
 
-        case "library":
+        case "shelf":
             @if (status.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Keycloak)
                  && !status.CallerIsAdministrator)
             {
@@ -113,29 +113,29 @@ else
                     with a user that has the <code>Administrator</code> realm role to finish setup.
                 </p>
                 <div class="setup-actions">
-                    <a class="btn btn-primary" href="/auth/login?returnUrl=%2Fsetup%3Fstep%3Dlibrary">
+                    <a class="btn btn-primary" href="/auth/login?returnUrl=%2Fsetup%3Fstep%3Dshelf">
                         Sign in with Keycloak <i class="bi bi-box-arrow-in-right ms-1"></i>
                     </a>
                 </div>
             }
             else
             {
-                <h1 class="h3 mb-2">Add your first library</h1>
+                <h1 class="h3 mb-2">Add your first shelf</h1>
                 <p class="text-secondary">
                     Point Shelfwarden at one or more folders that contain your ebooks. We'll scan
                     these in the background after setup finishes.
                 </p>
-                <form method="post" action="/setup/library" class="setup-form">
+                <form method="post" action="/setup/shelf" class="setup-form">
                     <AntiforgeryToken />
                     <div class="mb-3">
-                        <label class="form-label" for="setup-lib-name">Library name</label>
+                        <label class="form-label" for="setup-lib-name">Shelf name</label>
                         <input id="setup-lib-name" name="name" type="text" class="form-control"
-                               value="@libraryName" maxlength="256" required />
+                               value="@shelfName" maxlength="256" required />
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="setup-lib-folders">Folders (one per line)</label>
                         <textarea id="setup-lib-folders" name="folders" class="form-control" rows="4"
-                                  placeholder="@FolderPlaceholder()" required>@libraryFolders</textarea>
+                                  placeholder="@FolderPlaceholder()" required>@shelfFolders</textarea>
                         <div class="form-text">Absolute paths. We'll create them later if they don't exist.</div>
                     </div>
                     <div class="mb-3">
@@ -146,7 +146,7 @@ else
                     <div class="setup-actions">
                         <a class="btn btn-link" href="/setup?step=done">Skip — set up later</a>
                         <button class="btn btn-primary" type="submit">
-                            Create library <i class="bi bi-arrow-right ms-1"></i>
+                            Create shelf <i class="bi bi-arrow-right ms-1"></i>
                         </button>
                     </div>
                 </form>
@@ -156,21 +156,21 @@ else
         case "done":
             <h1 class="h3 mb-2">You're ready to go</h1>
             <p class="text-secondary">
-                @if (status.LibraryCount > 0)
+                @if (status.ShelfCount > 0)
                 {
-                    <text>Shelfwarden has @status.LibraryCount library(ies) configured. We'll start scanning
+                    <text>Shelfwarden has @status.ShelfCount shelf(s) configured. We'll start scanning
                     once you head to the dashboard.</text>
                 }
                 else
                 {
-                    <text>You skipped the library step — no problem. Head to <em>Libraries</em> in the
+                    <text>You skipped the shelf step — no problem. Head to <em>Shelves</em> in the
                     sidebar after sign-in to add one.</text>
                 }
             </p>
             <form method="post" action="/setup/complete" class="setup-form">
                 <AntiforgeryToken />
                 <div class="setup-actions">
-                    <a class="btn btn-outline-secondary" href="/setup?step=library">Back</a>
+                    <a class="btn btn-outline-secondary" href="/setup?step=shelf">Back</a>
                     <button class="btn btn-success" type="submit">
                         Finish <i class="bi bi-check2 ms-1"></i>
                     </button>
@@ -187,8 +187,8 @@ else
     private SetupStatusDto? status;
     private string? errorMessage;
     private string adminEmail = "admin@shelfwarden.local";
-    private string libraryName = "My Library";
-    private string libraryFolders = "";
+    private string shelfName = "My Shelf";
+    private string shelfFolders = "";
 
     private record StepDescriptor(string Id, int Number, string Label);
 
@@ -221,7 +221,7 @@ else
             steps.Add(new StepDescriptor("admin", n++, "Administrator"));
         }
 
-        steps.Add(new StepDescriptor("library", n++, "First library"));
+        steps.Add(new StepDescriptor("shelf", n++, "First shelf"));
         steps.Add(new StepDescriptor("done", n, "Finish"));
     }
 
@@ -247,7 +247,7 @@ else
         {
             return "/setup?step=admin";
         }
-        return "/setup?step=library";
+        return "/setup?step=shelf";
     }
 
     private static string FolderPlaceholder()

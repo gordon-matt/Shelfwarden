@@ -12,15 +12,15 @@ public class SetupService(
     IAuthProviderService authProviderService,
     IServerSettingsService serverSettings,
     IRepository<ServerSetting> serverSettingRepository,
-    IRepository<Library> libraryRepository,
-    IRepository<LibraryFolder> folderRepository) : ISetupService
+    IRepository<Shelf> shelfRepository,
+    IRepository<ShelfFolder> folderRepository) : ISetupService
 {
     public async Task<Result<SetupStatusDto>> GetStatusAsync(CancellationToken cancellationToken = default)
     {
         var settings = await serverSettings.GetAsync(cancellationToken);
         bool complete = settings.IsSuccess && settings.Value.SetupComplete;
 
-        int libraryCount = await libraryRepository.CountAsync();
+        int shelfCount = await shelfRepository.CountAsync();
 
         bool requiresIdentityAdmin = authProviderService.Provider == AuthProvider.Identity
             && !userContext.IsAuthenticated();
@@ -31,16 +31,16 @@ public class SetupService(
             RequiresIdentityAdmin: requiresIdentityAdmin,
             CallerIsAdministrator: userContext.IsAdministrator(),
             CallerIsAuthenticated: userContext.IsAuthenticated(),
-            LibraryCount: libraryCount);
+            ShelfCount: shelfCount);
 
         return Result.Success(dto);
     }
 
-    public async Task<Result<LibraryDto>> CreateInitialLibraryAsync(CreateLibraryRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result<ShelfDto>> CreateInitialShelfAsync(CreateShelfRequest request, CancellationToken cancellationToken = default)
     {
         if (await IsAlreadyCompleteAsync(cancellationToken))
         {
-            return Result.Conflict("Setup is already complete; libraries must now be managed via /libraries.");
+            return Result.Conflict("Setup is already complete; shelves must now be managed via /shelves.");
         }
 
         var folderPaths = NormalizeFolders(request.Folders);
@@ -49,43 +49,43 @@ public class SetupService(
             return Result.Invalid(new ValidationError(nameof(request.Folders), "At least one folder is required."));
         }
 
-        var existing = await libraryRepository.FindOneAsync(new SearchOptions<Library>
+        var existing = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
         {
-            Query = l => l.Name == request.Name,
+            Query = s => s.Name == request.Name,
             CancellationToken = cancellationToken,
         });
 
         if (existing is not null)
         {
-            return Result.Conflict($"A library named '{request.Name}' already exists.");
+            return Result.Conflict($"A shelf named '{request.Name}' already exists.");
         }
 
-        var library = await libraryRepository.InsertAsync(new Library
+        var shelf = await shelfRepository.InsertAsync(new Shelf
         {
             Name = request.Name.Trim(),
             Description = request.Description?.Trim(),
         });
 
         var folders = folderPaths
-            .Select(p => new LibraryFolder { LibraryId = library.Id, Path = p })
+            .Select(p => new ShelfFolder { ShelfId = shelf.Id, Path = p })
             .ToList();
 
         await folderRepository.InsertAsync(folders);
 
         if (logger.IsEnabled(LogLevel.Information))
         {
-            logger.LogInformation("[Setup] Created initial library {LibraryId} '{Name}' with {FolderCount} folder(s)",
-                library.Id, library.Name, folders.Count);
+            logger.LogInformation("[Setup] Created initial shelf {ShelfId} '{Name}' with {FolderCount} folder(s)",
+                shelf.Id, shelf.Name, folders.Count);
         }
 
-        return Result.Success(new LibraryDto(
-            library.Id,
-            library.Name,
-            library.Description,
-            library.LastScannedAt,
-            library.CreatedAt,
+        return Result.Success(new ShelfDto(
+            shelf.Id,
+            shelf.Name,
+            shelf.Description,
+            shelf.LastScannedAt,
+            shelf.CreatedAt,
             BookCount: 0,
-            Folders: folders.Select(f => new LibraryFolderDto(f.Id, f.Path)).ToList()));
+            Folders: folders.Select(f => new ShelfFolderDto(f.Id, f.Path)).ToList()));
     }
 
     public async Task<Result> CompleteAsync(CancellationToken cancellationToken = default)

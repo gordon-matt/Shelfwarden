@@ -1,7 +1,7 @@
 namespace Shelfwarden.Services;
 
 /// <summary>
-/// Lets pages notify <see cref="Sidebar"/> that sidebar-backed data (libraries, reading lists,
+/// Lets pages notify <see cref="Sidebar"/> that sidebar-backed data (shelves, reading lists,
 /// collections) changed so the nav can reload without a full page refresh.
 /// </summary>
 public interface ISidebarNavRefreshService

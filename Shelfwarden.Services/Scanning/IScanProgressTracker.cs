@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 namespace Shelfwarden.Services.Scanning;
 
 /// <summary>
-/// Process-local registry of in-flight scan progress per library. Populated by
+/// Process-local registry of in-flight scan progress per shelf. Populated by
 /// <see cref="ScannerService"/> as it walks the filesystem; read by
-/// <see cref="ScanStatusService"/> so the libraries page can surface live counters.
+/// <see cref="ScanStatusService"/> so the shelves page can surface live counters.
 /// <para>
 /// Singleton lifetime — a single shared instance keeps state across Hangfire workers
 /// (which run in the same process) and Blazor circuits (which read the snapshot every poll).
@@ -13,16 +13,16 @@ namespace Shelfwarden.Services.Scanning;
 /// </summary>
 public interface IScanProgressTracker
 {
-    /// <summary>Begin tracking a scan for <paramref name="libraryId"/>. Resets any previous progress.</summary>
-    void Start(int libraryId);
+    /// <summary>Begin tracking a scan for <paramref name="shelfId"/>. Resets any previous progress.</summary>
+    void Start(int shelfId);
 
     /// <summary>Record progress for the active scan. Each call replaces the snapshot.</summary>
-    void Update(int libraryId, Action<ScanProgressBuilder> update);
+    void Update(int shelfId, Action<ScanProgressBuilder> update);
 
     /// <summary>Stop tracking the scan; the next read returns null.</summary>
-    void Finish(int libraryId);
+    void Finish(int shelfId);
 
-    ScanProgressDto? GetSnapshot(int libraryId);
+    ScanProgressDto? GetSnapshot(int shelfId);
 
     IReadOnlyDictionary<int, ScanProgressDto> GetAllSnapshots();
 }
@@ -50,31 +50,31 @@ public sealed class ScanProgressTracker : IScanProgressTracker
     // records so there's no read/modify/write race against the UI poller.
     private readonly ConcurrentDictionary<int, Entry> entries = new();
 
-    public void Start(int libraryId)
+    public void Start(int shelfId)
     {
         var now = DateTime.UtcNow;
-        entries[libraryId] = new Entry(
+        entries[shelfId] = new Entry(
             new ScanProgressBuilder(),
             now);
     }
 
-    public void Update(int libraryId, Action<ScanProgressBuilder> update)
+    public void Update(int shelfId, Action<ScanProgressBuilder> update)
     {
-        // Lookup-and-replace: callers run on a single scan worker per library, so we don't need
+        // Lookup-and-replace: callers run on a single scan worker per shelf, so we don't need
         // to retry on concurrent writes. The dictionary key is the only contention point.
-        if (!entries.TryGetValue(libraryId, out var existing))
+        if (!entries.TryGetValue(shelfId, out var existing))
         {
             return;
         }
 
         update(existing.Builder);
-        entries[libraryId] = existing;
+        entries[shelfId] = existing;
     }
 
-    public void Finish(int libraryId) => entries.TryRemove(libraryId, out _);
+    public void Finish(int shelfId) => entries.TryRemove(shelfId, out _);
 
-    public ScanProgressDto? GetSnapshot(int libraryId)
-        => entries.TryGetValue(libraryId, out var entry) ? entry.ToDto(libraryId) : null;
+    public ScanProgressDto? GetSnapshot(int shelfId)
+        => entries.TryGetValue(shelfId, out var entry) ? entry.ToDto(shelfId) : null;
 
     public IReadOnlyDictionary<int, ScanProgressDto> GetAllSnapshots()
         => entries.ToDictionary(kv => kv.Key, kv => kv.Value.ToDto(kv.Key));

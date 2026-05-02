@@ -44,14 +44,14 @@ public class Book : BaseEntity<int>
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public int LibraryId { get; set; }
+    public int ShelfId { get; set; }
 
     public int? SeriesId { get; set; }
 
     /// <summary>Position within the series. Nullable decimal so 1, 1.5, 2 etc. all work.</summary>
     public decimal? NumberInSeries { get; set; }
 
-    public virtual Library Library { get; set; } = null!;
+    public virtual Shelf Shelf { get; set; } = null!;
 
     public virtual Series? Series { get; set; }
 
@@ -83,13 +83,13 @@ public class BookMap : IEntityTypeConfiguration<Book>
         builder.Property(m => m.CoverImagePath).HasMaxLength(1024);
         builder.Property(m => m.NumberInSeries).HasPrecision(10, 2);
 
-        builder.HasIndex(m => new { m.LibraryId, m.FilePath });
+        builder.HasIndex(m => new { m.ShelfId, m.FilePath });
         builder.HasIndex(m => m.SeriesId);
         builder.HasIndex(m => m.Title);
 
-        builder.HasOne(m => m.Library)
+        builder.HasOne(m => m.Shelf)
             .WithMany(m => m.Books)
-            .HasForeignKey(m => m.LibraryId)
+            .HasForeignKey(m => m.ShelfId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(m => m.Series)

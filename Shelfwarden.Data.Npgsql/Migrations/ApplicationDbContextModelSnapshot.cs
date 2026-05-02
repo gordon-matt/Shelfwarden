@@ -383,9 +383,6 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Property<DateTime?>("LastScannedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("LibraryId")
-                        .HasColumnType("integer");
-
                     b.Property<decimal?>("NumberInSeries")
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)");
@@ -402,6 +399,9 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.Property<int?>("SeriesId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ShelfId")
                         .HasColumnType("integer");
 
                     b.Property<string>("SortTitle")
@@ -429,7 +429,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
 
                     b.HasIndex("Title");
 
-                    b.HasIndex("LibraryId", "FilePath");
+                    b.HasIndex("ShelfId", "FilePath");
 
                     b.ToTable("Books", "app");
                 });
@@ -679,63 +679,6 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.ToTable("Genres", "app");
                 });
 
-            modelBuilder.Entity("Shelfwarden.Data.Entities.Library", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2048)
-                        .IsUnicode(true)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<DateTime?>("LastScannedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .IsUnicode(true)
-                        .HasColumnType("character varying(256)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("Libraries", "app");
-                });
-
-            modelBuilder.Entity("Shelfwarden.Data.Entities.LibraryFolder", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("LibraryId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Path")
-                        .IsRequired()
-                        .HasMaxLength(1024)
-                        .IsUnicode(true)
-                        .HasColumnType("character varying(1024)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LibraryId");
-
-                    b.ToTable("LibraryFolders", "app");
-                });
-
             modelBuilder.Entity("Shelfwarden.Data.Entities.ReadingList", b =>
                 {
                     b.Property<int>("Id")
@@ -856,6 +799,63 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.ToTable("ServerSettings", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Shelf", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2048)
+                        .IsUnicode(true)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTime?>("LastScannedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .IsUnicode(true)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Shelves", "app");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.ShelfFolder", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .IsUnicode(true)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<int>("ShelfId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShelfId");
+
+                    b.ToTable("ShelfFolders", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Tag", b =>
                 {
                     b.Property<int>("Id")
@@ -963,20 +963,20 @@ namespace Shelfwarden.Data.Npgsql.Migrations
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>
                 {
-                    b.HasOne("Shelfwarden.Data.Entities.Library", "Library")
-                        .WithMany("Books")
-                        .HasForeignKey("LibraryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Shelfwarden.Data.Entities.Series", "Series")
                         .WithMany("Books")
                         .HasForeignKey("SeriesId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Library");
+                    b.HasOne("Shelfwarden.Data.Entities.Shelf", "Shelf")
+                        .WithMany("Books")
+                        .HasForeignKey("ShelfId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Series");
+
+                    b.Navigation("Shelf");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.BookAuthor", b =>
@@ -1077,17 +1077,6 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("Collection");
                 });
 
-            modelBuilder.Entity("Shelfwarden.Data.Entities.LibraryFolder", b =>
-                {
-                    b.HasOne("Shelfwarden.Data.Entities.Library", "Library")
-                        .WithMany("Folders")
-                        .HasForeignKey("LibraryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Library");
-                });
-
             modelBuilder.Entity("Shelfwarden.Data.Entities.ReadingListItem", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
@@ -1105,6 +1094,17 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("Book");
 
                     b.Navigation("ReadingList");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.ShelfFolder", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Shelf", "Shelf")
+                        .WithMany("Folders")
+                        .HasForeignKey("ShelfId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Shelf");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Author", b =>
@@ -1135,13 +1135,6 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("BookGenres");
                 });
 
-            modelBuilder.Entity("Shelfwarden.Data.Entities.Library", b =>
-                {
-                    b.Navigation("Books");
-
-                    b.Navigation("Folders");
-                });
-
             modelBuilder.Entity("Shelfwarden.Data.Entities.ReadingList", b =>
                 {
                     b.Navigation("Items");
@@ -1150,6 +1143,13 @@ namespace Shelfwarden.Data.Npgsql.Migrations
             modelBuilder.Entity("Shelfwarden.Data.Entities.Series", b =>
                 {
                     b.Navigation("Books");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Shelf", b =>
+                {
+                    b.Navigation("Books");
+
+                    b.Navigation("Folders");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Tag", b =>

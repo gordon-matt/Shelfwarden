@@ -2,7 +2,7 @@
 @attribute [Authorize]
 @implements IAsyncDisposable
 @inject IBookService BookService
-@inject ILibraryService LibraryService
+@inject IShelfService ShelfService
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService
 @inject IGenreService GenreService
@@ -113,12 +113,12 @@
 
         <div class="row g-3 align-items-end">
             <div class="col-sm-6 col-lg-3">
-                <label class="form-label small text-body-secondary mb-1">Library</label>
+                <label class="form-label small text-body-secondary mb-1">Shelf</label>
                 <select class="form-select form-select-sm"
-                        @bind="libraryId"
+                        @bind="shelfId"
                         @bind:after="OnFilterChangedAsync">
-                    <option value="">All libraries</option>
-                    @foreach (var lib in libraries)
+                    <option value="">All shelves</option>
+                    @foreach (var lib in shelves)
                     {
                         <option value="@lib.Id">@lib.Name</option>
                     }
@@ -191,11 +191,11 @@
                 <p>
                     @if (HasActiveFilters)
                     {
-                        <span>Try clearing some filters or running a library scan to import more books.</span>
+                        <span>Try clearing some filters or running a shelf scan to import more books.</span>
                     }
                     else
                     {
-                        <span>You don't have any books yet. <a href="libraries">Add a library</a> to get started.</span>
+                        <span>You don't have any books yet. <a href="shelves">Add a shelf</a> to get started.</span>
                     }
                 </p>
                 @if (HasActiveFilters)
@@ -307,7 +307,7 @@
         ("V", "V"), ("W", "W"), ("X", "X"), ("Y", "Y"), ("Z", "Z")
     ];
     private string? query;
-    private string libraryId = "";
+    private string shelfId = "";
     private string authorId = "";
     private string seriesId = "";
     private string genreId = "";
@@ -328,13 +328,13 @@
     private bool selectMode;
     private readonly HashSet<int> selectedBookIds = [];
 
-    private IReadOnlyList<LibraryDto> libraries = [];
+    private IReadOnlyList<ShelfDto> shelves = [];
     private IReadOnlyList<AuthorDto> authors = [];
     private IReadOnlyList<SeriesDto> series = [];
     private IReadOnlyList<GenreDto> genres = [];
 
     private bool HasActiveFilters =>
-        !string.IsNullOrEmpty(libraryId)
+        !string.IsNullOrEmpty(shelfId)
         || !string.IsNullOrEmpty(authorId)
         || !string.IsNullOrEmpty(seriesId)
         || !string.IsNullOrEmpty(genreId)
@@ -347,14 +347,14 @@
     protected override async Task OnInitializedAsync()
     {
         // Load filter options + first page in parallel — they're independent queries.
-        var librariesTask = LibraryService.GetAllAsync();
+        var shelvesTask = ShelfService.GetAllAsync();
         var authorsTask = AuthorService.SearchAsync(null, limit: 200);
         var seriesTask = SeriesService.SearchAsync(null, limit: 200);
         var genresTask = GenreService.SearchAsync(null, limit: 200);
 
-        await Task.WhenAll(librariesTask, authorsTask, seriesTask, genresTask);
+        await Task.WhenAll(shelvesTask, authorsTask, seriesTask, genresTask);
 
-        if (librariesTask.Result.IsSuccess) libraries = librariesTask.Result.Value;
+        if (shelvesTask.Result.IsSuccess) shelves = shelvesTask.Result.Value;
         if (authorsTask.Result.IsSuccess) authors = authorsTask.Result.Value;
         if (seriesTask.Result.IsSuccess) series = seriesTask.Result.Value;
         if (genresTask.Result.IsSuccess) genres = genresTask.Result.Value;
@@ -452,7 +452,7 @@
             PageSize = pageSize,
             Query = string.IsNullOrWhiteSpace(query) ? null : query,
             StartsWith = startsWithFilter,
-            LibraryId = ParseId(libraryId),
+            ShelfId = ParseId(shelfId),
             AuthorId = ParseId(authorId),
             SeriesId = ParseId(seriesId),
             GenreId = ParseId(genreId),
@@ -491,7 +491,7 @@
                 Page = page,
                 PageSize = seriesPageSize,
                 Query = string.IsNullOrWhiteSpace(query) ? null : query,
-                LibraryId = ParseId(libraryId),
+                ShelfId = ParseId(shelfId),
                 AuthorId = ParseId(authorId),
                 SeriesId = ParseId(seriesId),
                 GenreId = ParseId(genreId),
@@ -547,7 +547,7 @@
     private async Task ClearFiltersAsync()
     {
         query = null;
-        libraryId = "";
+        shelfId = "";
         authorId = "";
         seriesId = "";
         genreId = "";

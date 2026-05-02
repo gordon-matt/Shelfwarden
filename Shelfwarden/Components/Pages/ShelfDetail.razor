@@ -1,17 +1,17 @@
-@page "/libraries/{Id:int}"
+@page "/shelves/{Id:int}"
 @attribute [Authorize]
 @implements IDisposable
 @implements IAsyncDisposable
-@inject ILibraryService LibraryService
+@inject IShelfService ShelfService
 @inject IBookService BookService
 @inject IScanStatusService ScanStatusService
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 
-<PageTitle>@(library?.Name ?? "Library") - Shelfwarden</PageTitle>
+<PageTitle>@(shelf?.Name ?? "Shelf") - Shelfwarden</PageTitle>
 
-@if (library is null)
+@if (shelf is null)
 {
     <p><em>Loading...</em></p>
 }
@@ -19,10 +19,10 @@ else
 {
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h1 class="mb-0">@library.Name</h1>
-            @if (!string.IsNullOrEmpty(library.Description))
+            <h1 class="mb-0">@shelf.Name</h1>
+            @if (!string.IsNullOrEmpty(shelf.Description))
             {
-                <p class="text-body-secondary mb-0">@library.Description</p>
+                <p class="text-body-secondary mb-0">@shelf.Description</p>
             }
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -49,7 +49,7 @@ else
                     <button class="btn btn-outline-secondary" @onclick="ScanAsync">
                         <i class="bi bi-arrow-clockwise"></i> Scan
                     </button>
-                    <a class="btn btn-outline-secondary ms-1" href="@($"libraries/{Id}/edit")">
+                    <a class="btn btn-outline-secondary ms-1" href="@($"shelves/{Id}/edit")">
                         <i class="bi bi-pencil"></i> Edit
                     </a>
                     <button class="btn btn-outline-danger ms-1" @onclick="DeleteAsync">
@@ -83,12 +83,12 @@ else
             {
                 @if (string.IsNullOrWhiteSpace(startsWithFilter))
                 {
-                    <div class="alert alert-info">No books in this library yet. Run a scan to populate it.</div>
+                    <div class="alert alert-info">No books on this shelf yet. Run a scan to populate it.</div>
                 }
                 else
                 {
                     <div class="alert alert-secondary d-flex flex-wrap align-items-center gap-2">
-                        <span>No books in this library match the <strong>@startsWithFilter</strong> filter.</span>
+                        <span>No books on this shelf match the <strong>@startsWithFilter</strong> filter.</span>
                         <button class="btn btn-sm btn-outline-secondary" @onclick="() => ApplyStartsWithFilterAsync(string.Empty)">
                             Show all
                         </button>
@@ -178,10 +178,10 @@ else
     [Parameter]
     public int Id { get; set; }
 
-    private LibraryDto? library;
+    private ShelfDto? shelf;
     private readonly List<BookListItemDto> books = [];
     private readonly HashSet<int> selectedBookIds = [];
-    private readonly string observerKey = $"library-books-{Guid.NewGuid():N}";
+    private readonly string observerKey = $"shelf-books-{Guid.NewGuid():N}";
     private static readonly (string Value, string Label)[] LetterFilters =
     [
         (string.Empty, "All"),
@@ -196,7 +196,7 @@ else
     private DateTime? optimisticBusyUntilUtc;
     private CancellationTokenSource? pollCts;
     private ElementReference infiniteScrollSentinel;
-    private DotNetObjectReference<LibraryDetail>? dotNetRef;
+    private DotNetObjectReference<ShelfDetail>? dotNetRef;
     private int pageNumber = 1;
     private const int PageSize = 48;
     private bool hasMoreBooks;
@@ -206,8 +206,8 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        var lib = await LibraryService.GetByIdAsync(Id);
-        library = lib.IsSuccess ? lib.Value : null;
+        var lib = await ShelfService.GetByIdAsync(Id);
+        shelf = lib.IsSuccess ? lib.Value : null;
 
         selectedBookIds.Clear();
         await ResetBooksAsync();
@@ -240,7 +240,7 @@ else
         scanIndicatorVisible = true;
         optimisticBusyUntilUtc = DateTime.UtcNow.AddSeconds(20);
         StateHasChanged();
-        var result = await LibraryService.ScheduleScanAsync(Id);
+        var result = await ShelfService.ScheduleScanAsync(Id);
         if (!result.IsSuccess)
         {
             scanIndicatorVisible = false;
@@ -267,7 +267,7 @@ else
 
     private async Task RefreshScanIndicatorAsync(CancellationToken cancellationToken)
     {
-        var statusResult = await ScanStatusService.GetForLibraryAsync(Id, cancellationToken);
+        var statusResult = await ScanStatusService.GetForShelfAsync(Id, cancellationToken);
         if (!statusResult.IsSuccess) return;
 
         var status = statusResult.Value;
@@ -276,8 +276,8 @@ else
         bool changed = scanIndicatorVisible != busy;
         scanIndicatorVisible = busy;
 
-        // Scan just finished: refresh library + books so last-scan timestamp/counts are current.
-        if (!IsBusy(status) && !optimisticBusy && changed && library is not null)
+        // Scan just finished: refresh shelf + books so last-scan timestamp/counts are current.
+        if (!IsBusy(status) && !optimisticBusy && changed && shelf is not null)
         {
             optimisticBusyUntilUtc = null;
             await OnParametersSetAsync();
@@ -300,11 +300,11 @@ else
 
     private async Task DeleteAsync()
     {
-        var result = await LibraryService.DeleteAsync(Id);
+        var result = await ShelfService.DeleteAsync(Id);
         if (result.IsSuccess)
         {
             SidebarNavRefresh.NotifyNavigationDataChanged();
-            NavigationManager.NavigateTo("libraries");
+            NavigationManager.NavigateTo("shelves");
         }
     }
 
@@ -325,7 +325,7 @@ else
     {
         if (selectedBookIds.Count == 0) return;
         string ids = string.Join(',', selectedBookIds);
-        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=libraries/{Id}");
+        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=shelves/{Id}");
     }
 
     private async Task ResetBooksAsync()
@@ -339,7 +339,7 @@ else
     [JSInvokable]
     public async Task LoadMoreBooksAsync()
     {
-        if (isLoadingMoreBooks || !hasMoreBooks && pageNumber > 1 || library is null)
+        if (isLoadingMoreBooks || !hasMoreBooks && pageNumber > 1 || shelf is null)
         {
             return;
         }
@@ -348,7 +348,7 @@ else
 
         var bookResult = await BookService.SearchAsync(new BookSearchRequest
         {
-            LibraryId = Id,
+            ShelfId = Id,
             Page = pageNumber,
             PageSize = PageSize,
             SortBy = BookSortBy.Title,

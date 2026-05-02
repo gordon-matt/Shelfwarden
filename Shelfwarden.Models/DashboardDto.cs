@@ -10,7 +10,7 @@ public record DashboardDto(
     IReadOnlyList<BookListItemDto> RecentlyAdded);
 
 public record DashboardStatsDto(
-    int LibraryCount,
+    int ShelfCount,
     int BookCount,
     int AuthorCount,
     int SeriesCount,

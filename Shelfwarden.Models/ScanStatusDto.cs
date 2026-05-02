@@ -1,7 +1,7 @@
 namespace Shelfwarden.Models;
 
 /// <summary>
-/// Live state of a library's scan, combining the persisted <c>LastScannedAt</c> with
+/// Live state of a shelf's scan, combining the persisted <c>LastScannedAt</c> with
 /// runtime Hangfire job state. <see cref="State"/> reflects the most "active" condition —
 /// running takes priority over queued, queued over historical.
 /// <para>
@@ -11,7 +11,7 @@ namespace Shelfwarden.Models;
 /// </para>
 /// </summary>
 public sealed record ScanStatusDto(
-    int LibraryId,
+    int ShelfId,
     ScanState State,
     DateTime? LastScannedAt,
     ScanProgressDto? Progress = null);

@@ -1,7 +1,7 @@
 namespace Shelfwarden.Services.Scanning;
 
 /// <summary>
-/// Aggregated counters returned at the end of a library scan. Surfaced through the API so the
+/// Aggregated counters returned at the end of a shelf scan. Surfaced through the API so the
 /// UI can show "Scan finished: 42 added, 3 updated, 1 removed".
 /// </summary>
 public sealed record ScanResult

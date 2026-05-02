@@ -24,7 +24,7 @@ else if (book is null)
     <div class="empty-state">
         <i class="bi bi-question-circle empty-icon"></i>
         <h3>Book not found</h3>
-        <p>It may have been deleted, or moved out of its library on disk.</p>
+        <p>It may have been deleted, or moved out of its shelf on disk.</p>
         <a class="btn btn-outline-secondary" href="books">
             <i class="bi bi-arrow-left"></i> Back to books
         </a>
@@ -37,7 +37,7 @@ else
             <div class="book-cover rounded shadow-sm">
                 @if (!string.IsNullOrWhiteSpace(book.CoverImagePath))
                 {
-                    <img src="@($"covers/{book.Id}")" alt="@book.Title" />
+                    <img src="@($"covers/{book.Id}?v={book.CoverCacheVersion}")" alt="@book.Title" />
                 }
                 else
                 {
@@ -269,7 +269,7 @@ else
                 <a class="btn btn-outline-secondary" href="@($"files/{book.Id}?download=true")">
                     <i class="bi bi-download"></i> Download
                 </a>
-                <a class="btn btn-outline-secondary" href="@($"covers/{book.Id}")" target="_blank" rel="noopener">
+                <a class="btn btn-outline-secondary" href="@($"covers/{book.Id}?v={book.CoverCacheVersion}")" target="_blank" rel="noopener">
                     <i class="bi bi-image"></i> View cover
                 </a>
                 <a class="btn btn-outline-secondary" href="@($"books/{book.Id}/edit")">

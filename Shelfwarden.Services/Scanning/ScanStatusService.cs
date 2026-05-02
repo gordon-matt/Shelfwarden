@@ -4,7 +4,7 @@ using Hangfire;
 namespace Shelfwarden.Services.Scanning;
 
 /// <summary>
-/// Default <see cref="IScanStatusService"/>. Joins per-library <c>LastScannedAt</c> values from
+/// Default <see cref="IScanStatusService"/>. Joins per-shelf <c>LastScannedAt</c> values from
 /// the database with live job state from Hangfire's monitoring API.
 /// <para>
 /// Hangfire's monitoring API can be expensive on large queues — call sites should debounce
@@ -14,63 +14,63 @@ namespace Shelfwarden.Services.Scanning;
 public class ScanStatusService(
     JobStorage jobStorage,
     IScanProgressTracker progressTracker,
-    IRepository<Library> libraryRepository) : IScanStatusService
+    IRepository<Shelf> shelfRepository) : IScanStatusService
 {
-    private const string ScanMethodName = nameof(IScannerService.ScanLibraryAsync);
+    private const string ScanMethodName = nameof(IScannerService.ScanShelfAsync);
 
-    public async Task<Result<ScanStatusDto>> GetForLibraryAsync(int libraryId, CancellationToken cancellationToken = default)
+    public async Task<Result<ScanStatusDto>> GetForShelfAsync(int shelfId, CancellationToken cancellationToken = default)
     {
-        var library = await libraryRepository.FindOneAsync(new SearchOptions<Library>
+        var shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
         {
-            Query = l => l.Id == libraryId,
+            Query = s => s.Id == shelfId,
             CancellationToken = cancellationToken,
         });
-        if (library is null)
+        if (shelf is null)
         {
             return Result.NotFound();
         }
 
-        var (running, queued) = GetActiveLibraryIds();
-        var progress = progressTracker.GetSnapshot(libraryId);
+        var (running, queued) = GetActiveShelfIds();
+        var progress = progressTracker.GetSnapshot(shelfId);
         var state = progress is not null
             ? ScanState.Running
-            : ResolveState(libraryId, running, queued, library.LastScannedAt);
-        return Result.Success(new ScanStatusDto(libraryId, state, library.LastScannedAt, progress));
+            : ResolveState(shelfId, running, queued, shelf.LastScannedAt);
+        return Result.Success(new ScanStatusDto(shelfId, state, shelf.LastScannedAt, progress));
     }
 
     public async Task<Result<IReadOnlyDictionary<int, ScanStatusDto>>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var libraries = await libraryRepository.FindAsync(new SearchOptions<Library>
+        var shelves = await shelfRepository.FindAsync(new SearchOptions<Shelf>
         {
             CancellationToken = cancellationToken,
         });
 
-        var (running, queued) = GetActiveLibraryIds();
+        var (running, queued) = GetActiveShelfIds();
 
-        var map = libraries.ToDictionary(
-            l => l.Id,
-            l =>
+        var map = shelves.ToDictionary(
+            s => s.Id,
+            s =>
             {
-                var state = ResolveState(l.Id, running, queued, l.LastScannedAt);
-                var progress = progressTracker.GetSnapshot(l.Id);
+                var state = ResolveState(s.Id, running, queued, s.LastScannedAt);
+                var progress = progressTracker.GetSnapshot(s.Id);
                 if (progress is not null)
                 {
                     state = ScanState.Running;
                 }
-                return new ScanStatusDto(l.Id, state, l.LastScannedAt, progress);
+                return new ScanStatusDto(s.Id, state, s.LastScannedAt, progress);
             });
 
         return Result.Success<IReadOnlyDictionary<int, ScanStatusDto>>(map);
     }
 
-    private static ScanState ResolveState(int libraryId, HashSet<int> running, HashSet<int> queued, DateTime? lastScannedAt) =>
+    private static ScanState ResolveState(int shelfId, HashSet<int> running, HashSet<int> queued, DateTime? lastScannedAt) =>
         // Order matters: a queue can momentarily contain both an enqueued retry and a running
         // job, but the user cares most about "is something happening right now?".
-        running.Contains(libraryId)
+        running.Contains(shelfId)
             ? ScanState.Running
-            : queued.Contains(libraryId) ? ScanState.Queued : lastScannedAt.HasValue ? ScanState.Succeeded : ScanState.Idle;
+            : queued.Contains(shelfId) ? ScanState.Queued : lastScannedAt.HasValue ? ScanState.Succeeded : ScanState.Idle;
 
-    private (HashSet<int> Running, HashSet<int> Queued) GetActiveLibraryIds()
+    private (HashSet<int> Running, HashSet<int> Queued) GetActiveShelfIds()
     {
         var monitoring = jobStorage.GetMonitoringApi();
 
@@ -83,14 +83,14 @@ public class ScanStatusService(
             // jobs by method signature. This is more robust than assuming a specific queue name.
             foreach (var pair in monitoring.ProcessingJobs(0, 200))
             {
-                if (TryGetLibraryId(pair.Value?.Job, out int id))
+                if (TryGetShelfId(pair.Value?.Job, out int id))
                 {
                     running.Add(id);
                 }
             }
 
             // Enqueued jobs: walk every queue Hangfire knows about (not just "scan"), then
-            // filter by ScanLibraryAsync. Some installations route jobs differently.
+            // filter by ScanShelfAsync. Some installations route jobs differently.
             var queues = monitoring.Queues();
             foreach (var q in queues)
             {
@@ -102,7 +102,7 @@ public class ScanStatusService(
 
                 foreach (var pair in monitoring.EnqueuedJobs(q.Name, 0, (int)Math.Min(enqueued, 200)))
                 {
-                    if (TryGetLibraryId(pair.Value?.Job, out int id))
+                    if (TryGetShelfId(pair.Value?.Job, out int id))
                     {
                         queued.Add(id);
                     }
@@ -118,9 +118,9 @@ public class ScanStatusService(
         return (running, queued);
     }
 
-    private static bool TryGetLibraryId(Hangfire.Common.Job? job, out int libraryId)
+    private static bool TryGetShelfId(Hangfire.Common.Job? job, out int shelfId)
     {
-        libraryId = 0;
+        shelfId = 0;
         if (job?.Method?.Name != ScanMethodName)
         {
             return false;
@@ -134,14 +134,14 @@ public class ScanStatusService(
         // Hangfire deserialises ints back to int, but be defensive about strings too.
         try
         {
-            libraryId = job.Args[0] switch
+            shelfId = job.Args[0] switch
             {
                 int i => i,
                 long l => (int)l,
                 string s => int.Parse(s, CultureInfo.InvariantCulture),
                 _ => Convert.ToInt32(job.Args[0], CultureInfo.InvariantCulture),
             };
-            return libraryId > 0;
+            return shelfId > 0;
         }
         catch
         {

@@ -1,6 +1,6 @@
 @implements IDisposable
 @inject IAuthProviderService AuthProvider
-@inject ILibraryService LibraryService
+@inject IShelfService ShelfService
 @inject ICollectionService CollectionService
 @inject IReadingListService ReadingListService
 @inject ISidebarNavRefreshService SidebarNavRefresh
@@ -32,8 +32,8 @@
                 </NavLink>
             </li>
             <li>
-                <NavLink class="nav-link" href="libraries" @onclick="CloseOnNavigate">
-                    <i class="bi bi-collection"></i> Libraries
+                <NavLink class="nav-link" href="shelves" @onclick="CloseOnNavigate">
+                    <i class="bi bi-collection"></i> Shelves
                 </NavLink>
             </li>
             <li>
@@ -87,15 +87,15 @@
         </div>
     }
 
-    @if (libraries is { Count: > 0 })
+    @if (shelves is { Count: > 0 })
     {
         <div class="app-sidebar-section">
-            <div class="app-sidebar-section-title">Your libraries</div>
+            <div class="app-sidebar-section-title">Your shelves</div>
             <ul class="app-sidebar-nav">
-                @foreach (var lib in libraries)
+                @foreach (var lib in shelves)
                 {
                     <li>
-                        <NavLink class="nav-link" href="@($"libraries/{lib.Id}")" @onclick="CloseOnNavigate">
+                        <NavLink class="nav-link" href="@($"shelves/{lib.Id}")" @onclick="CloseOnNavigate">
                             <i class="bi bi-folder2-open"></i>
                             <span class="text-truncate">@lib.Name</span>
                         </NavLink>
@@ -155,7 +155,7 @@
     [Parameter] public EventCallback OnRequestClose { get; set; }
     
     private string theme = Constants.ServerSettingDefaults.Theme;
-    private List<LibraryDto>? libraries;
+    private List<ShelfDto>? shelves;
     private IReadOnlyList<CollectionDto>? collections;
     private IReadOnlyList<ReadingListDto>? readingLists;
 
@@ -184,19 +184,19 @@
         });
     }
 
-    /// <summary>Reloads libraries, collections, and reading lists shown in the sidebar.</summary>
+    /// <summary>Reloads shelves, collections, and reading lists shown in the sidebar.</summary>
     private async Task LoadSidebarDataAsync()
     {
         // Best-effort: if the user isn't signed in (and these endpoints require auth) we just
         // leave the sections empty rather than blowing up the whole layout.
         try
         {
-            var libsTask = LibraryService.GetAllAsync();
+            var libsTask = ShelfService.GetAllAsync();
             var collectionsTask = CollectionService.ListAsync();
             var listsTask = ReadingListService.ListAsync();
             await Task.WhenAll(libsTask, collectionsTask, listsTask);
 
-            if (libsTask.Result.IsSuccess) libraries = libsTask.Result.Value.ToList();
+            if (libsTask.Result.IsSuccess) shelves = libsTask.Result.Value.ToList();
             if (collectionsTask.Result.IsSuccess) collections = collectionsTask.Result.Value;
             if (listsTask.Result.IsSuccess) readingLists = listsTask.Result.Value;
         }

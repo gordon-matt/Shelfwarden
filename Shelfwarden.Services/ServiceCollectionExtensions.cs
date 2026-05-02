@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
             services.AddHttpContextAccessor();
             services.AddScoped<IUserContextService, UserContextService>();
 
-            services.AddScoped<ILibraryService, LibraryService>();
+            services.AddScoped<IShelfService, ShelfService>();
             services.AddScoped<IBookService, BookService>();
             services.AddScoped<IAuthorService, AuthorService>();
             services.AddScoped<ISeriesService, SeriesService>();
