@@ -81,8 +81,9 @@ public static class Constants
     {
         public static readonly IReadOnlyList<string> All =
         [
-            "cosmo", "darkly", "flatly", "litera", "lux", "minty",
-            "pulse", "sandstone", "slate", "solar", "superhero", "yeti"
+            "brite", "cerulean", "cosmo", "cyborg", "darkly", "flatly", "journal", "litera", "lumen",
+            "lux", "materia", "minty", "morph", "pulse", "quartz", "sandstone", "simplex", "sketchy",
+            "slate", "solar", "spacelab", "superhero", "united", "vapor", "yeti", "zephyr"
         ];
 
         /// <summary>
@@ -94,7 +95,7 @@ public static class Constants
         public static readonly IReadOnlySet<string> DarkColorScheme =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "darkly", "slate", "solar", "superhero"
+                "cyborg", "darkly", "slate", "solar", "superhero", "vapor"
             };
 
         public static bool IsDarkColorScheme(string? theme) =>

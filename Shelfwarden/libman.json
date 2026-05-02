@@ -1,63 +1,109 @@
 {
   "version": "1.0",
-  "defaultProvider": "cdnjs",
+  "defaultProvider": "jsdelivr",
   "libraries": [
     {
-      "library": "twitter-bootstrap@5.3.3",
-      "destination": "wwwroot/lib/bootstrap/dist/",
+      "library": "bootswatch@5.3.8",
+      "destination": "wwwroot/lib/bootswatch/",
       "files": [
-        "css/bootstrap.min.css",
-        "css/bootstrap.min.css.map",
-        "js/bootstrap.bundle.min.js",
-        "js/bootstrap.bundle.min.js.map"
+        "LICENSE",
+        "dist/brite/bootstrap.css",
+        "README.md",
+        "dist/zephyr/bootstrap.css",
+        "dist/zephyr/bootstrap.min.css",
+        "dist/yeti/bootstrap.css",
+        "dist/yeti/bootstrap.min.css",
+        "dist/vapor/bootstrap.css",
+        "dist/vapor/bootstrap.min.css",
+        "dist/united/bootstrap.css",
+        "dist/united/bootstrap.min.css",
+        "dist/superhero/bootstrap.css",
+        "dist/superhero/bootstrap.min.css",
+        "dist/spacelab/bootstrap.css",
+        "dist/spacelab/bootstrap.min.css",
+        "dist/solar/bootstrap.css",
+        "dist/solar/bootstrap.min.css",
+        "dist/slate/bootstrap.css",
+        "dist/slate/bootstrap.min.css",
+        "dist/sketchy/bootstrap.css",
+        "dist/sketchy/bootstrap.min.css",
+        "dist/simplex/bootstrap.css",
+        "dist/simplex/bootstrap.min.css",
+        "dist/sandstone/bootstrap.css",
+        "dist/sandstone/bootstrap.min.css",
+        "dist/quartz/bootstrap.css",
+        "dist/quartz/bootstrap.min.css",
+        "dist/pulse/bootstrap.css",
+        "dist/pulse/bootstrap.min.css",
+        "dist/morph/bootstrap.css",
+        "dist/morph/bootstrap.min.css",
+        "dist/minty/bootstrap.css",
+        "dist/minty/bootstrap.min.css",
+        "dist/materia/bootstrap.css",
+        "dist/materia/bootstrap.min.css",
+        "dist/lux/bootstrap.css",
+        "dist/lux/bootstrap.min.css",
+        "dist/lumen/bootstrap.css",
+        "dist/lumen/bootstrap.min.css",
+        "dist/litera/bootstrap.css",
+        "dist/litera/bootstrap.min.css",
+        "dist/journal/bootstrap.min.css",
+        "dist/journal/bootstrap.css",
+        "dist/flatly/bootstrap.min.css",
+        "dist/flatly/bootstrap.css",
+        "dist/darkly/bootstrap.min.css",
+        "dist/darkly/bootstrap.css",
+        "dist/cyborg/bootstrap.min.css",
+        "dist/cyborg/bootstrap.css",
+        "dist/cosmo/bootstrap.min.css",
+        "dist/cosmo/bootstrap.css",
+        "dist/cerulean/bootstrap.min.css",
+        "dist/cerulean/bootstrap.css",
+        "dist/brite/bootstrap.min.css"
       ]
     },
     {
-      "library": "bootstrap-icons@1.11.3",
+      "library": "bootstrap@5.3.8",
+      "destination": "wwwroot/lib/bootstrap/",
+      "files": [
+        "LICENSE",
+        "README.md",
+        "dist/css/bootstrap.css",
+        "dist/css/bootstrap.min.css",
+        "dist/js/bootstrap.bundle.js",
+        "dist/js/bootstrap.bundle.min.js",
+        "dist/js/bootstrap.bundle.js.map",
+        "dist/js/bootstrap.bundle.min.js.map"
+      ]
+    },
+    {
+      "library": "bootstrap-icons@1.13.1",
       "destination": "wwwroot/lib/bootstrap-icons/",
       "files": [
-        "font/bootstrap-icons.min.css",
+        "LICENSE",
+        "README.md",
         "font/fonts/bootstrap-icons.woff",
-        "font/fonts/bootstrap-icons.woff2"
+        "font/fonts/bootstrap-icons.woff2",
+        "font/bootstrap-icons.css",
+        "font/bootstrap-icons.min.css"
       ]
     },
     {
-      "provider": "jsdelivr",
       "library": "epubjs@0.3.93",
       "destination": "wwwroot/lib/epubjs/",
       "files": [ "dist/epub.min.js" ]
     },
     {
-      "provider": "jsdelivr",
       "library": "jszip@3.10.1",
       "destination": "wwwroot/lib/jszip/",
       "files": [ "dist/jszip.min.js" ]
     },
     {
-      "provider": "jsdelivr",
       "library": "pdfjs-dist@3.11.174",
       "destination": "wwwroot/lib/pdfjs/",
       "files": [
         "build/pdf.min.js",
         "build/pdf.worker.min.js"
-      ]
-    },
-    {
-      "library": "bootswatch@5.3.3",
-      "destination": "wwwroot/lib/bootswatch/dist/",
-      "files": [
-        "cosmo/bootstrap.min.css",
-        "darkly/bootstrap.min.css",
-        "flatly/bootstrap.min.css",
-        "litera/bootstrap.min.css",
-        "lux/bootstrap.min.css",
-        "minty/bootstrap.min.css",
-        "pulse/bootstrap.min.css",
-        "sandstone/bootstrap.min.css",
-        "slate/bootstrap.min.css",
-        "solar/bootstrap.min.css",
-        "superhero/bootstrap.min.css",
-        "yeti/bootstrap.min.css"
       ]
     }
   ]
