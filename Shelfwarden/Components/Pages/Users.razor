@@ -1,7 +1,11 @@
 @page "/users"
 @attribute [Authorize(Roles = Constants.Roles.Administrator)]
-@inject IUserInfoService UserInfoService
+@using Shelfwarden.Models
+@using Shelfwarden.Services.Auth
 @inject IAuthProviderService AuthProvider
+@inject IUserInfoService UserInfoService
+@inject IServiceProvider Services
+@inject IJSRuntime JS
 
 <PageTitle>Users - Shelfwarden</PageTitle>
 
@@ -12,10 +16,10 @@
             @switch (AuthProvider.Provider)
             {
                 case Shelfwarden.Services.Auth.AuthProvider.Identity:
-                    <text>Local users managed by ASP.NET Identity.</text>
+                    <text>Manage local accounts (ASP.NET Identity).</text>
                     break;
                 case Shelfwarden.Services.Auth.AuthProvider.Keycloak:
-                    <text>Users are managed in your Keycloak realm; this is a read-only view.</text>
+                    <text>Users are provisioned in Keycloak; this list is read-only.</text>
                     break;
                 case Shelfwarden.Services.Auth.AuthProvider.None:
                     <text>Authentication is disabled — only the synthetic local user exists.</text>
@@ -23,94 +27,502 @@
             }
         </p>
     </div>
-    @if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Identity)
+    @if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Identity && adminUsers is not null)
     {
-        <a class="btn btn-primary" href="Identity/Account/Register">
+        <button type="button" class="btn btn-primary" @onclick="OpenCreateModal">
             <i class="bi bi-person-plus"></i> New user
-        </a>
+        </button>
     }
 </div>
 
-@if (users is null)
+@if (!string.IsNullOrEmpty(bannerError))
 {
-    <div class="text-center text-secondary py-5">
-        <div class="spinner-border" role="status"></div>
-        <div class="mt-2">Loading users…</div>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @bannerError
+        <button type="button" class="btn-close" @onclick="@(() => bannerError = null)" aria-label="Close"></button>
     </div>
 }
-else if (users.Count == 0)
+
+@if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Identity && adminUsers is not null)
 {
-    <div class="empty-state">
-        <i class="bi bi-people empty-icon"></i>
-        <h3>No users found</h3>
-    </div>
+    @if (identityLoading)
+    {
+        <div class="text-center text-secondary py-5">
+            <div class="spinner-border" role="status"></div>
+            <div class="mt-2">Loading users…</div>
+        </div>
+    }
+    else if (identityRows is null || identityRows.Count == 0)
+    {
+        <div class="empty-state">
+            <i class="bi bi-people empty-icon"></i>
+            <h3>No users found</h3>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">User</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Roles</th>
+                            <th scope="col" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var u in identityRows)
+                        {
+                            bool isSelf = string.Equals(u.Id, currentUserId, StringComparison.Ordinal);
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-person-circle fs-4 text-secondary"></i>
+                                        <div>
+                                            <div class="fw-semibold">
+                                                @(u.DisplayName ?? u.UserName)
+                                                @if (isSelf)
+                                                {
+                                                    <span class="badge bg-secondary ms-1">You</span>
+                                                }
+                                            </div>
+                                            @if (!string.Equals(u.DisplayName, u.UserName, StringComparison.Ordinal))
+                                            {
+                                                <div class="text-secondary small">@u.UserName</div>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(u.Email))
+                                    {
+                                        <a class="text-decoration-none" href="@($"mailto:{u.Email}")">@u.Email</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-secondary">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (u.IsActive)
+                                    {
+                                        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-lock"></i> Disabled</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (u.Roles.Count == 0)
+                                    {
+                                        <span class="text-secondary small fst-italic">No roles</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach (var role in u.Roles)
+                                            {
+                                                <span class="chip">@role</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    <button type="button" class="btn btn-sm btn-outline-primary me-1"
+                                            disabled="@isSelf" title="@(isSelf ? "Use Manage account for your own profile" : null)"
+                                            @onclick="@(() => OpenEditModal(u))">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning me-1"
+                                            disabled="@isSelf"
+                                            @onclick="@(() => ToggleStatusAsync(u))">
+                                        @if (u.IsActive)
+                                        {
+                                            <i class="bi bi-pause-circle"></i><span class="d-none d-md-inline"> Disable</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-play-circle"></i><span class="d-none d-md-inline"> Enable</span>
+                                        }
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            disabled="@isSelf"
+                                            @onclick="@(() => DeleteAsync(u))">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    @if (showUserModal)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">@(userModalCreate ? "New user" : "Edit user")</h5>
+                        <button type="button" class="btn-close" @onclick="CloseUserModal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrEmpty(modalError))
+                        {
+                            <div class="alert alert-danger py-2 small">@modalError</div>
+                        }
+                        <div class="mb-3">
+                            <label class="form-label" for="user-email">Email</label>
+                            <input id="user-email" class="form-control" type="email" autocomplete="off"
+                                   @bind="modalEmail" required />
+                        </div>
+                        @if (userModalCreate)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label" for="user-password">Password</label>
+                                <input id="user-password" class="form-control" type="password" autocomplete="new-password"
+                                       @bind="modalPassword" required minlength="6" />
+                                <div class="form-text">At least 6 characters (same rules as sign-in).</div>
+                            </div>
+                        }
+                        <div class="mb-0">
+                            <label class="form-label" for="user-role">Role</label>
+                            <select id="user-role" class="form-select" @bind="modalRole">
+                                @if (assignableRoles is not null)
+                                {
+                                    @foreach (var r in assignableRoles)
+                                    {
+                                        <option value="@r.Name">@r.Name</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseUserModal">Cancel</button>
+                        <button type="button" class="btn btn-primary" disabled="@modalSaving" @onclick="SaveUserModalAsync">
+                            @if (modalSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
 }
 else
 {
-    <div class="card">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th scope="col">User</th>
-                        <th scope="col">Email</th>
-                        <th scope="col">Roles</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var u in users)
-                    {
-                        <tr>
-                            <td>
-                                <div class="d-flex align-items-center gap-2">
-                                    <i class="bi bi-person-circle fs-4 text-secondary"></i>
-                                    <div>
-                                        <div class="fw-semibold">@(u.DisplayName ?? u.UserName)</div>
-                                        @if (!string.Equals(u.DisplayName, u.UserName, StringComparison.Ordinal))
-                                        {
-                                            <div class="text-secondary small">@u.UserName</div>
-                                        }
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                @if (!string.IsNullOrEmpty(u.Email))
-                                {
-                                    <a class="text-decoration-none" href="@($"mailto:{u.Email}")">@u.Email</a>
-                                }
-                                else
-                                {
-                                    <span class="text-secondary">—</span>
-                                }
-                            </td>
-                            <td>
-                                @if (u.Roles.Count == 0)
-                                {
-                                    <span class="text-secondary small fst-italic">No roles</span>
-                                }
-                                else
-                                {
-                                    <div class="d-flex flex-wrap gap-1">
-                                        @foreach (var role in u.Roles)
-                                        {
-                                            <span class="chip">@role</span>
-                                        }
-                                    </div>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+    @if (readOnlyUsers is null)
+    {
+        <div class="text-center text-secondary py-5">
+            <div class="spinner-border" role="status"></div>
+            <div class="mt-2">Loading users…</div>
         </div>
-    </div>
+    }
+    else if (readOnlyUsers.Count == 0)
+    {
+        <div class="empty-state">
+            <i class="bi bi-people empty-icon"></i>
+            <h3>No users found</h3>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">User</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Roles</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var u in readOnlyUsers)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-person-circle fs-4 text-secondary"></i>
+                                        <div>
+                                            <div class="fw-semibold">@(u.DisplayName ?? u.UserName)</div>
+                                            @if (!string.Equals(u.DisplayName, u.UserName, StringComparison.Ordinal))
+                                            {
+                                                <div class="text-secondary small">@u.UserName</div>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(u.Email))
+                                    {
+                                        <a class="text-decoration-none" href="@($"mailto:{u.Email}")">@u.Email</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-secondary">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (u.Roles.Count == 0)
+                                    {
+                                        <span class="text-secondary small fst-italic">No roles</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach (var role in u.Roles)
+                                            {
+                                                <span class="chip">@role</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
 }
 
 @code {
-    private IReadOnlyList<UserInfo>? users;
+    private IAdminUserManagementService? adminUsers;
+
+    private bool identityLoading = true;
+    private IReadOnlyList<AdminUserListItem>? identityRows;
+    private string? currentUserId;
+    private IReadOnlyList<RoleOption>? assignableRoles;
+
+    private IReadOnlyList<UserInfo>? readOnlyUsers;
+
+    private string? bannerError;
+
+    private bool showUserModal;
+    private bool userModalCreate;
+    private string modalEmail = "";
+    private string modalPassword = "";
+    private string? modalRole;
+    private string? editingUserId;
+    private bool modalSaving;
+    private string? modalError;
 
     protected override async Task OnInitializedAsync()
     {
-        users = await UserInfoService.GetAllUsersAsync();
+        adminUsers = Services.GetService<IAdminUserManagementService>();
+
+        if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Identity && adminUsers is not null)
+        {
+            await LoadIdentityGridAsync();
+        }
+        else
+        {
+            readOnlyUsers = await UserInfoService.GetAllUsersAsync();
+        }
+    }
+
+    private async Task LoadIdentityGridAsync()
+    {
+        if (adminUsers is null)
+        {
+            return;
+        }
+
+        identityLoading = true;
+        bannerError = null;
+        StateHasChanged();
+
+        var listResult = await adminUsers.ListUsersAsync();
+        var currentResult = await adminUsers.GetCurrentAccountAsync();
+        var rolesResult = await adminUsers.GetAssignableRolesAsync();
+
+        if (listResult.IsSuccess)
+        {
+            identityRows = listResult.Value;
+        }
+        else
+        {
+            bannerError = FormatResult(listResult);
+            identityRows = [];
+        }
+
+        if (currentResult.IsSuccess)
+        {
+            currentUserId = currentResult.Value.Id;
+        }
+
+        if (rolesResult.IsSuccess)
+        {
+            assignableRoles = rolesResult.Value;
+            modalRole ??= assignableRoles.FirstOrDefault(r => r.Name == Constants.Roles.User)?.Name
+                ?? assignableRoles.FirstOrDefault()?.Name;
+        }
+
+        identityLoading = false;
+    }
+
+    private void OpenCreateModal()
+    {
+        userModalCreate = true;
+        editingUserId = null;
+        modalEmail = "";
+        modalPassword = "";
+        modalRole = assignableRoles?.FirstOrDefault(r => r.Name == Constants.Roles.User)?.Name
+            ?? assignableRoles?.FirstOrDefault()?.Name;
+        modalError = null;
+        showUserModal = true;
+    }
+
+    private void OpenEditModal(AdminUserListItem u)
+    {
+        userModalCreate = false;
+        editingUserId = u.Id;
+        modalEmail = u.Email ?? "";
+        modalPassword = "";
+        modalRole = u.Roles.FirstOrDefault() ?? Constants.Roles.User;
+        modalError = null;
+        showUserModal = true;
+    }
+
+    private void CloseUserModal()
+    {
+        showUserModal = false;
+        modalError = null;
+    }
+
+    private async Task SaveUserModalAsync()
+    {
+        if (adminUsers is null)
+        {
+            return;
+        }
+
+        modalError = null;
+        if (string.IsNullOrWhiteSpace(modalEmail))
+        {
+            modalError = "Email is required.";
+            return;
+        }
+
+        if (userModalCreate && string.IsNullOrEmpty(modalPassword))
+        {
+            modalError = "Password is required.";
+            return;
+        }
+
+        modalSaving = true;
+        try
+        {
+            Ardalis.Result.Result result;
+            if (userModalCreate)
+            {
+                result = await adminUsers.CreateUserAsync(
+                    new AdminCreateUserRequest(modalEmail.Trim(), modalPassword, modalRole));
+            }
+            else if (!string.IsNullOrEmpty(editingUserId))
+            {
+                result = await adminUsers.UpdateUserAsync(
+                    editingUserId,
+                    new AdminUpdateUserRequest(modalEmail.Trim(), modalRole));
+            }
+            else
+            {
+                modalError = "Nothing to save.";
+                return;
+            }
+
+            if (result.IsSuccess)
+            {
+                CloseUserModal();
+                await LoadIdentityGridAsync();
+            }
+            else
+            {
+                modalError = FormatResult(result);
+            }
+        }
+        finally
+        {
+            modalSaving = false;
+        }
+    }
+
+    private async Task ToggleStatusAsync(AdminUserListItem u)
+    {
+        if (adminUsers is null)
+        {
+            return;
+        }
+
+        string actionWord = u.IsActive ? "disable" : "enable";
+        if (!await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to {actionWord} this user?"))
+        {
+            return;
+        }
+
+        var result = await adminUsers.ToggleLockoutAsync(u.Id);
+        if (result.IsSuccess)
+        {
+            await LoadIdentityGridAsync();
+        }
+        else
+        {
+            bannerError = FormatResult(result);
+        }
+    }
+
+    private async Task DeleteAsync(AdminUserListItem u)
+    {
+        if (adminUsers is null)
+        {
+            return;
+        }
+
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete user \"{u.Email}\"? This cannot be undone."))
+        {
+            return;
+        }
+
+        var result = await adminUsers.DeleteUserAsync(u.Id);
+        if (result.IsSuccess)
+        {
+            await LoadIdentityGridAsync();
+        }
+        else
+        {
+            bannerError = FormatResult(result);
+        }
+    }
+
+    private static string FormatResult(Ardalis.Result.Result result)
+    {
+        if (result.ValidationErrors is not null && result.ValidationErrors.Any())
+        {
+            return string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage));
+        }
+
+        return string.Join(" ", result.Errors);
+    }
+
+    private static string FormatResult<T>(Ardalis.Result.Result<T> result)
+    {
+        if (result.ValidationErrors is not null && result.ValidationErrors.Any())
+        {
+            return string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage));
+        }
+
+        return string.Join(" ", result.Errors);
     }
 }

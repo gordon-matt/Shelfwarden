@@ -139,6 +139,7 @@ internal static class ServiceCollectionExtensions
                         .AddDefaultTokenProviders()
                         .AddDefaultUI();
                     services.AddScoped<IUserInfoService, AspNetIdentityUserInfoService>();
+                    services.AddScoped<IAdminUserManagementService, AdminIdentityUserManagementService>();
                     return AuthProvider.Identity;
 
                 case Constants.AuthProviders.Keycloak:
