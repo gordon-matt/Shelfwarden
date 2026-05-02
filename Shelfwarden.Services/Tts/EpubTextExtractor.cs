@@ -22,6 +22,7 @@ public sealed partial class EpubTextExtractor(ILogger<EpubTextExtractor> logger)
             SkipInvalidManifestItems = true,
         },
         XmlReaderOptions = new XmlReaderOptions { SkipXmlHeaders = true },
+        NavigationReaderOptions = new NavigationReaderOptions(EpubReaderOptionsPreset.RELAXED),
     };
 
     public EbookFormat Format => EbookFormat.Epub;

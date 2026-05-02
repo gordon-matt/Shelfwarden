@@ -22,6 +22,9 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
             SkipInvalidManifestItems = true,
         },
         XmlReaderOptions = new XmlReaderOptions { SkipXmlHeaders = true },
+        // NCX often references spine paths removed during conversion (e.g. calibre); VersOne throws
+        // "content source ... not found in EPUB manifest" unless we skip those navigation entries.
+        NavigationReaderOptions = new NavigationReaderOptions(EpubReaderOptionsPreset.RELAXED),
     };
 
     public EbookFormat Format => EbookFormat.Epub;
