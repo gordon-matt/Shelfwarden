@@ -84,5 +84,20 @@ public static class Constants
             "cosmo", "darkly", "flatly", "litera", "lux", "minty",
             "pulse", "sandstone", "slate", "solar", "superhero", "yeti"
         ];
+
+        /// <summary>
+        /// Themes with a dark chrome by default. Bootswatch still keys off <c>data-bs-theme</c> to
+        /// apply the <c>[data-bs-theme=dark]</c> variable overrides; without it, <c>--bs-emphasis-color</c>
+        /// and <c>--bs-tertiary-bg</c> can stay "light theme" values (e.g. black headings on a dark body,
+        /// light gray sidebar on a dark page). These names match <see cref="All"/> (libman + theme picker).
+        /// </summary>
+        public static readonly IReadOnlySet<string> DarkColorScheme =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "darkly", "slate", "solar", "superhero"
+            };
+
+        public static bool IsDarkColorScheme(string? theme) =>
+            !string.IsNullOrEmpty(theme) && DarkColorScheme.Contains(theme);
     }
 }

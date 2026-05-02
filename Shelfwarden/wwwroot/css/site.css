@@ -292,7 +292,7 @@ body {
     letter-spacing: 0.05em;
     text-transform: uppercase;
     background-color: rgba(0, 0, 0, 0.65);
-    color: #fff;
+    color: var(--bs-white);
     border-radius: 0.25rem;
     backdrop-filter: blur(2px);
 }
@@ -350,6 +350,7 @@ body {
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
+    color: var(--bs-emphasis-color);
 }
 
 .book-author {
@@ -506,7 +507,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--bs-white);
     font-size: 2rem;
 }
 
@@ -556,6 +557,7 @@ body {
         font-weight: 700;
         line-height: 1.1;
         margin: 0;
+        color: var(--bs-emphasis-color);
     }
 
     .stat-card .stat-label {

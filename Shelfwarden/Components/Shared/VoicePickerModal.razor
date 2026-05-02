@@ -73,8 +73,9 @@
                                     <span class="badge text-bg-secondary text-uppercase">@voice.Gender[0]</span>
                                     <div class="flex-grow-1 text-start">
                                         <div class="fw-semibold">@voice.DisplayName</div>
-                                        <div class="small @(isSelected ? "text-white-50" : "text-body-secondary")">
-                                            <code class="@(isSelected ? "text-white" : null)">@voice.Name</code>
+                                        @* Inherit list-group active foreground when selected (theme-safe). *@
+                                        <div class="small @(!isSelected ? "text-body-secondary" : "")">
+                                            <code>@voice.Name</code>
                                         </div>
                                     </div>
                                     <button type="button"

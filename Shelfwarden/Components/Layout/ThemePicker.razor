@@ -52,7 +52,8 @@
 
         current = theme;
         // Swap the stylesheet href in-place so the change is instant — no full reload.
-        await JS.InvokeVoidAsync("shelfwarden.setThemeHref", $"lib/bootswatch/dist/{theme}/bootstrap.min.css");
+        string colorScheme = Constants.BootswatchThemes.IsDarkColorScheme(theme) ? "dark" : "light";
+        await JS.InvokeVoidAsync("shelfwarden.setThemeHref", $"lib/bootswatch/dist/{theme}/bootstrap.min.css", colorScheme);
     }
 
     private static string TitleCase(string s) =>

@@ -7,10 +7,18 @@ window.shelfwarden = {
      * <link id="theme-stylesheet"> element in App.razor and points it at a new URL.
      * @param {string} href Path under wwwroot to the new theme's bootstrap.min.css.
      */
-    setThemeHref: function (href) {
+    /**
+     * @param {string} href Path under wwwroot to the new theme's bootstrap.min.css.
+     * @param {string} [dataBsTheme] Optional "dark" | "light" — must match Bootswatch dark vs light
+     *   themes so Bootstrap + Bootswatch CSS variable overrides (e.g. emphasis + sidebar) apply.
+     */
+    setThemeHref: function (href, dataBsTheme) {
         var link = document.getElementById('theme-stylesheet');
         if (link) {
             link.setAttribute('href', href);
+        }
+        if (dataBsTheme === 'dark' || dataBsTheme === 'light') {
+            document.documentElement.setAttribute('data-bs-theme', dataBsTheme);
         }
     },
 
