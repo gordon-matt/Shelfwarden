@@ -2,12 +2,18 @@
 # Run from repo root: docker compose up -d
 # App: http://localhost:8080
 #
-# Defaults below run the web app against PostgreSQL with built-in ASP.NET Identity. To switch the
-# database to SQLite (single-file, baked into the image), set Database__Provider=Sqlite and remove
-# the db service. To switch authentication to Keycloak, fill in the Authentication__Keycloak__*
-# variables and uncomment the keycloak service at the bottom of this file.
+# Environment variables use the .NET configuration convention: each JSON level in appsettings
+# is separated by a double underscore (e.g. Database:Provider -> Database__Provider).
+# Values below match Shelfwarden/appsettings.json unless noted (container paths under /app/data/...).
 #
 # A `.env` file at the repo root can override any ${VAR} placeholders — see .env.example.
+#
+# Defaults below run the web app against PostgreSQL with built-in ASP.NET Identity. To switch the
+# database to SQLite (single-file in the image), set Database__Provider=Sqlite and point
+# ConnectionStrings__DefaultConnection at a file under a mounted volume (e.g. /app/data/db/app.db),
+# and remove the db service if you do not need Postgres. To use Keycloak, set
+# Authentication__Provider=Keycloak, fill in Authentication__Keycloak__*, and optionally uncomment
+# the keycloak service at the bottom of this file.
 
 services:
   app:
@@ -17,22 +23,66 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # ---- Active settings (this stack) ----
       ASPNETCORE_URLS: http://+:8080
       Database__Provider: Npgsql
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=shelfwarden;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
       ConnectionStrings__Hangfire: "Host=db;Port=5432;Database=shelfwarden_hangfire;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
       Authentication__Provider: Identity
-      # Override the seeded admin (defaults: admin@shelfwarden.local / Admin@123).
-      SeedAdmin__Email: "admin@shelfwarden.local"
-      SeedAdmin__Password: "${ADMIN_PASSWORD:-Admin@123}"
-      # Where Shelfwarden stores extracted cover images.
+      # Seeded on first start (see Seed:Admin in appsettings.json). Use Seed__Admin__* — not SeedAdmin__*.
+      Seed__Admin__Email: "admin@shelfwarden.local"
+      Seed__Admin__Password: "${ADMIN_PASSWORD:-Admin123!}"
       Storage__CoversPath: /app/data/covers
-      # ── Keycloak (optional) ─────────────────────────────────────────────────
-      # Authentication__Provider: Keycloak
-      # Authentication__Keycloak__Authority: http://host.docker.internal:8081/realms/shelfwarden
-      # Authentication__Keycloak__ClientId: shelfwarden
-      # Authentication__Keycloak__ClientSecret: replace-me
-      # Authentication__Keycloak__BackchannelBaseUrl: http://keycloak:8080
+
+      # ---- All configuration keys (defaults per appsettings.json or app code; uncomment to override) ----
+      # Host / ASP.NET Core
+      # ASPNETCORE_ENVIRONMENT: Production
+      # ASPNETCORE_URLS: http://+:8080
+      # AllowedHosts: "*"
+      # DetailedErrors: "false"
+      # (set to "true" for developer exception pages — appsettings.Development.json)
+
+      # Microsoft.Extensions.Logging (mirrors "Logging" in appsettings.json)
+      # Logging__LogLevel__Default: Information
+      # Logging__LogLevel__Microsoft.AspNetCore: Warning
+      # Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
+
+      # Serilog (optional; Host.UseSerilog reads from configuration — add if you define sinks/levels in JSON)
+      # Serilog__MinimumLevel__Default: Information
+      # Serilog__MinimumLevel__Override__Microsoft: Warning
+
+      # Database (valid: Sqlite, SqlServer, Npgsql, MySql)
+      # Database__Provider: Sqlite
+
+      # Connection strings (defaults in appsettings.json: Sqlite file + empty Hangfire)
+      # ConnectionStrings__DefaultConnection: "Data Source=shelfwarden.db"
+      # ConnectionStrings__Hangfire: ""
+
+      # Hangfire — Sqlite file name when Database__Provider is Sqlite; ignored for relational providers
+      # when a SQL connection string is used.
+      # Hangfire__SqlitePath: hangfire.db
+
+      # Authentication (valid: Identity, Keycloak, None)
+      # Authentication__Provider: Identity
+      # Authentication__Keycloak__Authority: ""
+      # Authentication__Keycloak__ClientId: ""
+      # Authentication__Keycloak__ClientSecret: ""
+      # Authentication__Keycloak__AdminClientId: ""
+      # Authentication__Keycloak__AdminClientSecret: ""
+      # Authentication__Keycloak__PublicOrigin: ""
+      # Authentication__Keycloak__BackchannelBaseUrl: ""
+
+      # First-run admin seed (also: Seed__Admin__UserName — defaults to email if unset)
+      # Seed__Admin__Email: "admin@shelfwarden.local"
+      # Seed__Admin__UserName: ""
+      # Seed__Admin__Password: "Admin123!"
+
+      # Storage paths (relative paths resolve under the app base directory; container layout uses /app/data/...)
+      # Storage__CoversPath: covers
+      # Storage__AuthorPhotosPath: ""
+      # Storage__AudiobooksPath: ""
+      # Storage__TtsCachePath: ""
+
     volumes:
       # Mount your ebook libraries here. Anything inside /app/data/library is what Shelfwarden scans.
       - shelfwarden-library:/app/data/library
@@ -59,7 +109,8 @@ services:
       retries: 5
 
   # ── Keycloak (optional) ──────────────────────────────────────────────────────
-  # Uncomment to run Keycloak alongside the app. Set Authentication__Provider=Keycloak above.
+  # Uncomment to run Keycloak alongside the app. Set Authentication__Provider=Keycloak on `app`
+  # and fill in Authentication__Keycloak__* environment variables.
   #
   # keycloak:
   #   image: quay.io/keycloak/keycloak:26.5.5
