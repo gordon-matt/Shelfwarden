@@ -307,11 +307,12 @@ body {
         color: var(--bs-secondary-color);
     }
 
-/* Format badge top-left */
+/* Format badge top-right (selection checkboxes use top-left on book-card-wrap / book-list-wrap) */
 .book-format-badge {
     position: absolute;
     top: 0.5rem;
-    left: 0.5rem;
+    right: 0.5rem;
+    left: auto;
     padding: 0.15rem 0.45rem;
     font-size: 0.65rem;
     font-weight: 700;
@@ -321,6 +322,11 @@ body {
     color: var(--bs-white);
     border-radius: 0.25rem;
     backdrop-filter: blur(2px);
+}
+
+/* Collection remove button is also top-right; keep the badge clear of it */
+.book-card-wrapper:has(.book-card-remove) .book-format-badge {
+    right: 2.35rem;
 }
 
 /* Progress bar across the bottom of the cover */
