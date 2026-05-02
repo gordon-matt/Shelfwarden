@@ -45,6 +45,7 @@ public class AudiobookService(
                 TotalChunks: 0,
                 CompletedChunks: 0,
                 PercentComplete: null,
+                CurrentStage: null,
                 OutputSizeBytes: null,
                 DurationSeconds: null,
                 ErrorMessage: null,
@@ -136,6 +137,9 @@ public class AudiobookService(
         }
 
         string jobId = backgroundJobs.Enqueue<ITtsJobService>(s => s.GenerateAsync(bookId, CancellationToken.None));
+        audiobook.HangfireJobId = jobId;
+        audiobook = await audiobookRepository.UpdateAsync(audiobook);
+
         if (logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation(
@@ -195,9 +199,9 @@ public class AudiobookService(
 
     public async Task<Result> DeleteAsync(int bookId, CancellationToken cancellationToken = default)
     {
-        if (!userContext.IsAdministrator())
+        if (!userContext.IsAuthenticated())
         {
-            return Result.Forbidden();
+            return Result.Unauthorized();
         }
 
         var existing = await audiobookRepository.FindOneAsync(new SearchOptions<Audiobook>
@@ -212,11 +216,64 @@ public class AudiobookService(
 
         if (existing.Status is AudiobookStatus.Pending or AudiobookStatus.Running)
         {
-            return Result.Conflict("Cannot delete an audiobook while generation is in progress.");
+            return Result.Conflict("Generation is still in progress — cancel it first, then you can start again.");
+        }
+
+        if (existing.Status != AudiobookStatus.Completed)
+        {
+            return Result.Conflict("Use Cancel to clear a failed generation.");
         }
 
         await audiobookRepository.DeleteAsync(existing);
         storage.DeleteAudiobook(bookId);
+        progressTracker.Finish(bookId);
+
+        return Result.Success();
+    }
+
+    public async Task<Result> CancelAsync(int bookId, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAuthenticated())
+        {
+            return Result.Unauthorized();
+        }
+
+        var existing = await audiobookRepository.FindOneAsync(new SearchOptions<Audiobook>
+        {
+            Query = a => a.BookId == bookId,
+            CancellationToken = cancellationToken,
+        });
+        if (existing is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (existing.Status is AudiobookStatus.Completed)
+        {
+            return Result.Conflict("Use Delete to remove a finished audiobook.");
+        }
+
+        if (!string.IsNullOrEmpty(existing.HangfireJobId))
+        {
+            try
+            {
+                bool removedFromQueue = BackgroundJob.Delete(existing.HangfireJobId);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation(
+                        "Hangfire.Delete({JobId}) for book {BookId} -> {Removed}",
+                        existing.HangfireJobId, bookId, removedFromQueue);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not delete Hangfire job {JobId} for book {BookId}", existing.HangfireJobId, bookId);
+            }
+        }
+
+        progressTracker.Finish(bookId);
+        storage.DeleteAudiobook(bookId);
+        await audiobookRepository.DeleteAsync(existing);
 
         return Result.Success();
     }
@@ -238,6 +295,7 @@ public class AudiobookService(
             total,
             done,
             percent,
+            live?.CurrentStage,
             a.OutputSizeBytes,
             a.DurationSeconds,
             a.ErrorMessage,

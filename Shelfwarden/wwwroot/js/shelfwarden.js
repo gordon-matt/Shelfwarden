@@ -43,12 +43,18 @@ window.shelfwarden = {
             observer.disconnect();
             this._observers.delete(key);
         }
+    },
+
+    /** Native confirm — Blazor uses this so message escaping stays on the .NET side */
+    confirmDialog: function (message) {
+        return window.confirm(message);
     }
 };
 
 // Tiny audio helper for the voice-picker modal. Centralised so we only ever have to wire
 // JS interop in one place — the modal hands us its own <audio> ElementReference and a URL,
 // and we drive it from there.
+
 window.shelfwardenAudio = {
     play: function (element, url) {
         if (!element) return;

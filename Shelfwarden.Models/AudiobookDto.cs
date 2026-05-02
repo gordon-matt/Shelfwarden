@@ -12,6 +12,12 @@ public sealed record AudiobookDto(
     int TotalChunks,
     int CompletedChunks,
     double? PercentComplete,
+    /// <summary>
+    /// Human-readable pipeline step while <see cref="State"/> is pending or running (e.g.
+    /// synthesising vs stitching). Null when idle / completed / failed or when no live worker
+    /// snapshot exists.
+    /// </summary>
+    string? CurrentStage,
     long? OutputSizeBytes,
     double? DurationSeconds,
     string? ErrorMessage,

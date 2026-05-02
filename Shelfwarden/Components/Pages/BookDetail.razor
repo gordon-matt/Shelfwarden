@@ -8,6 +8,7 @@
 @inject IAudiobookService AudiobookService
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
+@inject IJSRuntime Js
 
 <PageTitle>@(book?.Title ?? "Book") - Shelfwarden</PageTitle>
 
@@ -307,8 +308,12 @@ else
                             </div>
                             @if (audiobook.State is AudiobookState.Pending or AudiobookState.Running)
                             {
-                                <div class="text-end small text-body-secondary">
-                                    @if (audiobook.TotalChunks > 0)
+                                <div class="text-end small text-body-secondary text-nowrap">
+                                    @if (IsStitchingPhase(audiobook))
+                                    {
+                                        <span class="text-body">Stitching&hellip;</span>
+                                    }
+                                    else if (audiobook.TotalChunks > 0)
                                     {
                                         <text>@audiobook.CompletedChunks / @audiobook.TotalChunks chunks</text>
                                     }
@@ -320,19 +325,61 @@ else
                             }
                         </div>
 
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            @if (audiobook.State is AudiobookState.Pending or AudiobookState.Running or AudiobookState.Failed)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        disabled="@audiobookActionBusy"
+                                        @onclick="CancelAudiobookGenerationAsync">
+                                    <i class="bi bi-x-circle"></i>
+                                    @(audiobook.State == AudiobookState.Failed ? "Clear and try again" : "Cancel generation")
+                                </button>
+                            }
+                            @if (audiobook.State == AudiobookState.Completed)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        disabled="@audiobookActionBusy"
+                                        title="Remove the file so you can generate again with another voice"
+                                        @onclick="DeleteFinishedAudiobookAsync">
+                                    <i class="bi bi-trash"></i> Delete audiobook
+                                </button>
+                            }
+                        </div>
+
+                        @if (generateError is not null)
+                        {
+                            <div class="alert alert-danger mt-2 mb-0 py-2 small">@generateError</div>
+                        }
+
                         @if (audiobook.State is AudiobookState.Pending or AudiobookState.Running)
                         {
-                            <div class="progress mt-3" style="height: 0.5rem;">
+                            @if (!string.IsNullOrWhiteSpace(audiobook.CurrentStage))
+                            {
+                                <p class="small fw-semibold mt-3 mb-0">@audiobook.CurrentStage</p>
+                            }
+                            <div class="progress mt-2" style="height: 0.5rem;">
                                 <div class="progress-bar progress-bar-striped progress-bar-animated"
                                      role="progressbar"
                                      style="width: @((audiobook.PercentComplete ?? 0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%;"
                                      aria-valuenow="@(audiobook.PercentComplete ?? 0)"
                                      aria-valuemin="0" aria-valuemax="100"></div>
                             </div>
-                            <p class="small text-body-secondary mt-2 mb-0">
-                                Audiobook generation runs in the background — feel free to navigate away and come
-                                back later. Status updates automatically.
-                            </p>
+                            @if (IsStitchingPhase(audiobook))
+                            {
+                                <p class="small text-body-secondary mt-2 mb-0">
+                                    All speech parts are done. The app is now joining them and compressing the file
+                                    to M4A. <strong>This step can take a while</strong> for long books (large files
+                                    to copy and encode) — it is not stuck. This page keeps polling until the
+                                    audiobook is ready.
+                                </p>
+                            }
+                            else
+                            {
+                                <p class="small text-body-secondary mt-2 mb-0">
+                                    Audiobook generation runs in the background — feel free to navigate away and come
+                                    back later. Status updates automatically.
+                                </p>
+                            }
                         }
                         else if (audiobook.State == AudiobookState.Failed)
                         {
@@ -452,6 +499,7 @@ else
     private string? pendingVoiceConfirmation;
     private bool enqueuingGenerate;
     private string? generateError;
+    private bool audiobookActionBusy;
     private System.Threading.Timer? pollTimer;
 
     private IReadOnlyList<CollectionDto>? collections;
@@ -601,6 +649,70 @@ else
         showPlayer = !showPlayer;
     }
 
+    private async Task CancelAudiobookGenerationAsync()
+    {
+        if (audiobook is null) return;
+
+        var msg = audiobook.State == AudiobookState.Failed
+            ? "Remove this failed attempt so you can try again? Partial files will be deleted."
+            : "Cancel audiobook generation? The job will stop and partial files will be removed.";
+        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog", msg))
+            return;
+
+        audiobookActionBusy = true;
+        generateError = null;
+        try
+        {
+            var result = await AudiobookService.CancelAsync(Id);
+            if (!result.IsSuccess)
+            {
+                generateError = result.Errors.FirstOrDefault() ?? "Could not cancel.";
+                return;
+            }
+
+            audiobook = null;
+            showPlayer = false;
+            StopPolling();
+            await RefreshAudiobookStatusAsync();
+            EnsurePollingMatchesState();
+        }
+        finally
+        {
+            audiobookActionBusy = false;
+        }
+    }
+
+    private async Task DeleteFinishedAudiobookAsync()
+    {
+        if (audiobook?.State != AudiobookState.Completed) return;
+
+        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog",
+                "Delete this audiobook file from disk? You can generate again with any voice."))
+            return;
+
+        audiobookActionBusy = true;
+        generateError = null;
+        try
+        {
+            var result = await AudiobookService.DeleteAsync(Id);
+            if (!result.IsSuccess)
+            {
+                generateError = result.Errors.FirstOrDefault() ?? "Could not delete audiobook.";
+                return;
+            }
+
+            audiobook = null;
+            showPlayer = false;
+            StopPolling();
+            await RefreshAudiobookStatusAsync();
+            EnsurePollingMatchesState();
+        }
+        finally
+        {
+            audiobookActionBusy = false;
+        }
+    }
+
     private static string FormatState(AudiobookState state) => state switch
     {
         AudiobookState.Pending => "Queued",
@@ -627,6 +739,39 @@ else
             : ts.TotalMinutes >= 1
                 ? $"{ts.Minutes}m {ts.Seconds}s"
                 : $"{ts.Seconds}s";
+    }
+
+    /// <summary>
+    /// FFmpeg merge + AAC encode after all PCM chunks exist. We key off <see cref="AudiobookDto.CurrentStage"/>
+    /// first; if counts show 100% while still running we infer stitching unless the worker
+    /// hasn't flipped the label yet (still "Synthesising…").
+    /// </summary>
+    private static bool IsStitchingPhase(AudiobookDto a)
+    {
+        if (a.State != AudiobookState.Running)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(a.CurrentStage)
+            && a.CurrentStage.Contains("Stitch", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (a.TotalChunks <= 0 || a.CompletedChunks < a.TotalChunks)
+        {
+            return false;
+        }
+
+        // All chunks accounted for but job still running — must be final I/O unless we're in
+        // the sub-second window before CurrentStage updates away from Synthesising.
+        if (string.IsNullOrWhiteSpace(a.CurrentStage))
+        {
+            return true;
+        }
+
+        return !a.CurrentStage.Contains("Synthes", StringComparison.OrdinalIgnoreCase);
     }
 
     public ValueTask DisposeAsync()

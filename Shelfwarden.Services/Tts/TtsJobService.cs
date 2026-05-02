@@ -75,6 +75,11 @@ public sealed class TtsJobService(
         Stopwatch sw,
         CancellationToken cancellationToken)
     {
+        if (await WasCanceledByUserAsync(book.Id, cancellationToken))
+        {
+            return;
+        }
+
         progressTracker.Start(book.Id, audiobook.VoiceName);
         progressTracker.Update(book.Id, p => p.CurrentStage = "Preparing");
 
@@ -134,6 +139,11 @@ public sealed class TtsJobService(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (await WasCanceledByUserAsync(book.Id, cancellationToken))
+            {
+                return;
+            }
+
             string pcmPath = Path.Combine(
                 workingDir,
                 $"chunk_{i:D6}.pcm");
@@ -159,7 +169,16 @@ public sealed class TtsJobService(
                 alreadyDone, chunks.Count, book.Id);
         }
 
-        progressTracker.Update(book.Id, p => p.CurrentStage = "Encoding to .m4a");
+        if (await WasCanceledByUserAsync(book.Id, cancellationToken))
+        {
+            return;
+        }
+
+        progressTracker.Update(book.Id, p =>
+        {
+            // User-visible — surfaced in BookDetail while FFmpeg merges PCM + encodes AAC.
+            p.CurrentStage = "Stitching and encoding";
+        });
 
         string outputPath = storage.GetAudiobookFilePath(book.Id);
         var encoded = await audioStitcher.EncodeAsync(pcmFiles, outputPath, cancellationToken);
@@ -215,6 +234,36 @@ public sealed class TtsJobService(
         return TextChunker.ChunkParagraphs(paragraphs).ToList();
     }
 
+    /// <summary>
+    /// User canceled via <see cref="AudiobookService.CancelAsync"/> — row is deleted so the
+    /// worker must exit without writing a Failed state (nothing left to update).
+    /// </summary>
+    private async Task<bool> WasCanceledByUserAsync(int bookId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var row = await audiobookRepository.FindOneAsync(new SearchOptions<Audiobook>
+        {
+            Query = a => a.BookId == bookId,
+            CancellationToken = cancellationToken,
+        });
+
+        if (row is null)
+        {
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation(
+                    "Audiobook row for book {BookId} was removed — stopping job (user canceled)",
+                    bookId);
+            }
+
+            progressTracker.Finish(bookId);
+            return true;
+        }
+
+        return false;
+    }
+
     private void ReportProgress(int bookId, Audiobook audiobook, int completed, int total)
     {
         progressTracker.Update(bookId, p =>
@@ -229,7 +278,15 @@ public sealed class TtsJobService(
         if (completed == total || completed % 10 == 0)
         {
             audiobook.CompletedChunks = completed;
-            audiobookRepository.UpdateAsync(audiobook).GetAwaiter().GetResult();
+            try
+            {
+                audiobookRepository.UpdateAsync(audiobook).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                // Row may have been deleted mid-job (user canceled).
+                logger.LogDebug(ex, "Could not persist chunk progress for book {BookId}", bookId);
+            }
         }
     }
 
@@ -279,10 +336,7 @@ public sealed class TtsJobService(
         }
 
         var tcs = new TaskCompletionSource<float[]>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var job = KokoroJob.Create(tokens, voice, speed: 1f, samples =>
-        {
-            tcs.TrySetResult(samples ?? []);
-        });
+        var job = KokoroJob.Create(tokens, voice, speed: 1f, samples => tcs.TrySetResult(samples ?? []));
 
         engine.EnqueueJob(job);
 
@@ -295,5 +349,4 @@ public sealed class TtsJobService(
             return await tcs.Task;
         }
     }
-
 }

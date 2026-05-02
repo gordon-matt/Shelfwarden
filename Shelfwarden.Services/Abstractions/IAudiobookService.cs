@@ -32,6 +32,16 @@ public interface IAudiobookService
     /// </summary>
     Task<Result<string>> EnsureVoiceSampleAsync(string voiceName, CancellationToken cancellationToken = default);
 
-    /// <summary>Delete the generated audiobook (if any) for <paramref name="bookId"/>.</summary>
+    /// <summary>
+    /// Delete the finished <c>.m4a</c> and database row for <paramref name="bookId"/> so the user
+    /// can generate again with another voice. Only allowed when generation has completed (not
+    /// while queued or running — use <see cref="CancelAsync"/>).
+    /// </summary>
     Task<Result> DeleteAsync(int bookId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stop a queued or in-progress generation, or clear a failed attempt: deletes the
+    /// audiobook row, working files, and attempts to dequeue the Hangfire job when still pending.
+    /// </summary>
+    Task<Result> CancelAsync(int bookId, CancellationToken cancellationToken = default);
 }

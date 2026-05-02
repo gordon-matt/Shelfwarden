@@ -39,6 +39,12 @@ public class Audiobook : BaseEntity<int>
     /// <summary>The user who originally requested this generation (used purely for audit/logging).</summary>
     public required string RequestedByUserId { get; set; }
 
+    /// <summary>
+    /// Hangfire background job id returned by <c>BackgroundJob.Enqueue</c>. Used to remove the
+    /// job from the queue when the user cancels before the worker starts.
+    /// </summary>
+    public string? HangfireJobId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? StartedAt { get; set; }
@@ -74,6 +80,7 @@ public class AudiobookMap : IEntityTypeConfiguration<Audiobook>
         builder.Property(m => m.OutputFileName).HasMaxLength(256);
         builder.Property(m => m.RequestedByUserId).IsRequired().HasMaxLength(450);
         builder.Property(m => m.ErrorMessage).HasMaxLength(2048).IsUnicode(true);
+        builder.Property(m => m.HangfireJobId).HasMaxLength(128);
 
         builder.HasIndex(m => m.BookId).IsUnique();
 

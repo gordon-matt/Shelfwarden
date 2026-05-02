@@ -258,6 +258,10 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .IsUnicode(true)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("HangfireJobId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("OutputFileName")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");

@@ -270,6 +270,10 @@ namespace Shelfwarden.Data.Sql.Migrations
                         .IsUnicode(true)
                         .HasColumnType("nvarchar(2048)");
 
+                    b.Property<string>("HangfireJobId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<string>("OutputFileName")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
