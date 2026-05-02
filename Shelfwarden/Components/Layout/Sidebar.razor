@@ -129,7 +129,23 @@
                         <div class="text-truncate small fw-semibold">@context.User.Identity?.Name</div>
                         @if (AuthProvider.Provider != Shelfwarden.Services.Auth.AuthProvider.None)
                         {
-                            <a class="small text-decoration-none" href="@LogoutUrl">Sign out</a>
+                            @* POST avoids Identity UI's GET /Identity/Account/Logout confirmation ("Click here to log out"). *@
+                            @if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Keycloak)
+                            {
+                                <form method="post" action="/auth/logout" class="d-inline">
+                                    <AntiforgeryToken />
+                                    <button type="submit" class="small btn btn-link p-0 align-baseline text-decoration-none">Sign out</button>
+                                </form>
+                            }
+                            else if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Identity)
+                            {
+                                @* Identity UI OnPost only redirects when returnUrl is set; otherwise it stays on /Identity/Account/Logout with a success message. *@
+                                <form method="post" action="/Identity/Account/Logout" class="d-inline">
+                                    <AntiforgeryToken />
+                                    <input type="hidden" name="returnUrl" value="/" />
+                                    <button type="submit" class="small btn btn-link p-0 align-baseline text-decoration-none">Sign out</button>
+                                </form>
+                            }
                         }
                         else
                         {
@@ -211,10 +227,4 @@
         _ => "/",
     };
 
-    private string LogoutUrl => AuthProvider.Provider switch
-    {
-        Shelfwarden.Services.Auth.AuthProvider.Identity => "Identity/Account/Logout",
-        Shelfwarden.Services.Auth.AuthProvider.Keycloak => "auth/logout",
-        _ => "/",
-    };
 }
