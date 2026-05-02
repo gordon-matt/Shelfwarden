@@ -19,6 +19,23 @@ window.shelfwarden = {
         }
     },
 
+    /** Raw value from localStorage (may be empty or invalid — validate in .NET). */
+    getStoredTheme: function () {
+        try {
+            return localStorage.getItem('shelfwarden.theme') || '';
+        } catch (e) {
+            return '';
+        }
+    },
+
+    setStoredTheme: function (theme) {
+        try {
+            localStorage.setItem('shelfwarden.theme', theme);
+        } catch (e) {
+            /* private mode / blocked storage */
+        }
+    },
+
     /** One-time: wires Bootstrap's hidden.bs.modal so Blazor can revert an uncommitted theme preview. */
     registerThemeModalDismiss: function (modalId, dotNetRef) {
         if (window.shelfwarden._themeModalDismissRegistered.has(modalId)) {

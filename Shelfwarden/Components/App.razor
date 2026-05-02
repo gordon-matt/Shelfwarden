@@ -1,5 +1,4 @@
 @inject IAuthProviderService AuthProvider
-@inject IServerSettingsService ServerSettings
 
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="@(Constants.BootswatchThemes.IsDarkColorScheme(theme) ? "dark" : "light")">
@@ -9,6 +8,7 @@
     <base href="/" />
     <title>Shelfwarden</title>
     <link id="theme-stylesheet" rel="stylesheet" href="@($"lib/bootswatch/dist/{theme}/bootstrap.min.css")" />
+    <script src="@Assets["js/theme-init.js"]"></script>
     <link rel="stylesheet" href="lib/bootstrap-icons/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="Shelfwarden.styles.css" />
     <link rel="stylesheet" href="css/site.css" />
@@ -25,16 +25,6 @@
 </html>
 
 @code {
+    /// <summary>Fallback before <c>theme-init.js</c> reads <see cref="Constants.ClientThemeLocalStorageKey"/>.</summary>
     private string theme = Constants.ServerSettingDefaults.Theme;
-
-    protected override async Task OnInitializedAsync()
-    {
-        // Ran on the server during the initial render of the host page, so the active theme is
-        // baked into the first HTML response — no flash of unstyled content.
-        var result = await ServerSettings.GetAsync();
-        if (result.IsSuccess)
-        {
-            theme = result.Value.Theme;
-        }
-    }
 }

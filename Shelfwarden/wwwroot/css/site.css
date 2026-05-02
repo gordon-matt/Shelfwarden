@@ -56,6 +56,24 @@ body {
     text-decoration: none;
 }
 
+/* Logo variant follows <html data-bs-theme> (set with the Bootswatch theme + theme-init.js). */
+.app-sidebar-brand-logo {
+    display: block;
+    max-width: 200px;
+}
+
+.app-sidebar-brand-logo-dark {
+    display: none;
+}
+
+html[data-bs-theme="dark"] .app-sidebar-brand-logo-light {
+    display: none;
+}
+
+html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
+    display: block;
+}
+
     .app-sidebar-brand:hover {
         color: var(--bs-emphasis-color);
     }

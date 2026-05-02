@@ -2,8 +2,8 @@ namespace Shelfwarden.Services;
 
 /// <summary>
 /// Server-wide configuration persisted in the <c>ServerSettings</c> key/value table. Values
-/// are cached in memory and invalidated on writes; reads on the hot path (e.g. the theme on
-/// every page load) hit memory after the first request.
+/// are cached in memory and invalidated on writes; reads on the hot path hit memory after the
+/// first request. (UI theme is per-browser in localStorage, not this store.)
 /// </summary>
 public interface IServerSettingsService
 {

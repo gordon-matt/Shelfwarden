@@ -72,6 +72,9 @@ public static class Constants
         public const string Theme = "flatly";
     }
 
+    /// <summary>Browser <c>localStorage</c> key for the per-user Bootswatch theme (client-only).</summary>
+    public const string ClientThemeLocalStorageKey = "shelfwarden.theme";
+
     /// <summary>
     /// Bootswatch themes shipped via LibMan to <c>wwwroot/lib/bootswatch/dist/&lt;theme&gt;/bootstrap.min.css</c>.
     /// Keep this list in lock-step with the <c>files</c> entries in <c>libman.json</c> — themes
