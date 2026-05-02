@@ -60,7 +60,7 @@ else
                         @for (int i = 0; i < book.Authors.Count; i++)
                         {
                             var author = book.Authors[i];
-                            <a href="@($"books?authorId={author.Id}")">@author.Name</a>
+                            <a href="@($"authors/{author.Id}")">@author.Name</a>
                             @if (i < book.Authors.Count - 1)
                             {
                                 <text>, </text>
