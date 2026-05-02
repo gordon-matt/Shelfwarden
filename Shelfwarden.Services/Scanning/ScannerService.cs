@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Extenso;
+using Humanizer;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services.Scanning;
@@ -241,7 +243,11 @@ public sealed class ScannerService(
                 LibraryId = libraryId,
                 FilePath = filePath,
                 FileFormat = extractor.Format,
-                Title = metadata.Title,
+
+                Title = !string.IsNullOrEmpty(metadata.Title)
+                    ? metadata.Title.ToLower().Humanize(LetterCasing.Title)
+                    : "Unknown Title",
+
                 FileSizeBytes = fileInfo.Length,
                 FileLastModified = fileInfo.LastWriteTimeUtc,
                 LastScannedAt = DateTime.UtcNow,
