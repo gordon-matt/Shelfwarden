@@ -1,15 +1,25 @@
 using Hangfire;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
 using Serilog;
+using Sejil;
 using Shelfwarden.Components;
 using Shelfwarden.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((context, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
+// Serilog: console + relational Log table (provider-specific sink matches Database:Provider), like MyVideoArchive.
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
-    .WriteTo.Console());
+    .WriteTo.Console()
+    .WriteToShelfwardenDatabase(builder.Configuration)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+builder.Host.UseSejil(writeToProviders: true);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -26,6 +36,23 @@ builder.Services.AddShelfwardenRepositories();
 builder.Services.AddShelfwardenServices();
 builder.Services.AddScoped<ISidebarNavRefreshService, SidebarNavRefreshService>();
 var authProvider = builder.Services.AddShelfwardenAuthentication(builder.Configuration);
+
+switch (authProvider)
+{
+    case AuthProvider.Keycloak:
+        builder.Services.ConfigureSejil(options =>
+            options.AuthenticationScheme = CookieAuthenticationDefaults.AuthenticationScheme);
+        break;
+    case AuthProvider.Identity:
+        builder.Services.ConfigureSejil(options =>
+            options.AuthenticationScheme = IdentityConstants.ApplicationScheme);
+        break;
+    case AuthProvider.None:
+        builder.Services.ConfigureSejil(options =>
+            options.AuthenticationScheme = NoneAuthenticationHandler.SchemeName);
+        break;
+}
+
 builder.Services.AddShelfwardenHangfire(builder.Configuration);
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -59,6 +86,8 @@ app.UseAntiforgery();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseSejil();
 
 // Bounce every non-exempt request to /setup until the first-run wizard is done. Runs after
 // auth so the wizard can render an authoritative "you're signed in as X" if needed, and

@@ -1,5 +1,6 @@
 @page "/setup"
 @layout SetupLayout
+@using Shelfwarden.Infrastructure
 @inject IAuthProviderService AuthProvider
 @inject ISetupService SetupService
 @inject NavigationManager Nav
@@ -43,7 +44,7 @@ else
         }
     </div>
 
-    @if (errorMessage is not null)
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="alert alert-danger" role="alert">@errorMessage</div>
     }
@@ -206,7 +207,7 @@ else
         }
         else
         {
-            errorMessage = result.Errors.FirstOrDefault() ?? "Failed to load setup state.";
+            errorMessage = ResultMessages.UserFacing(result, "Failed to load setup state.");
         }
     }
 
@@ -259,9 +260,9 @@ else
 
     protected override void OnParametersSet()
     {
-        if (!string.IsNullOrEmpty(Error))
+        if (!string.IsNullOrWhiteSpace(Error))
         {
-            errorMessage = Error;
+            errorMessage = Error.Trim();
         }
     }
 }

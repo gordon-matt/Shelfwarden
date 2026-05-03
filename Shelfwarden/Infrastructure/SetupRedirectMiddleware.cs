@@ -29,6 +29,7 @@ public class SetupRedirectMiddleware(RequestDelegate next, ILogger<SetupRedirect
         "/_vs",
         "/favicon",
         "/hangfire",
+        "/sejil",
         "/error",
         "/access-denied",
     ];

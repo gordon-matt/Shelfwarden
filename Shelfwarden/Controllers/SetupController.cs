@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Shelfwarden.Infrastructure;
 
 namespace Shelfwarden.Controllers;
 
@@ -143,9 +144,20 @@ public class SetupController(
             Folders = folderList,
         }, cancellationToken);
 
-        return !result.IsSuccess
-            ? RedirectWithError("shelf", result.Errors.FirstOrDefault() ?? "Could not create the shelf.")
-            : Redirect("/setup?step=done");
+        if (result.IsSuccess)
+        {
+            return Redirect("/setup?step=done");
+        }
+
+        string message = ResultMessages.UserFacing(result, "Could not create the shelf.");
+        logger.LogWarning(
+            "[Setup] CreateInitialShelf failed ({Status}): {Message}. Raw errors: [{Errors}]. Validation: [{Validation}]",
+            result.Status,
+            message,
+            string.Join(" | ", result.Errors.OfType<string>()),
+            string.Join(" | ", result.ValidationErrors.Select(v => v.ErrorMessage)));
+
+        return RedirectWithError("shelf", message);
     }
 
     /// <summary>

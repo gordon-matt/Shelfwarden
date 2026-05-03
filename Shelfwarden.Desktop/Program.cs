@@ -2,13 +2,15 @@ using ElectronNET.API;
 using ElectronNET.API.Entities;
 using Hangfire;
 using Serilog;
+using Sejil;
 using Shelfwarden;
 using Shelfwarden.Desktop;
 using Shelfwarden.Infrastructure;
 
 // ────────────────────────────────────────────────────────────────────────────────
 // Desktop entry point. This is the Electron-wrapped variant of Shelfwarden.
-// The web/Docker version (Shelfwarden/Program.cs) is intentionally untouched.
+// The web/Docker entry point (Shelfwarden/Program.cs) stays separate; shared infra
+// (e.g. SerilogShelfwardenExtensions) lives under Shelfwarden/Infrastructure.
 // All Razor components, services and static assets are shared via linked items
 // in Shelfwarden.Desktop.csproj (Compile Include / Content Include).
 //
@@ -46,11 +48,19 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 
 builder.Configuration.AddInMemoryCollection(overrides);
 
-builder.Host.UseSerilog((context, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
+Directory.CreateDirectory(Path.Combine(appDataDir, "logs"));
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
     .WriteTo.Console()
-    .WriteTo.File(Path.Combine(appDataDir, "logs", "shelfwarden-.log"), rollingInterval: RollingInterval.Day));
+    .WriteTo.File(Path.Combine(appDataDir, "logs", "shelfwarden-.log"), rollingInterval: RollingInterval.Day)
+    .WriteToShelfwardenDatabase(builder.Configuration)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+builder.Host.UseSejil(writeToProviders: true);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -66,6 +76,11 @@ builder.Services.AddShelfwardenRepositories();
 builder.Services.AddShelfwardenServices();
 builder.Services.AddScoped<ISidebarNavRefreshService, SidebarNavRefreshService>();
 var authProvider = builder.Services.AddShelfwardenAuthentication(builder.Configuration);
+
+// Desktop forces Authentication:Provider=None — synthetic principal uses this scheme.
+builder.Services.ConfigureSejil(options =>
+    options.AuthenticationScheme = NoneAuthenticationHandler.SchemeName);
+
 builder.Services.AddShelfwardenHangfire(builder.Configuration);
 
 // Register Electron services. UseElectron is a no-op when launched as a regular
@@ -81,6 +96,8 @@ app.UseStaticFiles();
 app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseSejil();
 
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
