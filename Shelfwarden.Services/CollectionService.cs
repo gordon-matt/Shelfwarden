@@ -7,7 +7,7 @@ public class CollectionService(
     IRepository<Book> bookRepository,
     IRepository<BookProgress> progressRepository) : ICollectionService
 {
-    public async Task<Result<IReadOnlyList<CollectionDto>>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<CollectionDto>>> ListAsync(int? shelfId = null, CancellationToken cancellationToken = default)
     {
         string? userId = userContext.GetCurrentUserId();
         if (string.IsNullOrEmpty(userId))
@@ -15,16 +15,58 @@ public class CollectionService(
             return Result.Unauthorized();
         }
 
+        HashSet<int>? onShelf = null;
+        if (shelfId is int sid)
+        {
+            onShelf = [];
+            const int pageSize = 5000;
+            int page = 1;
+            while (true)
+            {
+                var chunk = (await collectionBookRepository.FindAsync(
+                    new SearchOptions<CollectionBook>
+                    {
+                        Query = cb => cb.Book.ShelfId == sid,
+                        PageNumber = page,
+                        PageSize = pageSize,
+                        CancellationToken = cancellationToken,
+                    },
+                    cb => cb.CollectionId)).ToList();
+
+                if (chunk.Count == 0)
+                {
+                    break;
+                }
+
+                foreach (int collectionId in chunk)
+                {
+                    onShelf.Add(collectionId);
+                }
+
+                if (chunk.Count < pageSize)
+                {
+                    break;
+                }
+
+                page++;
+            }
+        }
+
         // Fetch personal + global in a single query so we can build the result without
         // round-trips. The unique index `(OwnerUserId, Name)` is per-owner so the same name
         // can collide between a user's list and a global list — that's fine, the UI shows
         // a "global" badge to disambiguate.
-        var rows = await collectionRepository.FindAsync(new SearchOptions<Collection>
+        var rows = (await collectionRepository.FindAsync(new SearchOptions<Collection>
         {
             Query = c => c.OwnerUserId == userId || c.OwnerUserId == Constants.GlobalUserId,
             OrderBy = q => q.OrderByDescending(c => c.OwnerUserId == Constants.GlobalUserId).ThenBy(c => c.Name),
             CancellationToken = cancellationToken,
-        });
+        })).ToList();
+
+        if (onShelf is not null)
+        {
+            rows = rows.Where(c => onShelf.Contains(c.Id)).ToList();
+        }
 
         var ids = rows.Select(c => c.Id).ToList();
         var counts = (await collectionBookRepository.FindAsync(

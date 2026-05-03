@@ -7,7 +7,7 @@ public class ReadingListService(
     IRepository<Book> bookRepository,
     IRepository<BookProgress> progressRepository) : IReadingListService
 {
-    public async Task<Result<IReadOnlyList<ReadingListDto>>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<ReadingListDto>>> ListAsync(int? shelfId = null, CancellationToken cancellationToken = default)
     {
         string? userId = userContext.GetCurrentUserId();
         if (string.IsNullOrEmpty(userId))
@@ -15,12 +15,54 @@ public class ReadingListService(
             return Result.Unauthorized();
         }
 
-        var rows = await listRepository.FindAsync(new SearchOptions<ReadingList>
+        HashSet<int>? onShelf = null;
+        if (shelfId is int sid)
+        {
+            onShelf = [];
+            const int pageSize = 5000;
+            int page = 1;
+            while (true)
+            {
+                var chunk = (await itemRepository.FindAsync(
+                    new SearchOptions<ReadingListItem>
+                    {
+                        Query = i => i.Book.ShelfId == sid,
+                        PageNumber = page,
+                        PageSize = pageSize,
+                        CancellationToken = cancellationToken,
+                    },
+                    i => i.ReadingListId)).ToList();
+
+                if (chunk.Count == 0)
+                {
+                    break;
+                }
+
+                foreach (int listId in chunk)
+                {
+                    onShelf.Add(listId);
+                }
+
+                if (chunk.Count < pageSize)
+                {
+                    break;
+                }
+
+                page++;
+            }
+        }
+
+        var rows = (await listRepository.FindAsync(new SearchOptions<ReadingList>
         {
             Query = l => l.OwnerUserId == userId,
             OrderBy = q => q.OrderBy(l => l.Name),
             CancellationToken = cancellationToken,
-        });
+        })).ToList();
+
+        if (onShelf is not null)
+        {
+            rows = rows.Where(l => onShelf.Contains(l.Id)).ToList();
+        }
 
         var ids = rows.Select(l => l.Id).ToList();
         var counts = (await itemRepository

@@ -1,6 +1,7 @@
 @page "/collections"
 @attribute [Authorize]
 @inject ICollectionService CollectionService
+@inject IShelfService ShelfService
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 
@@ -14,6 +15,39 @@
     <button class="btn btn-primary" @onclick="ShowCreate">
         <i class="bi bi-plus-lg"></i> New collection
     </button>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-6 col-md-4 col-lg-3">
+                <label class="form-label small text-body-secondary mb-0">Shelf</label>
+                <select class="form-select form-select-sm"
+                        @bind="shelfFilterId"
+                        @bind:after="OnShelfFilterChangedAsync">
+                    <option value="">All shelves</option>
+                    @foreach (var s in shelves)
+                    {
+                        <option value="@s.Id">@s.Name</option>
+                    }
+                </select>
+            </div>
+            @if (!string.IsNullOrEmpty(shelfFilterId))
+            {
+                <div class="col-auto">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ClearShelfFilterAsync">
+                        <i class="bi bi-x-circle"></i> Clear shelf filter
+                    </button>
+                </div>
+            }
+        </div>
+        @if (!string.IsNullOrEmpty(shelfFilterId))
+        {
+            <p class="small text-body-secondary mb-0 mt-2">
+                Showing collections that contain at least one book from the selected shelf.
+            </p>
+        }
+    </div>
 </div>
 
 @if (creating)
@@ -118,6 +152,8 @@ else
 
 @code {
     private IReadOnlyList<CollectionDto>? collections;
+    private IReadOnlyList<ShelfDto> shelves = [];
+    private string shelfFilterId = "";
     private bool creating;
     private bool busy;
     private string? errorMessage;
@@ -125,12 +161,27 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var shelvesResult = await ShelfService.GetAllAsync();
+        if (shelvesResult.IsSuccess)
+        {
+            shelves = shelvesResult.Value;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task OnShelfFilterChangedAsync() => await LoadAsync();
+
+    private async Task ClearShelfFilterAsync()
+    {
+        shelfFilterId = "";
         await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
-        var result = await CollectionService.ListAsync();
+        int? shelfId = int.TryParse(shelfFilterId, out int sid) && sid > 0 ? sid : null;
+        var result = await CollectionService.ListAsync(shelfId);
         collections = result.IsSuccess ? result.Value : [];
     }
 

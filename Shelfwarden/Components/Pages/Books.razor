@@ -56,12 +56,26 @@
                 <span class="text-secondary small">
                     <i class="bi bi-check2-square"></i> @selectedBookIds.Count selected
                 </span>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllOnPage" disabled="@(results.Count == 0)">
-                    <i class="bi bi-list-check"></i> Select page
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllVisible" disabled="@(results.Count == 0)">
+                    <i class="bi bi-ui-checks"></i> Select visible
+                </button>
+                <button class="btn btn-sm btn-outline-secondary"
+                        @onclick="SelectAllMatchingAsync"
+                        disabled="@(totalCount == 0 || selectAllMatchingBusy)">
+                    @if (selectAllMatchingBusy)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-check2-all"></i>
+                    }
+                    Select all@(totalCount > 0 ? $" ({totalCount})" : "")
                 </button>
                 <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
                     <i class="bi bi-x-circle"></i> Clear
                 </button>
+                <BulkBookActions SelectedBookIds="selectedBookIds" />
                 <button class="btn btn-sm btn-primary ms-auto" @onclick="GoToBatchEdit" disabled="@(selectedBookIds.Count == 0)">
                     <i class="bi bi-pencil-square"></i> Batch edit
                 </button>
@@ -334,6 +348,7 @@
     private CancellationTokenSource? searchDebounceCts;
 
     private bool selectMode;
+    private bool selectAllMatchingBusy;
     private readonly HashSet<int> selectedBookIds = [];
 
     private IReadOnlyList<ShelfDto> shelves = [];
@@ -576,9 +591,63 @@
         else selectedBookIds.Remove(id);
     }
 
-    private void SelectAllOnPage()
+    private void SelectAllVisible()
     {
         foreach (var b in results) selectedBookIds.Add(b.Id);
+    }
+
+    private async Task SelectAllMatchingAsync()
+    {
+        if (selectAllMatchingBusy || totalCount == 0)
+        {
+            return;
+        }
+
+        selectAllMatchingBusy = true;
+        try
+        {
+            const int batch = 200;
+            int page = 1;
+            while (true)
+            {
+                var result = await BookService.SearchAsync(new BookSearchRequest
+                {
+                    Page = page,
+                    PageSize = batch,
+                    Query = string.IsNullOrWhiteSpace(query) ? null : query,
+                    StartsWith = startsWithFilter,
+                    ShelfId = ParseId(shelfId),
+                    AuthorId = ParseId(authorId),
+                    SeriesId = ParseId(seriesId),
+                    GenreId = ParseId(genreId),
+                    AwaitingReview = awaitingReview,
+                    SortBy = sortBy,
+                    SortDescending = sortDescending,
+                });
+
+                if (!result.IsSuccess)
+                {
+                    break;
+                }
+
+                var chunk = result.Value;
+                foreach (var b in chunk.Items)
+                {
+                    selectedBookIds.Add(b.Id);
+                }
+
+                if (page >= chunk.TotalPages)
+                {
+                    break;
+                }
+
+                page++;
+            }
+        }
+        finally
+        {
+            selectAllMatchingBusy = false;
+        }
     }
 
     private void ClearSelection() => selectedBookIds.Clear();

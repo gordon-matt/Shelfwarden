@@ -105,16 +105,30 @@ else
                         </button>
                     </div>
                 }
-                <div class="selection-toolbar mb-3">
+                <div class="selection-toolbar mb-3 d-flex flex-wrap align-items-center gap-2">
                     <span class="text-secondary small">
                         <i class="bi bi-check2-square"></i> @selectedBookIds.Count selected
                     </span>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllOnPage">
-                        <i class="bi bi-list-check"></i> Select page
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllVisible" disabled="@(books.Count == 0)">
+                        <i class="bi bi-ui-checks"></i> Select visible
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary"
+                            @onclick="SelectAllMatchingAsync"
+                            disabled="@(totalBookCount == 0 || selectAllMatchingBusy)">
+                        @if (selectAllMatchingBusy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check2-all"></i>
+                        }
+                        Select all@(totalBookCount > 0 ? $" ({totalBookCount})" : "")
                     </button>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
                         <i class="bi bi-x-circle"></i> Clear
                     </button>
+                    <BulkBookActions SelectedBookIds="selectedBookIds" />
                 </div>
                 @if (viewMode == ViewMode.List)
                 {
@@ -192,6 +206,8 @@ else
         ("V", "V"), ("W", "W"), ("X", "X"), ("Y", "Y"), ("Z", "Z")
     ];
     private ViewMode viewMode = ViewMode.Grid;
+    private int totalBookCount;
+    private bool selectAllMatchingBusy;
     private bool scanIndicatorVisible;
     private DateTime? optimisticBusyUntilUtc;
     private CancellationTokenSource? pollCts;
@@ -321,9 +337,57 @@ else
         else selectedBookIds.Remove(id);
     }
 
-    private void SelectAllOnPage()
+    private void SelectAllVisible()
     {
         foreach (var b in books) selectedBookIds.Add(b.Id);
+    }
+
+    private async Task SelectAllMatchingAsync()
+    {
+        if (selectAllMatchingBusy || shelf is null || totalBookCount == 0)
+        {
+            return;
+        }
+
+        selectAllMatchingBusy = true;
+        try
+        {
+            const int batch = 200;
+            int page = 1;
+            while (true)
+            {
+                var bookResult = await BookService.SearchAsync(new BookSearchRequest
+                {
+                    ShelfId = Id,
+                    Page = page,
+                    PageSize = batch,
+                    SortBy = BookSortBy.Title,
+                    StartsWith = startsWithFilter,
+                });
+
+                if (!bookResult.IsSuccess)
+                {
+                    break;
+                }
+
+                var p = bookResult.Value;
+                foreach (var b in p.Items)
+                {
+                    selectedBookIds.Add(b.Id);
+                }
+
+                if (page >= p.TotalPages)
+                {
+                    break;
+                }
+
+                page++;
+            }
+        }
+        finally
+        {
+            selectAllMatchingBusy = false;
+        }
     }
 
     private void ClearSelection() => selectedBookIds.Clear();
@@ -365,6 +429,7 @@ else
         if (bookResult.IsSuccess)
         {
             var page = bookResult.Value;
+            totalBookCount = page.TotalCount;
             books.AddRange(page.Items);
             hasMoreBooks = pageNumber < page.TotalPages;
             pageNumber++;

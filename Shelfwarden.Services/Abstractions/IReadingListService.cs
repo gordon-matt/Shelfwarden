@@ -6,7 +6,8 @@ namespace Shelfwarden.Services;
 /// </summary>
 public interface IReadingListService
 {
-    Task<Result<IReadOnlyList<ReadingListDto>>> ListAsync(CancellationToken cancellationToken = default);
+    /// <param name="shelfId">When set, only lists that contain at least one book on this shelf are returned.</param>
+    Task<Result<IReadOnlyList<ReadingListDto>>> ListAsync(int? shelfId = null, CancellationToken cancellationToken = default);
 
     Task<Result<ReadingListDetailDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 

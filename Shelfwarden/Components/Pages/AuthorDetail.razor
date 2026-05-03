@@ -106,11 +106,12 @@ else
                     @if (selectMode)
                     {
                         <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">
-                            <i class="bi bi-list-check"></i> All
+                            <i class="bi bi-check2-all"></i> Select all
                         </button>
                         <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
                             <i class="bi bi-x-circle"></i> Clear
                         </button>
+                        <BulkBookActions SelectedBookIds="selectedBookIds" />
                         <button class="btn btn-sm btn-primary" @onclick="GoToBatchEdit" disabled="@(selectedBookIds.Count == 0)">
                             <i class="bi bi-pencil-square"></i> Batch edit
                         </button>
