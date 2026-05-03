@@ -27,7 +27,8 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Database__Provider: Npgsql
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=shelfwarden;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
-      ConnectionStrings__Hangfire: "Host=db;Port=5432;Database=shelfwarden_hangfire;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
+      # Omit ConnectionStrings__Hangfire for Npgsql/SqlServer — Hangfire shares DefaultConnection (hangfire schema).
+      # Only SQLite uses a separate file via Hangfire__SqlitePath.
       Authentication__Provider: Identity
       # Seeded on first start (see Seed:Admin in appsettings.json). Use Seed__Admin__* — not SeedAdmin__*.
       Seed__Admin__Email: "admin@shelfwarden.local"
@@ -56,10 +57,10 @@ services:
 
       # Connection strings (defaults in appsettings.json: Sqlite file + empty Hangfire)
       # ConnectionStrings__DefaultConnection: "Data Source=shelfwarden.db"
+      # Optional; omit for Npgsql/SqlServer so Hangfire uses DefaultConnection:
       # ConnectionStrings__Hangfire: ""
 
-      # Hangfire — Sqlite file name when Database__Provider is Sqlite; ignored for relational providers
-      # when a SQL connection string is used.
+      # Hangfire — Sqlite file when Database__Provider is Sqlite; Npgsql/SqlServer share DefaultConnection.
       # Hangfire__SqlitePath: hangfire.db
 
       # Authentication (valid: Identity, Keycloak, None)
@@ -85,9 +86,9 @@ services:
 
     volumes:
       # Mount your ebook libraries here. Anything inside /app/data/library is what Shelfwarden scans.
-      - shelfwarden-library:/app/data/library
-      - shelfwarden-covers:/app/data/covers
-      - shelfwarden-logs:/app/data/logs
+      - D:\_Apps\Shelfwarden\Library:/app/data/library
+      - D:\_Apps\Shelfwarden\Covers:/app/data/covers
+      - D:\_Apps\Shelfwarden\Logs:/app/data/logs
     depends_on:
       db:
         condition: service_healthy
@@ -136,7 +137,4 @@ services:
   #     start_period: 30s
 
 volumes:
-  shelfwarden-library:
-  shelfwarden-covers:
-  shelfwarden-logs:
   shelfwarden-pgdata:

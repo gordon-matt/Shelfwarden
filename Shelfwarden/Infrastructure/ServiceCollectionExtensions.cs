@@ -44,9 +44,10 @@ internal static class ServiceCollectionExtensions
 
         /// <summary>
         /// Registers Hangfire backed by the same provider as the application database.
-        /// Hangfire uses a separate connection string under <c>ConnectionStrings:Hangfire</c>
-        /// when present, otherwise it falls back to <c>DefaultConnection</c>. SQLite uses a
-        /// file path instead of a real connection string.
+        /// For SqlServer and Npgsql, omit or leave <c>ConnectionStrings:Hangfire</c> empty so Hangfire
+        /// uses <c>DefaultConnection</c> (Hangfire tables live in the default Hangfire schema).
+        /// Set <c>ConnectionStrings:Hangfire</c> only when you intentionally use a different database.
+        /// SQLite uses <c>Hangfire:SqlitePath</c> for a separate file.
         /// </summary>
         public IServiceCollection AddShelfwardenHangfire(IConfiguration configuration)
         {

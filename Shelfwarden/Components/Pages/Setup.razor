@@ -253,8 +253,8 @@ else
     private static string FolderPlaceholder()
     {
         return OperatingSystem.IsWindows()
-            ? "D:\\Books\nE:\\Comics"
-            : "/srv/books\n/srv/manga";
+            ? "D:\\Library\\Fiction\nD:\\Library\\NonFiction"
+            : "/app/data/library/Fiction\n/app/data/library/NonFiction";
     }
 
     protected override void OnParametersSet()
