@@ -95,7 +95,7 @@ services:
   db:
     image: postgres:18-alpine
     ports:
-      - "5435:5432"
+      - "5434:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"

@@ -32,18 +32,28 @@ public sealed class FFmpegProvider(
                 return;
             }
 
-            string ffmpegDir = Path.Combine(storage.TtsCacheDirectory, "ffmpeg");
-            Directory.CreateDirectory(ffmpegDir);
-
-            // Tell Xabe both where to download to and where to look for the executable. The
-            // downloader skips the network call when binaries already exist on disk.
-            FFmpeg.SetExecutablesPath(ffmpegDir);
-
-            if (!HasFFmpegBinary(ffmpegDir))
+            // Prefer distro FFmpeg (e.g. Docker base image) — avoids download and matches Kinnect-style installs.
+            const string linuxSystemFfmpegDir = "/usr/bin";
+            if (OperatingSystem.IsLinux() && File.Exists(Path.Combine(linuxSystemFfmpegDir, "ffmpeg")))
             {
-                logger.LogInformation("FFmpeg binaries not found in {Path}; downloading official build", ffmpegDir);
-                await FFmpegDownloader.GetLatestVersion(FFmpegVersion.Official, ffmpegDir);
-                logger.LogInformation("FFmpeg installed at {Path}", ffmpegDir);
+                FFmpeg.SetExecutablesPath(linuxSystemFfmpegDir);
+                logger.LogDebug("Using system FFmpeg at {Dir}", linuxSystemFfmpegDir);
+            }
+            else
+            {
+                string ffmpegDir = Path.Combine(storage.TtsCacheDirectory, "ffmpeg");
+                Directory.CreateDirectory(ffmpegDir);
+
+                // Tell Xabe both where to download to and where to look for the executable. The
+                // downloader skips the network call when binaries already exist on disk.
+                FFmpeg.SetExecutablesPath(ffmpegDir);
+
+                if (!HasFFmpegBinary(ffmpegDir))
+                {
+                    logger.LogInformation("FFmpeg binaries not found in {Path}; downloading official build", ffmpegDir);
+                    await FFmpegDownloader.GetLatestVersion(FFmpegVersion.Official, ffmpegDir);
+                    logger.LogInformation("FFmpeg installed at {Path}", ffmpegDir);
+                }
             }
 
             ready = true;

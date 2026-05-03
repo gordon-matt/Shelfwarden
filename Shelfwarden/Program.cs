@@ -51,7 +51,10 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+// Required in Production for Blazor's @Assets[...] (see App.razor); those URLs map through this API,
+// not plain UseStaticFiles. MVC-only apps sometimes gate MapStaticAssets on Development; Blazor Web Apps do not.
 app.MapStaticAssets();
+
 app.UseAntiforgery();
 
 app.UseAuthentication();
@@ -68,13 +71,14 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 });
 
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .WithStaticAssets();
 
 app.MapControllers();
 
 if (authProvider == AuthProvider.Identity)
 {
-    app.MapRazorPages();
+    app.MapRazorPages().WithStaticAssets();
 }
 
 await using (var scope = app.Services.CreateAsyncScope())

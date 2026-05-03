@@ -1,15 +1,15 @@
-# Shelfwarden web container.
-# .NET 10 Linux images: Ubuntu Noble (10.0-noble) is the glibc target; Debian is not supported in .NET 10.
-# Alpine works for the SDK build stage but the runtime stage uses Noble so EF Core's native libs (libsqlite, libssl)
-# match production NAS deployments.
+# Shelfwarden web container — SDK and runtime use the same 10.0-noble (glibc) image family.
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS base
 WORKDIR /app
 EXPOSE 8080
 # Library, cover and database storage all live under /app/data so the host can mount one volume.
-RUN mkdir -p /app/data/library /app/data/covers /app/data/db /app/data/logs
+RUN mkdir -p /app/data/library /app/data/covers /app/data/db /app/data/logs /app/data/tts-cache \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Shelfwarden/Shelfwarden.csproj", "Shelfwarden/"]
@@ -33,11 +33,16 @@ RUN dotnet build "./Shelfwarden.csproj" -c $BUILD_CONFIGURATION -o /app/build
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./Shelfwarden.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-# Publish can omit content added after restore — make sure the LibMan output ships.
+# Publish can omit content added after restore — make sure LibMan output ships.
 RUN cp -r /src/Shelfwarden/wwwroot/lib /app/publish/wwwroot/ || true
 # Scoped CSS (Razor isolated styles) may land at publish root; mirror into wwwroot.
 RUN if [ -f /app/publish/Shelfwarden.styles.css ]; then cp /app/publish/Shelfwarden.styles.css /app/publish/wwwroot/; fi
 
 FROM base AS final
 COPY --from=publish /app/publish .
+
+# Same URL as <see cref="KokoroEngineProvider"/> — bake once so TTS does not download ~320 MB at runtime.
+ARG KOKORO_MODEL_URL=https://github.com/taylorchu/kokoro-onnx/releases/download/v0.2.0/kokoro.onnx
+RUN curl -fsSL "$KOKORO_MODEL_URL" -o /app/data/tts-cache/kokoro.onnx
+
 ENTRYPOINT ["dotnet", "Shelfwarden.dll"]
