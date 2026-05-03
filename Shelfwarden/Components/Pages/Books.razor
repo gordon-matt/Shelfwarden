@@ -6,6 +6,7 @@
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService
 @inject IGenreService GenreService
+@inject ICollectionService CollectionService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 
@@ -147,6 +148,19 @@
                 </select>
             </div>
             <div class="col-sm-6 col-lg-3">
+                <label class="form-label small text-body-secondary mb-1">Collection</label>
+                <select class="form-select form-select-sm"
+                        @bind="collectionId"
+                        @bind:after="OnFilterChangedAsync">
+                    <option value="">Any collection</option>
+                    <option value="-1">None</option>
+                    @foreach (var c in collections)
+                    {
+                        <option value="@c.Id">@(c.IsGlobal ? $"[Global] {c.Name}" : c.Name)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-3">
                 <label class="form-label small text-body-secondary mb-1">Author</label>
                 <select class="form-select form-select-sm"
                         @bind="authorId"
@@ -164,6 +178,7 @@
                         @bind="seriesId"
                         @bind:after="OnFilterChangedAsync">
                     <option value="">Any series</option>
+                    <option value="-1">None</option>
                     @foreach (var s in series)
                     {
                         <option value="@s.Id">@s.Name</option>
@@ -176,6 +191,7 @@
                         @bind="genreId"
                         @bind:after="OnFilterChangedAsync">
                     <option value="">Any genre</option>
+                    <option value="-1">None</option>
                     @foreach (var g in genres)
                     {
                         <option value="@g.Id">@g.Name</option>
@@ -330,6 +346,7 @@
     ];
     private string? query;
     private string shelfId = "";
+    private string collectionId = "";
     private string authorId = "";
     private string seriesId = "";
     private string genreId = "";
@@ -352,12 +369,14 @@
     private readonly HashSet<int> selectedBookIds = [];
 
     private IReadOnlyList<ShelfDto> shelves = [];
+    private IReadOnlyList<CollectionDto> collections = [];
     private IReadOnlyList<AuthorDto> authors = [];
     private IReadOnlyList<SeriesDto> series = [];
     private IReadOnlyList<GenreDto> genres = [];
 
     private bool HasActiveFilters =>
         !string.IsNullOrEmpty(shelfId)
+        || !string.IsNullOrEmpty(collectionId)
         || !string.IsNullOrEmpty(authorId)
         || !string.IsNullOrEmpty(seriesId)
         || !string.IsNullOrEmpty(genreId)
@@ -371,13 +390,15 @@
     {
         // Load filter options + first page in parallel — they're independent queries.
         var shelvesTask = ShelfService.GetAllAsync();
+        var collectionsTask = CollectionService.ListAsync();
         var authorsTask = AuthorService.SearchAsync(null, limit: 200);
         var seriesTask = SeriesService.SearchAsync(null, limit: 200);
         var genresTask = GenreService.SearchAsync(null, limit: 200);
 
-        await Task.WhenAll(shelvesTask, authorsTask, seriesTask, genresTask);
+        await Task.WhenAll(shelvesTask, collectionsTask, authorsTask, seriesTask, genresTask);
 
         if (shelvesTask.Result.IsSuccess) shelves = shelvesTask.Result.Value;
+        if (collectionsTask.Result.IsSuccess) collections = collectionsTask.Result.Value;
         if (authorsTask.Result.IsSuccess) authors = authorsTask.Result.Value;
         if (seriesTask.Result.IsSuccess) series = seriesTask.Result.Value;
         if (genresTask.Result.IsSuccess) genres = genresTask.Result.Value;
@@ -477,8 +498,9 @@
             StartsWith = startsWithFilter,
             ShelfId = ParseId(shelfId),
             AuthorId = ParseId(authorId),
-            SeriesId = ParseId(seriesId),
-            GenreId = ParseId(genreId),
+            SeriesId = ParseFilterId(seriesId),
+            GenreId = ParseFilterId(genreId),
+            CollectionId = ParseFilterId(collectionId),
             AwaitingReview = awaitingReview,
             SortBy = sortBy,
             SortDescending = sortDescending,
@@ -516,8 +538,9 @@
                 Query = string.IsNullOrWhiteSpace(query) ? null : query,
                 ShelfId = ParseId(shelfId),
                 AuthorId = ParseId(authorId),
-                SeriesId = ParseId(seriesId),
-                GenreId = ParseId(genreId),
+                SeriesId = ParseFilterId(seriesId),
+                GenreId = ParseFilterId(genreId),
+                CollectionId = ParseFilterId(collectionId),
                 AwaitingReview = awaitingReview,
                 SortBy = sortBy,
                 SortDescending = sortDescending,
@@ -571,6 +594,7 @@
     {
         query = null;
         shelfId = "";
+        collectionId = "";
         authorId = "";
         seriesId = "";
         genreId = "";
@@ -618,8 +642,9 @@
                     StartsWith = startsWithFilter,
                     ShelfId = ParseId(shelfId),
                     AuthorId = ParseId(authorId),
-                    SeriesId = ParseId(seriesId),
-                    GenreId = ParseId(genreId),
+                    SeriesId = ParseFilterId(seriesId),
+                    GenreId = ParseFilterId(genreId),
+                    CollectionId = ParseFilterId(collectionId),
                     AwaitingReview = awaitingReview,
                     SortBy = sortBy,
                     SortDescending = sortDescending,
@@ -676,6 +701,9 @@
 
     private static int? ParseId(string raw) =>
         int.TryParse(raw, out int id) && id > 0 ? id : null;
+
+    private static int? ParseFilterId(string raw) =>
+        string.IsNullOrEmpty(raw) ? null : int.TryParse(raw, out int id) ? id : null;
 
     public async ValueTask DisposeAsync()
     {

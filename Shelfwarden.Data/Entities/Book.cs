@@ -64,6 +64,9 @@ public class Book : BaseEntity<int>
     public virtual ICollection<BookProgress> ReadingProgress { get; set; } = [];
 
     public virtual ICollection<Bookmark> Bookmarks { get; set; } = [];
+
+    /// <summary>Rows linking this book into user/global collections (join entity).</summary>
+    public virtual ICollection<CollectionBook> CollectionBooks { get; set; } = [];
 }
 
 public class BookMap : IEntityTypeConfiguration<Book>

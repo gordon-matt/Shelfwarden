@@ -26,7 +26,7 @@ public class CollectionBookMap : IEntityTypeConfiguration<CollectionBook>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(m => m.Book)
-            .WithMany()
+            .WithMany(m => m.CollectionBooks)
             .HasForeignKey(m => m.BookId)
             .OnDelete(DeleteBehavior.Cascade);
 

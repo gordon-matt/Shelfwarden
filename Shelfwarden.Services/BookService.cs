@@ -59,9 +59,16 @@ public class BookService(
             predicate = predicate.And(b => b.ShelfId == sid);
         }
 
-        if (request.SeriesId is int sId)
+        if (request.SeriesId is int seriesFilter)
         {
-            predicate = predicate.And(b => b.SeriesId == sId);
+            if (seriesFilter == -1)
+            {
+                predicate = predicate.And(b => b.SeriesId == null);
+            }
+            else if (seriesFilter > 0)
+            {
+                predicate = predicate.And(b => b.SeriesId == seriesFilter);
+            }
         }
 
         if (request.AuthorId is int aId)
@@ -69,9 +76,28 @@ public class BookService(
             predicate = predicate.And(b => b.BookAuthors.Any(ba => ba.AuthorId == aId));
         }
 
-        if (request.GenreId is int gId)
+        if (request.GenreId is int genreFilter)
         {
-            predicate = predicate.And(b => b.BookGenres.Any(bg => bg.GenreId == gId));
+            if (genreFilter == -1)
+            {
+                predicate = predicate.And(b => !b.BookGenres.Any());
+            }
+            else if (genreFilter > 0)
+            {
+                predicate = predicate.And(b => b.BookGenres.Any(bg => bg.GenreId == genreFilter));
+            }
+        }
+
+        if (request.CollectionId is int collectionFilter)
+        {
+            if (collectionFilter == -1)
+            {
+                predicate = predicate.And(b => !b.CollectionBooks.Any());
+            }
+            else if (collectionFilter > 0)
+            {
+                predicate = predicate.And(b => b.CollectionBooks.Any(l => l.CollectionId == collectionFilter));
+            }
         }
 
         if (request.AwaitingReview)

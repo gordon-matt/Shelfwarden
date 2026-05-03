@@ -16,11 +16,22 @@ public record BookSearchRequest
 
     public int? ShelfId { get; init; }
 
+    /// <summary>
+    /// Series filter. Positive id restricts to that series; <c>-1</c> means books with no series assigned.
+    /// </summary>
     public int? SeriesId { get; init; }
 
     public int? AuthorId { get; init; }
 
+    /// <summary>
+    /// Genre filter. Positive id restricts to that genre; <c>-1</c> means books with no genres assigned.
+    /// </summary>
     public int? GenreId { get; init; }
+
+    /// <summary>
+    /// Collection filter. Positive id restricts to books in that collection; <c>-1</c> means books not in any collection.
+    /// </summary>
+    public int? CollectionId { get; init; }
 
     /// <summary>
     /// When true, only include books that have never had metadata edited by a user
