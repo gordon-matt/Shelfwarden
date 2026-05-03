@@ -17,7 +17,7 @@
 		<RootNamespace>Shelfwarden</RootNamespace>
 		<AssemblyName>Shelfwarden.Desktop</AssemblyName>
 		<UserSecretsId>shelfwarden-desktop-1c4d0f7b-7e6d-4b9e-9f5e-2a7d3c8b9f4a</UserSecretsId>
-		<Version>0.1.0</Version>
+		<Version>1.0.0</Version>
 		<RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
 	</PropertyGroup>
 
