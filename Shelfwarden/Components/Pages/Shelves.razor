@@ -1,9 +1,11 @@
 @page "/shelves"
 @attribute [Authorize]
 @implements IDisposable
+@using Shelfwarden.Infrastructure
 @inject IShelfService ShelfService
 @inject IScanStatusService ScanStatusService
 @inject NavigationManager NavigationManager
+@inject ILogger<Shelves> ShelvesLogger
 
 <PageTitle>Shelves - Shelfwarden</PageTitle>
 
@@ -198,6 +200,15 @@ else
         var scheduled = await ShelfService.ScheduleScanAsync(id);
         if (!scheduled.IsSuccess)
         {
+            string detail = ResultMessages.UserFacing(scheduled, "Scan could not be scheduled.");
+            ShelvesLogger.LogWarning(
+                "[Shelves] ScheduleScanAsync failed ShelfId={ShelfId} Status={Status} DetailLen={Len} Detail={Detail} RawErrors=[{Errors}] Validation=[{Validation}]",
+                id,
+                scheduled.Status,
+                detail.Length,
+                detail,
+                string.Join(" | ", scheduled.Errors.OfType<string>()),
+                string.Join(" | ", scheduled.ValidationErrors.Select(v => v.ErrorMessage)));
             optimisticBusyUntil.Remove(id);
             await InvokeAsync(StateHasChanged);
             return;

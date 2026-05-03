@@ -123,8 +123,16 @@ public class SetupController(
         [FromForm] string? description,
         CancellationToken cancellationToken)
     {
+        logger.LogInformation(
+            "[SetupWizard] POST shelf: nameLen={NameLen} foldersRawLen={FoldersLen} descLen={DescLen} modelStateValid={Valid}",
+            name?.Length ?? 0,
+            folders?.Length ?? 0,
+            description?.Length ?? 0,
+            ModelState.IsValid);
+
         if (await IsSetupCompleteAsync(cancellationToken))
         {
+            logger.LogWarning("[SetupWizard] POST shelf rejected: setup already marked complete");
             return Redirect("/");
         }
 
@@ -134,6 +142,10 @@ public class SetupController(
 
         if (string.IsNullOrWhiteSpace(name) || folderList.Count == 0)
         {
+            logger.LogWarning(
+                "[SetupWizard] POST shelf validation failed: nameEmpty={NameEmpty} folderLineCount={FolderCount}",
+                string.IsNullOrWhiteSpace(name),
+                folderList.Count);
             return RedirectWithError("shelf", "A name and at least one folder are required.");
         }
 
@@ -146,16 +158,25 @@ public class SetupController(
 
         if (result.IsSuccess)
         {
+            logger.LogInformation("[SetupWizard] Shelf created successfully; redirect to done step");
             return Redirect("/setup?step=done");
         }
 
         string message = ResultMessages.UserFacing(result, "Could not create the shelf.");
         logger.LogWarning(
-            "[Setup] CreateInitialShelf failed ({Status}): {Message}. Raw errors: [{Errors}]. Validation: [{Validation}]",
+            "[SetupWizard] CreateInitialShelf failed Status={Status} UserFacingLen={MsgLen} UserFacingWhitespace={Ws} " +
+            "RawErrors=[{Errors}] Validation=[{Validation}]",
             result.Status,
-            message,
+            message.Length,
+            string.IsNullOrWhiteSpace(message),
             string.Join(" | ", result.Errors.OfType<string>()),
             string.Join(" | ", result.ValidationErrors.Select(v => v.ErrorMessage)));
+
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            var previewLen = Math.Min(message.Length, 400);
+            logger.LogWarning("[SetupWizard] User-facing message preview ({PreviewLen} chars): {Preview}", previewLen, message[..previewLen]);
+        }
 
         return RedirectWithError("shelf", message);
     }
@@ -179,5 +200,25 @@ public class SetupController(
     }
 
     private RedirectResult RedirectWithError(string step, string error)
-        => Redirect($"/setup?step={Uri.EscapeDataString(step)}&error={Uri.EscapeDataString(error)}");
+    {
+        bool whitespaceOnly = string.IsNullOrWhiteSpace(error);
+        logger.LogWarning(
+            "[SetupWizard] RedirectWithError step={Step} errorLen={ErrorLen} whitespaceOnly={WhitespaceOnly}",
+            step,
+            error?.Length ?? 0,
+            whitespaceOnly);
+
+        if (!whitespaceOnly && error is not null)
+        {
+            int n = Math.Min(error.Length, 400);
+            logger.LogWarning("[SetupWizard] RedirectWithError preview: {Preview}", error[..n]);
+        }
+
+        string target = $"/setup?step={Uri.EscapeDataString(step)}&error={Uri.EscapeDataString(error ?? string.Empty)}";
+        logger.LogInformation("[SetupWizard] RedirectWithError target length={TargetLen} encodedErrorLen={EncLen}",
+            target.Length,
+            Uri.EscapeDataString(error ?? string.Empty).Length);
+
+        return Redirect(target);
+    }
 }

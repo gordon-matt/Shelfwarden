@@ -1,9 +1,11 @@
 @page "/setup"
 @layout SetupLayout
+@using Microsoft.AspNetCore.WebUtilities
 @using Shelfwarden.Infrastructure
 @inject IAuthProviderService AuthProvider
 @inject ISetupService SetupService
 @inject NavigationManager Nav
+@inject ILogger<Setup> SetupWizardLogger
 
 <PageTitle>First-run setup - Shelfwarden</PageTitle>
 
@@ -204,10 +206,20 @@ else
         {
             status = result.Value;
             BuildSteps();
+            SetupWizardLogger.LogInformation(
+                "[SetupWizard] GetStatusAsync OK SetupComplete={Complete} Auth={Auth} ShelfCount={ShelfCount} CallerAdmin={Admin}",
+                status.SetupComplete,
+                status.AuthProvider,
+                status.ShelfCount,
+                status.CallerIsAdministrator);
         }
         else
         {
             errorMessage = ResultMessages.UserFacing(result, "Failed to load setup state.");
+            SetupWizardLogger.LogWarning(
+                "[SetupWizard] GetStatusAsync failed Status={Status} MessageLen={Len}",
+                result.Status,
+                errorMessage?.Length ?? 0);
         }
     }
 
@@ -260,9 +272,87 @@ else
 
     protected override void OnParametersSet()
     {
+        LogQueryDiagnostics();
+
         if (!string.IsNullOrWhiteSpace(Error))
         {
             errorMessage = Error.Trim();
+            SetupWizardLogger.LogWarning(
+                "[SetupWizard] errorMessage from query SupplyParameter Len={Len} AfterTrim Len={TrimLen} ShowAlert={Show}",
+                Error.Length,
+                errorMessage?.Length ?? 0,
+                !string.IsNullOrWhiteSpace(errorMessage));
+            if (!string.IsNullOrEmpty(errorMessage) && errorMessage.Length <= 400)
+            {
+                SetupWizardLogger.LogWarning("[SetupWizard] errorMessage preview: {Preview}", errorMessage);
+            }
         }
+        else if (Error is not null)
+        {
+            SetupWizardLogger.LogWarning(
+                "[SetupWizard] Error query present but whitespace-only SupplyLen={Len}",
+                Error.Length);
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && !string.IsNullOrWhiteSpace(errorMessage))
+        {
+            SetupWizardLogger.LogWarning(
+                "[SetupWizard] First render: showing alert with errorMessage length={Len}",
+                errorMessage!.Length);
+        }
+    }
+
+    /// <summary>Logs raw query vs supply parameters — helps debug proxy/encoding issues on NAS.</summary>
+    private void LogQueryDiagnostics()
+    {
+        try
+        {
+            var uri = Nav.ToAbsoluteUri(Nav.Uri);
+            var qs = QueryHelpers.ParseQuery(uri.Query);
+            qs.TryGetValue("error", out var errorFromQuery);
+            string? parsed = errorFromQuery.Count > 0 ? errorFromQuery[0] : null;
+
+            bool supplyMatchesParsed = string.Equals(Error, parsed, StringComparison.Ordinal);
+            SetupWizardLogger.LogInformation(
+                "[SetupWizard] Query diag PathAndQuery={Path} SupplyStep={SupplyStep} SupplyErrorLen={SupplyErrLen} ParsedErrorLen={ParsedLen} ParamsMatch={Match}",
+                uri.PathAndQuery,
+                Step,
+                Error?.Length ?? 0,
+                parsed?.Length ?? 0,
+                supplyMatchesParsed);
+
+            if (parsed is { Length: > 0 } && string.IsNullOrWhiteSpace(parsed))
+            {
+                SetupWizardLogger.LogWarning("[SetupWizard] Parsed 'error' is non-empty but all whitespace (invisible characters?) Codes={Codes}",
+                    FormatCodePoints(parsed, 48));
+            }
+
+            if (parsed is { Length: > 0 } && !supplyMatchesParsed)
+            {
+                SetupWizardLogger.LogWarning(
+                    "[SetupWizard] SupplyParameter Error differs from parsed query — binding issue? SupplyCodes={Supply} ParsedCodes={Parsed}",
+                    FormatCodePoints(Error ?? "", 32),
+                    FormatCodePoints(parsed, 32));
+            }
+        }
+        catch (Exception ex)
+        {
+            SetupWizardLogger.LogError(ex, "[SetupWizard] LogQueryDiagnostics failed");
+        }
+    }
+
+    private static string FormatCodePoints(string s, int maxChars)
+    {
+        int n = Math.Min(s.Length, maxChars);
+        var parts = new string[n];
+        for (int i = 0; i < n; i++)
+        {
+            parts[i] = $"U+{(uint)s[i]:X4}";
+        }
+
+        return string.Join(",", parts);
     }
 }

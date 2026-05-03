@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Shelfwarden.Services.Auth;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
 using Shelfwarden.Services.Tts;
@@ -18,7 +17,7 @@ public static class ServiceCollectionExtensions
         public IServiceCollection AddShelfwardenServices()
         {
             services.AddHttpContextAccessor();
-            services.AddScoped<IUserContextService, UserContextService>();
+            services.AddScoped<IUserContextService, BlazorAwareUserContextService>();
             services.AddScoped<IShelfAccessService, ShelfAccessService>();
 
             services.AddScoped<IShelfService, ShelfService>();

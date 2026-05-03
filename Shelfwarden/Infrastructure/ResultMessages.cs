@@ -1,3 +1,5 @@
+using System.Collections;
+
 namespace Shelfwarden.Infrastructure;
 
 /// <summary>
@@ -9,14 +11,24 @@ namespace Shelfwarden.Infrastructure;
 internal static class ResultMessages
 {
     public static string UserFacing<T>(Result<T> result, string fallback)
+        => UserFacingCore(result.Errors, result.ValidationErrors, fallback);
+
+    /// <summary>Non-generic <see cref="Result"/> (e.g. <see cref="ShelfService.ScheduleScanAsync"/>).</summary>
+    public static string UserFacing(Result result, string fallback)
+        => UserFacingCore(result.Errors, result.ValidationErrors, fallback);
+
+    private static string UserFacingCore(
+        IEnumerable? errors,
+        IEnumerable<ValidationError> validationErrors,
+        string fallback)
     {
-        string? fromErrors = result.Errors?
+        string? fromErrors = errors?
             .OfType<string>()
             .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s));
         if (!string.IsNullOrWhiteSpace(fromErrors))
             return fromErrors.Trim();
 
-        string validation = string.Join("; ", result.ValidationErrors
+        string validation = string.Join("; ", validationErrors
             .Select(v => v.ErrorMessage)
             .Where(s => !string.IsNullOrWhiteSpace(s)));
         if (!string.IsNullOrWhiteSpace(validation))

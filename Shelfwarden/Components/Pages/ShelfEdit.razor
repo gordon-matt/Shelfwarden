@@ -1,18 +1,20 @@
 @page "/shelves/new"
 @page "/shelves/{Id:int}/edit"
 @attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@using Shelfwarden.Infrastructure
 @inject IShelfService ShelfService
 @inject IUserInfoService UserInfoService
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
+@inject ILogger<ShelfEdit> ShelfEditLogger
 
 <PageTitle>@(IsCreate ? "New shelf" : $"Edit {model.Name}") - Shelfwarden</PageTitle>
 
 <h1 class="mb-3">@(IsCreate ? "New shelf" : "Edit shelf")</h1>
 
-@if (loadError is not null)
+@if (!string.IsNullOrWhiteSpace(loadError))
 {
-    <div class="alert alert-danger">@loadError</div>
+    <div class="alert alert-danger" role="alert">@loadError</div>
 }
 
 <EditForm Model="model" OnValidSubmit="SaveAsync" FormName="shelf-form">
@@ -105,9 +107,9 @@
         </button>
     </div>
 
-    @if (saveError is not null)
+    @if (!string.IsNullOrWhiteSpace(saveError))
     {
-        <div class="alert alert-danger">@saveError</div>
+        <div class="alert alert-danger" role="alert">@saveError</div>
     }
 
     <div class="d-flex gap-2">
@@ -167,10 +169,14 @@
                     string.Equals(r, Constants.Roles.User, StringComparison.OrdinalIgnoreCase));
 
                 loadError = null;
+                ShelfEditLogger.LogInformation("[ShelfEdit] Loaded shelf {ShelfId} nameLen={NameLen} folders={FolderCount}",
+                    id, dto.Name.Length, dto.Folders.Count);
             }
             else
             {
-                loadError = "Shelf not found.";
+                loadError = ResultMessages.UserFacing(result, "Shelf not found.");
+                ShelfEditLogger.LogWarning("[ShelfEdit] GetById failed ShelfId={ShelfId} Status={Status} MessageLen={Len}",
+                    id, result.Status, loadError?.Length ?? 0);
             }
         }
         else
@@ -232,11 +238,19 @@
             var roleNames = BuildRoleNames();
             var userIds = selectedUserIds.ToList();
 
+            ShelfEditLogger.LogInformation(
+                "[ShelfEdit] Save start IsCreate={Create} NameLen={NameLen} FolderCount={Folders} UserIds={UserCount} Roles={Roles}",
+                IsCreate,
+                model.Name?.Length ?? 0,
+                nonEmpty.Count,
+                userIds.Count,
+                string.Join(",", roleNames));
+
             if (Id is int shelfId)
             {
                 var result = await ShelfService.UpdateAsync(shelfId, new UpdateShelfRequest
                 {
-                    Name = model.Name,
+                    Name = model.Name ?? string.Empty,
                     Description = model.Description,
                     Folders = nonEmpty,
                     AllowedUserIds = userIds,
@@ -247,13 +261,17 @@
                     SidebarNavRefresh.NotifyNavigationDataChanged();
                     NavigationManager.NavigateTo("shelves");
                 }
-                else saveError = string.Join("; ", result.Errors);
+                else
+                {
+                    saveError = ResultMessages.UserFacing(result, "Could not save the shelf.");
+                    LogShelfSaveFailure("Update", result, saveError);
+                }
             }
             else
             {
                 var result = await ShelfService.CreateAsync(new CreateShelfRequest
                 {
-                    Name = model.Name,
+                    Name = model.Name ?? string.Empty,
                     Description = model.Description,
                     Folders = nonEmpty,
                     AllowedUserIds = userIds,
@@ -264,12 +282,38 @@
                     SidebarNavRefresh.NotifyNavigationDataChanged();
                     NavigationManager.NavigateTo("shelves");
                 }
-                else saveError = string.Join("; ", result.Errors);
+                else
+                {
+                    saveError = ResultMessages.UserFacing(result, "Could not save the shelf.");
+                    LogShelfSaveFailure("Create", result, saveError);
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            ShelfEditLogger.LogError(ex, "[ShelfEdit] Save threw unexpectedly IsCreate={Create}", IsCreate);
+            saveError = "An unexpected error occurred. Check server logs.";
         }
         finally
         {
             saving = false;
+        }
+    }
+
+    private void LogShelfSaveFailure<T>(string operation, Result<T> result, string? userMessage)
+    {
+        ShelfEditLogger.LogWarning(
+            "[ShelfEdit] {Operation} failed Status={Status} UserFacingLen={MsgLen} WhitespaceOnly={Ws} RawErrors=[{Errors}] Validation=[{Validation}]",
+            operation,
+            result.Status,
+            userMessage?.Length ?? 0,
+            string.IsNullOrWhiteSpace(userMessage),
+            string.Join(" | ", result.Errors.OfType<string>()),
+            string.Join(" | ", result.ValidationErrors.Select(v => v.ErrorMessage)));
+        if (!string.IsNullOrWhiteSpace(userMessage))
+        {
+            int n = Math.Min(userMessage!.Length, 400);
+            ShelfEditLogger.LogWarning("[ShelfEdit] User-facing message preview: {Preview}", userMessage[..n]);
         }
     }
 

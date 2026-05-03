@@ -2,8 +2,8 @@ using Hangfire;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
-using Serilog;
 using Sejil;
+using Serilog;
 using Shelfwarden.Components;
 using Shelfwarden.Infrastructure;
 

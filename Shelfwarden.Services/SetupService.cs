@@ -38,14 +38,22 @@ public class SetupService(
 
     public async Task<Result<ShelfDto>> CreateInitialShelfAsync(CreateShelfRequest request, CancellationToken cancellationToken = default)
     {
+        logger.LogInformation(
+            "[SetupWizard] CreateInitialShelfAsync start nameLen={NameLen} folderInputCount={FolderIn} descPresent={Desc}",
+            request.Name.Length,
+            request.Folders.Count,
+            !string.IsNullOrEmpty(request.Description));
+
         if (await IsAlreadyCompleteAsync(cancellationToken))
         {
+            logger.LogWarning("[SetupWizard] CreateInitialShelfAsync refused: setup already complete");
             return Result.Conflict("Setup is already complete; shelves must now be managed via /shelves.");
         }
 
         var folderPaths = NormalizeFolders(request.Folders);
         if (folderPaths.Count == 0)
         {
+            logger.LogWarning("[SetupWizard] CreateInitialShelfAsync invalid: no folders after normalize (input lines={Count})", request.Folders.Count);
             return Result.Invalid(new ValidationError(nameof(request.Folders), "At least one folder is required."));
         }
 
@@ -57,20 +65,38 @@ public class SetupService(
 
         if (existing is not null)
         {
+            logger.LogWarning("[SetupWizard] CreateInitialShelfAsync conflict: shelf name already exists id={ShelfId}", existing.Id);
             return Result.Conflict($"A shelf named '{request.Name}' already exists.");
         }
 
-        var shelf = await shelfRepository.InsertAsync(new Shelf
+        Shelf shelf;
+        try
         {
-            Name = request.Name.Trim(),
-            Description = request.Description?.Trim(),
-        });
+            shelf = await shelfRepository.InsertAsync(new Shelf
+            {
+                Name = request.Name.Trim(),
+                Description = request.Description?.Trim(),
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[SetupWizard] InsertAsync(Shelf) failed");
+            throw;
+        }
 
         var folders = folderPaths
             .Select(p => new ShelfFolder { ShelfId = shelf.Id, Path = p })
             .ToList();
 
-        await folderRepository.InsertAsync(folders);
+        try
+        {
+            await folderRepository.InsertAsync(folders);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[SetupWizard] InsertAsync(ShelfFolder) failed shelfId={ShelfId} folderCount={Count}", shelf.Id, folders.Count);
+            throw;
+        }
 
         if (logger.IsEnabled(LogLevel.Information))
         {
