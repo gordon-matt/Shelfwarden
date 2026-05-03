@@ -66,6 +66,9 @@ window.shelfwarden = {
         if (!key || !element || !dotNetRef || !callbackMethodName) {
             return;
         }
+        if (!(element instanceof Element)) {
+            return;
+        }
 
         this.disconnectInfiniteScroll(key);
 

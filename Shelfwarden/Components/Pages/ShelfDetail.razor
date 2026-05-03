@@ -222,6 +222,13 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Infinite-scroll sentinel is only in the DOM once books are rendered; during the
+        // initial "Loading books..." state (books empty, still loading) there is no element.
+        if (books.Count == 0)
+        {
+            return;
+        }
+
         if (!hasMoreBooks && !isLoadingMoreBooks)
         {
             return;
