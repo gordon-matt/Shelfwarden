@@ -320,6 +320,13 @@ else
     private async Task OnSeriesInput(ChangeEventArgs e)
     {
         seriesInput = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(seriesInput))
+        {
+            ClearSeries();
+            showSeriesSuggestions = false;
+            return;
+        }
+
         showSeriesSuggestions = true;
         await RefreshSeriesSuggestionsAsync();
     }
@@ -392,6 +399,22 @@ else
         errorMessage = null;
         try
         {
+            int? resolvedSeriesId = null;
+            decimal? resolvedNumberInSeries = null;
+            if (!string.IsNullOrWhiteSpace(seriesInput))
+            {
+                var seriesResult = await SeriesService.GetOrCreateAsync(seriesInput.Trim());
+                if (!seriesResult.IsSuccess)
+                {
+                    errorMessage = seriesResult.Errors.FirstOrDefault()
+                        ?? "Could not resolve the series.";
+                    return;
+                }
+
+                resolvedSeriesId = seriesResult.Value.Id;
+                resolvedNumberInSeries = form.NumberInSeries;
+            }
+
             var request = new UpdateBookRequest
             {
                 Title = form.Title,
@@ -402,8 +425,8 @@ else
                 Publisher = string.IsNullOrWhiteSpace(form.Publisher) ? null : form.Publisher,
                 Isbn = string.IsNullOrWhiteSpace(form.Isbn) ? null : form.Isbn,
                 PublishedOn = form.PublishedOn,
-                SeriesId = selectedSeries?.Id,
-                NumberInSeries = selectedSeries is null ? null : form.NumberInSeries,
+                SeriesId = resolvedSeriesId,
+                NumberInSeries = resolvedSeriesId is null ? null : resolvedNumberInSeries,
                 AuthorIds = selectedAuthors.Select(a => a.Id).ToList(),
                 GenreIds = selectedGenres.Select(g => g.Id).ToList(),
                 Tags = selectedTags,

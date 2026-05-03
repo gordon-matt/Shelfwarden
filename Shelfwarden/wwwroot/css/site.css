@@ -1094,6 +1094,33 @@ ol.reading-list {
 
 /* Series tiles + collage. The collage absolutely positions up to four cover
    thumbnails inside a 4:5 frame so even one cover renders the same shape. */
+.series-tile-shell {
+    position: relative;
+}
+
+/* Same hover-reveal pattern as .book-card-wrapper .book-card-remove */
+.series-tile-shell .series-tile-edit,
+.series-tile-shell .series-tile-remove {
+    position: absolute;
+    top: 0.35rem;
+    z-index: 4;
+    opacity: 0;
+    transition: opacity 160ms ease;
+}
+
+.series-tile-shell .series-tile-edit {
+    right: 2.35rem;
+}
+
+.series-tile-shell .series-tile-remove {
+    right: 0.35rem;
+}
+
+.series-tile-shell:hover .series-tile-edit,
+.series-tile-shell:hover .series-tile-remove {
+    opacity: 1;
+}
+
 .series-tile {
     display: block;
     text-decoration: none;

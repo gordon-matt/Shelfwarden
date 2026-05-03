@@ -1,6 +1,7 @@
 @page "/series"
 @attribute [Authorize]
 @inject ISeriesService SeriesService
+@inject IJSRuntime JS
 
 <PageTitle>Series - Shelfwarden</PageTitle>
 
@@ -41,23 +42,80 @@ else
     <div class="book-grid">
         @foreach (var s in series)
         {
-            <a class="series-tile" href="@($"books?series={s.Id}")" title="@s.Name">
-                <SeriesCollage Covers="s.Covers" />
-                <div class="series-tile-body">
-                    <div class="series-tile-name text-truncate">@s.Name</div>
-                    <div class="series-tile-count text-secondary small">
-                        @s.BookCount book@(s.BookCount == 1 ? "" : "s")
+            <div class="series-tile-shell">
+                <a class="series-tile" href="@($"books?series={s.Id}")" title="@s.Name">
+                    <SeriesCollage Covers="s.Covers" />
+                    <div class="series-tile-body">
+                        <div class="series-tile-name text-truncate">@s.Name</div>
+                        <div class="series-tile-count text-secondary small">
+                            @s.BookCount book@(s.BookCount == 1 ? "" : "s")
+                        </div>
                     </div>
-                </div>
-            </a>
+                </a>
+                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                    <Authorized>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary series-tile-edit"
+                                title="Rename series"
+                                @onclick="() => OpenRenameModal(s)">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button"
+                                class="btn btn-sm btn-danger series-tile-remove"
+                                title="Delete series"
+                                @onclick="() => ConfirmDeleteSeriesAsync(s)">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
         }
     </div>
+}
+
+@if (renameModalOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Rename series</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseRenameModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (renameError is not null)
+                    {
+                        <div class="alert alert-danger py-2">@renameError</div>
+                    }
+                    <label class="form-label">Name</label>
+                    <input class="form-control" @bind="renameSeriesName" maxlength="256" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseRenameModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveRenameAsync" disabled="@renameSaving">
+                        @if (renameSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
 }
 
 @code {
     private IReadOnlyList<SeriesListItemDto>? series;
     private string query = string.Empty;
     private CancellationTokenSource? searchCts;
+
+    private bool renameModalOpen;
+    private int renameSeriesId;
+    private string renameSeriesName = string.Empty;
+    private string? renameError;
+    private bool renameSaving;
 
     protected override async Task OnInitializedAsync()
     {
@@ -94,5 +152,57 @@ else
             await LoadAsync();
         }
         catch (TaskCanceledException) { }
+    }
+
+    private void OpenRenameModal(SeriesListItemDto s)
+    {
+        renameSeriesId = s.Id;
+        renameSeriesName = s.Name;
+        renameError = null;
+        renameModalOpen = true;
+    }
+
+    private void CloseRenameModal()
+    {
+        renameModalOpen = false;
+        renameSaving = false;
+        renameError = null;
+    }
+
+    private async Task SaveRenameAsync()
+    {
+        renameSaving = true;
+        renameError = null;
+        try
+        {
+            var result = await SeriesService.UpdateAsync(renameSeriesId, renameSeriesName);
+            if (result.IsSuccess)
+            {
+                CloseRenameModal();
+                await LoadAsync();
+            }
+            else
+            {
+                renameError = result.Errors.FirstOrDefault() ?? "Could not rename the series.";
+            }
+        }
+        finally
+        {
+            renameSaving = false;
+        }
+    }
+
+    private async Task ConfirmDeleteSeriesAsync(SeriesListItemDto s)
+    {
+        bool ok = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"Delete series \"{s.Name}\"? Books stay in the library but are removed from this series.");
+        if (!ok) return;
+
+        var result = await SeriesService.DeleteAsync(s.Id);
+        if (result.IsSuccess)
+        {
+            await LoadAsync();
+        }
     }
 }

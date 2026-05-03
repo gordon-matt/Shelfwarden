@@ -1,6 +1,7 @@
 namespace Shelfwarden.Services;
 
 public class SeriesService(
+    IUserContextService userContext,
     IRepository<Series> seriesRepository,
     IRepository<Book> bookRepository) : ISeriesService
 {
@@ -134,5 +135,82 @@ public class SeriesService(
             .ToList();
 
         return Result.Success(result);
+    }
+
+    public async Task<Result<SeriesDto>> UpdateAsync(int id, string name, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return Result.Invalid(new ValidationError(nameof(name), "Name is required."));
+        }
+
+        string trimmed = name.Trim();
+        string normalised = trimmed.ToLowerInvariant();
+
+        var series = await seriesRepository.FindOneAsync(new SearchOptions<Series>
+        {
+            Query = s => s.Id == id,
+            CancellationToken = cancellationToken,
+        });
+        if (series is null)
+        {
+            return Result.NotFound();
+        }
+
+        var clash = await seriesRepository.FindOneAsync(new SearchOptions<Series>
+        {
+            Query = s => s.NormalizedName == normalised && s.Id != id,
+            CancellationToken = cancellationToken,
+        });
+        if (clash is not null)
+        {
+            return Result.Conflict($"Another series is already named \"{trimmed}\".");
+        }
+
+        series.Name = trimmed;
+        series.NormalizedName = normalised;
+        var updated = await seriesRepository.UpdateAsync(series);
+        int count = await bookRepository.CountAsync(b => b.SeriesId == id);
+
+        return Result.Success(new SeriesDto(updated.Id, updated.Name, updated.Description, count));
+    }
+
+    public async Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var series = await seriesRepository.FindOneAsync(new SearchOptions<Series>
+        {
+            Query = s => s.Id == id,
+            CancellationToken = cancellationToken,
+        });
+        if (series is null)
+        {
+            return Result.NotFound();
+        }
+
+        var linkedBooks = (await bookRepository.FindAsync(new SearchOptions<Book>
+        {
+            Query = b => b.SeriesId == id,
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        foreach (var book in linkedBooks)
+        {
+            book.SeriesId = null;
+            book.NumberInSeries = null;
+            await bookRepository.UpdateAsync(book);
+        }
+
+        await seriesRepository.DeleteAsync(series);
+        return Result.Success();
     }
 }
