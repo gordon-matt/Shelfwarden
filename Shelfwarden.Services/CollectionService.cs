@@ -186,7 +186,31 @@ public class CollectionService(
             return Result.Forbidden();
         }
 
-        collection.Name = request.Name.Trim();
+        bool wasGlobal = IsGlobal(collection);
+        if (request.IsGlobal != wasGlobal && !userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        string trimmedName = request.Name.Trim();
+        string targetOwnerId = collection.OwnerUserId;
+        if (request.IsGlobal != wasGlobal)
+        {
+            targetOwnerId = request.IsGlobal ? Constants.GlobalUserId : userId!;
+        }
+
+        var nameClash = await collectionRepository.FindOneAsync(new SearchOptions<Collection>
+        {
+            Query = c => c.OwnerUserId == targetOwnerId && c.Name == trimmedName && c.Id != id,
+            CancellationToken = cancellationToken,
+        });
+        if (nameClash is not null)
+        {
+            return Result.Conflict($"A collection named \"{trimmedName}\" already exists in that scope.");
+        }
+
+        collection.OwnerUserId = targetOwnerId;
+        collection.Name = trimmedName;
         collection.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         var updated = await collectionRepository.UpdateAsync(collection);
 

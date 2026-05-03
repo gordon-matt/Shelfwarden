@@ -298,6 +298,7 @@ public class AuthorService(
         string? biography,
         byte[]? photoBytes,
         string? photoExtension,
+        string? displayName = null,
         CancellationToken cancellationToken = default)
     {
         if (!userContext.IsAdministrator())
@@ -315,18 +316,50 @@ public class AuthorService(
             return Result.NotFound($"Author {authorId} not found.");
         }
 
+        bool nameUpdated = false;
+        if (displayName is not null)
+        {
+            string trimmedName = displayName.Trim();
+            if (string.IsNullOrEmpty(trimmedName))
+            {
+                return Result.Invalid(new ValidationError(nameof(displayName), "Name cannot be empty."));
+            }
+
+            string normalised = trimmedName.ToLowerInvariant();
+            if (!string.Equals(author.NormalizedName, normalised, StringComparison.Ordinal))
+            {
+                var nameTaken = await authorRepository.FindOneAsync(new SearchOptions<Author>
+                {
+                    Query = a => a.NormalizedName == normalised && a.Id != authorId,
+                    CancellationToken = cancellationToken,
+                });
+                if (nameTaken is not null)
+                {
+                    return Result.Conflict($"Another author is already named \"{trimmedName}\".");
+                }
+
+                author.Name = trimmedName;
+                author.NormalizedName = normalised;
+                nameUpdated = true;
+            }
+        }
+
         string? incomingBio = string.IsNullOrWhiteSpace(biography) ? null : biography.Trim();
         bool biographyUpdated = !string.Equals(author.Biography, incomingBio, StringComparison.Ordinal);
         if (biographyUpdated)
         {
             author.Biography = incomingBio;
-            await authorRepository.UpdateAsync(author);
         }
 
         bool photoUpdated = false;
         if (photoBytes is { Length: > 0 })
         {
             photoUpdated = await SaveAuthorPhotoAsync(authorId, photoBytes, photoExtension, cancellationToken);
+        }
+
+        if (nameUpdated || biographyUpdated)
+        {
+            await authorRepository.UpdateAsync(author);
         }
 
         return Result.Success(new AuthorProfileUpdateResultDto(

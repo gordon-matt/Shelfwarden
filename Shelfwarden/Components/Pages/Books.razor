@@ -322,6 +322,10 @@
     [SupplyParameterFromQuery(Name = "series")]
     public int? SeriesFromUrl { get; set; }
 
+    /// <summary>Legacy alias for <c>?series=</c>; book detail used this name briefly.</summary>
+    [SupplyParameterFromQuery(Name = "seriesId")]
+    public int? SeriesIdFromUrl { get; set; }
+
     [SupplyParameterFromQuery(Name = "author")]
     public int? AuthorFromUrl { get; set; }
 
@@ -417,8 +421,9 @@
             viewMode = ViewMode.List;
             pageSize = 12;
         }
-        // ?series= and ?author= make the books grid composable from author/series pages.
-        if (SeriesFromUrl is { } sId && seriesId != sId.ToString())
+        // ?series= (and legacy ?seriesId=) plus ?author= make the books grid composable from other pages.
+        int? seriesFromQuery = SeriesFromUrl ?? SeriesIdFromUrl;
+        if (seriesFromQuery is { } sId && seriesId != sId.ToString())
         {
             seriesId = sId.ToString();
         }

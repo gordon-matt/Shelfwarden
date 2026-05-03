@@ -72,7 +72,7 @@ else
                 @if (book.Series is not null)
                 {
                     <span class="ms-2">
-                        in <a href="@($"books?seriesId={book.Series.Id}")">@book.Series.Name</a>
+                        in <a href="@($"books?series={book.Series.Id}")">@book.Series.Name</a>
                         @if (book.NumberInSeries.HasValue)
                         {
                             <text> #@book.NumberInSeries</text>

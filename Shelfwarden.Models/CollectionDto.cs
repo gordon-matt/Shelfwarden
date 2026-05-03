@@ -43,4 +43,10 @@ public record UpdateCollectionRequest
     public required string Name { get; init; }
 
     public string? Description { get; init; }
+
+    /// <summary>
+    /// When true, the collection is stored under the global owner. Changing this flag
+    /// requires an administrator; personal owners may only keep <c>false</c>.
+    /// </summary>
+    public bool IsGlobal { get; init; }
 }

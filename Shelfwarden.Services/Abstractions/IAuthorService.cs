@@ -31,12 +31,14 @@ public interface IAuthorService
     Task<Result<AuthorOpenLibraryImportResultDto>> ImportFromOpenLibraryAsync(int authorId, string openLibraryAuthorId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Manually updates author biography and optionally uploads/replaces the author photo.
+    /// Manually updates author display name, biography, and optionally uploads/replaces the author photo.
     /// </summary>
+    /// <param name="displayName">When non-null, replaces the stored name (must not match another author).</param>
     Task<Result<AuthorProfileUpdateResultDto>> UpdateProfileAsync(
         int authorId,
         string? biography,
         byte[]? photoBytes,
         string? photoExtension,
+        string? displayName = null,
         CancellationToken cancellationToken = default);
 }

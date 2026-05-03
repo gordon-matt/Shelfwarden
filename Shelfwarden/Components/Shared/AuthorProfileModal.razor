@@ -39,6 +39,10 @@
                     @if (activeTab == ModalTab.Manual)
                     {
                         <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="manualName" @bind:event="oninput" maxlength="256" />
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Biography</label>
                             <textarea class="form-control" rows="8" @bind="manualBiography"></textarea>
                         </div>
@@ -163,6 +167,7 @@
     private enum ModalTab { Manual, Match }
     private ModalTab activeTab = ModalTab.Manual;
 
+    private string manualName = string.Empty;
     private string? manualBiography;
     private byte[]? selectedPhotoBytes;
     private string? selectedPhotoExtension;
@@ -196,6 +201,7 @@
 
         hasLoadedForCurrentOpenState = true;
         activeTab = ModalTab.Manual;
+        manualName = AuthorName;
         manualBiography = CurrentBiography;
         selectedPhotoBytes = null;
         selectedPhotoExtension = null;
@@ -258,11 +264,12 @@
                 AuthorId,
                 manualBiography,
                 selectedPhotoBytes,
-                selectedPhotoExtension);
+                selectedPhotoExtension,
+                displayName: manualName);
 
             if (!result.IsSuccess)
             {
-                errorMessage = "Manual update failed.";
+                errorMessage = result.Errors.FirstOrDefault() ?? "Manual update failed.";
                 return;
             }
 
