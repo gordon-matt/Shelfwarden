@@ -4,6 +4,7 @@
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService
 @inject IGenreService GenreService
+@inject ITagService TagService
 @inject NavigationManager NavigationManager
 @inject ILogger<BookEdit> Logger
 
@@ -193,27 +194,14 @@ else
                 <div class="card mb-4">
                     <div class="card-header"><strong>Tags</strong></div>
                     <div class="card-body">
-                        <div class="d-flex flex-wrap gap-1 mb-2">
-                            @if (selectedTags.Count == 0)
-                            {
-                                <span class="text-secondary small fst-italic">No tags yet.</span>
-                            }
-                            else
-                            {
-                                @foreach (var tag in selectedTags)
-                                {
-                                    <span class="chip chip-tag">
-                                        #@tag
-                                        <button type="button" class="btn-close btn-close-sm ms-1"
-                                                aria-label="Remove" @onclick="() => RemoveTag(tag)"></button>
-                                    </span>
-                                }
-                            }
-                        </div>
-                        <input class="form-control form-control-sm" type="text"
-                               placeholder="Type a tag and press Enter…"
-                               value="@tagInput" @oninput="e => tagInput = e.Value?.ToString() ?? string.Empty"
-                               @onkeydown="OnTagKeyDown" />
+                        <ChipInput TItem="string"
+                                   Label="Tags"
+                                   Selected="selectedTags"
+                                   ChipCssSuffix="chip-tag"
+                                   NameOf="@(t => t)"
+                                   SearchAsync="SearchTagsAsync"
+                                   OnAddAsync="AddTagAsync" />
+                        <div class="form-text">Suggestions come from tags already used in your library; you can still create a new tag by typing its name.</div>
                     </div>
                 </div>
             </div>
@@ -236,7 +224,7 @@ else
     private readonly List<AuthorDto> selectedAuthors = [];
     private readonly List<GenreDto> selectedGenres = [];
     private readonly List<string> selectedTags = [];
-    private string? tagInput;
+    private List<string> tagDirectory = [];
 
     // Series picker — single-select with create-on-the-fly. We track the *name* the user
     // typed/picked here and resolve it to an Id at save time so the user can create new
@@ -249,7 +237,16 @@ else
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
-        var result = await BookService.GetByIdAsync(Id);
+        var bookTask = BookService.GetByIdAsync(Id);
+        var tagsTask = TagService.ListAsync();
+        await Task.WhenAll(bookTask, tagsTask);
+
+        var tagsLookup = await tagsTask;
+        tagDirectory = tagsLookup.IsSuccess
+            ? tagsLookup.Value.Select(t => t.Name).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()
+            : [];
+
+        var result = await bookTask;
         if (!result.IsSuccess || result.Value is null)
         {
             book = null;
@@ -376,21 +373,33 @@ else
         }
     }
 
-    private void OnTagKeyDown(KeyboardEventArgs e)
+    private Task<IReadOnlyList<string>> SearchTagsAsync(string query)
     {
-        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(tagInput))
+        string needle = query.Trim().ToLowerInvariant();
+        IEnumerable<string> q = tagDirectory;
+        if (!string.IsNullOrEmpty(needle))
         {
-            var trimmed = tagInput.Trim().TrimStart('#');
-            if (!string.IsNullOrEmpty(trimmed) &&
-                !selectedTags.Any(t => string.Equals(t, trimmed, StringComparison.OrdinalIgnoreCase)))
-            {
-                selectedTags.Add(trimmed);
-            }
-            tagInput = string.Empty;
+            q = q.Where(t => t.ToLowerInvariant().Contains(needle));
         }
+
+        return Task.FromResult<IReadOnlyList<string>>(q.Take(50).ToList());
     }
 
-    private void RemoveTag(string tag) => selectedTags.Remove(tag);
+    private Task AddTagAsync(string name)
+    {
+        var trimmed = name.Trim().TrimStart('#');
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return Task.CompletedTask;
+        }
+
+        if (!selectedTags.Any(t => string.Equals(t, trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            selectedTags.Add(trimmed);
+        }
+
+        return Task.CompletedTask;
+    }
 
     private async Task SaveAsync()
     {

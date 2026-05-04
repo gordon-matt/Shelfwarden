@@ -17,7 +17,7 @@
         {
             @foreach (var item in Selected)
             {
-                <span class="chip">
+                <span class="chip @(ChipCssSuffix)">
                     <span>@NameOf(item)</span>
                     <button type="button" class="btn-close btn-close-sm ms-1"
                             aria-label="Remove" title="Remove"
@@ -77,6 +77,9 @@
     /// <summary>Returns suggestions for the current input. Called whenever the input changes.</summary>
     [Parameter, EditorRequired] public Func<string, Task<IReadOnlyList<TItem>>> SearchAsync { get; set; } =
         _ => Task.FromResult<IReadOnlyList<TItem>>([]);
+
+    /// <summary>Optional extra CSS class on each chip (e.g. <c>chip-tag</c> on the book edit form).</summary>
+    [Parameter] public string? ChipCssSuffix { get; set; }
 
     [Parameter] public EventCallback OnChanged { get; set; }
 
