@@ -7,6 +7,7 @@
 @inject ISeriesService SeriesService
 @inject IGenreService GenreService
 @inject ICollectionService CollectionService
+@inject ITagService TagService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 
@@ -198,6 +199,19 @@
                     }
                 </select>
             </div>
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label small text-body-secondary mb-1">Tag</label>
+                <select class="form-select form-select-sm"
+                        @bind="tagId"
+                        @bind:after="OnFilterChangedAsync">
+                    <option value="">Any tag</option>
+                    <option value="-1">No tags</option>
+                    @foreach (var t in tags)
+                    {
+                        <option value="@t.Id">#@t.Name</option>
+                    }
+                </select>
+            </div>
             <div class="col-12">
                 <div class="form-check form-switch">
                     <input class="form-check-input"
@@ -324,6 +338,9 @@
     [SupplyParameterFromQuery(Name = "genre")]
     public int? GenreAliasFromUrl { get; set; }
 
+    [SupplyParameterFromQuery(Name = "tagId")]
+    public int? TagFromUrl { get; set; }
+
     private enum ViewMode { Grid, List }
 
     private readonly List<BookListItemDto> results = [];
@@ -334,6 +351,7 @@
     private string authorId = "";
     private string seriesId = "";
     private string genreId = "";
+    private string tagId = "";
     private bool awaitingReview;
     private BookSortBy sortBy = BookSortBy.Title;
     private bool sortDescending;
@@ -357,6 +375,7 @@
     private IReadOnlyList<AuthorDto> authors = [];
     private IReadOnlyList<SeriesDto> series = [];
     private IReadOnlyList<GenreDto> genres = [];
+    private IReadOnlyList<TagDto> tags = [];
 
     private bool HasActiveFilters =>
         !string.IsNullOrEmpty(shelfId)
@@ -364,6 +383,7 @@
         || !string.IsNullOrEmpty(authorId)
         || !string.IsNullOrEmpty(seriesId)
         || !string.IsNullOrEmpty(genreId)
+        || !string.IsNullOrEmpty(tagId)
         || awaitingReview
         || !string.IsNullOrWhiteSpace(startsWithFilter)
         || !string.IsNullOrWhiteSpace(query);
@@ -378,14 +398,16 @@
         var authorsTask = AuthorService.SearchAsync(null, limit: 200);
         var seriesTask = SeriesService.SearchAsync(null, limit: 200);
         var genresTask = GenreService.SearchAsync(null, limit: 200);
+        var tagsTask = TagService.ListAsync();
 
-        await Task.WhenAll(shelvesTask, collectionsTask, authorsTask, seriesTask, genresTask);
+        await Task.WhenAll(shelvesTask, collectionsTask, authorsTask, seriesTask, genresTask, tagsTask);
 
         if (shelvesTask.Result.IsSuccess) shelves = shelvesTask.Result.Value;
         if (collectionsTask.Result.IsSuccess) collections = collectionsTask.Result.Value;
         if (authorsTask.Result.IsSuccess) authors = authorsTask.Result.Value;
         if (seriesTask.Result.IsSuccess) series = seriesTask.Result.Value;
         if (genresTask.Result.IsSuccess) genres = genresTask.Result.Value;
+        if (tagsTask.Result.IsSuccess) tags = tagsTask.Result.Value;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -415,6 +437,10 @@
         if (incomingGenreId is { } gId && genreId != gId.ToString())
         {
             genreId = gId.ToString();
+        }
+        if (TagFromUrl is { } tid && tagId != tid.ToString())
+        {
+            tagId = tid.ToString();
         }
         dotNetRef ??= DotNetObjectReference.Create(this);
         await ResetAndLoadAsync();
@@ -486,6 +512,7 @@
             SeriesId = ParseFilterId(seriesId),
             GenreId = ParseFilterId(genreId),
             CollectionId = ParseFilterId(collectionId),
+            TagId = ParseFilterId(tagId),
             AwaitingReview = awaitingReview,
             SortBy = sortBy,
             SortDescending = sortDescending,
@@ -526,6 +553,7 @@
                 SeriesId = ParseFilterId(seriesId),
                 GenreId = ParseFilterId(genreId),
                 CollectionId = ParseFilterId(collectionId),
+                TagId = ParseFilterId(tagId),
                 AwaitingReview = awaitingReview,
                 SortBy = sortBy,
                 SortDescending = sortDescending,
@@ -583,6 +611,7 @@
         authorId = "";
         seriesId = "";
         genreId = "";
+        tagId = "";
         awaitingReview = false;
         startsWithFilter = null;
         await ResetAndLoadAsync();
@@ -630,6 +659,7 @@
                     SeriesId = ParseFilterId(seriesId),
                     GenreId = ParseFilterId(genreId),
                     CollectionId = ParseFilterId(collectionId),
+                    TagId = ParseFilterId(tagId),
                     AwaitingReview = awaitingReview,
                     SortBy = sortBy,
                     SortDescending = sortDescending,

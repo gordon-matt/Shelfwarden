@@ -34,6 +34,11 @@ public record BookSearchRequest
     public int? CollectionId { get; init; }
 
     /// <summary>
+    /// Tag filter. Positive id restricts to books that have that tag; <c>-1</c> means books with no tags.
+    /// </summary>
+    public int? TagId { get; init; }
+
+    /// <summary>
     /// When true, only include books that have never had metadata edited by a user
     /// (<c>UpdatedAt is null</c>).
     /// </summary>

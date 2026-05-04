@@ -98,6 +98,18 @@ public class BookService(
             }
         }
 
+        if (request.TagId is int tagFilter)
+        {
+            if (tagFilter == -1)
+            {
+                predicate = predicate.And(b => !b.BookTags.Any());
+            }
+            else if (tagFilter > 0)
+            {
+                predicate = predicate.And(b => b.BookTags.Any(bt => bt.TagId == tagFilter));
+            }
+        }
+
         if (request.AwaitingReview)
         {
             predicate = predicate.And(b => b.UpdatedAt == null);
@@ -516,7 +528,8 @@ public class BookService(
             .Select(bg => new GenreDto(bg.Genre.Id, bg.Genre.Name))
             .ToList(),
         b.BookTags
-            .Select(bt => bt.Tag.Name)
+            .OrderBy(bt => bt.Tag.NormalizedName)
+            .Select(bt => new TagDto(bt.Tag.Id, bt.Tag.Name))
             .ToList(),
         b.CreatedAt,
         b.LastScannedAt,

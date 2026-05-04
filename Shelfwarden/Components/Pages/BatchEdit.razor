@@ -558,8 +558,8 @@ else
         IReadOnlyList<string> tags = bulk.UpdateTags
             ? bulk.TagsMode == ChipApplyMode.Replace
                 ? bulkTags.ToList()
-                : book.Tags.Concat(bulkTags).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
-            : book.Tags.ToList();
+                : book.Tags.Select(t => t.Name).Concat(bulkTags).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            : book.Tags.Select(t => t.Name).ToList();
 
         // Series: enabled = override (clearing if no series picked); disabled = keep current.
         int? seriesId = bulk.UpdateSeries ? resolvedSeriesId : book.Series?.Id;

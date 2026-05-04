@@ -130,7 +130,9 @@ else
                 <p class="mb-3 d-flex flex-wrap gap-1">
                     @foreach (var t in book.Tags)
                     {
-                        <span class="chip chip-tag">#@t</span>
+                        <a class="chip chip-tag text-decoration-none" href="@($"books?tagId={t.Id}")" title="Browse books tagged #@t.Name">
+                            #@t.Name
+                        </a>
                     }
                 </p>
             }

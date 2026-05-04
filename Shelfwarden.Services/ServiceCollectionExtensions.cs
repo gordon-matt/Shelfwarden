@@ -25,6 +25,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAuthorService, AuthorService>();
             services.AddScoped<ISeriesService, SeriesService>();
             services.AddScoped<IGenreService, GenreService>();
+            services.AddScoped<ITagService, TagService>();
             services.AddScoped<IServerSettingsService, ServerSettingsService>();
             services.AddScoped<IDashboardService, DashboardService>();
             services.AddScoped<IBookmarkService, BookmarkService>();

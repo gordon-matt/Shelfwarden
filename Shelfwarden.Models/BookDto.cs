@@ -27,6 +27,9 @@ public record BookListItemDto(
     string? SortTitle = null,
     string? Description = null);
 
+/// <summary>Tag attached to a book (id + display name).</summary>
+public record TagDto(int Id, string Name);
+
 /// <summary>Full book details, including all relationships, used on the detail page.</summary>
 public record BookDto(
     int Id,
@@ -48,7 +51,7 @@ public record BookDto(
     decimal? NumberInSeries,
     IReadOnlyList<AuthorDto> Authors,
     IReadOnlyList<GenreDto> Genres,
-    IReadOnlyList<string> Tags,
+    IReadOnlyList<TagDto> Tags,
     DateTime CreatedAt,
     DateTime? LastScannedAt,
     DateTime? UpdatedAt)

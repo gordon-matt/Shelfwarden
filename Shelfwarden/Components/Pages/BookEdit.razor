@@ -276,7 +276,7 @@ else
         selectedGenres.Clear();
         selectedGenres.AddRange(book.Genres);
         selectedTags.Clear();
-        selectedTags.AddRange(book.Tags);
+        selectedTags.AddRange(book.Tags.Select(t => t.Name));
         selectedSeries = book.Series;
         seriesInput = book.Series?.Name;
 
