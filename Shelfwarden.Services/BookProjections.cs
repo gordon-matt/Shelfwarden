@@ -25,6 +25,7 @@ internal static class BookProjections
         FileFormat: b.FileFormat,
         ProgressPercentage: progressPercent,
         CoverCacheVersion: BookCoverCaching.GetCoverCacheVersion(b.LastScannedAt, b.UpdatedAt, b.CreatedAt),
+        SortTitle: b.SortTitle,
         Description: b.Description);
 
     public static async Task<Dictionary<int, double>> LoadProgressPercentagesAsync(

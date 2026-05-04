@@ -1,0 +1,38 @@
+<div class="book-letter-rail" role="group" aria-label="Filter by first letter of title or sort title">
+    @foreach (var filter in BookListLetterFilter.Options)
+    {
+        bool active = string.Equals(StartsWith ?? string.Empty, filter.Value, StringComparison.Ordinal);
+        <button type="button"
+                class="book-letter-btn @(active ? "active" : null) @(filter.Value.Length == 0 ? "book-letter-btn-all" : null)"
+                title="@(string.IsNullOrEmpty(filter.Value) ? "Show all books" : $"Title or sort title: {filter.Label}")"
+                @onclick="() => OnSelectAsync(filter.Value)">
+            @filter.Label
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>Active rail key: empty string / null = All, <c>#</c>, or a single letter A–Z.</summary>
+    [Parameter]
+    public string? StartsWith { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> StartsWithChanged { get; set; }
+
+    private async Task OnSelectAsync(string value)
+    {
+        string? next;
+        if (string.IsNullOrEmpty(value))
+        {
+            next = null;
+        }
+        else
+        {
+            next = string.Equals(StartsWith ?? string.Empty, value, StringComparison.Ordinal)
+                ? null
+                : value;
+        }
+
+        await StartsWithChanged.InvokeAsync(next);
+    }
+}

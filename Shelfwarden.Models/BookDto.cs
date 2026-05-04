@@ -24,6 +24,7 @@ public record BookListItemDto(
     EbookFormat FileFormat,
     double ProgressPercentage,
     long CoverCacheVersion,
+    string? SortTitle = null,
     string? Description = null);
 
 /// <summary>Full book details, including all relationships, used on the detail page.</summary>

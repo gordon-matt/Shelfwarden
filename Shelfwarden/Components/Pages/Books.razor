@@ -297,18 +297,7 @@
 
     @if (UseLetterRail)
     {
-        <div class="book-letter-rail" role="group" aria-label="Book title letter filter">
-            @foreach (var filter in LetterFilters)
-            {
-                bool active = string.Equals(startsWithFilter ?? string.Empty, filter.Value, StringComparison.Ordinal);
-                <button type="button"
-                        class="book-letter-btn @(active ? "active" : null) @(filter.Value.Length == 0 ? "book-letter-btn-all" : null)"
-                        title="Show @filter.Label titles"
-                        @onclick="() => ApplyStartsWithFilterAsync(filter.Value)">
-                    @filter.Label
-                </button>
-            }
-        </div>
+        <BookLetterRail @bind-StartsWith="startsWithFilter" @bind-StartsWith:after="ResetAndLoadAsync" />
     }
 </div>
 
@@ -339,15 +328,6 @@
 
     private readonly List<BookListItemDto> results = [];
     private readonly string observerKey = $"books-page-{Guid.NewGuid():N}";
-    private static readonly (string Value, string Label)[] LetterFilters =
-    [
-        (string.Empty, "All"),
-        ("#", "#"),
-        ("A", "A"), ("B", "B"), ("C", "C"), ("D", "D"), ("E", "E"), ("F", "F"), ("G", "G"),
-        ("H", "H"), ("I", "I"), ("J", "J"), ("K", "K"), ("L", "L"), ("M", "M"), ("N", "N"),
-        ("O", "O"), ("P", "P"), ("Q", "Q"), ("R", "R"), ("S", "S"), ("T", "T"), ("U", "U"),
-        ("V", "V"), ("W", "W"), ("X", "X"), ("Y", "Y"), ("Z", "Z")
-    ];
     private string? query;
     private string shelfId = "";
     private string collectionId = "";
@@ -688,20 +668,6 @@
         string ids = string.Join(',', selectedBookIds);
         // Round-trip back to the books page (preserving the current URL ish — simplest is /books).
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=books");
-    }
-
-    private async Task ApplyStartsWithFilterAsync(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            startsWithFilter = null;
-        }
-        else
-        {
-            startsWithFilter = string.Equals(startsWithFilter, value, StringComparison.Ordinal) ? null : value;
-        }
-
-        await ResetAndLoadAsync();
     }
 
     private static int? ParseId(string raw) =>

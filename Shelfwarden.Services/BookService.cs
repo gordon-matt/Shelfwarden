@@ -1,6 +1,4 @@
 using LinqKit;
-using Microsoft.EntityFrameworkCore;
-using Shelfwarden.Data.Entities;
 
 namespace Shelfwarden.Services;
 
@@ -117,15 +115,43 @@ public class BookService(
             if (startsWith == "#")
             {
                 predicate = predicate.And(b =>
+                (
                     b.Title.Length > 0 &&
-                    !((b.Title[0] >= 'A' && b.Title[0] <= 'Z') || (b.Title[0] >= 'a' && b.Title[0] <= 'z')));
+                    !(
+                        (b.Title[0] >= 'A' && b.Title[0] <= 'Z') ||
+                        (b.Title[0] >= 'a' && b.Title[0] <= 'z')
+                    )
+                ) ||
+                (
+                    b.SortTitle != null &&
+                    b.SortTitle.Length > 0 &&
+                    !(
+                        (b.SortTitle[0] >= 'A' && b.SortTitle[0] <= 'Z') ||
+                        (b.SortTitle[0] >= 'a' && b.SortTitle[0] <= 'z')
+                    )
+                ));
             }
             else if (startsWith.Length == 1 && char.IsLetter(startsWith[0]))
             {
                 char upper = char.ToUpperInvariant(startsWith[0]);
                 string lower = char.ToLowerInvariant(upper).ToString();
                 string upperText = upper.ToString();
-                predicate = predicate.And(b => b.Title.StartsWith(upperText) || b.Title.StartsWith(lower));
+                predicate = predicate.And(b =>
+                (
+                    b.Title.Length > 0 &&
+                    (
+                        b.Title.StartsWith(upperText) ||
+                        b.Title.StartsWith(lower)
+                    )
+                ) ||
+                (
+                    b.SortTitle != null &&
+                    b.SortTitle.Length > 0 &&
+                    (
+                        b.SortTitle.StartsWith(upperText) ||
+                        b.SortTitle.StartsWith(lower)
+                    )
+                ));
             }
         }
 

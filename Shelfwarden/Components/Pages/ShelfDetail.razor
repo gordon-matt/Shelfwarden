@@ -89,7 +89,7 @@ else
                 {
                     <div class="alert alert-secondary d-flex flex-wrap align-items-center gap-2">
                         <span>No books on this shelf match the <strong>@startsWithFilter</strong> filter.</span>
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => ApplyStartsWithFilterAsync(string.Empty)">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearLetterFilterAsync">
                             Show all
                         </button>
                     </div>
@@ -100,7 +100,7 @@ else
                 @if (!string.IsNullOrWhiteSpace(startsWithFilter))
                 {
                     <div class="d-flex justify-content-end mb-2">
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => ApplyStartsWithFilterAsync(string.Empty)">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearLetterFilterAsync">
                             <i class="bi bi-x-circle"></i> Clear title filter
                         </button>
                     </div>
@@ -173,18 +173,7 @@ else
             }
         </div>
 
-        <div class="book-letter-rail" role="group" aria-label="Book title letter filter">
-            @foreach (var filter in LetterFilters)
-            {
-                bool active = string.Equals(startsWithFilter ?? string.Empty, filter.Value, StringComparison.Ordinal);
-                <button type="button"
-                        class="book-letter-btn @(active ? "active" : null) @(filter.Value.Length == 0 ? "book-letter-btn-all" : null)"
-                        title="Show @filter.Label titles"
-                        @onclick="() => ApplyStartsWithFilterAsync(filter.Value)">
-                    @filter.Label
-                </button>
-            }
-        </div>
+        <BookLetterRail @bind-StartsWith="startsWithFilter" @bind-StartsWith:after="OnLetterRailChangedAsync" />
     </div>
 }
 
@@ -196,15 +185,6 @@ else
     private readonly List<BookListItemDto> books = [];
     private readonly HashSet<int> selectedBookIds = [];
     private readonly string observerKey = $"shelf-books-{Guid.NewGuid():N}";
-    private static readonly (string Value, string Label)[] LetterFilters =
-    [
-        (string.Empty, "All"),
-        ("#", "#"),
-        ("A", "A"), ("B", "B"), ("C", "C"), ("D", "D"), ("E", "E"), ("F", "F"), ("G", "G"),
-        ("H", "H"), ("I", "I"), ("J", "J"), ("K", "K"), ("L", "L"), ("M", "M"), ("N", "N"),
-        ("O", "O"), ("P", "P"), ("Q", "Q"), ("R", "R"), ("S", "S"), ("T", "T"), ("U", "U"),
-        ("V", "V"), ("W", "W"), ("X", "X"), ("Y", "Y"), ("Z", "Z")
-    ];
     private ViewMode viewMode = ViewMode.Grid;
     private int totalBookCount;
     private bool selectAllMatchingBusy;
@@ -443,17 +423,15 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task ApplyStartsWithFilterAsync(string value)
+    private async Task OnLetterRailChangedAsync()
     {
-        if (string.IsNullOrEmpty(value))
-        {
-            startsWithFilter = null;
-        }
-        else
-        {
-            startsWithFilter = string.Equals(startsWithFilter, value, StringComparison.Ordinal) ? null : value;
-        }
+        selectedBookIds.Clear();
+        await ResetBooksAsync();
+    }
 
+    private async Task ClearLetterFilterAsync()
+    {
+        startsWithFilter = null;
         selectedBookIds.Clear();
         await ResetBooksAsync();
     }
