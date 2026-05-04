@@ -1,5 +1,7 @@
 @page "/books/batch-edit"
 @attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@using System.Globalization
+@using Shelfwarden.Extensions
 @inject IBookService BookService
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService
@@ -218,7 +220,15 @@ else
                         </th>
                         <th style="width: 56px;"></th>
                         <th>Title</th>
-                        <th>Sort title</th>
+                        <th style="min-width: 11rem;">
+                            <span class="d-block small text-body-secondary mb-1">Sort title</span>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="checkbox" id="batchAutoSortTitle"
+                                       @bind="autoUpdateSortTitle"
+                                       @bind:after="OnAfterAutoUpdateSortTitleChanged" />
+                                <label class="form-check-label small" for="batchAutoSortTitle">Auto Update Sort Title</label>
+                            </div>
+                        </th>
                         <th>Subtitle</th>
                         <th style="width: 90px;">#</th>
                         <th>Description</th>
@@ -247,10 +257,10 @@ else
                                     }
                                 </a>
                             </td>
-                            <td><input class="form-control form-control-sm" @bind="row.Title" /></td>
+                            <td><input class="form-control form-control-sm" @bind="row.Title" @bind:event="onchange" @bind:after="() => OnTitleChanged(row)" /></td>
                             <td><input class="form-control form-control-sm" @bind="row.SortTitle" /></td>
                             <td><input class="form-control form-control-sm" @bind="row.Subtitle" /></td>
-                            <td><input class="form-control form-control-sm" type="number" step="0.01" @bind="row.NumberInSeries" /></td>
+                            <td><input class="form-control form-control-sm" type="number" step="0.01" @bind="row.NumberInSeries" @bind:event="onchange" @bind:after="() => OnNumberInSeriesChanged(row)" /></td>
                             <td>
                                 <textarea class="form-control form-control-sm" rows="2" @bind="row.Description"></textarea>
                             </td>
@@ -280,6 +290,8 @@ else
     private List<BookDto>? books;
     private readonly List<RowModel> rows = [];
     private readonly HashSet<int> selectedIds = [];
+
+    private bool autoUpdateSortTitle;
 
     // Bulk apply-to-all state.
     private readonly BulkApplyModel bulk = new();
@@ -456,6 +468,137 @@ else
     }
 
     private void RemoveBulkTag(string tag) => bulkTags.Remove(tag);
+
+    private void OnAfterAutoUpdateSortTitleChanged()
+    {
+        if (!autoUpdateSortTitle || books is null)
+        {
+            return;
+        }
+
+        foreach (var row in rows)
+        {
+            ApplyAutoSortTitle(row);
+        }
+    }
+
+    private void OnTitleChanged(RowModel row)
+    {
+        if (!autoUpdateSortTitle || books is null)
+        {
+            return;
+        }
+
+        var book = books.FirstOrDefault(b => b.Id == row.Id);
+        if (book is null)
+        {
+            return;
+        }
+
+        // When a series is in effect, sort title follows series name + number — updated from # in series, not from title.
+        if (!string.IsNullOrWhiteSpace(GetEffectiveSeriesName(book)))
+        {
+            return;
+        }
+
+        row.SortTitle = SortTitleFromBookTitle(row.Title);
+    }
+
+    private void OnNumberInSeriesChanged(RowModel row)
+    {
+        if (!autoUpdateSortTitle || books is null)
+        {
+            return;
+        }
+
+        var book = books.FirstOrDefault(b => b.Id == row.Id);
+        if (book is null)
+        {
+            return;
+        }
+
+        string? seriesName = GetEffectiveSeriesName(book);
+        if (string.IsNullOrWhiteSpace(seriesName))
+        {
+            return;
+        }
+
+        row.SortTitle = BuildSeriesSortTitle(seriesName, row.NumberInSeries);
+    }
+
+    private void ApplyAutoSortTitle(RowModel row)
+    {
+        if (books is null)
+        {
+            return;
+        }
+
+        var book = books.FirstOrDefault(b => b.Id == row.Id);
+        if (book is null)
+        {
+            return;
+        }
+
+        string? seriesName = GetEffectiveSeriesName(book);
+        if (!string.IsNullOrWhiteSpace(seriesName))
+        {
+            row.SortTitle = BuildSeriesSortTitle(seriesName, row.NumberInSeries);
+        }
+        else
+        {
+            row.SortTitle = SortTitleFromBookTitle(row.Title);
+        }
+    }
+
+    /// <summary>Series name that will apply when saving: bulk panel override, else the book&apos;s current series.</summary>
+    private string? GetEffectiveSeriesName(BookDto book)
+    {
+        if (bulk.UpdateSeries)
+        {
+            if (string.IsNullOrWhiteSpace(seriesInput))
+            {
+                return null;
+            }
+
+            if (bulkSeries is not null &&
+                string.Equals(bulkSeries.Name, seriesInput.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return bulkSeries.Name;
+            }
+
+            return seriesInput.Trim();
+        }
+
+        return book.Series?.Name;
+    }
+
+    private static string? SortTitleFromBookTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return null;
+        }
+
+        string computed = title.Trim().ToSortTitle();
+        return string.IsNullOrWhiteSpace(computed) ? null : computed;
+    }
+
+    private static string? BuildSeriesSortTitle(string seriesName, decimal? numberInSeries)
+    {
+        string name = seriesName.Trim();
+        if (string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+
+        if (!numberInSeries.HasValue)
+        {
+            return name;
+        }
+
+        string num = numberInSeries.Value.ToString("0.##", CultureInfo.InvariantCulture);
+        return $"{name} {num}";
+    }
 
     private async Task SaveAsync()
     {

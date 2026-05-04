@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Extenso;
 using Humanizer;
+using Shelfwarden.Extensions;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services.Scanning;
@@ -291,7 +292,7 @@ public sealed class ScannerService(
     private static void ApplyMetadata(Book book, EbookMetadata metadata)
     {
         book.Title ??= metadata.Title;
-        book.SortTitle ??= BuildSortTitle(metadata.Title);
+        book.SortTitle ??= metadata.Title.ToSortTitle();
         book.Subtitle ??= metadata.Subtitle;
         book.Description ??= metadata.Description;
         book.Language ??= Truncate(metadata.Language, 16);
@@ -489,28 +490,5 @@ public sealed class ScannerService(
 
     private static string? Truncate(string? value, int max) => string.IsNullOrEmpty(value) ? value : value.Length <= max ? value : value[..max];
 
-    private static string BuildSortTitle(string title)
-    {
-        string trimmed = title.Trim();
-        if (trimmed.Length == 0)
-        {
-            return title;
-        }
-
-        // Ignore leading articles for sort-title (e.g. "The Hobbit" -> "Hobbit").
-        string[] articles = ["a ", "an ", "the "];
-        string lower = trimmed.ToLowerInvariant();
-        foreach (string article in articles)
-        {
-            if (!lower.StartsWith(article, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            string withoutArticle = trimmed[article.Length..].TrimStart();
-            return withoutArticle.Length == 0 ? trimmed : withoutArticle;
-        }
-
-        return trimmed;
-    }
+    
 }
