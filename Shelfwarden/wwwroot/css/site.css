@@ -998,6 +998,11 @@ ol.reading-list {
         display: inline-block;
     }
 
+    .author-avatar.author-avatar-unknown .placeholder-icon {
+        display: inline-block;
+        font-size: 3rem;
+    }
+
 .author-tile-name {
     font-weight: 600;
     text-align: center;
@@ -1005,6 +1010,23 @@ ol.reading-list {
 
 .author-tile-count {
     text-align: center;
+}
+
+.author-tile-select {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 5;
+    width: 1.25rem;
+    height: 1.25rem;
+    background-color: var(--bs-body-bg);
+    box-shadow: 0 0 0 2px var(--bs-body-bg);
+}
+
+.author-tile-shell.selected {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: -1px;
+    border-radius: var(--bs-border-radius);
 }
 
 .author-grid {
@@ -1064,6 +1086,11 @@ ol.reading-list {
 
     .author-header-photo.no-photo .placeholder-icon {
         display: inline-block;
+    }
+
+    .author-header-photo.author-header-photo-unknown .placeholder-icon {
+        display: inline-block;
+        font-size: 4rem;
     }
 
 .author-header-body {

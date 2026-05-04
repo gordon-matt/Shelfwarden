@@ -48,4 +48,26 @@ public interface IAuthorService
     /// </summary>
     /// <returns>The number of authors deleted.</returns>
     Task<Result<int>> DeleteAuthorsWithNoBooksAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Count of books that have no author links.</summary>
+    Task<Result<int>> GetBooksWithoutAuthorsCountAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Detail view for the synthetic &quot;Unknown&quot; author — books with no linked authors.
+    /// Shape matches <see cref="GetDetailAsync"/> (series groups + standalone).
+    /// </summary>
+    Task<Result<AuthorDetailDto>> GetUnknownAuthorDetailAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes every book–author link for the given authors, deletes author photos, then deletes the author rows.
+    /// Administrator only.
+    /// </summary>
+    Task<Result<int>> DeleteAuthorsAsync(IReadOnlyList<int> authorIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moves all book links from <paramref name="otherAuthorIds"/> onto <paramref name="primaryAuthorId"/>,
+    /// resolves duplicate (book, author) pairs, deletes merged authors and their photos.
+    /// Administrator only.
+    /// </summary>
+    Task<Result> MergeAuthorsAsync(int primaryAuthorId, IReadOnlyList<int> otherAuthorIds, CancellationToken cancellationToken = default);
 }

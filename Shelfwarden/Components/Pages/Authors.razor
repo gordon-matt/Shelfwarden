@@ -2,16 +2,72 @@
 @attribute [Authorize]
 @inject IAuthorService AuthorService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Authors - Shelfwarden</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="mb-0">Authors</h1>
-    @if (authors is not null)
-    {
-        <span class="text-secondary small">@authors.Count author@(authors.Count == 1 ? "" : "s")</span>
-    }
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        @if (authors is not null)
+        {
+            <span class="text-secondary small">
+                @authors.Count author@(authors.Count == 1 ? "" : "s")
+                @if (unknownBookCount > 0)
+                {
+                    <span> · @unknownBookCount book@(unknownBookCount == 1 ? "" : "s") without an author</span>
+                }
+            </span>
+        }
+        <AuthorizeView Roles="@Constants.Roles.Administrator">
+            <Authorized>
+                <button type="button"
+                        class="btn btn-sm @(selectMode ? "btn-primary" : "btn-outline-secondary")"
+                        title="Toggle select mode"
+                        @onclick="ToggleSelectMode">
+                    <i class="bi bi-check2-square"></i>
+                    @if (selectMode)
+                    {
+                        <span class="ms-1">@selectedAuthorIds.Count selected</span>
+                    }
+                    else
+                    {
+                        <span class="ms-1">Select</span>
+                    }
+                </button>
+            </Authorized>
+        </AuthorizeView>
+    </div>
 </div>
+
+@if (selectMode)
+{
+    <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <Authorized>
+            <div class="selection-toolbar mb-3 d-flex flex-wrap align-items-center gap-2">
+                <span class="text-secondary small">
+                    <i class="bi bi-check2-square"></i> @selectedAuthorIds.Count selected
+                </span>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllListed" disabled="@(authors is null || authors.Count == 0)">
+                    <i class="bi bi-ui-checks"></i> Select listed
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedAuthorIds.Count == 0)">
+                    <i class="bi bi-x-circle"></i> Clear
+                </button>
+                <button class="btn btn-sm btn-outline-danger"
+                        disabled="@(selectedAuthorIds.Count == 0)"
+                        @onclick="DeleteSelectedAsync">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+                <button class="btn btn-sm btn-outline-primary"
+                        disabled="@(selectedAuthorIds.Count < 2)"
+                        @onclick="OpenMergeModalAsync">
+                    <i class="bi bi-intersect"></i> Merge
+                </button>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+}
 
 <div class="row g-2 mb-3">
     <div class="col-md-6">
@@ -29,7 +85,7 @@
         <div class="mt-2">Loading authors…</div>
     </div>
 }
-else if (authors.Count == 0)
+else if (authors.Count == 0 && unknownBookCount == 0)
 {
     <div class="empty-state">
         <i class="bi bi-person-lines-fill empty-icon"></i>
@@ -40,10 +96,32 @@ else if (authors.Count == 0)
 else
 {
     <div class="author-grid">
+        <div class="author-tile-shell">
+            <a class="author-tile" href="authors/unknown" title="Books with no linked authors">
+                <div class="author-avatar author-avatar-unknown no-photo">
+                    <i class="bi bi-question-lg placeholder-icon"></i>
+                </div>
+                <div class="author-tile-name text-truncate">Unknown</div>
+                <div class="author-tile-count text-secondary small">
+                    @unknownBookCount book@(unknownBookCount == 1 ? "" : "s")
+                </div>
+            </a>
+        </div>
         @foreach (var a in authors)
         {
-            <div class="author-tile author-tile-shell">
-                <a class="author-tile" href="@($"authors/{a.Id}")" title="@a.Name">
+            <div class="author-tile-shell @(selectMode && selectedAuthorIds.Contains(a.Id) ? "selected" : null)">
+                @if (selectMode)
+                {
+                    <input class="form-check-input author-tile-select" type="checkbox"
+                           checked="@selectedAuthorIds.Contains(a.Id)"
+                           @onchange="e => ToggleSelection(a.Id, (bool)(e.Value ?? false))"
+                           @onclick:stopPropagation />
+                }
+                <a class="author-tile"
+                   href="@($"authors/{a.Id}")"
+                   title="@a.Name"
+                   @onclick="() => HandleAuthorTileClick(a.Id)"
+                   @onclick:preventDefault="@selectMode">
                     <div class="author-avatar">
                         @{
                             string photoUrl = GetAuthorPhotoUrl(a.Id);
@@ -61,12 +139,16 @@ else
                 </a>
                 <AuthorizeView Roles="@Constants.Roles.Administrator">
                     <Authorized>
-                        <button type="button"
-                                class="btn btn-sm btn-outline-secondary author-tile-edit"
-                                title="Edit author"
-                                @onclick="() => OpenAuthorMatchModalAsync(a)">
-                            <i class="bi bi-pencil-square"></i>
-                        </button>
+                        @if (!selectMode)
+                        {
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary author-tile-edit"
+                                    title="Edit author"
+                                    @onclick="() => OpenAuthorMatchModalAsync(a)"
+                                    @onclick:stopPropagation>
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                        }
                     </Authorized>
                 </AuthorizeView>
             </div>
@@ -81,8 +163,42 @@ else
                     OnClose="CloseAuthorEditModalAsync"
                     OnSaved="OnAuthorSavedAsync" />
 
+@if (mergeModalOpen && mergeCandidates.Count > 0)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,.5);" @onclick="CloseMergeModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Merge authors</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseMergeModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-secondary mb-3">
+                        Choose the author record to keep. All books linked to the other selected authors will point to that record instead.
+                    </p>
+                    @foreach (var c in mergeCandidates)
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="mergePrimaryAuthor"
+                                   id="@($"merge-primary-{c.Id}")"
+                                   checked="@(mergePrimaryAuthorId == c.Id)"
+                                   @onchange="@(() => mergePrimaryAuthorId = c.Id)" />
+                            <label class="form-check-label" for="@($"merge-primary-{c.Id}")">@c.Name</label>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseMergeModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="ConfirmMergeAsync">Merge</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private IReadOnlyList<AuthorListItemDto>? authors;
+    private int unknownBookCount;
     private string query = string.Empty;
     private CancellationTokenSource? searchCts;
     private readonly Dictionary<int, long> authorPhotoVersions = [];
@@ -92,6 +208,13 @@ else
     private string selectedAuthorName = string.Empty;
     private string? selectedAuthorBiography;
 
+    private bool selectMode;
+    private readonly HashSet<int> selectedAuthorIds = [];
+
+    private bool mergeModalOpen;
+    private int mergePrimaryAuthorId;
+    private List<AuthorListItemDto> mergeCandidates = [];
+
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
@@ -99,20 +222,24 @@ else
 
     private async Task LoadAsync()
     {
-        // Cancel any in-flight search so we never display stale results out of order.
         searchCts?.Cancel();
         searchCts = new CancellationTokenSource();
         var token = searchCts.Token;
 
-        var result = await AuthorService.ListAsync(query, token);
+        var listTask = AuthorService.ListAsync(query, token);
+        var unknownTask = AuthorService.GetBooksWithoutAuthorsCountAsync(token);
+        await Task.WhenAll(listTask, unknownTask);
+
         if (token.IsCancellationRequested) return;
 
-        authors = result.IsSuccess ? result.Value : [];
+        var lr = await listTask;
+        var ur = await unknownTask;
+        authors = lr.IsSuccess ? lr.Value : [];
+        unknownBookCount = ur.IsSuccess ? ur.Value : 0;
     }
 
     private async Task OnQueryKeyUp(KeyboardEventArgs e)
     {
-        // Tiny debounce: query on Enter immediately, otherwise wait for the user to stop typing.
         if (e.Key == "Enter")
         {
             await LoadAsync();
@@ -131,11 +258,113 @@ else
         catch (TaskCanceledException) { }
     }
 
-    private async Task OpenAuthorMatchModalAsync(AuthorListItemDto author)
+    private void ToggleSelectMode()
     {
-        selectedAuthorId = author.Id;
-        selectedAuthorName = author.Name;
-        selectedAuthorBiography = author.Biography;
+        selectMode = !selectMode;
+        if (!selectMode) selectedAuthorIds.Clear();
+    }
+
+    private void ToggleSelection(int authorId, bool include)
+    {
+        if (include) selectedAuthorIds.Add(authorId);
+        else selectedAuthorIds.Remove(authorId);
+    }
+
+    private void SelectAllListed()
+    {
+        if (authors is null) return;
+        foreach (var a in authors) selectedAuthorIds.Add(a.Id);
+    }
+
+    private void ClearSelection() => selectedAuthorIds.Clear();
+
+    private void HandleAuthorTileClick(int authorId)
+    {
+        if (!selectMode) return;
+        ToggleSelection(authorId, !selectedAuthorIds.Contains(authorId));
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        if (selectedAuthorIds.Count == 0) return;
+
+        int n = selectedAuthorIds.Count;
+        if (!await JSRuntime.InvokeAsync<bool>(
+                "shelfwarden.confirmDialog",
+                $"Delete {n} author record(s)? Every book link to those authors will be removed and the author entries deleted. This is not reversible."))
+        {
+            return;
+        }
+
+        var result = await AuthorService.DeleteAuthorsAsync(selectedAuthorIds.ToList());
+        if (!result.IsSuccess)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", result.Errors.FirstOrDefault() ?? "Delete failed.");
+            return;
+        }
+
+        selectedAuthorIds.Clear();
+        selectMode = false;
+        await LoadAsync();
+    }
+
+    private Task OpenMergeModalAsync()
+    {
+        if (selectedAuthorIds.Count < 2 || authors is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        mergeCandidates = authors.Where(a => selectedAuthorIds.Contains(a.Id)).OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        if (mergeCandidates.Count < 2)
+        {
+            mergeCandidates = [];
+            return Task.CompletedTask;
+        }
+
+        mergePrimaryAuthorId = mergeCandidates[0].Id;
+        mergeModalOpen = true;
+        return Task.CompletedTask;
+    }
+
+    private void CloseMergeModal()
+    {
+        mergeModalOpen = false;
+        mergeCandidates = [];
+    }
+
+    private async Task ConfirmMergeAsync()
+    {
+        if (mergeCandidates.Count < 2) return;
+
+        string primaryName = mergeCandidates.FirstOrDefault(c => c.Id == mergePrimaryAuthorId)?.Name ?? "Primary";
+        var others = mergeCandidates.Where(c => c.Id != mergePrimaryAuthorId).Select(c => c.Id).ToList();
+
+        if (!await JSRuntime.InvokeAsync<bool>(
+                "shelfwarden.confirmDialog",
+                $"Merge into \"{primaryName}\"? Other selected author records will be deleted. This is not reversible."))
+        {
+            return;
+        }
+
+        var result = await AuthorService.MergeAuthorsAsync(mergePrimaryAuthorId, others);
+        if (!result.IsSuccess)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", result.Errors.FirstOrDefault() ?? "Merge failed.");
+            return;
+        }
+
+        CloseMergeModal();
+        selectedAuthorIds.Clear();
+        selectMode = false;
+        await LoadAsync();
+    }
+
+    private async Task OpenAuthorMatchModalAsync(AuthorListItemDto authorRow)
+    {
+        selectedAuthorId = authorRow.Id;
+        selectedAuthorName = authorRow.Name;
+        selectedAuthorBiography = authorRow.Biography;
         isAuthorEditModalOpen = true;
     }
 

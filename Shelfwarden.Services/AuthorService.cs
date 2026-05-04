@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using OpenLibraryNET.Loader;
 using OpenLibraryNET.Utility;
 using Shelfwarden.Services.Storage;
@@ -133,7 +134,67 @@ public class AuthorService(
             CancellationToken = cancellationToken,
         })).ToList();
 
-        // Per-user progress so the in-page cards can render the green progress bar.
+        return Result.Success(await BuildAuthorDetailDtoAsync(
+            author.Id,
+            author.Name,
+            author.Biography,
+            books,
+            cancellationToken));
+    }
+
+    public async Task<Result<int>> GetBooksWithoutAuthorsCountAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            int count = await bookRepository.CountAsync(b => !b.BookAuthors.Any());
+            return Result.Success(count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to count books without authors");
+            return Result.Error("Could not load author-less book count.");
+        }
+    }
+
+    public async Task<Result<AuthorDetailDto>> GetUnknownAuthorDetailAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var books = (await bookRepository.FindAsync(new SearchOptions<Book>
+            {
+                Query = b => !b.BookAuthors.Any(),
+                Include = q => q
+                    .Include(b => b.Series)
+                    .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
+                OrderBy = q => q
+                    .OrderBy(b => b.SeriesId == null ? 1 : 0)
+                    .ThenBy(b => b.NumberInSeries)
+                    .ThenBy(b => b.SortTitle ?? b.Title),
+                SplitQuery = true,
+                CancellationToken = cancellationToken,
+            })).ToList();
+
+            return Result.Success(await BuildAuthorDetailDtoAsync(
+                0,
+                "Unknown",
+                null,
+                books,
+                cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to load books without authors");
+            return Result.Error("Could not load books without authors.");
+        }
+    }
+
+    private async Task<AuthorDetailDto> BuildAuthorDetailDtoAsync(
+        int id,
+        string displayName,
+        string? biography,
+        List<Book> books,
+        CancellationToken cancellationToken)
+    {
         string? userId = userContext.GetCurrentUserId();
         var progressByBook = await BookProjections.LoadProgressPercentagesAsync(
             progressRepository, userId, books.Select(b => b.Id).ToList(), cancellationToken);
@@ -160,13 +221,146 @@ public class AuthorService(
             .Select(b => BookProjections.ToListItem(b, progressByBook.GetValueOrDefault(b.Id)))
             .ToList();
 
-        return Result.Success(new AuthorDetailDto(
-            author.Id,
-            author.Name,
-            author.Biography,
+        return new AuthorDetailDto(
+            id,
+            displayName,
+            biography,
             books.Count,
             seriesGroups,
-            standalone));
+            standalone);
+    }
+
+    public async Task<Result<int>> DeleteAuthorsAsync(IReadOnlyList<int> authorIds, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        if (authorIds is null || authorIds.Count == 0)
+        {
+            return Result.Invalid(new ValidationError(nameof(authorIds), "Select at least one author."));
+        }
+
+        var distinctIds = authorIds.Where(id => id > 0).Distinct().ToList();
+        if (distinctIds.Count == 0)
+        {
+            return Result.Invalid(new ValidationError(nameof(authorIds), "No valid author ids."));
+        }
+
+        try
+        {
+            int deleted = 0;
+            foreach (int id in distinctIds)
+            {
+                var entity = await authorRepository.FindOneAsync(new SearchOptions<Author>
+                {
+                    Query = a => a.Id == id,
+                    CancellationToken = cancellationToken,
+                });
+                if (entity is null)
+                {
+                    continue;
+                }
+
+                TryDeleteAuthorPhotoFile(id);
+                await authorRepository.DeleteAsync(entity);
+                deleted++;
+            }
+
+            logger.LogInformation("Administrator deleted {Count} author record(s) by id.", deleted);
+            return Result.Success(deleted);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to delete authors by id");
+            return Result.Error("Could not delete the selected authors.");
+        }
+    }
+
+    public async Task<Result> MergeAuthorsAsync(int primaryAuthorId, IReadOnlyList<int> otherAuthorIds, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        if (otherAuthorIds is null || otherAuthorIds.Count == 0)
+        {
+            return Result.Invalid(new ValidationError(nameof(otherAuthorIds), "Select at least one author to merge away."));
+        }
+
+        var others = otherAuthorIds.Where(id => id > 0 && id != primaryAuthorId).Distinct().ToList();
+        if (others.Count == 0)
+        {
+            return Result.Invalid(new ValidationError(nameof(otherAuthorIds), "Nothing to merge."));
+        }
+
+        var primary = await authorRepository.FindOneAsync(new SearchOptions<Author>
+        {
+            Query = a => a.Id == primaryAuthorId,
+            CancellationToken = cancellationToken,
+        });
+        if (primary is null)
+        {
+            return Result.NotFound($"Author {primaryAuthorId} was not found.");
+        }
+
+        try
+        {
+            foreach (int otherId in others)
+            {
+                var otherAuthor = await authorRepository.FindOneAsync(new SearchOptions<Author>
+                {
+                    Query = a => a.Id == otherId,
+                    CancellationToken = cancellationToken,
+                });
+                if (otherAuthor is null)
+                {
+                    continue;
+                }
+
+                var links = (await bookAuthorRepository.FindAsync(new SearchOptions<BookAuthor>
+                {
+                    Query = ba => ba.AuthorId == otherId,
+                    CancellationToken = cancellationToken,
+                })).ToList();
+
+                foreach (var ba in links)
+                {
+                    var duplicate = await bookAuthorRepository.FindOneAsync(new SearchOptions<BookAuthor>
+                    {
+                        Query = x => x.BookId == ba.BookId && x.AuthorId == primaryAuthorId,
+                        CancellationToken = cancellationToken,
+                    });
+
+                    if (duplicate is not null)
+                    {
+                        await bookAuthorRepository.DeleteAsync(ba);
+                    }
+                    else
+                    {
+                        ba.AuthorId = primaryAuthorId;
+                        await bookAuthorRepository.UpdateAsync(ba);
+                    }
+                }
+
+                TryDeleteAuthorPhotoFile(otherId);
+                await authorRepository.DeleteAsync(otherAuthor);
+            }
+
+            logger.LogInformation(
+                "Merged author ids {Others} into primary {PrimaryId}.",
+                string.Join(',', others),
+                primaryAuthorId);
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to merge authors into {PrimaryId}", primaryAuthorId);
+            return Result.Error("Could not merge the selected authors.");
+        }
     }
 
     public async Task<Result<IReadOnlyList<OpenLibraryAuthorMatchDto>>> SearchOpenLibraryAuthorsAsync(string query, int limit = 8, CancellationToken cancellationToken = default)
