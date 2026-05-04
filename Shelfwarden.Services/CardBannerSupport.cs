@@ -24,7 +24,7 @@ internal static class CardBannerSupport
         try
         {
             int[]? ids = JsonSerializer.Deserialize<int[]>(json, JsonOptions);
-            return ids?.Where(i => i > 0).Distinct().Take(5).ToList() ?? [];
+            return ids?.Where(i => i > 0).Distinct().Take(CardBannerLimits.MaxStripCovers).ToList() ?? [];
         }
         catch
         {
@@ -34,7 +34,7 @@ internal static class CardBannerSupport
 
     internal static string? SerializeBookIds(IReadOnlyList<int> ids)
     {
-        var trimmed = ids.Where(i => i > 0).Distinct().Take(5).ToList();
+        var trimmed = ids.Where(i => i > 0).Distinct().Take(CardBannerLimits.MaxStripCovers).ToList();
         return trimmed.Count == 0 ? null : JsonSerializer.Serialize(trimmed, JsonOptions);
     }
 
@@ -68,7 +68,7 @@ internal static class CardBannerSupport
         IReadOnlyList<BookCoverRefDto> covers = mode switch
         {
             CardHeaderBannerMode.SelectedBooks => BuildSelectedCovers(ParseBookIds(selectedBookIdsJson), candidates),
-            _ => PickRandomCovers(candidates, 5),
+            _ => PickRandomCovers(candidates, CardBannerLimits.MaxStripCovers),
         };
 
         return new CardBannerPreview(mode, null, covers);
@@ -98,7 +98,7 @@ internal static class CardBannerSupport
         var result = new List<BookCoverRefDto>();
         foreach (int id in order)
         {
-            if (result.Count >= 5) break;
+            if (result.Count >= CardBannerLimits.MaxStripCovers) break;
             if (byId.TryGetValue(id, out var c))
             {
                 result.Add(new BookCoverRefDto(c.BookId, c.CoverCacheVersion));

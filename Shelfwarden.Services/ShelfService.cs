@@ -491,12 +491,12 @@ public class ShelfService(
                 "Upload a banner image first, or choose another header option."));
         }
 
-        var normalized = selectedBookIds.Where(memberBookIds.Contains).Take(5).ToList();
+        var normalized = selectedBookIds.Where(memberBookIds.Contains).Take(CardBannerLimits.MaxStripCovers).ToList();
         if (mode == CardHeaderBannerMode.SelectedBooks && normalized.Count == 0)
         {
             return Result.Invalid(new ValidationError(
                 nameof(selectedBookIds),
-                "Pick up to five books from this shelf for the header."));
+                $"Pick up to {CardBannerLimits.MaxStripCovers} books from this shelf for the header."));
         }
 
         if (mode != CardHeaderBannerMode.UploadedImage)

@@ -1,5 +1,15 @@
 namespace Shelfwarden.Models;
 
+/// <summary>Limits for cover strips on shelf / collection / reading-list tiles.</summary>
+public static class CardBannerLimits
+{
+    /// <summary>
+    /// Maximum covers in a tile strip (random or user-selected). Extra slices keep the strip
+    /// edge-to-edge without wide gaps on typical card widths.
+    /// </summary>
+    public const int MaxStripCovers = 12;
+}
+
 /// <summary>Resolved data for rendering a tile banner (list views).</summary>
 public record CardBannerPreview(
     CardHeaderBannerMode Mode,

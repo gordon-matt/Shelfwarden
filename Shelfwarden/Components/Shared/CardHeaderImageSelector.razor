@@ -8,7 +8,7 @@
                checked="@(Mode == CardHeaderBannerMode.RandomCovers)"
                @onchange="@(() => SetMode(CardHeaderBannerMode.RandomCovers))" />
         <label class="btn btn-outline-secondary text-start" for="@($"{_groupName}-rand")">
-            <i class="bi bi-shuffle me-1"></i> Random covers (up to five books from this list, changes each time)
+            <i class="bi bi-shuffle me-1"></i> Random covers (up to @CardBannerLimits.MaxStripCovers from this list; refreshes each visit)
         </label>
 
         <input type="radio" class="btn-check" name="@_groupName" id="@($"{_groupName}-up")"
@@ -22,7 +22,7 @@
                checked="@(Mode == CardHeaderBannerMode.SelectedBooks)"
                @onchange="@(() => SetMode(CardHeaderBannerMode.SelectedBooks))" />
         <label class="btn btn-outline-secondary text-start" for="@($"{_groupName}-sel")">
-            <i class="bi bi-grid-3x2-gap me-1"></i> Choose up to five books
+            <i class="bi bi-grid-3x2-gap me-1"></i> Choose up to @CardBannerLimits.MaxStripCovers books
         </label>
     </div>
 
@@ -78,7 +78,7 @@
                     </ul>
                 }
             </div>
-            <div class="form-text">Pick at most five; order is shown left to right on the tile.</div>
+            <div class="form-text">Pick at most @CardBannerLimits.MaxStripCovers; order is left to right on the tile.</div>
         </div>
     }
 </div>
@@ -133,7 +133,7 @@
 
     private async Task AddBookAsync(BookListItemDto book)
     {
-        if (SelectedBooks.Count >= 5)
+        if (SelectedBooks.Count >= CardBannerLimits.MaxStripCovers)
         {
             return;
         }
