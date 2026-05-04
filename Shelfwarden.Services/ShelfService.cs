@@ -98,6 +98,12 @@ public class ShelfService(
             return Result.Conflict($"A shelf named '{request.Name}' already exists.");
         }
 
+        string? folderConflictShelf = await FindConflictingShelfNameForFolderPathsAsync(folderPaths, excludeShelfId: null, cancellationToken);
+        if (folderConflictShelf is not null)
+        {
+            return Result.Conflict($"The selected folder is already mapped to the shelf, '{folderConflictShelf}'.");
+        }
+
         var shelf = await shelfRepository.InsertAsync(new Shelf
         {
             Name = request.Name.Trim(),
@@ -165,8 +171,14 @@ public class ShelfService(
         }
 
         var existingPaths = existingFolders.Select(f => f.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var toAdd = desiredFolders
-            .Where(p => !existingPaths.Contains(p))
+        var newPaths = desiredFolders.Where(p => !existingPaths.Contains(p)).ToList();
+        string? folderConflictShelf = await FindConflictingShelfNameForFolderPathsAsync(newPaths, excludeShelfId: id, cancellationToken);
+        if (folderConflictShelf is not null)
+        {
+            return Result.Conflict($"The selected folder is already mapped to the shelf, '{folderConflictShelf}'.");
+        }
+
+        var toAdd = newPaths
             .Select(p => new ShelfFolder { ShelfId = id, Path = p })
             .ToList();
         if (toAdd.Count > 0)
@@ -282,10 +294,50 @@ public class ShelfService(
         }
     }
 
+    /// <summary>
+    /// When non-null, at least one path in <paramref name="normalizedPaths"/> is already
+    /// mapped on another shelf (same path after trim; case-insensitive match).
+    /// </summary>
+    private async Task<string?> FindConflictingShelfNameForFolderPathsAsync(
+        IReadOnlyList<string> normalizedPaths,
+        int? excludeShelfId,
+        CancellationToken cancellationToken)
+    {
+        if (normalizedPaths.Count == 0)
+        {
+            return null;
+        }
+
+        var wanted = normalizedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var rows = await folderRepository.FindAsync(new SearchOptions<ShelfFolder>
+        {
+            Query = excludeShelfId is int sid ? f => f.ShelfId != sid : f => true,
+            Include = q => q.Include(f => f.Shelf),
+            CancellationToken = cancellationToken,
+        });
+
+        foreach (ShelfFolder row in rows)
+        {
+            string rowNorm = NormalizeFolderPath(row.Path);
+            if (!wanted.Contains(rowNorm))
+            {
+                continue;
+            }
+
+            return row.Shelf?.Name ?? $"Shelf #{row.ShelfId}";
+        }
+
+        return null;
+    }
+
+    private static string NormalizeFolderPath(string path)
+        => path.Trim().TrimEnd('/', '\\');
+
     private static List<string> NormalizeFolders(IReadOnlyList<string> folders)
         => [.. folders
             .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => p.Trim().TrimEnd('/', '\\'))
+            .Select(p => NormalizeFolderPath(p))
             .Distinct(StringComparer.OrdinalIgnoreCase)];
 
     private static ShelfDto MapShelf(Shelf shelf, int bookCount)
