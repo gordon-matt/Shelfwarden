@@ -4,6 +4,7 @@
 @inject IBookService BookService
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
+@using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>@(list?.Name ?? "Reading list") - Shelfwarden</PageTitle>
 
@@ -69,6 +70,13 @@ else
                         <div class="col-md-6">
                             <label class="form-label">Description</label>
                             <InputText class="form-control" @bind-Value="editModel.Description" />
+                        </div>
+                        <div class="col-12">
+                            <CardHeaderImageSelector @bind-Mode="bannerMode"
+                                                     SelectedBooks="bannerSelectedBooks"
+                                                     SearchBooksInScopeAsync="SearchBooksInReadingListForBannerAsync"
+                                                     OnUploadAsync="UploadReadingListBannerAsync"
+                                                     OnSelectedBooksChanged="StateHasChanged" />
                         </div>
                     </div>
                     <div class="mt-3 d-flex gap-2">
@@ -196,6 +204,9 @@ else
     private bool reordering;
     private EditModel editModel = new();
 
+    private CardHeaderBannerMode bannerMode = CardHeaderBannerMode.RandomCovers;
+    private readonly List<BookListItemDto> bannerSelectedBooks = [];
+
     private string? searchInput;
     private bool showSearch;
     private IReadOnlyList<BookListItemDto> searchResults = [];
@@ -218,6 +229,17 @@ else
         {
             list = result.Value;
             editModel = new EditModel { Name = list.Name, Description = list.Description };
+            bannerMode = list.CardBanner.Mode;
+            bannerSelectedBooks.Clear();
+            foreach (int bid in list.CardBanner.SelectedBookIds)
+            {
+                var hit = list.Items.FirstOrDefault(i => i.Book.Id == bid);
+                if (hit is not null)
+                {
+                    bannerSelectedBooks.Add(hit.Book);
+                }
+            }
+
             firstUnreadId = list.Items
                 .FirstOrDefault(i => i.Book.ProgressPercentage < 100)?.Book.Id;
         }
@@ -236,6 +258,8 @@ else
             {
                 Name = editModel.Name,
                 Description = editModel.Description,
+                CardBannerMode = bannerMode,
+                CardBannerSelectedBookIds = bannerSelectedBooks.Select(b => b.Id).ToList(),
             });
             if (result.IsSuccess)
             {
@@ -339,6 +363,28 @@ else
         finally
         {
             reordering = false;
+        }
+    }
+
+    private async Task<IReadOnlyList<BookListItemDto>> SearchBooksInReadingListForBannerAsync(string query)
+    {
+        var result = await BookService.SearchAsync(new BookSearchRequest
+        {
+            ReadingListId = Id,
+            Query = string.IsNullOrWhiteSpace(query) ? null : query,
+            Page = 1,
+            PageSize = 20,
+        });
+        return result.IsSuccess ? result.Value.Items : [];
+    }
+
+    private async Task UploadReadingListBannerAsync(IBrowserFile file)
+    {
+        await using Stream s = file.OpenReadStream(2_000_000);
+        var result = await ReadingListService.UploadCardBannerAsync(Id, s, file.Name, file.Size);
+        if (result.IsSuccess)
+        {
+            await LoadAsync();
         }
     }
 

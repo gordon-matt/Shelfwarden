@@ -11,7 +11,8 @@ public record CollectionDto(
     string OwnerUserId,
     bool IsGlobal,
     int BookCount,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    CardBannerPreview Banner);
 
 /// <summary>Detail projection that also embeds the books inside the collection.</summary>
 public record CollectionDetailDto(
@@ -21,7 +22,8 @@ public record CollectionDetailDto(
     string OwnerUserId,
     bool IsGlobal,
     DateTime CreatedAt,
-    IReadOnlyList<BookListItemDto> Books);
+    IReadOnlyList<BookListItemDto> Books,
+    CardBannerSettingsDto CardBanner);
 
 public record CreateCollectionRequest
 {
@@ -49,4 +51,8 @@ public record UpdateCollectionRequest
     /// requires an administrator; personal owners may only keep <c>false</c>.
     /// </summary>
     public bool IsGlobal { get; init; }
+
+    public CardHeaderBannerMode CardBannerMode { get; init; } = CardHeaderBannerMode.RandomCovers;
+
+    public IReadOnlyList<int> CardBannerSelectedBookIds { get; init; } = [];
 }

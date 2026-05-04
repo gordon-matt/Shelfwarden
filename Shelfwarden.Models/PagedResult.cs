@@ -33,6 +33,9 @@ public record BookSearchRequest
     /// </summary>
     public int? CollectionId { get; init; }
 
+    /// <summary>When set, only books that appear in this reading list are returned.</summary>
+    public int? ReadingListId { get; init; }
+
     /// <summary>
     /// Tag filter. Positive id restricts to books that have that tag; <c>-1</c> means books with no tags.
     /// </summary>

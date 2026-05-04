@@ -25,4 +25,11 @@ public interface ICollectionService
     Task<Result> AddBookAsync(int collectionId, int bookId, CancellationToken cancellationToken = default);
 
     Task<Result> RemoveBookAsync(int collectionId, int bookId, CancellationToken cancellationToken = default);
+
+    Task<Result> UploadCardBannerAsync(
+        int collectionId,
+        Stream content,
+        string fileName,
+        long? contentLength,
+        CancellationToken cancellationToken = default);
 }

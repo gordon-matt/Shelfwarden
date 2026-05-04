@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Shelfwarden.Services.Scanning;
 
@@ -66,6 +67,16 @@ public sealed class StoragePathProvider : IStoragePathProvider
 
         TtsCacheDirectory = Path.GetFullPath(ttsCacheBase);
         Directory.CreateDirectory(TtsCacheDirectory);
+
+        string? bannersConfigured = configuration["Storage:CardBannersPath"];
+        string bannersBase = string.IsNullOrWhiteSpace(bannersConfigured)
+            ? Path.Combine(Path.GetDirectoryName(CoversDirectory) ?? AppContext.BaseDirectory, "card-banners")
+            : Path.IsPathRooted(bannersConfigured)
+                ? bannersConfigured
+                : Path.Combine(AppContext.BaseDirectory, bannersConfigured);
+
+        CardBannersDirectory = Path.GetFullPath(bannersBase);
+        Directory.CreateDirectory(CardBannersDirectory);
     }
 
     public string CoversDirectory { get; }
@@ -75,6 +86,8 @@ public sealed class StoragePathProvider : IStoragePathProvider
     public string AudiobooksDirectory { get; }
 
     public string TtsCacheDirectory { get; }
+
+    public string CardBannersDirectory { get; }
 
     public string GetAudiobookWorkingDirectory(int bookId)
     {
@@ -202,5 +215,87 @@ public sealed class StoragePathProvider : IStoragePathProvider
         {
             logger.LogWarning(ex, "Failed to clean previous covers for book {BookId}", bookId);
         }
+    }
+
+    public void DeleteCardBannerFile(string kind, int entityId)
+    {
+        try
+        {
+            string pattern = $"{SanitizeKind(kind)}-{entityId.ToString(CultureInfo.InvariantCulture)}.*";
+            foreach (string file in Directory.EnumerateFiles(CardBannersDirectory, pattern))
+            {
+                File.Delete(file);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to delete card banner {Kind} {Id}", kind, entityId);
+        }
+    }
+
+    public string? GetCardBannerPath(string? relativeFileName)
+    {
+        if (string.IsNullOrWhiteSpace(relativeFileName))
+        {
+            return null;
+        }
+
+        string full = Path.GetFullPath(Path.Combine(CardBannersDirectory, relativeFileName));
+        string root = Path.GetFullPath(CardBannersDirectory) + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(full))
+        {
+            return null;
+        }
+
+        return full;
+    }
+
+    public string? FindCardBannerFilePath(string kind, int entityId)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(
+                    CardBannersDirectory,
+                    $"{SanitizeKind(kind)}-{entityId.ToString(CultureInfo.InvariantCulture)}.*")
+                .FirstOrDefault();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<string> SaveCardBannerFileAsync(
+        string kind,
+        int entityId,
+        Stream content,
+        string originalFileName,
+        CancellationToken cancellationToken = default)
+    {
+        string safeKind = SanitizeKind(kind);
+        DeleteCardBannerFile(safeKind, entityId);
+
+        string ext = Path.GetExtension(originalFileName);
+        if (string.IsNullOrEmpty(ext) || ext.Length > 8)
+        {
+            ext = ".jpg";
+        }
+
+        ext = ext.ToLowerInvariant();
+        string filename = $"{safeKind}-{entityId.ToString(CultureInfo.InvariantCulture)}{ext}";
+        string fullPath = Path.Combine(CardBannersDirectory, filename);
+
+        await using (var fs = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            await content.CopyToAsync(fs, cancellationToken);
+        }
+
+        return filename;
+    }
+
+    private static string SanitizeKind(string kind)
+    {
+        char[] invalid = Path.GetInvalidFileNameChars();
+        return new string(kind.Where(c => c != '.' && !invalid.Contains(c)).ToArray());
     }
 }

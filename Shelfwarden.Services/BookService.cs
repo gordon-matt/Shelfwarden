@@ -98,6 +98,11 @@ public class BookService(
             }
         }
 
+        if (request.ReadingListId is int listId && listId > 0)
+        {
+            predicate = predicate.And(b => b.ReadingListItems.Any(i => i.ReadingListId == listId));
+        }
+
         if (request.TagId is int tagFilter)
         {
             if (tagFilter == -1)

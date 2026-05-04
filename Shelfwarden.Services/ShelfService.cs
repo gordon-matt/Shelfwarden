@@ -1,7 +1,9 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Shelfwarden.Data.Entities;
+using Shelfwarden.Models;
 using Shelfwarden.Services.Scanning;
+using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
 
@@ -13,7 +15,8 @@ public class ShelfService(
     IRepository<ShelfFolder> folderRepository,
     IRepository<ShelfUserAccess> shelfUserAccessRepository,
     IRepository<ShelfRoleAccess> shelfRoleAccessRepository,
-    IRepository<Book> bookRepository) : IShelfService
+    IRepository<Book> bookRepository,
+    IStoragePathProvider storage) : IShelfService
 {
     public async Task<Result<IReadOnlyList<ShelfDto>>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -41,8 +44,22 @@ public class ShelfService(
             .GroupBy(x => x.ShelfId)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        var shelfIds = shelfList.Select(s => s.Id).ToList();
+        var bannerSources = await LoadShelfBannerSourcesAsync(shelfIds, cancellationToken);
+
         IReadOnlyList<ShelfDto> result = shelfList
-            .Select(s => MapShelf(s, counts.GetValueOrDefault(s.Id, 0)))
+            .Select(s =>
+            {
+                var preview = CardBannerSupport.BuildPreview(
+                    s.CardBannerMode,
+                    s.CardBannerImageFileName,
+                    s.CardBannerBookIdsJson,
+                    CardBannerSupport.KindShelves,
+                    s.Id,
+                    bannerSources.GetValueOrDefault(s.Id) ?? [],
+                    storage);
+                return MapShelf(s, counts.GetValueOrDefault(s.Id, 0), preview, BannerSettings: null);
+            })
             .ToList();
 
         return Result.Success(result);
@@ -72,7 +89,25 @@ public class ShelfService(
 
         int bookCount = await bookRepository.CountAsync(b => b.ShelfId == id);
 
-        return Result.Success(MapShelf(shelf, bookCount));
+        var bannerSources = await LoadShelfBannerSourcesAsync([id], cancellationToken);
+        var preview = CardBannerSupport.BuildPreview(
+            shelf.CardBannerMode,
+            shelf.CardBannerImageFileName,
+            shelf.CardBannerBookIdsJson,
+            CardBannerSupport.KindShelves,
+            shelf.Id,
+            bannerSources.GetValueOrDefault(id) ?? [],
+            storage);
+
+        var settings = CardBannerSupport.BuildSettings(
+            shelf.CardBannerMode,
+            shelf.CardBannerImageFileName,
+            shelf.CardBannerBookIdsJson,
+            CardBannerSupport.KindShelves,
+            shelf.Id,
+            storage);
+
+        return Result.Success(MapShelf(shelf, bookCount, preview, settings));
     }
 
     public async Task<Result<ShelfDto>> CreateAsync(CreateShelfRequest request, CancellationToken cancellationToken = default)
@@ -188,7 +223,77 @@ public class ShelfService(
 
         await SyncShelfAccessAsync(id, request.AllowedUserIds, request.AllowedRoleNames, cancellationToken);
 
+        var memberIds = (await bookRepository.FindAsync(
+            new SearchOptions<Book> { Query = b => b.ShelfId == id },
+            b => b.Id)).ToHashSet();
+
+        Result bannerResult = ApplyShelfBannerUpdateAsync(
+            id, shelf, request.CardBannerMode, request.CardBannerSelectedBookIds, memberIds);
+        if (!bannerResult.IsSuccess)
+        {
+            return Result<ShelfDto>.Invalid(bannerResult.ValidationErrors);
+        }
+
+        await shelfRepository.UpdateAsync(shelf);
+
         return await GetByIdAsync(id, cancellationToken);
+    }
+
+    public async Task<Result> UploadCardBannerAsync(
+        int shelfId,
+        Stream content,
+        string fileName,
+        long? contentLength,
+        CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
+        {
+            Query = x => x.Id == shelfId,
+            CancellationToken = cancellationToken,
+        });
+        if (shelf is null)
+        {
+            return Result.NotFound($"Shelf {shelfId} not found.");
+        }
+
+        const long maxBytes = 2_000_000;
+        if (contentLength is > maxBytes)
+        {
+            return Result.Invalid(new ValidationError(nameof(fileName), $"Image must be at most {maxBytes / 1_000_000} MB."));
+        }
+
+        string ext = Path.GetExtension(fileName).ToLowerInvariant();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".gif" or ".webp"))
+        {
+            return Result.Invalid(new ValidationError(nameof(fileName), "Use JPG, PNG, GIF, or WebP."));
+        }
+
+        using var ms = new MemoryStream();
+        await content.CopyToAsync(ms, cancellationToken);
+        if (ms.Length > maxBytes)
+        {
+            return Result.Invalid(new ValidationError(nameof(fileName), $"Image must be at most {maxBytes / 1_000_000} MB."));
+        }
+
+        ms.Position = 0;
+        string relative = await storage.SaveCardBannerFileAsync(
+            CardBannerSupport.KindShelves,
+            shelfId,
+            ms,
+            fileName,
+            cancellationToken);
+
+        shelf.CardBannerMode = CardHeaderBannerMode.UploadedImage;
+        shelf.CardBannerImageFileName = relative;
+        shelf.CardBannerBookIdsJson = null;
+        await shelfRepository.UpdateAsync(shelf);
+
+        return Result.Success();
     }
 
     public async Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default)
@@ -208,6 +313,8 @@ public class ShelfService(
         {
             return Result.NotFound();
         }
+
+        storage.DeleteCardBannerFile(CardBannerSupport.KindShelves, id);
 
         // FK ON DELETE CASCADE handles folders + books + access rows.
         await shelfRepository.DeleteAsync(shelf);
@@ -340,7 +447,7 @@ public class ShelfService(
             .Select(p => NormalizeFolderPath(p))
             .Distinct(StringComparer.OrdinalIgnoreCase)];
 
-    private static ShelfDto MapShelf(Shelf shelf, int bookCount)
+    private static ShelfDto MapShelf(Shelf shelf, int bookCount, CardBannerPreview preview, CardBannerSettingsDto? BannerSettings = null)
     {
         var allowedUsers = (shelf.UserAccessEntries ?? [])
             .OrderBy(u => u.UserId)
@@ -364,6 +471,76 @@ public class ShelfService(
                 .Select(f => new ShelfFolderDto(f.Id, f.Path))
                 .ToList(),
             allowedUsers,
-            allowedRoles);
+            allowedRoles,
+            preview,
+            BannerSettings);
+    }
+
+    private Result ApplyShelfBannerUpdateAsync(
+        int shelfId,
+        Shelf shelf,
+        CardHeaderBannerMode mode,
+        IReadOnlyList<int> selectedBookIds,
+        HashSet<int> memberBookIds)
+    {
+        if (mode == CardHeaderBannerMode.UploadedImage && string.IsNullOrEmpty(shelf.CardBannerImageFileName)
+                                                      && storage.FindCardBannerFilePath(CardBannerSupport.KindShelves, shelfId) is null)
+        {
+            return Result.Invalid(new ValidationError(
+                nameof(mode),
+                "Upload a banner image first, or choose another header option."));
+        }
+
+        var normalized = selectedBookIds.Where(memberBookIds.Contains).Take(5).ToList();
+        if (mode == CardHeaderBannerMode.SelectedBooks && normalized.Count == 0)
+        {
+            return Result.Invalid(new ValidationError(
+                nameof(selectedBookIds),
+                "Pick up to five books from this shelf for the header."));
+        }
+
+        if (mode != CardHeaderBannerMode.UploadedImage)
+        {
+            storage.DeleteCardBannerFile(CardBannerSupport.KindShelves, shelfId);
+            shelf.CardBannerImageFileName = null;
+        }
+
+        shelf.CardBannerMode = mode;
+        shelf.CardBannerBookIdsJson = mode == CardHeaderBannerMode.SelectedBooks
+            ? CardBannerSupport.SerializeBookIds(normalized)
+            : null;
+
+        return Result.Success();
+    }
+
+    private async Task<Dictionary<int, List<CardBannerSupport.BookCoverSource>>> LoadShelfBannerSourcesAsync(
+        IReadOnlyList<int> shelfIds,
+        CancellationToken cancellationToken)
+    {
+        if (shelfIds.Count == 0)
+        {
+            return [];
+        }
+
+        var books = (await bookRepository.FindAsync(new SearchOptions<Book>
+        {
+            Query = b => shelfIds.Contains(b.ShelfId) && !string.IsNullOrEmpty(b.CoverImagePath),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        var dict = new Dictionary<int, List<CardBannerSupport.BookCoverSource>>();
+        foreach (Book b in books)
+        {
+            long v = BookCoverCaching.GetCoverCacheVersion(b.LastScannedAt, b.UpdatedAt, b.CreatedAt);
+            if (!dict.TryGetValue(b.ShelfId, out List<CardBannerSupport.BookCoverSource>? list))
+            {
+                list = [];
+                dict[b.ShelfId] = list;
+            }
+
+            list.Add(new CardBannerSupport.BookCoverSource(b.Id, v));
+        }
+
+        return dict;
     }
 }

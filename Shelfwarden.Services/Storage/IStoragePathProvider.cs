@@ -66,4 +66,19 @@ public interface IStoragePathProvider
 
     /// <summary>Delete the encoded audiobook + any working files for <paramref name="bookId"/>.</summary>
     void DeleteAudiobook(int bookId);
+
+    /// <summary>Directory for user-uploaded shelf / collection / reading list tile banners.</summary>
+    string CardBannersDirectory { get; }
+
+    /// <summary>Delete any uploaded banner for the given entity (any extension).</summary>
+    void DeleteCardBannerFile(string kind, int entityId);
+
+    /// <summary>Resolve the on-disk path for a stored relative banner filename, or null.</summary>
+    string? GetCardBannerPath(string? relativeFileName);
+
+    /// <summary>Find an uploaded banner for <paramref name="kind"/>/<paramref name="entityId"/> (any extension), or null.</summary>
+    string? FindCardBannerFilePath(string kind, int entityId);
+
+    /// <summary>Save an uploaded banner; returns the relative filename to store on the entity.</summary>
+    Task<string> SaveCardBannerFileAsync(string kind, int entityId, Stream content, string originalFileName, CancellationToken cancellationToken = default);
 }

@@ -1,3 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using Shelfwarden.Models;
+using Shelfwarden.Services.Storage;
+
 namespace Shelfwarden.Services;
 
 public class ReadingListService(
@@ -5,7 +9,8 @@ public class ReadingListService(
     IRepository<ReadingList> listRepository,
     IRepository<ReadingListItem> itemRepository,
     IRepository<Book> bookRepository,
-    IRepository<BookProgress> progressRepository) : IReadingListService
+    IRepository<BookProgress> progressRepository,
+    IStoragePathProvider storage) : IReadingListService
 {
     public async Task<Result<IReadOnlyList<ReadingListDto>>> ListAsync(int? shelfId = null, CancellationToken cancellationToken = default)
     {
@@ -72,8 +77,21 @@ public class ReadingListService(
             .GroupBy(id => id)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        var bannerSources = await LoadReadingListBannerSourcesAsync(ids, cancellationToken);
+
         IReadOnlyList<ReadingListDto> dtos = rows
-            .Select(l => Map(l, counts.GetValueOrDefault(l.Id, 0)))
+            .Select(l =>
+            {
+                var preview = CardBannerSupport.BuildPreview(
+                    l.CardBannerMode,
+                    l.CardBannerImageFileName,
+                    l.CardBannerBookIdsJson,
+                    CardBannerSupport.KindReadingLists,
+                    l.Id,
+                    bannerSources.GetValueOrDefault(l.Id) ?? [],
+                    storage);
+                return Map(l, counts.GetValueOrDefault(l.Id, 0), preview);
+            })
             .ToList();
 
         return Result.Success(dtos);
@@ -137,8 +155,16 @@ public class ReadingListService(
                 BookProjections.ToListItem(booksById[i.BookId], progress.GetValueOrDefault(i.BookId, 0))))
             .ToList();
 
+        var settings = CardBannerSupport.BuildSettings(
+            list.CardBannerMode,
+            list.CardBannerImageFileName,
+            list.CardBannerBookIdsJson,
+            CardBannerSupport.KindReadingLists,
+            list.Id,
+            storage);
+
         return Result.Success(new ReadingListDetailDto(
-            list.Id, list.Name, list.Description, list.OwnerUserId, list.CreatedAt, entries));
+            list.Id, list.Name, list.Description, list.OwnerUserId, list.CreatedAt, entries, settings));
     }
 
     public async Task<Result<ReadingListDto>> CreateAsync(CreateReadingListRequest request, CancellationToken cancellationToken = default)
@@ -168,7 +194,16 @@ public class ReadingListService(
             CreatedAt = DateTime.UtcNow,
         });
 
-        return Result.Success(Map(inserted, BookCount: 0));
+        var preview = CardBannerSupport.BuildPreview(
+            CardHeaderBannerMode.RandomCovers,
+            null,
+            null,
+            CardBannerSupport.KindReadingLists,
+            inserted.Id,
+            [],
+            storage);
+
+        return Result.Success(Map(inserted, BookCount: 0, preview));
     }
 
     public async Task<Result<ReadingListDto>> UpdateAsync(int id, UpdateReadingListRequest request, CancellationToken cancellationToken = default)
@@ -196,11 +231,33 @@ public class ReadingListService(
 
         list.Name = request.Name.Trim();
         list.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+
+        var memberIds = (await itemRepository.FindAsync(
+            new SearchOptions<ReadingListItem> { Query = i => i.ReadingListId == id },
+            i => i.BookId)).ToHashSet();
+
+        Result bannerResult = ApplyReadingListBannerUpdateAsync(
+            id, list, request.CardBannerMode, request.CardBannerSelectedBookIds, memberIds);
+        if (!bannerResult.IsSuccess)
+        {
+            return Result<ReadingListDto>.Invalid(bannerResult.ValidationErrors);
+        }
+
         var updated = await listRepository.UpdateAsync(list);
 
         int count = await itemRepository.CountAsync(i => i.ReadingListId == id);
 
-        return Result.Success(Map(updated, count));
+        var bannerSources = await LoadReadingListBannerSourcesAsync([id], cancellationToken);
+        var preview = CardBannerSupport.BuildPreview(
+            updated.CardBannerMode,
+            updated.CardBannerImageFileName,
+            updated.CardBannerBookIdsJson,
+            CardBannerSupport.KindReadingLists,
+            updated.Id,
+            bannerSources.GetValueOrDefault(id) ?? [],
+            storage);
+
+        return Result.Success(Map(updated, count, preview));
     }
 
     public async Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default)
@@ -226,7 +283,72 @@ public class ReadingListService(
             return Result.Forbidden();
         }
 
+        storage.DeleteCardBannerFile(CardBannerSupport.KindReadingLists, id);
+
         await listRepository.DeleteAsync(list);
+        return Result.Success();
+    }
+
+    public async Task<Result> UploadCardBannerAsync(
+        int readingListId,
+        Stream content,
+        string fileName,
+        long? contentLength,
+        CancellationToken cancellationToken = default)
+    {
+        string? userId = userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Result.Unauthorized();
+        }
+
+        var list = await listRepository.FindOneAsync(new SearchOptions<ReadingList>
+        {
+            Query = l => l.Id == readingListId,
+            CancellationToken = cancellationToken,
+        });
+        if (list is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (list.OwnerUserId != userId)
+        {
+            return Result.Forbidden();
+        }
+
+        const long maxBytes = 2_000_000;
+        if (contentLength is > maxBytes)
+        {
+            return Result.Invalid(new ValidationError(nameof(fileName), $"Image must be at most {maxBytes / 1_000_000} MB."));
+        }
+
+        string ext = Path.GetExtension(fileName).ToLowerInvariant();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".gif" or ".webp"))
+        {
+            return Result.Invalid(new ValidationError(nameof(fileName), "Use JPG, PNG, GIF, or WebP."));
+        }
+
+        using var ms = new MemoryStream();
+        await content.CopyToAsync(ms, cancellationToken);
+        if (ms.Length > maxBytes)
+        {
+            return Result.Invalid(new ValidationError(nameof(fileName), $"Image must be at most {maxBytes / 1_000_000} MB."));
+        }
+
+        ms.Position = 0;
+        string relative = await storage.SaveCardBannerFileAsync(
+            CardBannerSupport.KindReadingLists,
+            readingListId,
+            ms,
+            fileName,
+            cancellationToken);
+
+        list.CardBannerMode = CardHeaderBannerMode.UploadedImage;
+        list.CardBannerImageFileName = relative;
+        list.CardBannerBookIdsJson = null;
+        await listRepository.UpdateAsync(list);
+
         return Result.Success();
     }
 
@@ -411,6 +533,81 @@ public class ReadingListService(
         }
     }
 
-    private static ReadingListDto Map(ReadingList l, int BookCount) => new(
-        l.Id, l.Name, l.Description, l.OwnerUserId, BookCount, l.CreatedAt);
+    private static ReadingListDto Map(ReadingList l, int BookCount, CardBannerPreview preview) => new(
+        l.Id, l.Name, l.Description, l.OwnerUserId, BookCount, l.CreatedAt, preview);
+
+    private Result ApplyReadingListBannerUpdateAsync(
+        int readingListId,
+        ReadingList list,
+        CardHeaderBannerMode mode,
+        IReadOnlyList<int> selectedBookIds,
+        HashSet<int> memberBookIds)
+    {
+        if (mode == CardHeaderBannerMode.UploadedImage && string.IsNullOrEmpty(list.CardBannerImageFileName)
+                                                      && storage.FindCardBannerFilePath(CardBannerSupport.KindReadingLists, readingListId) is null)
+        {
+            return Result.Invalid(new ValidationError(
+                nameof(mode),
+                "Upload a banner image first, or choose another header option."));
+        }
+
+        var normalized = selectedBookIds.Where(memberBookIds.Contains).Take(5).ToList();
+        if (mode == CardHeaderBannerMode.SelectedBooks && normalized.Count == 0)
+        {
+            return Result.Invalid(new ValidationError(
+                nameof(selectedBookIds),
+                "Pick up to five books from this reading list for the header."));
+        }
+
+        if (mode != CardHeaderBannerMode.UploadedImage)
+        {
+            storage.DeleteCardBannerFile(CardBannerSupport.KindReadingLists, readingListId);
+            list.CardBannerImageFileName = null;
+        }
+
+        list.CardBannerMode = mode;
+        list.CardBannerBookIdsJson = mode == CardHeaderBannerMode.SelectedBooks
+            ? CardBannerSupport.SerializeBookIds(normalized)
+            : null;
+
+        return Result.Success();
+    }
+
+    private async Task<Dictionary<int, List<CardBannerSupport.BookCoverSource>>> LoadReadingListBannerSourcesAsync(
+        IReadOnlyList<int> listIds,
+        CancellationToken cancellationToken)
+    {
+        if (listIds.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = (await itemRepository.FindAsync(new SearchOptions<ReadingListItem>
+        {
+            Query = i => listIds.Contains(i.ReadingListId),
+            Include = q => q.Include(i => i.Book),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        var dict = new Dictionary<int, List<CardBannerSupport.BookCoverSource>>();
+        foreach (ReadingListItem item in rows)
+        {
+            Book? b = item.Book;
+            if (b is null || string.IsNullOrEmpty(b.CoverImagePath))
+            {
+                continue;
+            }
+
+            long v = BookCoverCaching.GetCoverCacheVersion(b.LastScannedAt, b.UpdatedAt, b.CreatedAt);
+            if (!dict.TryGetValue(item.ReadingListId, out List<CardBannerSupport.BookCoverSource>? list))
+            {
+                list = [];
+                dict[item.ReadingListId] = list;
+            }
+
+            list.Add(new CardBannerSupport.BookCoverSource(b.Id, v));
+        }
+
+        return dict;
+    }
 }

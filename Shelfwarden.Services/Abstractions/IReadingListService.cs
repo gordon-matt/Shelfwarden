@@ -27,4 +27,11 @@ public interface IReadingListService
     /// Items not listed are dropped; ids not in the list are ignored. Used by drag-reorder UIs.
     /// </summary>
     Task<Result> ReorderAsync(int readingListId, IReadOnlyList<int> orderedItemIds, CancellationToken cancellationToken = default);
+
+    Task<Result> UploadCardBannerAsync(
+        int readingListId,
+        Stream content,
+        string fileName,
+        long? contentLength,
+        CancellationToken cancellationToken = default);
 }

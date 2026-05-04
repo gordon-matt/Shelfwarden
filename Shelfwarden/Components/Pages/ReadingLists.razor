@@ -109,7 +109,7 @@ else
             <div class="col-md-6 col-lg-3">
                 <div class="shelf-tile">
                     <a href="@($"reading-lists/{l.Id}")" class="shelf-tile-banner text-decoration-none">
-                        <i class="bi bi-list-ol"></i>
+                        <ShelfTileBanner Preview="l.Banner" FallbackIconClass="bi bi-list-ol" />
                     </a>
                     <div class="card-body">
                         <h5 class="card-title">

@@ -1,0 +1,31 @@
+@* Tile header: custom upload, cover strip, or fallback icon. *@
+
+@if (!string.IsNullOrEmpty(Preview.UploadedImageUrl))
+{
+    <div class="shelf-tile-banner-inner shelf-tile-banner-inner--upload">
+        <img src="@Preview.UploadedImageUrl" alt="" loading="lazy" />
+    </div>
+}
+else if (Preview.CoverRefs.Count > 0)
+{
+    <div class="shelf-tile-banner-inner shelf-tile-banner-inner--covers">
+        @foreach (var c in Preview.CoverRefs)
+        {
+            <div class="shelf-tile-banner-cover">
+                <img src="@($"covers/{c.BookId}?v={c.CoverCacheVersion}")" alt="" loading="lazy" />
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="shelf-tile-banner-inner shelf-tile-banner-inner--icon">
+        <i class="@FallbackIconClass"></i>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public CardBannerPreview Preview { get; set; } = default!;
+
+    [Parameter, EditorRequired] public string FallbackIconClass { get; set; } = "bi bi-bookshelf";
+}

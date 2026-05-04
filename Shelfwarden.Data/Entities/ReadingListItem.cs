@@ -28,7 +28,7 @@ public class ReadingListItemMap : IEntityTypeConfiguration<ReadingListItem>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(m => m.Book)
-            .WithMany()
+            .WithMany(b => b.ReadingListItems)
             .HasForeignKey(m => m.BookId)
             .OnDelete(DeleteBehavior.Cascade);
 

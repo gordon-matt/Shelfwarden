@@ -1,0 +1,194 @@
+@using Microsoft.AspNetCore.Components.Forms
+@inject ILogger<CardHeaderImageSelector> Logger
+
+<div class="card-header-image-selector">
+    <label class="form-label">Tile header image</label>
+    <div class="btn-group-vertical btn-group-sm mb-3 d-flex flex-column align-items-stretch" role="group">
+        <input type="radio" class="btn-check" name="@_groupName" id="@($"{_groupName}-rand")"
+               checked="@(Mode == CardHeaderBannerMode.RandomCovers)"
+               @onchange="@(() => SetMode(CardHeaderBannerMode.RandomCovers))" />
+        <label class="btn btn-outline-secondary text-start" for="@($"{_groupName}-rand")">
+            <i class="bi bi-shuffle me-1"></i> Random covers (up to five books from this list, changes each time)
+        </label>
+
+        <input type="radio" class="btn-check" name="@_groupName" id="@($"{_groupName}-up")"
+               checked="@(Mode == CardHeaderBannerMode.UploadedImage)"
+               @onchange="@(() => SetMode(CardHeaderBannerMode.UploadedImage))" />
+        <label class="btn btn-outline-secondary text-start" for="@($"{_groupName}-up")">
+            <i class="bi bi-image me-1"></i> Upload an image
+        </label>
+
+        <input type="radio" class="btn-check" name="@_groupName" id="@($"{_groupName}-sel")"
+               checked="@(Mode == CardHeaderBannerMode.SelectedBooks)"
+               @onchange="@(() => SetMode(CardHeaderBannerMode.SelectedBooks))" />
+        <label class="btn btn-outline-secondary text-start" for="@($"{_groupName}-sel")">
+            <i class="bi bi-grid-3x2-gap me-1"></i> Choose up to five books
+        </label>
+    </div>
+
+    @if (Mode == CardHeaderBannerMode.UploadedImage)
+    {
+        <div class="mb-3">
+            <InputFile OnChange="OnFileChosenAsync" accept="image/jpeg,image/png,image/gif,image/webp" class="form-control form-control-sm" />
+            <div class="form-text">JPG, PNG, GIF, or WebP. Max 2 MB.</div>
+        </div>
+    }
+
+    @if (Mode == CardHeaderBannerMode.SelectedBooks)
+    {
+        <div class="mb-1">
+            <div class="d-flex flex-wrap gap-1 mb-2">
+                @if (SelectedBooks.Count == 0)
+                {
+                    <span class="text-secondary small fst-italic">No books selected yet.</span>
+                }
+                else
+                {
+                    @foreach (var b in SelectedBooks)
+                    {
+                        <span class="chip chip-tag">
+                            <span>@b.Title</span>
+                            <button type="button" class="btn-close btn-close-sm ms-1" aria-label="Remove"
+                                    @onclick="@(() => RemoveBookAsync(b))"></button>
+                        </span>
+                    }
+                }
+            </div>
+            <div class="position-relative">
+                <input class="form-control form-control-sm" type="text"
+                       placeholder="Search books in this list…"
+                       value="@bookQuery"
+                       @oninput="OnBookQueryInput"
+                       @onfocus="@(() => showSuggestions = true)" />
+                @if (showSuggestions && bookSuggestions.Count > 0)
+                {
+                    <ul class="dropdown-menu d-block w-100 mt-1 shadow-sm" style="position: absolute; max-height: 220px; overflow-y: auto; z-index: 40;">
+                        @foreach (var b in bookSuggestions)
+                        {
+                            <li>
+                                <button type="button" class="dropdown-item" @onclick="@(() => AddBookAsync(b))">
+                                    <span class="fw-semibold">@b.Title</span>
+                                    @if (!string.IsNullOrEmpty(b.PrimaryAuthor))
+                                    {
+                                        <span class="text-secondary small"> — @b.PrimaryAuthor</span>
+                                    }
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+            <div class="form-text">Pick at most five; order is shown left to right on the tile.</div>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly string _groupName = $"hdr-{Guid.NewGuid():N}";
+
+    [Parameter, EditorRequired] public CardHeaderBannerMode Mode { get; set; }
+
+    [Parameter] public EventCallback<CardHeaderBannerMode> ModeChanged { get; set; }
+
+    [Parameter, EditorRequired] public List<BookListItemDto> SelectedBooks { get; set; } = [];
+
+    [Parameter] public EventCallback OnSelectedBooksChanged { get; set; }
+
+    /// <summary>Search within the current shelf / collection / reading list only.</summary>
+    [Parameter, EditorRequired] public Func<string, Task<IReadOnlyList<BookListItemDto>>> SearchBooksInScopeAsync { get; set; } = null!;
+
+    [Parameter, EditorRequired] public Func<IBrowserFile, Task> OnUploadAsync { get; set; } = null!;
+
+    private string bookQuery = string.Empty;
+    private bool showSuggestions;
+    private IReadOnlyList<BookListItemDto> bookSuggestions = [];
+    private CancellationTokenSource? searchCts;
+
+    private async Task SetMode(CardHeaderBannerMode mode)
+    {
+        Mode = mode;
+        if (ModeChanged.HasDelegate)
+        {
+            await ModeChanged.InvokeAsync(mode);
+        }
+    }
+
+    private async Task OnFileChosenAsync(InputFileChangeEventArgs e)
+    {
+        IBrowserFile? file = e.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await OnUploadAsync(file);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Card banner upload failed");
+        }
+    }
+
+    private async Task AddBookAsync(BookListItemDto book)
+    {
+        if (SelectedBooks.Count >= 5)
+        {
+            return;
+        }
+
+        if (SelectedBooks.Any(b => b.Id == book.Id))
+        {
+            bookQuery = string.Empty;
+            bookSuggestions = [];
+            return;
+        }
+
+        SelectedBooks.Add(book);
+        bookQuery = string.Empty;
+        bookSuggestions = [];
+        showSuggestions = false;
+        if (OnSelectedBooksChanged.HasDelegate)
+        {
+            await OnSelectedBooksChanged.InvokeAsync();
+        }
+    }
+
+    private async Task RemoveBookAsync(BookListItemDto book)
+    {
+        SelectedBooks.Remove(book);
+        if (OnSelectedBooksChanged.HasDelegate)
+        {
+            await OnSelectedBooksChanged.InvokeAsync();
+        }
+    }
+
+    private async Task OnBookQueryInput(ChangeEventArgs e)
+    {
+        bookQuery = e.Value?.ToString() ?? string.Empty;
+        showSuggestions = true;
+        await RefreshSuggestionsAsync();
+    }
+
+    private async Task RefreshSuggestionsAsync()
+    {
+        searchCts?.Cancel();
+        searchCts = new CancellationTokenSource();
+        var token = searchCts.Token;
+        try
+        {
+            await Task.Delay(120, token);
+            var results = await SearchBooksInScopeAsync(bookQuery ?? string.Empty);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var taken = new HashSet<int>(SelectedBooks.Select(b => b.Id));
+            bookSuggestions = results.Where(b => !taken.Contains(b.Id)).Take(12).ToList();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException) { }
+    }
+}

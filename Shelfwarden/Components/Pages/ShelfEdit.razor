@@ -7,6 +7,8 @@
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 @inject ILogger<ShelfEdit> ShelfEditLogger
+@inject IBookService BookService
+@using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>@(IsCreate ? "New shelf" : $"Edit {model.Name}") - Shelfwarden</PageTitle>
 
@@ -31,6 +33,17 @@
         <InputTextArea class="form-control" rows="3" @bind-Value="model.Description" />
         <ValidationMessage For="@(() => model.Description)" />
     </div>
+
+    @if (Id is int && shelfBannerSettings is not null)
+    {
+        <div class="mb-3">
+            <CardHeaderImageSelector @bind-Mode="bannerMode"
+                                     SelectedBooks="bannerSelectedBooks"
+                                     SearchBooksInScopeAsync="SearchBooksOnThisShelfForBannerAsync"
+                                     OnUploadAsync="UploadThisShelfBannerAsync"
+                                     OnSelectedBooksChanged="StateHasChanged" />
+        </div>
+    }
 
     <div class="mb-3">
         <label class="form-label">Who can see this shelf</label>
@@ -141,6 +154,10 @@
     private bool allowRoleAdministrator;
     private bool allowRoleUser;
 
+    private CardBannerSettingsDto? shelfBannerSettings;
+    private CardHeaderBannerMode bannerMode = CardHeaderBannerMode.RandomCovers;
+    private readonly List<BookListItemDto> bannerSelectedBooks = [];
+
     protected override async Task OnInitializedAsync()
     {
         catalogUsers = await UserInfoService.GetAllUsersAsync();
@@ -168,6 +185,18 @@
                 allowRoleUser = dto.AllowedRoleNames.Any(r =>
                     string.Equals(r, Constants.Roles.User, StringComparison.OrdinalIgnoreCase));
 
+                shelfBannerSettings = dto.BannerSettings;
+                if (shelfBannerSettings is not null)
+                {
+                    bannerMode = shelfBannerSettings.Mode;
+                    await LoadBannerSelectedBooksAsync(id, shelfBannerSettings.SelectedBookIds);
+                }
+                else
+                {
+                    bannerMode = CardHeaderBannerMode.RandomCovers;
+                    bannerSelectedBooks.Clear();
+                }
+
                 loadError = null;
                 ShelfEditLogger.LogInformation("[ShelfEdit] Loaded shelf {ShelfId} nameLen={NameLen} folders={FolderCount}",
                     id, dto.Name.Length, dto.Folders.Count);
@@ -175,6 +204,8 @@
             else
             {
                 loadError = ResultMessages.UserFacing(result, "Shelf not found.");
+                shelfBannerSettings = null;
+                bannerSelectedBooks.Clear();
                 ShelfEditLogger.LogWarning("[ShelfEdit] GetById failed ShelfId={ShelfId} Status={Status} MessageLen={Len}",
                     id, result.Status, loadError?.Length ?? 0);
             }
@@ -184,6 +215,74 @@
             selectedUserIds.Clear();
             allowRoleAdministrator = false;
             allowRoleUser = false;
+            shelfBannerSettings = null;
+            bannerSelectedBooks.Clear();
+        }
+    }
+
+    private async Task LoadBannerSelectedBooksAsync(int shelfId, IReadOnlyList<int> ids)
+    {
+        bannerSelectedBooks.Clear();
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        var result = await BookService.SearchAsync(new BookSearchRequest
+        {
+            ShelfId = shelfId,
+            Page = 1,
+            PageSize = 2000,
+        });
+        if (!result.IsSuccess)
+        {
+            return;
+        }
+
+        var byId = result.Value.Items.ToDictionary(b => b.Id);
+        foreach (int bookId in ids)
+        {
+            if (byId.TryGetValue(bookId, out var b))
+            {
+                bannerSelectedBooks.Add(b);
+            }
+        }
+    }
+
+    private async Task<IReadOnlyList<BookListItemDto>> SearchBooksOnShelfForBannerAsync(int shelfId, string query)
+    {
+        var result = await BookService.SearchAsync(new BookSearchRequest
+        {
+            ShelfId = shelfId,
+            Query = string.IsNullOrWhiteSpace(query) ? null : query,
+            Page = 1,
+            PageSize = 20,
+        });
+        return result.IsSuccess ? result.Value.Items : [];
+    }
+
+    private async Task<IReadOnlyList<BookListItemDto>> SearchBooksOnThisShelfForBannerAsync(string query)
+    {
+        if (Id is not int sid)
+        {
+            return [];
+        }
+
+        return await SearchBooksOnShelfForBannerAsync(sid, query);
+    }
+
+    private async Task UploadThisShelfBannerAsync(IBrowserFile file)
+    {
+        if (Id is not int sid)
+        {
+            return;
+        }
+
+        await using Stream s = file.OpenReadStream(2_000_000);
+        var result = await ShelfService.UploadCardBannerAsync(sid, s, file.Name, file.Size);
+        if (result.IsSuccess)
+        {
+            await OnParametersSetAsync();
         }
     }
 
@@ -255,6 +354,8 @@
                     Folders = nonEmpty,
                     AllowedUserIds = userIds,
                     AllowedRoleNames = roleNames,
+                    CardBannerMode = bannerMode,
+                    CardBannerSelectedBookIds = bannerSelectedBooks.Select(b => b.Id).ToList(),
                 });
                 if (result.IsSuccess)
                 {

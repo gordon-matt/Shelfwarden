@@ -13,4 +13,11 @@ public interface IShelfService
     Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default);
 
     Task<Result> ScheduleScanAsync(int id, CancellationToken cancellationToken = default);
+
+    Task<Result> UploadCardBannerAsync(
+        int shelfId,
+        Stream content,
+        string fileName,
+        long? contentLength,
+        CancellationToken cancellationToken = default);
 }

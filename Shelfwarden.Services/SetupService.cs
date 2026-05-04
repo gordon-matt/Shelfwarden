@@ -1,3 +1,6 @@
+using Shelfwarden.Models;
+using Shelfwarden.Services.Storage;
+
 namespace Shelfwarden.Services;
 
 /// <summary>
@@ -13,7 +16,8 @@ public class SetupService(
     IServerSettingsService serverSettings,
     IRepository<ServerSetting> serverSettingRepository,
     IRepository<Shelf> shelfRepository,
-    IRepository<ShelfFolder> folderRepository) : ISetupService
+    IRepository<ShelfFolder> folderRepository,
+    IStoragePathProvider storage) : ISetupService
 {
     public async Task<Result<SetupStatusDto>> GetStatusAsync(CancellationToken cancellationToken = default)
     {
@@ -104,6 +108,15 @@ public class SetupService(
                 shelf.Id, shelf.Name, folders.Count);
         }
 
+        var bannerPreview = CardBannerSupport.BuildPreview(
+            CardHeaderBannerMode.RandomCovers,
+            null,
+            null,
+            CardBannerSupport.KindShelves,
+            shelf.Id,
+            [],
+            storage);
+
         return Result.Success(new ShelfDto(
             shelf.Id,
             shelf.Name,
@@ -113,7 +126,9 @@ public class SetupService(
             BookCount: 0,
             Folders: folders.Select(f => new ShelfFolderDto(f.Id, f.Path)).ToList(),
             AllowedUserIds: [],
-            AllowedRoleNames: []));
+            AllowedRoleNames: [],
+            Banner: bannerPreview,
+            BannerSettings: null));
     }
 
     public async Task<Result> CompleteAsync(CancellationToken cancellationToken = default)

@@ -575,6 +575,17 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("CardBannerBookIdsJson")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CardBannerImageFileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte>("CardBannerMode")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
@@ -653,6 +664,17 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CardBannerBookIdsJson")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CardBannerImageFileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte>("CardBannerMode")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -765,6 +787,17 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CardBannerBookIdsJson")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CardBannerImageFileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte>("CardBannerMode")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -1061,7 +1094,7 @@ namespace Shelfwarden.Data.Sqlite.Migrations
             modelBuilder.Entity("Shelfwarden.Data.Entities.CollectionBook", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
-                        .WithMany()
+                        .WithMany("CollectionBooks")
                         .HasForeignKey("BookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1080,7 +1113,7 @@ namespace Shelfwarden.Data.Sqlite.Migrations
             modelBuilder.Entity("Shelfwarden.Data.Entities.ReadingListItem", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
-                        .WithMany()
+                        .WithMany("ReadingListItems")
                         .HasForeignKey("BookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1143,6 +1176,10 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.Navigation("BookTags");
 
                     b.Navigation("Bookmarks");
+
+                    b.Navigation("CollectionBooks");
+
+                    b.Navigation("ReadingListItems");
 
                     b.Navigation("ReadingProgress");
                 });

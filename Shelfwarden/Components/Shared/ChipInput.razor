@@ -45,7 +45,7 @@
                         </button>
                     </li>
                 }
-                @if (!string.IsNullOrWhiteSpace(input) && !suggestions.Any(s => string.Equals(NameOf(s), input.Trim(), StringComparison.OrdinalIgnoreCase)))
+                @if (AllowCreate && !string.IsNullOrWhiteSpace(input) && !suggestions.Any(s => string.Equals(NameOf(s), input.Trim(), StringComparison.OrdinalIgnoreCase)))
                 {
                     <li><hr class="dropdown-divider" /></li>
                     <li>
@@ -80,6 +80,9 @@
 
     /// <summary>Optional extra CSS class on each chip (e.g. <c>chip-tag</c> on the book edit form).</summary>
     [Parameter] public string? ChipCssSuffix { get; set; }
+
+    /// <summary>When false, the "create from typed text" option is hidden (e.g. book pickers).</summary>
+    [Parameter] public bool AllowCreate { get; set; } = true;
 
     [Parameter] public EventCallback OnChanged { get; set; }
 

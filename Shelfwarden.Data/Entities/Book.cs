@@ -67,6 +67,8 @@ public class Book : BaseEntity<int>
 
     /// <summary>Rows linking this book into user/global collections (join entity).</summary>
     public virtual ICollection<CollectionBook> CollectionBooks { get; set; } = [];
+
+    public virtual ICollection<ReadingListItem> ReadingListItems { get; set; } = [];
 }
 
 public class BookMap : IEntityTypeConfiguration<Book>

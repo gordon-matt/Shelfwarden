@@ -10,7 +10,8 @@ public record ReadingListDto(
     string? Description,
     string OwnerUserId,
     int BookCount,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    CardBannerPreview Banner);
 
 /// <summary>Reading list with items, ordered by Position ascending.</summary>
 public record ReadingListDetailDto(
@@ -19,7 +20,8 @@ public record ReadingListDetailDto(
     string? Description,
     string OwnerUserId,
     DateTime CreatedAt,
-    IReadOnlyList<ReadingListEntryDto> Items);
+    IReadOnlyList<ReadingListEntryDto> Items,
+    CardBannerSettingsDto CardBanner);
 
 /// <summary>Single entry inside a reading list. Holds the position so reorder UIs have something to bind to.</summary>
 public record ReadingListEntryDto(
@@ -41,4 +43,8 @@ public record UpdateReadingListRequest
     public required string Name { get; init; }
 
     public string? Description { get; init; }
+
+    public CardHeaderBannerMode CardBannerMode { get; init; } = CardHeaderBannerMode.RandomCovers;
+
+    public IReadOnlyList<int> CardBannerSelectedBookIds { get; init; } = [];
 }

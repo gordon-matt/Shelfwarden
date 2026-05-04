@@ -16,6 +16,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Shelfwarden.Core\Shelfwarden.Core.csproj" />
+		<ProjectReference Include="..\Shelfwarden.Models\Shelfwarden.Models.csproj" />
 	</ItemGroup>
 
 </Project>

@@ -601,6 +601,17 @@ namespace Shelfwarden.Data.Npgsql.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CardBannerBookIdsJson")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("CardBannerImageFileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<byte>("CardBannerMode")
+                        .HasColumnType("smallint");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -686,6 +697,17 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CardBannerBookIdsJson")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("CardBannerImageFileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<byte>("CardBannerMode")
+                        .HasColumnType("smallint");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -806,6 +828,17 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CardBannerBookIdsJson")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("CardBannerImageFileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<byte>("CardBannerMode")
+                        .HasColumnType("smallint");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1109,7 +1142,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
             modelBuilder.Entity("Shelfwarden.Data.Entities.CollectionBook", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
-                        .WithMany()
+                        .WithMany("CollectionBooks")
                         .HasForeignKey("BookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1128,7 +1161,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
             modelBuilder.Entity("Shelfwarden.Data.Entities.ReadingListItem", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
-                        .WithMany()
+                        .WithMany("ReadingListItems")
                         .HasForeignKey("BookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1191,6 +1224,10 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("BookTags");
 
                     b.Navigation("Bookmarks");
+
+                    b.Navigation("CollectionBooks");
+
+                    b.Navigation("ReadingListItems");
 
                     b.Navigation("ReadingProgress");
                 });

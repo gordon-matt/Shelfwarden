@@ -9,7 +9,9 @@ public record ShelfDto(
     int BookCount,
     IReadOnlyList<ShelfFolderDto> Folders,
     IReadOnlyList<string> AllowedUserIds,
-    IReadOnlyList<string> AllowedRoleNames);
+    IReadOnlyList<string> AllowedRoleNames,
+    CardBannerPreview Banner,
+    CardBannerSettingsDto? BannerSettings = null);
 
 public record ShelfFolderDto(int Id, string Path);
 
@@ -44,4 +46,8 @@ public record UpdateShelfRequest
     public IReadOnlyList<string> AllowedUserIds { get; init; } = [];
 
     public IReadOnlyList<string> AllowedRoleNames { get; init; } = [];
+
+    public CardHeaderBannerMode CardBannerMode { get; init; } = CardHeaderBannerMode.RandomCovers;
+
+    public IReadOnlyList<int> CardBannerSelectedBookIds { get; init; } = [];
 }

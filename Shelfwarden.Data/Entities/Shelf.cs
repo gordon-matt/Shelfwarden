@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Shelfwarden.Models;
 
 namespace Shelfwarden.Data.Entities;
 
@@ -12,6 +13,12 @@ public class Shelf : BaseEntity<int>
     public DateTime? LastScannedAt { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public CardHeaderBannerMode CardBannerMode { get; set; }
+
+    public string? CardBannerImageFileName { get; set; }
+
+    public string? CardBannerBookIdsJson { get; set; }
 
     public virtual ICollection<ShelfFolder> Folders { get; set; } = [];
 
@@ -31,6 +38,8 @@ public class ShelfMap : IEntityTypeConfiguration<Shelf>
         builder.HasKey(m => m.Id);
         builder.Property(m => m.Name).IsRequired().HasMaxLength(256).IsUnicode(true);
         builder.Property(m => m.Description).HasMaxLength(2048).IsUnicode(true);
+        builder.Property(m => m.CardBannerImageFileName).HasMaxLength(256);
+        builder.Property(m => m.CardBannerBookIdsJson).HasMaxLength(512);
 
         builder.HasIndex(m => m.Name).IsUnique();
     }
