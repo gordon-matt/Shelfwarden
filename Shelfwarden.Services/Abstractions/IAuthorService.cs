@@ -10,9 +10,9 @@ public interface IAuthorService
 
     /// <summary>
     /// Returns the full /authors index with per-author book counts, ordered alphabetically by
-    /// normalised name. Authors with zero books are omitted to keep the page focused.
+    /// normalised name. Authors with zero books (on the selected shelf, or overall when <paramref name="shelfId"/> is null) are omitted.
     /// </summary>
-    Task<Result<IReadOnlyList<AuthorListItemDto>>> ListAsync(string? query = null, CancellationToken cancellationToken = default);
+    Task<Result<IReadOnlyList<AuthorListItemDto>>> ListAsync(string? query = null, int? shelfId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns rich detail for a single author: bio, all series the author has at least one
@@ -49,8 +49,8 @@ public interface IAuthorService
     /// <returns>The number of authors deleted.</returns>
     Task<Result<int>> DeleteAuthorsWithNoBooksAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Count of books that have no author links.</summary>
-    Task<Result<int>> GetBooksWithoutAuthorsCountAsync(CancellationToken cancellationToken = default);
+    /// <summary>Count of books that have no author links (optionally restricted to a shelf).</summary>
+    Task<Result<int>> GetBooksWithoutAuthorsCountAsync(int? shelfId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Detail view for the synthetic &quot;Unknown&quot; author — books with no linked authors.

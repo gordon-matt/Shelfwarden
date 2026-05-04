@@ -73,7 +73,7 @@ public class AuthorService(
         return Result.Success(new AuthorDto(created.Id, created.Name, created.Biography));
     }
 
-    public async Task<Result<IReadOnlyList<AuthorListItemDto>>> ListAsync(string? query = null, CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<AuthorListItemDto>>> ListAsync(string? query = null, int? shelfId = null, CancellationToken cancellationToken = default)
     {
         var options = new SearchOptions<Author>
         {
@@ -81,19 +81,38 @@ public class AuthorService(
             CancellationToken = cancellationToken,
         };
 
-        if (!string.IsNullOrWhiteSpace(query))
+        bool hasSearch = !string.IsNullOrWhiteSpace(query);
+        string needle = hasSearch ? query!.Trim().ToLowerInvariant() : string.Empty;
+
+        if (shelfId is int sid)
         {
-            string needle = query.Trim().ToLowerInvariant();
+            options.Query = hasSearch
+                ? a => EF.Functions.Like(a.NormalizedName, $"%{needle}%") &&
+                       a.BookAuthors.Any(ba => ba.Book.ShelfId == sid)
+                : a => a.BookAuthors.Any(ba => ba.Book.ShelfId == sid);
+        }
+        else if (hasSearch)
+        {
             options.Query = a => EF.Functions.Like(a.NormalizedName, $"%{needle}%");
         }
 
         var authors = (await authorRepository.FindAsync(options)).ToList();
         var ids = authors.Select(a => a.Id).ToList();
 
+        SearchOptions<BookAuthor> countOptions = shelfId is int shelf
+            ? new SearchOptions<BookAuthor>
+            {
+                Query = ba => ids.Contains(ba.AuthorId) && ba.Book.ShelfId == shelf,
+                CancellationToken = cancellationToken,
+            }
+            : new SearchOptions<BookAuthor>
+            {
+                Query = ba => ids.Contains(ba.AuthorId),
+                CancellationToken = cancellationToken,
+            };
+
         // One join-table query → counts by author id. Cheaper than N round-trips.
-        var counts = (await bookAuthorRepository.FindAsync(
-                new SearchOptions<BookAuthor> { Query = ba => ids.Contains(ba.AuthorId) },
-                ba => ba.AuthorId))
+        var counts = (await bookAuthorRepository.FindAsync(countOptions, ba => ba.AuthorId))
             .GroupBy(id => id)
             .ToDictionary(g => g.Key, g => g.Count());
 
@@ -142,11 +161,13 @@ public class AuthorService(
             cancellationToken));
     }
 
-    public async Task<Result<int>> GetBooksWithoutAuthorsCountAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<int>> GetBooksWithoutAuthorsCountAsync(int? shelfId = null, CancellationToken cancellationToken = default)
     {
         try
         {
-            int count = await bookRepository.CountAsync(b => !b.BookAuthors.Any());
+            int count = shelfId is int sid
+                ? await bookRepository.CountAsync(b => !b.BookAuthors.Any() && b.ShelfId == sid)
+                : await bookRepository.CountAsync(b => !b.BookAuthors.Any());
             return Result.Success(count);
         }
         catch (Exception ex)

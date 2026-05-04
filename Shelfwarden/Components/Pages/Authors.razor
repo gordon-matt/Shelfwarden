@@ -1,6 +1,7 @@
 @page "/authors"
 @attribute [Authorize]
 @inject IAuthorService AuthorService
+@inject IShelfService ShelfService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 
@@ -69,12 +70,25 @@
     </AuthorizeView>
 }
 
-<div class="row g-2 mb-3">
+<div class="row g-2 mb-3 align-items-end">
     <div class="col-md-6">
+        <label class="form-label small text-body-secondary mb-1">Search</label>
         <div class="input-group">
             <span class="input-group-text"><i class="bi bi-search"></i></span>
             <input class="form-control" placeholder="Search authors..." @bind="query" @bind:event="oninput" @onkeyup="OnQueryKeyUp" />
         </div>
+    </div>
+    <div class="col-md-6 col-lg-4">
+        <label class="form-label small text-body-secondary mb-1">Shelf</label>
+        <select class="form-select"
+                @bind="shelfId"
+                @bind:after="OnShelfFilterChangedAsync">
+            <option value="">All shelves</option>
+            @foreach (var s in shelves)
+            {
+                <option value="@s.Id">@s.Name</option>
+            }
+        </select>
     </div>
 </div>
 
@@ -90,7 +104,17 @@ else if (authors.Count == 0 && unknownBookCount == 0)
     <div class="empty-state">
         <i class="bi bi-person-lines-fill empty-icon"></i>
         <h3>No authors found</h3>
-        <p>Once shelves have been scanned, the authors of those books will appear here.</p>
+        @if (string.IsNullOrEmpty(shelfId))
+        {
+            <p>Once shelves have been scanned, the authors of those books will appear here.</p>
+        }
+        else
+        {
+            <p>No authors have books on this shelf with the current search.</p>
+            <button type="button" class="btn btn-outline-secondary btn-sm mt-2" @onclick="ClearShelfFilterAsync">
+                Show all shelves
+            </button>
+        }
     </div>
 }
 else
@@ -199,6 +223,8 @@ else
 @code {
     private IReadOnlyList<AuthorListItemDto>? authors;
     private int unknownBookCount;
+    private IReadOnlyList<ShelfDto> shelves = [];
+    private string shelfId = "";
     private string query = string.Empty;
     private CancellationTokenSource? searchCts;
     private readonly Dictionary<int, long> authorPhotoVersions = [];
@@ -217,7 +243,28 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var shelvesResult = await ShelfService.GetAllAsync();
+        if (shelvesResult.IsSuccess)
+        {
+            shelves = shelvesResult.Value;
+        }
+
         await LoadAsync();
+    }
+
+    private static int? ParseShelfFilter(string raw)
+        => string.IsNullOrWhiteSpace(raw) ? null : int.TryParse(raw, out int id) ? id : null;
+
+    private async Task OnShelfFilterChangedAsync()
+    {
+        searchCts?.Cancel();
+        await LoadAsync();
+    }
+
+    private async Task ClearShelfFilterAsync()
+    {
+        shelfId = "";
+        await OnShelfFilterChangedAsync();
     }
 
     private async Task LoadAsync()
@@ -226,8 +273,9 @@ else
         searchCts = new CancellationTokenSource();
         var token = searchCts.Token;
 
-        var listTask = AuthorService.ListAsync(query, token);
-        var unknownTask = AuthorService.GetBooksWithoutAuthorsCountAsync(token);
+        int? shelfFilter = ParseShelfFilter(shelfId);
+        var listTask = AuthorService.ListAsync(query, shelfFilter, token);
+        var unknownTask = AuthorService.GetBooksWithoutAuthorsCountAsync(shelfFilter, token);
         await Task.WhenAll(listTask, unknownTask);
 
         if (token.IsCancellationRequested) return;
