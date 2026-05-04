@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Extenso;
 using Humanizer;
 using Shelfwarden.Extensions;
@@ -11,7 +12,11 @@ namespace Shelfwarden.Services.Scanning;
 ///   1. Looks up the existing <see cref="Book"/> by <c>(ShelfId, FilePath)</c>.
 ///   2. Skips it when <see cref="FileInfo.LastWriteTimeUtc"/> + size match the stored values.
 ///   3. Otherwise extracts metadata (via <see cref="IEbookMetadataExtractor"/>), persists/updates
-///      the book + author/series/genre relations, and writes the cover bytes to disk.
+///      the book + author/series/genre/tag relations, and writes the cover bytes to disk.
+/// Optional per-folder <c>shelfwarden_import.json</c> sidecars (nearest ancestor wins) merge or replace
+/// authors, genres, and tags after extraction; <c>series</c> is an optional plain string override.
+/// A newer sidecar timestamp than the book's last
+/// scan forces metadata to be reapplied even when the ebook file has not changed.
 /// At the end it removes books whose files have disappeared and stamps <see cref="Shelf.LastScannedAt"/>.
 /// </summary>
 public sealed class ScannerService(
@@ -25,8 +30,13 @@ public sealed class ScannerService(
     IRepository<BookAuthor> bookAuthorRepository,
     IRepository<Series> seriesRepository,
     IRepository<Genre> genreRepository,
-    IRepository<BookGenre> bookGenreRepository) : IScannerService
+    IRepository<BookGenre> bookGenreRepository,
+    IRepository<Tag> tagRepository,
+    IRepository<BookTag> bookTagRepository) : IScannerService
 {
+    private readonly Dictionary<string, (long LastWriteTicks, ShelfwardenImportOverlay? Overlay)> _importOverlayCache =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public async Task<Result<ScanResult>> ScanShelfAsync(int shelfId, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
@@ -79,6 +89,7 @@ public sealed class ScannerService(
         var authorCache = new Dictionary<string, Author>(StringComparer.OrdinalIgnoreCase);
         var seriesCache = new Dictionary<string, Series>(StringComparer.OrdinalIgnoreCase);
         var genreCache = new Dictionary<string, Genre>(StringComparer.OrdinalIgnoreCase);
+        var tagCache = new Dictionary<string, Tag>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var folder in shelf.Folders)
         {
@@ -120,10 +131,12 @@ public sealed class ScannerService(
                     var (added, updated) = await ProcessFileAsync(
                         shelfId,
                         canonicalFilePath,
+                        folder.Path,
                         existingByPath,
                         authorCache,
                         seriesCache,
                         genreCache,
+                        tagCache,
                         cancellationToken);
 
                     if (added)
@@ -196,10 +209,12 @@ public sealed class ScannerService(
     private async Task<(bool Added, bool Updated)> ProcessFileAsync(
         int shelfId,
         string filePath,
+        string shelfFolderRoot,
         Dictionary<string, Book> existingByPath,
         Dictionary<string, Author> authorCache,
         Dictionary<string, Series> seriesCache,
         Dictionary<string, Genre> genreCache,
+        Dictionary<string, Tag> tagCache,
         CancellationToken cancellationToken)
     {
         var fileInfo = new FileInfo(filePath);
@@ -210,12 +225,15 @@ public sealed class ScannerService(
         }
 
         bool exists = existingByPath.TryGetValue(filePath, out var book);
+        bool importNewer = exists && book is not null
+            && ShouldForceRescanDueToImport(filePath, shelfFolderRoot, book);
 
         if (exists && book is not null
             && book.FileSizeBytes == fileInfo.Length
             && book.FileLastModified is { } prevModified
             && Math.Abs((prevModified - fileInfo.LastWriteTimeUtc).TotalSeconds) < 1
-            && !string.IsNullOrEmpty(book.CoverImagePath))
+            && !string.IsNullOrEmpty(book.CoverImagePath)
+            && !importNewer)
         {
             // Up to date — nothing to do.
             return (false, false);
@@ -228,7 +246,8 @@ public sealed class ScannerService(
             && book.FileSizeBytes == fileInfo.Length
             && book.FileLastModified is { } prev2
             && Math.Abs((prev2 - fileInfo.LastWriteTimeUtc).TotalSeconds) < 1
-            && string.IsNullOrEmpty(book.CoverImagePath))
+            && string.IsNullOrEmpty(book.CoverImagePath)
+            && !importNewer)
         {
             var coverOnly = await extractor.ExtractAsync(filePath, cancellationToken);
             if (coverOnly.Cover is not null)
@@ -240,6 +259,16 @@ public sealed class ScannerService(
         }
 
         var metadata = await extractor.ExtractAsync(filePath, cancellationToken);
+
+        string? importJsonPath = ShelfwardenImportPath.FindNearestImportJsonPath(filePath, shelfFolderRoot);
+        ShelfwardenImportOverlay? importOverlay = importJsonPath is null
+            ? null
+            : await TryLoadImportOverlayAsync(importJsonPath, cancellationToken);
+
+        IReadOnlyList<string> authorNames = ShelfwardenImportMerger.MergeList(metadata.AuthorNames, importOverlay?.Author);
+        IReadOnlyList<string> genreNames = ShelfwardenImportMerger.MergeList(metadata.Genres, importOverlay?.Genres);
+        IReadOnlyList<string> tagNames = ShelfwardenImportMerger.MergeList(metadata.Tags, importOverlay?.Tags);
+        string? seriesName = ShelfwardenImportMerger.MergeSeries(metadata.SeriesName, importOverlay?.Series);
 
         if (book is null)
         {
@@ -262,9 +291,10 @@ public sealed class ScannerService(
             book = await bookRepository.InsertAsync(book);
             existingByPath[filePath] = book;
 
-            await SyncAuthorsAsync(book.Id, metadata.AuthorNames, authorCache);
-            await SyncGenresAsync(book.Id, metadata.Genres, genreCache);
-            await ResolveSeriesAsync(book, metadata.SeriesName, seriesCache);
+            await SyncAuthorsAsync(book.Id, authorNames, authorCache);
+            await SyncGenresAsync(book.Id, genreNames, genreCache);
+            await SyncTagsAsync(book.Id, tagNames, tagCache);
+            await ResolveSeriesAsync(book, seriesName, seriesCache);
             await SaveCoverAsync(book, metadata.Cover, cancellationToken);
 
             return (true, false);
@@ -278,14 +308,64 @@ public sealed class ScannerService(
             book.LastScannedAt = DateTime.UtcNow;
             ApplyMetadata(book, metadata);
 
-            await ResolveSeriesAsync(book, metadata.SeriesName, seriesCache);
+            await ResolveSeriesAsync(book, seriesName, seriesCache);
             await bookRepository.UpdateAsync(book);
 
-            await SyncAuthorsAsync(book.Id, metadata.AuthorNames, authorCache);
-            await SyncGenresAsync(book.Id, metadata.Genres, genreCache);
+            await SyncAuthorsAsync(book.Id, authorNames, authorCache);
+            await SyncGenresAsync(book.Id, genreNames, genreCache);
+            await SyncTagsAsync(book.Id, tagNames, tagCache);
             await SaveCoverAsync(book, metadata.Cover, cancellationToken);
 
             return (false, true);
+        }
+    }
+
+    private bool ShouldForceRescanDueToImport(string filePath, string shelfFolderRoot, Book book)
+    {
+        string? importPath = ShelfwardenImportPath.FindNearestImportJsonPath(filePath, shelfFolderRoot);
+        if (importPath is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var importTime = new FileInfo(importPath).LastWriteTimeUtc;
+            var bookStamp = book.LastScannedAt ?? book.CreatedAt;
+            return importTime > bookStamp;
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Could not read import file timestamp {Path}", importPath);
+            return false;
+        }
+    }
+
+    private async Task<ShelfwardenImportOverlay?> TryLoadImportOverlayAsync(string importPath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var info = new FileInfo(importPath);
+            if (!info.Exists)
+            {
+                return null;
+            }
+
+            long ticks = info.LastWriteTimeUtc.Ticks;
+            if (_importOverlayCache.TryGetValue(importPath, out var entry) && entry.LastWriteTicks == ticks)
+            {
+                return entry.Overlay;
+            }
+
+            string text = await File.ReadAllTextAsync(importPath, cancellationToken);
+            var overlay = JsonSerializer.Deserialize<ShelfwardenImportOverlay>(text, ShelfwardenImportJson.Options);
+            _importOverlayCache[importPath] = (ticks, overlay);
+            return overlay;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Invalid or unreadable shelf import sidecar {Path}", importPath);
+            return null;
         }
     }
 
@@ -427,6 +507,70 @@ public sealed class ScannerService(
         if (toAdd.Count > 0)
         {
             await bookGenreRepository.InsertAsync(toAdd);
+        }
+    }
+
+    private async Task SyncTagsAsync(int bookId, IReadOnlyList<string> tagNames, Dictionary<string, Tag> cache)
+    {
+        var existing = (await bookTagRepository.FindAsync(new SearchOptions<BookTag>
+        {
+            Query = bt => bt.BookId == bookId,
+        })).ToList();
+
+        if (tagNames.Count == 0)
+        {
+            if (existing.Count > 0)
+            {
+                await bookTagRepository.DeleteAsync(existing);
+            }
+
+            return;
+        }
+
+        var resolved = new List<Tag>(tagNames.Count);
+        foreach (string raw in tagNames)
+        {
+            string name = raw.Trim();
+            if (name.Length == 0)
+            {
+                continue;
+            }
+
+            string key = name.ToLowerInvariant();
+            if (!cache.TryGetValue(key, out var tag))
+            {
+                tag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+                {
+                    Query = t => t.NormalizedName == key,
+                });
+
+                tag ??= await tagRepository.InsertAsync(new Tag
+                {
+                    Name = name,
+                    NormalizedName = key,
+                });
+                cache[key] = tag;
+            }
+
+            resolved.Add(tag);
+        }
+
+        var desiredIds = resolved.Select(t => t.Id).Distinct().ToList();
+        var existingIds = existing.Select(bt => bt.TagId).ToHashSet();
+
+        var toRemove = existing.Where(bt => !desiredIds.Contains(bt.TagId)).ToList();
+        if (toRemove.Count > 0)
+        {
+            await bookTagRepository.DeleteAsync(toRemove);
+        }
+
+        var toAdd = desiredIds
+            .Where(id => !existingIds.Contains(id))
+            .Select(id => new BookTag { BookId = bookId, TagId = id })
+            .ToList();
+        if (toAdd.Count > 0)
+        {
+            await bookTagRepository.InsertAsync(toAdd);
         }
     }
 
