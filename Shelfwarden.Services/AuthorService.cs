@@ -369,6 +369,54 @@ public class AuthorService(
             photoUpdated));
     }
 
+    public async Task<Result<int>> DeleteAuthorsWithNoBooksAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var orphans = (await authorRepository.FindAsync(new SearchOptions<Author>
+            {
+                Query = a => !a.BookAuthors.Any(),
+                CancellationToken = cancellationToken,
+            })).ToList();
+
+            int deleted = 0;
+            foreach (var author in orphans)
+            {
+                TryDeleteAuthorPhotoFile(author.Id);
+                await authorRepository.DeleteAsync(author);
+                deleted++;
+            }
+
+            if (deleted > 0)
+            {
+                logger.LogInformation("Deleted {Count} author(s) with no linked books.", deleted);
+            }
+
+            return Result.Success(deleted);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to delete authors with no books");
+            return Result.Error("Could not delete orphan authors.");
+        }
+    }
+
+    private void TryDeleteAuthorPhotoFile(int authorId)
+    {
+        try
+        {
+            string? path = storagePathProvider.FindAuthorPhotoPath(authorId);
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not delete on-disk photo for author {AuthorId}", authorId);
+        }
+    }
+
     private async Task<bool> TrySaveAuthorPhotoAsync(HttpClient client, int authorId, int photoId, CancellationToken cancellationToken)
     {
         var (ok, bytes) = await OLImageLoader.TryGetAuthorPhotoAsync(

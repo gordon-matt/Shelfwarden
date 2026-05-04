@@ -41,4 +41,11 @@ public interface IAuthorService
         string? photoExtension,
         string? displayName = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes every author that has no linked books (orphans after book removals).
+    /// Intended for scheduled Hangfire maintenance — does not check caller roles.
+    /// </summary>
+    /// <returns>The number of authors deleted.</returns>
+    Task<Result<int>> DeleteAuthorsWithNoBooksAsync(CancellationToken cancellationToken = default);
 }

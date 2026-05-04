@@ -115,6 +115,8 @@ await using (var scope = app.Services.CreateAsyncScope())
     await DbInitializer.InitializeAsync(scope.ServiceProvider, authProvider, app.Configuration, logger);
 }
 
+HangfireRecurringJobs.Register();
+
 app.Run();
 
 // ──────────────────────────────────────────────────────────────────────────────

@@ -124,4 +124,6 @@ await using (var scope = app.Services.CreateAsyncScope())
     }
 }
 
+HangfireRecurringJobs.Register();
+
 app.Run();

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
+using Shelfwarden.Services.Jobs;
 using Shelfwarden.Services.Tts;
 
 namespace Shelfwarden.Services;
@@ -32,6 +33,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<ICollectionService, CollectionService>();
             services.AddScoped<IReadingListService, ReadingListService>();
             services.AddScoped<ISetupService, SetupService>();
+            services.AddScoped<AuthorCleanupJob>();
 
             // Storage + scanner. The metadata extractors are stateless so they can be singletons;
             // ScannerService itself is scoped because it pulls in EF Core repositories.
