@@ -7,9 +7,14 @@
 (function () {
     if (window.shelfwardenReader) return;
 
+    // Serialize EPUB opens so a new mount never runs while the previous book is still
+    // tearing down — overlapping unpack() calls corrupt epub.js (this.resources undefined).
+    var epubMountChain = Promise.resolve();
+
     var state = {
         epub: null,
         rendition: null,
+        epubContainerId: null,
         dotnetRef: null,
         scriptLoaded: false,
         pendingProgressTimer: null,
@@ -199,11 +204,25 @@
          * Mount epub.js into the given container element, load the book at `url`, and start
          * pushing progress updates back into the Blazor component via the supplied .NET ref.
          */
-        mountEpub: async function (containerId, url, dotnetRef, resumeCfi) {
+        mountEpub: function (containerId, url, dotnetRef, resumeCfi) {
+            var self = this;
+            epubMountChain = epubMountChain.then(function () {
+                return self._mountEpubAsync(containerId, url, dotnetRef, resumeCfi);
+            });
+            return epubMountChain;
+        },
+
+        _mountEpubAsync: async function (containerId, url, dotnetRef, resumeCfi) {
             await ensureEpubJsLoaded();
             this.disposeEpub();
 
             state.dotnetRef = dotnetRef;
+            state.epubContainerId = containerId;
+
+            var host = document.getElementById(containerId);
+            if (host) {
+                host.innerHTML = '';
+            }
             state.epub = window.ePub(url, { openAs: 'epub' });
             state.rendition = state.epub.renderTo(containerId, {
                 width: '100%',
@@ -260,6 +279,8 @@
         },
 
         disposeEpub: function () {
+            var containerIdToClear = state.epubContainerId;
+
             if (state.pendingProgressTimer) {
                 clearTimeout(state.pendingProgressTimer);
                 state.pendingProgressTimer = null;
@@ -273,6 +294,18 @@
                 state.epub = null;
             }
             state.dotnetRef = null;
+            state.epubContainerId = null;
+            state.currentCfi = null;
+            state.currentPercent = 0;
+
+            // Rendition leaves iframe(s) behind; stale DOM causes the next unpack to fail
+            // (epub.js: this.resources undefined during replaceCss).
+            if (containerIdToClear) {
+                var host = document.getElementById(containerIdToClear);
+                if (host) {
+                    host.innerHTML = '';
+                }
+            }
         },
 
         /**

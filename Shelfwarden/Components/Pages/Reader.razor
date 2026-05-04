@@ -12,7 +12,7 @@
 @* The reader takes over the full viewport. We render outside the normal sidebar layout
    feel by using `position: fixed` styles in site.css; the sidebar is still mounted under
    us so links via the back button still work. *@
-<div class="reader-shell">
+<div class="reader-shell" @key="Id">
     <div class="reader-topbar">
         <a class="btn btn-sm btn-outline-secondary border-0" href="@($"books/{Id}")" title="Back">
             <i class="bi bi-arrow-left"></i>
@@ -181,8 +181,23 @@
     private string? bookmarkError;
     private string? lastSavedCfi;
 
-    protected override async Task OnInitializedAsync()
+    /// <summary>Tracks which <see cref="Id"/> we last loaded — client navigation between <c>/read/1</c> and <c>/read/2</c> reuses this component.</summary>
+    private int lastHandledBookId = -1;
+
+    protected override async Task OnParametersSetAsync()
     {
+        if (lastHandledBookId == Id)
+        {
+            return;
+        }
+
+        if (lastHandledBookId >= 0)
+        {
+            await TearDownReaderInteropAsync();
+        }
+
+        ResetTransientReaderState();
+
         var result = await BookService.GetByIdAsync(Id);
         if (!result.IsSuccess)
         {
@@ -192,11 +207,47 @@
                 ResultStatus.Unauthorized => "You need to sign in to read books",
                 _ => "Failed to load book",
             };
+            book = null;
+            lastHandledBookId = Id;
             return;
         }
 
         book = result.Value;
+        loadError = null;
+        lastHandledBookId = Id;
         await LoadBookmarksAsync();
+    }
+
+    private void ResetTransientReaderState()
+    {
+        jsMounted = false;
+        pdfPageCount = 0;
+        pdfCurrentPage = 1;
+        progressPercent = null;
+        lastSavedAt = null;
+        lastSavedCfi = null;
+        bookmarkError = null;
+        showBookmarks = false;
+        bookmarks.Clear();
+    }
+
+    private async Task TearDownReaderInteropAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("shelfwardenReader.disposeEpub");
+            await JS.InvokeVoidAsync("shelfwardenReader.disposePdf");
+        }
+        catch (Exception ex) when (IsBenignJsInteropFailure(ex))
+        {
+        }
+        catch (Exception)
+        {
+            // Script may not have mounted yet.
+        }
+
+        selfRef?.Dispose();
+        selfRef = null;
     }
 
     private async Task LoadBookmarksAsync()
@@ -212,42 +263,63 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (book is null || jsMounted) return;
-        jsMounted = true;
+
+        // Nothing to mount for unsupported formats — mark complete so we don't re-enter forever.
+        if (book.FileFormat != EbookFormat.Epub && book.FileFormat != EbookFormat.Pdf)
+        {
+            jsMounted = true;
+            return;
+        }
 
         string fileUrl = $"/files/{Id}";
 
-        if (book.FileFormat == EbookFormat.Epub)
+        try
         {
-            // Resume from saved CFI if we have one, otherwise start from the beginning.
-            string? resumeCfi = null;
-            var progressResult = await BookService.GetProgressAsync(Id);
-            if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
+            if (book.FileFormat == EbookFormat.Epub)
             {
-                resumeCfi = dto.Location;
-                progressPercent = dto.Percentage;
+                // Resume from saved CFI if we have one, otherwise start from the beginning.
+                string? resumeCfi = null;
+                var progressResult = await BookService.GetProgressAsync(Id);
+                if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
+                {
+                    resumeCfi = dto.Location;
+                    progressPercent = dto.Percentage;
+                }
+
+                selfRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("shelfwardenReader.mountEpub", "epub-viewer", fileUrl, selfRef, resumeCfi);
+            }
+            else if (book.FileFormat == EbookFormat.Pdf)
+            {
+                int? resumePage = null;
+                var progressResult = await BookService.GetProgressAsync(Id);
+                if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
+                {
+                    progressPercent = dto.Percentage;
+                    lastSavedAt = dto.LastReadAt;
+                    resumePage = dto.PageNumber;
+                }
+
+                selfRef = DotNetObjectReference.Create(this);
+                var mount = await JS.InvokeAsync<PdfMountResult>(
+                    "shelfwardenReader.mountPdf", "pdf-viewer", fileUrl, selfRef, resumePage);
+                pdfPageCount = mount.PageCount;
+                pdfCurrentPage = resumePage ?? 1;
             }
 
-            selfRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("shelfwardenReader.mountEpub", "epub-viewer", fileUrl, selfRef, resumeCfi);
+            jsMounted = true;
         }
-        else if (book.FileFormat == EbookFormat.Pdf)
+        catch (Exception ex) when (IsBenignJsInteropFailure(ex))
         {
-            int? resumePage = null;
-            var progressResult = await BookService.GetProgressAsync(Id);
-            if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
-            {
-                progressPercent = dto.Percentage;
-                lastSavedAt = dto.LastReadAt;
-                resumePage = dto.PageNumber;
-            }
-
-            selfRef = DotNetObjectReference.Create(this);
-            var mount = await JS.InvokeAsync<PdfMountResult>(
-                "shelfwardenReader.mountPdf", "pdf-viewer", fileUrl, selfRef, resumePage);
-            pdfPageCount = mount.PageCount;
-            pdfCurrentPage = resumePage ?? 1;
+            // Circuit dropped, user navigated away, or interop timed out — don't surface to the global error UI.
+            selfRef?.Dispose();
+            selfRef = null;
         }
     }
+
+    /// <summary>JS interop failed because the connection ended or the call was canceled — not an app bug.</summary>
+    private static bool IsBenignJsInteropFailure(Exception ex)
+        => ex is JSDisconnectedException or OperationCanceledException;
 
     private async Task PrevPage() => await JS.InvokeVoidAsync("shelfwardenReader.prevPage");
     private async Task NextPage() => await JS.InvokeVoidAsync("shelfwardenReader.nextPage");
@@ -394,20 +466,6 @@
 
     public async ValueTask DisposeAsync()
     {
-        try
-        {
-            await JS.InvokeVoidAsync("shelfwardenReader.disposeEpub");
-            await JS.InvokeVoidAsync("shelfwardenReader.disposePdf");
-        }
-        catch (JSDisconnectedException)
-        {
-            // Browser closed the circuit before we got here — nothing to clean up.
-        }
-        catch (Exception)
-        {
-            // The reader script may not have loaded if we errored early; swallow rather
-            // than throwing from Dispose.
-        }
-        selfRef?.Dispose();
+        await TearDownReaderInteropAsync();
     }
 }
