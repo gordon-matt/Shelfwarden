@@ -12,6 +12,12 @@ internal static class ShelfwardenImportConstants
 /// metadata before authors, series, genres, and tags are persisted.</summary>
 internal sealed class ShelfwardenImportOverlay
 {
+    /// <summary>When true, scanner uses the ebook file name (without extension) as title.</summary>
+    public bool? UseFileNameForTitle { get; set; }
+
+    /// <summary>Optional collection name. If set, scanner creates the global collection if needed and adds the book to it.</summary>
+    public string? Collection { get; set; }
+
     public ShelfwardenImportField? Author { get; set; }
 
     /// <summary>When set to a non-empty string, the book is assigned to that series (replaces any value from the file). Whitespace-only is ignored.</summary>
@@ -49,6 +55,11 @@ internal static class ShelfwardenImportJson
 
 internal static class ShelfwardenImportMerger
 {
+    public static bool UseFileNameForTitle(bool? value) => value is true;
+
+    public static string? MergeCollection(string? collectionName)
+        => string.IsNullOrWhiteSpace(collectionName) ? null : collectionName.Trim();
+
     public static IReadOnlyList<string> MergeList(IReadOnlyList<string> fromFile, ShelfwardenImportField? field)
     {
         if (field is null)

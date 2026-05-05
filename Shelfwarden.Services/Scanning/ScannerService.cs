@@ -31,7 +31,9 @@ public sealed class ScannerService(
     IRepository<Genre> genreRepository,
     IRepository<BookGenre> bookGenreRepository,
     IRepository<Tag> tagRepository,
-    IRepository<BookTag> bookTagRepository) : IScannerService
+    IRepository<BookTag> bookTagRepository,
+    IRepository<Collection> collectionRepository,
+    IRepository<CollectionBook> collectionBookRepository) : IScannerService
 {
     private readonly Dictionary<string, (long LastWriteTicks, ShelfwardenImportOverlay? Overlay)> _importOverlayCache =
         new(StringComparer.OrdinalIgnoreCase);
@@ -89,6 +91,7 @@ public sealed class ScannerService(
         var seriesCache = new Dictionary<string, Series>(StringComparer.OrdinalIgnoreCase);
         var genreCache = new Dictionary<string, Genre>(StringComparer.OrdinalIgnoreCase);
         var tagCache = new Dictionary<string, Tag>(StringComparer.OrdinalIgnoreCase);
+        var collectionCache = new Dictionary<string, Collection>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var folder in shelf.Folders)
         {
@@ -136,6 +139,7 @@ public sealed class ScannerService(
                         seriesCache,
                         genreCache,
                         tagCache,
+                        collectionCache,
                         cancellationToken);
 
                     if (added)
@@ -214,6 +218,7 @@ public sealed class ScannerService(
         Dictionary<string, Series> seriesCache,
         Dictionary<string, Genre> genreCache,
         Dictionary<string, Tag> tagCache,
+        Dictionary<string, Collection> collectionCache,
         CancellationToken cancellationToken)
     {
         var fileInfo = new FileInfo(filePath);
@@ -268,6 +273,9 @@ public sealed class ScannerService(
         IReadOnlyList<string> genreNames = ShelfwardenImportMerger.MergeList(metadata.Genres, importOverlay?.Genres);
         IReadOnlyList<string> tagNames = ShelfwardenImportMerger.MergeList(metadata.Tags, importOverlay?.Tags);
         string? seriesName = ShelfwardenImportMerger.MergeSeries(metadata.SeriesName, importOverlay?.Series);
+        string? collectionName = ShelfwardenImportMerger.MergeCollection(importOverlay?.Collection);
+        bool useFileNameForTitle = ShelfwardenImportMerger.UseFileNameForTitle(importOverlay?.UseFileNameForTitle);
+        string resolvedTitle = ResolveImportedTitle(filePath, metadata.Title, useFileNameForTitle);
 
         if (book is null)
         {
@@ -276,11 +284,8 @@ public sealed class ScannerService(
                 ShelfId = shelfId,
                 FilePath = filePath,
                 FileFormat = extractor.Format,
-
-                Title =
-                    !string.IsNullOrEmpty(metadata.Title)
-                        ? metadata.Title.ToLower().Humanize(LetterCasing.Title).Truncate(MaxBookTitleFieldLength)
-                        : "Unknown Title",
+                Title = resolvedTitle,
+                SortTitle = resolvedTitle.ToSortTitle().Truncate(MaxBookTitleFieldLength),
 
                 FileSizeBytes = fileInfo.Length,
                 FileLastModified = fileInfo.LastWriteTimeUtc,
@@ -295,6 +300,7 @@ public sealed class ScannerService(
             await SyncGenresAsync(book.Id, genreNames, genreCache);
             await SyncTagsAsync(book.Id, tagNames, tagCache);
             await ResolveSeriesAsync(book, seriesName, seriesCache);
+            await SyncCollectionAsync(book.Id, collectionName, collectionCache);
             await SaveCoverAsync(book, metadata.Cover, cancellationToken);
 
             return (true, false);
@@ -306,6 +312,12 @@ public sealed class ScannerService(
             book.FileLastModified = fileInfo.LastWriteTimeUtc;
             book.FileFormat = extractor.Format;
             book.LastScannedAt = DateTime.UtcNow;
+            if (useFileNameForTitle)
+            {
+                book.Title = resolvedTitle;
+                book.SortTitle = resolvedTitle.ToSortTitle().Truncate(MaxBookTitleFieldLength);
+            }
+
             ApplyMetadata(book, metadata);
 
             await ResolveSeriesAsync(book, seriesName, seriesCache);
@@ -314,6 +326,7 @@ public sealed class ScannerService(
             await SyncAuthorsAsync(book.Id, authorNames, authorCache);
             await SyncGenresAsync(book.Id, genreNames, genreCache);
             await SyncTagsAsync(book.Id, tagNames, tagCache);
+            await SyncCollectionAsync(book.Id, collectionName, collectionCache);
             await SaveCoverAsync(book, metadata.Cover, cancellationToken);
 
             return (false, true);
@@ -383,7 +396,23 @@ public sealed class ScannerService(
         book.NumberInSeries ??= metadata.NumberInSeries;
     }
 
-    private async Task SyncAuthorsAsync(int bookId, IReadOnlyList<string> authorNames, Dictionary<string, Author> cache)
+    private static string ResolveImportedTitle(string filePath, string? metadataTitle, bool useFileNameForTitle)
+    {
+        if (useFileNameForTitle)
+        {
+            string fileName = Path.GetFileNameWithoutExtension(filePath);
+            if (!string.IsNullOrWhiteSpace(fileName))
+            {
+                return fileName.Truncate(MaxBookTitleFieldLength);
+            }
+        }
+
+        return !string.IsNullOrWhiteSpace(metadataTitle)
+            ? metadataTitle.ToLower().Humanize(LetterCasing.Title).Truncate(MaxBookTitleFieldLength)
+            : "Unknown Title";
+    }
+
+    private async Task SyncAuthorsAsync(int bookId, IReadOnlyList<string> authorNames, IDictionary<string, Author> cache)
     {
         var existing = (await bookAuthorRepository.FindAsync(new SearchOptions<BookAuthor>
         {
@@ -601,6 +630,54 @@ public sealed class ScannerService(
         }
 
         book.SeriesId = series.Id;
+    }
+
+    private async Task SyncCollectionAsync(int bookId, string? collectionName, Dictionary<string, Collection> cache)
+    {
+        if (string.IsNullOrWhiteSpace(collectionName))
+        {
+            return;
+        }
+
+        var collection = await ResolveCollectionAsync(collectionName.Trim(), cache);
+        var existing = await collectionBookRepository.FindOneAsync(new SearchOptions<CollectionBook>
+        {
+            Query = cb => cb.BookId == bookId && cb.CollectionId == collection.Id,
+        });
+        if (existing is not null)
+        {
+            return;
+        }
+
+        await collectionBookRepository.InsertAsync(new CollectionBook
+        {
+            BookId = bookId,
+            CollectionId = collection.Id,
+        });
+    }
+
+    private async Task<Collection> ResolveCollectionAsync(string collectionName, Dictionary<string, Collection> cache)
+    {
+        string key = collectionName.ToLowerInvariant();
+        if (cache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var collection = await collectionRepository.FindOneAsync(new SearchOptions<Collection>
+        {
+            Query = c => c.OwnerUserId == Constants.GlobalUserId && c.Name == collectionName,
+        });
+
+        collection ??= await collectionRepository.InsertAsync(new Collection
+        {
+            Name = collectionName,
+            OwnerUserId = Constants.GlobalUserId,
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        cache[key] = collection;
+        return collection;
     }
 
     private async Task SaveCoverAsync(Book book, EbookCoverImage? cover, CancellationToken cancellationToken)
