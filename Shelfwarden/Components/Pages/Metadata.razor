@@ -1,0 +1,702 @@
+@page "/metadata"
+@attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@inject IGenreService GenreService
+@inject ITagService TagService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Metadata - Shelfwarden</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="mb-0">Metadata</h1>
+        <p class="text-secondary mb-0">Manage shared genres and tags used across your library.</p>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @error
+        <button type="button" class="btn-close" @onclick="@(() => error = null)" aria-label="Close"></button>
+    </div>
+}
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == MetadataTab.Genres ? "active" : null)"
+                type="button"
+                @onclick="@(() => SetTab(MetadataTab.Genres))">
+            Genres
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == MetadataTab.Tags ? "active" : null)"
+                type="button"
+                @onclick="@(() => SetTab(MetadataTab.Tags))">
+            Tags
+        </button>
+    </li>
+</ul>
+
+@if (activeTab == MetadataTab.Genres)
+{
+    <div class="row g-2 mb-3 align-items-end">
+        <div class="col-md-8">
+            <label class="form-label small text-body-secondary mb-1">Search genres</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input class="form-control" placeholder="Search genres..." @bind="genreQuery" @bind:event="oninput" @onkeyup="OnGenreQueryKeyUp" />
+            </div>
+        </div>
+        <div class="col-md-4 d-flex justify-content-md-end gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ClearGenreSelection" disabled="@(selectedGenreIds.Count == 0)">
+                <i class="bi bi-x-circle"></i> Clear
+            </button>
+            <button class="btn btn-outline-primary" @onclick="OpenGenreCreateAsync">
+                <i class="bi bi-plus-circle"></i> Add genre
+            </button>
+        </div>
+    </div>
+
+    <div class="selection-toolbar mb-3 d-flex flex-wrap align-items-center gap-2">
+        <span class="text-secondary small">
+            <i class="bi bi-check2-square"></i> @selectedGenreIds.Count selected
+        </span>
+        <button class="btn btn-sm btn-outline-primary" disabled="@(selectedGenreIds.Count < 2)" @onclick="OpenGenreMergeModal">
+            <i class="bi bi-intersect"></i> Merge selected
+        </button>
+        <button class="btn btn-sm btn-outline-danger" disabled="@(selectedGenreIds.Count == 0)" @onclick="DeleteSelectedGenresAsync">
+            <i class="bi bi-trash"></i> Delete selected
+        </button>
+    </div>
+
+    @if (genres is null)
+    {
+        <div class="text-center text-secondary py-5">
+            <div class="spinner-border" role="status"></div>
+            <div class="mt-2">Loading genres…</div>
+        </div>
+    }
+    else if (genres.Count == 0)
+    {
+        <div class="empty-state">
+            <i class="bi bi-tags empty-icon"></i>
+            <h3>No genres found</h3>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 1%;"></th>
+                            <th>Name</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var g in genres)
+                        {
+                            <tr>
+                                <td>
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           checked="@selectedGenreIds.Contains(g.Id)"
+                                           @onchange="e => ToggleGenreSelection(g.Id, (bool)(e.Value ?? false))" />
+                                </td>
+                                <td>@g.Name</td>
+                                <td class="text-end text-nowrap">
+                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => OpenGenreRenameAsync(g))">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteGenreAsync(g))">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <div class="row g-2 mb-3 align-items-end">
+        <div class="col-md-8">
+            <label class="form-label small text-body-secondary mb-1">Search tags</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input class="form-control" placeholder="Search tags..." @bind="tagQuery" @bind:event="oninput" @onkeyup="OnTagQueryKeyUp" />
+            </div>
+        </div>
+        <div class="col-md-4 d-flex justify-content-md-end gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ClearTagSelection" disabled="@(selectedTagIds.Count == 0)">
+                <i class="bi bi-x-circle"></i> Clear
+            </button>
+            <button class="btn btn-outline-primary" @onclick="OpenTagCreateAsync">
+                <i class="bi bi-plus-circle"></i> Add tag
+            </button>
+        </div>
+    </div>
+
+    <div class="selection-toolbar mb-3 d-flex flex-wrap align-items-center gap-2">
+        <span class="text-secondary small">
+            <i class="bi bi-check2-square"></i> @selectedTagIds.Count selected
+        </span>
+        <button class="btn btn-sm btn-outline-primary" disabled="@(selectedTagIds.Count < 2)" @onclick="OpenTagMergeModal">
+            <i class="bi bi-intersect"></i> Merge selected
+        </button>
+        <button class="btn btn-sm btn-outline-danger" disabled="@(selectedTagIds.Count == 0)" @onclick="DeleteSelectedTagsAsync">
+            <i class="bi bi-trash"></i> Delete selected
+        </button>
+    </div>
+
+    @if (tags is null)
+    {
+        <div class="text-center text-secondary py-5">
+            <div class="spinner-border" role="status"></div>
+            <div class="mt-2">Loading tags…</div>
+        </div>
+    }
+    else if (tags.Count == 0)
+    {
+        <div class="empty-state">
+            <i class="bi bi-hash empty-icon"></i>
+            <h3>No tags found</h3>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 1%;"></th>
+                            <th>Name</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var t in tags)
+                        {
+                            <tr>
+                                <td>
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           checked="@selectedTagIds.Contains(t.Id)"
+                                           @onchange="e => ToggleTagSelection(t.Id, (bool)(e.Value ?? false))" />
+                                </td>
+                                <td>@t.Name</td>
+                                <td class="text-end text-nowrap">
+                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => OpenTagRenameAsync(t))">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteTagAsync(t))">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@if (genreMergeModalOpen && genreMergeCandidates.Count > 0)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,.5);" @onclick="CloseGenreMergeModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Merge genres</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseGenreMergeModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-secondary mb-3">
+                        Choose the genre to keep. The other selected genres will be merged into it and deleted.
+                    </p>
+                    @foreach (var c in genreMergeCandidates)
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="mergePrimaryGenre"
+                                   id="@($"merge-primary-genre-{c.Id}")"
+                                   checked="@(genreMergeTargetId == c.Id)"
+                                   @onchange="@(() => genreMergeTargetId = c.Id)" />
+                            <label class="form-check-label" for="@($"merge-primary-genre-{c.Id}")">@c.Name</label>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseGenreMergeModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="ConfirmGenreMergeAsync">Merge</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (tagMergeModalOpen && tagMergeCandidates.Count > 0)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,.5);" @onclick="CloseTagMergeModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Merge tags</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseTagMergeModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-secondary mb-3">
+                        Choose the tag to keep. The other selected tags will be merged into it and deleted.
+                    </p>
+                    @foreach (var c in tagMergeCandidates)
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="mergePrimaryTag"
+                                   id="@($"merge-primary-tag-{c.Id}")"
+                                   checked="@(tagMergeTargetId == c.Id)"
+                                   @onchange="@(() => tagMergeTargetId = c.Id)" />
+                            <label class="form-check-label" for="@($"merge-primary-tag-{c.Id}")">@c.Name</label>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseTagMergeModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="ConfirmTagMergeAsync">Merge</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private enum MetadataTab
+    {
+        Genres,
+        Tags,
+    }
+
+    private MetadataTab activeTab = MetadataTab.Genres;
+    private string? error;
+
+    private IReadOnlyList<GenreDto>? genres;
+    private string genreQuery = string.Empty;
+    private CancellationTokenSource? genreSearchCts;
+    private readonly HashSet<int> selectedGenreIds = [];
+    private bool genreMergeModalOpen;
+    private int genreMergeTargetId;
+    private List<GenreDto> genreMergeCandidates = [];
+
+    private IReadOnlyList<TagDto>? tags;
+    private string tagQuery = string.Empty;
+    private CancellationTokenSource? tagSearchCts;
+    private readonly HashSet<int> selectedTagIds = [];
+    private bool tagMergeModalOpen;
+    private int tagMergeTargetId;
+    private List<TagDto> tagMergeCandidates = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadGenresAsync(), LoadTagsAsync());
+    }
+
+    private void SetTab(MetadataTab tab)
+    {
+        activeTab = tab;
+        error = null;
+    }
+
+    private async Task LoadGenresAsync()
+    {
+        var result = await GenreService.ListAsync(genreQuery);
+        genres = result.IsSuccess ? result.Value : [];
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+        }
+    }
+
+    private async Task LoadTagsAsync()
+    {
+        var result = await TagService.ListAsync(tagQuery);
+        tags = result.IsSuccess ? result.Value : [];
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+        }
+    }
+
+    private async Task OnGenreQueryKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadGenresAsync();
+            return;
+        }
+
+        genreSearchCts?.Cancel();
+        genreSearchCts = new CancellationTokenSource();
+        var token = genreSearchCts.Token;
+        try
+        {
+            await Task.Delay(250, token);
+            if (!token.IsCancellationRequested)
+            {
+                await LoadGenresAsync();
+            }
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private async Task OnTagQueryKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadTagsAsync();
+            return;
+        }
+
+        tagSearchCts?.Cancel();
+        tagSearchCts = new CancellationTokenSource();
+        var token = tagSearchCts.Token;
+        try
+        {
+            await Task.Delay(250, token);
+            if (!token.IsCancellationRequested)
+            {
+                await LoadTagsAsync();
+            }
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private void ToggleGenreSelection(int genreId, bool include)
+    {
+        if (include) selectedGenreIds.Add(genreId);
+        else selectedGenreIds.Remove(genreId);
+    }
+
+    private void ToggleTagSelection(int tagId, bool include)
+    {
+        if (include) selectedTagIds.Add(tagId);
+        else selectedTagIds.Remove(tagId);
+    }
+
+    private void ClearGenreSelection() => selectedGenreIds.Clear();
+
+    private void ClearTagSelection() => selectedTagIds.Clear();
+
+    private async Task OpenGenreCreateAsync()
+    {
+        string? name = await JSRuntime.InvokeAsync<string?>("prompt", "New genre name:");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        var result = await GenreService.CreateAsync(name);
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+            return;
+        }
+
+        error = null;
+        await LoadGenresAsync();
+    }
+
+    private async Task OpenTagCreateAsync()
+    {
+        string? name = await JSRuntime.InvokeAsync<string?>("prompt", "New tag name:");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        var result = await TagService.CreateAsync(name);
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+            return;
+        }
+
+        error = null;
+        await LoadTagsAsync();
+    }
+
+    private async Task OpenGenreRenameAsync(GenreDto genre)
+    {
+        string? name = await JSRuntime.InvokeAsync<string?>("prompt", "Rename genre:", genre.Name);
+        if (string.IsNullOrWhiteSpace(name) || string.Equals(name.Trim(), genre.Name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var result = await GenreService.UpdateAsync(genre.Id, name);
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+            return;
+        }
+
+        error = null;
+        await LoadGenresAsync();
+    }
+
+    private async Task OpenTagRenameAsync(TagDto tag)
+    {
+        string? name = await JSRuntime.InvokeAsync<string?>("prompt", "Rename tag:", tag.Name);
+        if (string.IsNullOrWhiteSpace(name) || string.Equals(name.Trim(), tag.Name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var result = await TagService.UpdateAsync(tag.Id, name);
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+            return;
+        }
+
+        error = null;
+        await LoadTagsAsync();
+    }
+
+    private async Task DeleteGenreAsync(GenreDto genre)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Delete genre \"{genre.Name}\"? This cannot be undone."))
+        {
+            return;
+        }
+
+        var result = await GenreService.DeleteAsync(genre.Id);
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+            return;
+        }
+
+        selectedGenreIds.Remove(genre.Id);
+        error = null;
+        await LoadGenresAsync();
+    }
+
+    private async Task DeleteTagAsync(TagDto tag)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Delete tag \"{tag.Name}\"? This cannot be undone."))
+        {
+            return;
+        }
+
+        var result = await TagService.DeleteAsync(tag.Id);
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+            return;
+        }
+
+        selectedTagIds.Remove(tag.Id);
+        error = null;
+        await LoadTagsAsync();
+    }
+
+    private async Task DeleteSelectedGenresAsync()
+    {
+        if (selectedGenreIds.Count == 0)
+        {
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Delete {selectedGenreIds.Count} selected genre(s)? This cannot be undone."))
+        {
+            return;
+        }
+
+        foreach (int id in selectedGenreIds.ToList())
+        {
+            var result = await GenreService.DeleteAsync(id);
+            if (!result.IsSuccess)
+            {
+                error = FormatResult(result);
+                return;
+            }
+        }
+
+        selectedGenreIds.Clear();
+        error = null;
+        await LoadGenresAsync();
+    }
+
+    private async Task DeleteSelectedTagsAsync()
+    {
+        if (selectedTagIds.Count == 0)
+        {
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Delete {selectedTagIds.Count} selected tag(s)? This cannot be undone."))
+        {
+            return;
+        }
+
+        foreach (int id in selectedTagIds.ToList())
+        {
+            var result = await TagService.DeleteAsync(id);
+            if (!result.IsSuccess)
+            {
+                error = FormatResult(result);
+                return;
+            }
+        }
+
+        selectedTagIds.Clear();
+        error = null;
+        await LoadTagsAsync();
+    }
+
+    private void OpenGenreMergeModal()
+    {
+        if (genres is null || selectedGenreIds.Count < 2)
+        {
+            return;
+        }
+
+        genreMergeCandidates = genres
+            .Where(g => selectedGenreIds.Contains(g.Id))
+            .OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (genreMergeCandidates.Count < 2)
+        {
+            genreMergeCandidates = [];
+            return;
+        }
+
+        genreMergeTargetId = genreMergeCandidates[0].Id;
+        genreMergeModalOpen = true;
+    }
+
+    private void OpenTagMergeModal()
+    {
+        if (tags is null || selectedTagIds.Count < 2)
+        {
+            return;
+        }
+
+        tagMergeCandidates = tags
+            .Where(t => selectedTagIds.Contains(t.Id))
+            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (tagMergeCandidates.Count < 2)
+        {
+            tagMergeCandidates = [];
+            return;
+        }
+
+        tagMergeTargetId = tagMergeCandidates[0].Id;
+        tagMergeModalOpen = true;
+    }
+
+    private void CloseGenreMergeModal()
+    {
+        genreMergeModalOpen = false;
+        genreMergeCandidates = [];
+    }
+
+    private void CloseTagMergeModal()
+    {
+        tagMergeModalOpen = false;
+        tagMergeCandidates = [];
+    }
+
+    private async Task ConfirmGenreMergeAsync()
+    {
+        var sourceIds = genreMergeCandidates
+            .Where(c => c.Id != genreMergeTargetId)
+            .Select(c => c.Id)
+            .ToList();
+        if (sourceIds.Count == 0)
+        {
+            return;
+        }
+
+        string targetName = genreMergeCandidates.First(c => c.Id == genreMergeTargetId).Name;
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Merge into \"{targetName}\"? Other selected genres will be deleted."))
+        {
+            return;
+        }
+
+        var result = await GenreService.MergeAsync(genreMergeTargetId, sourceIds);
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+            return;
+        }
+
+        CloseGenreMergeModal();
+        selectedGenreIds.Clear();
+        error = null;
+        await LoadGenresAsync();
+    }
+
+    private async Task ConfirmTagMergeAsync()
+    {
+        var sourceIds = tagMergeCandidates
+            .Where(c => c.Id != tagMergeTargetId)
+            .Select(c => c.Id)
+            .ToList();
+        if (sourceIds.Count == 0)
+        {
+            return;
+        }
+
+        string targetName = tagMergeCandidates.First(c => c.Id == tagMergeTargetId).Name;
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Merge into \"{targetName}\"? Other selected tags will be deleted."))
+        {
+            return;
+        }
+
+        var result = await TagService.MergeAsync(tagMergeTargetId, sourceIds);
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+            return;
+        }
+
+        CloseTagMergeModal();
+        selectedTagIds.Clear();
+        error = null;
+        await LoadTagsAsync();
+    }
+
+    private static string FormatResult(Ardalis.Result.Result result)
+    {
+        if (result.ValidationErrors is not null && result.ValidationErrors.Any())
+        {
+            return string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage));
+        }
+
+        return string.Join(" ", result.Errors);
+    }
+
+    private static string FormatResult<T>(Ardalis.Result.Result<T> result)
+    {
+        if (result.ValidationErrors is not null && result.ValidationErrors.Any())
+        {
+            return string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage));
+        }
+
+        return string.Join(" ", result.Errors);
+    }
+}
