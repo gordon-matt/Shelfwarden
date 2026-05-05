@@ -2,16 +2,6 @@ using Shelfwarden.Enums;
 
 namespace Shelfwarden.Models;
 
-/// <summary>
-/// Derives a stable cache-busting token for <c>/covers/{id}?v=…</c>. Book IDs are reused after a
-/// wipe/rescan; pairing the URL with revision ticks prevents stale browser/CDN images.
-/// </summary>
-public static class BookCoverCaching
-{
-    public static long GetCoverCacheVersion(DateTime? lastScannedAt, DateTime? updatedAt, DateTime createdAt)
-        => (lastScannedAt ?? updatedAt ?? createdAt).Ticks;
-}
-
 /// <summary>Lightweight projection used for browse / search grids.</summary>
 public record BookListItemDto(
     int Id,
@@ -23,7 +13,6 @@ public record BookListItemDto(
     string? CoverImagePath,
     EbookFormat FileFormat,
     double ProgressPercentage,
-    long CoverCacheVersion,
     string? SortTitle = null,
     string? Description = null);
 
@@ -54,11 +43,7 @@ public record BookDto(
     IReadOnlyList<TagDto> Tags,
     DateTime CreatedAt,
     DateTime? LastScannedAt,
-    DateTime? UpdatedAt)
-{
-    /// <summary>Include on cover URLs as <c>?v=</c> so browsers never reuse another book's cached image at the same id.</summary>
-    public long CoverCacheVersion => BookCoverCaching.GetCoverCacheVersion(LastScannedAt, UpdatedAt, CreatedAt);
-}
+    DateTime? UpdatedAt);
 
 /// <summary>User-supplied metadata edits. The scanner-derived fields (FilePath, FileSize, etc) cannot be edited.</summary>
 public record UpdateBookRequest

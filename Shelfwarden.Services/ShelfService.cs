@@ -531,14 +531,13 @@ public class ShelfService(
         var dict = new Dictionary<int, List<CardBannerSupport.BookCoverSource>>();
         foreach (Book b in books)
         {
-            long v = BookCoverCaching.GetCoverCacheVersion(b.LastScannedAt, b.UpdatedAt, b.CreatedAt);
             if (!dict.TryGetValue(b.ShelfId, out List<CardBannerSupport.BookCoverSource>? list))
             {
                 list = [];
                 dict[b.ShelfId] = list;
             }
 
-            list.Add(new CardBannerSupport.BookCoverSource(b.Id, v));
+            list.Add(new CardBannerSupport.BookCoverSource(b.Id));
         }
 
         return dict;

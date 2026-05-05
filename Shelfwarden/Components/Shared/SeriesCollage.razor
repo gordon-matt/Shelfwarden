@@ -20,7 +20,7 @@ else
             <div class="@layerClass">
                 @if (!string.IsNullOrWhiteSpace(c.CoverImagePath))
                 {
-                    <img src="@($"covers/{c.BookId}?v={c.CoverCacheVersion}")" alt="" loading="lazy" />
+                    <img src="@($"covers/{c.BookId}")" alt="" loading="lazy" />
                 }
                 else
                 {

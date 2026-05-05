@@ -535,14 +535,13 @@ public class CollectionService(
                 continue;
             }
 
-            long v = BookCoverCaching.GetCoverCacheVersion(b.LastScannedAt, b.UpdatedAt, b.CreatedAt);
             if (!dict.TryGetValue(cb.CollectionId, out List<CardBannerSupport.BookCoverSource>? list))
             {
                 list = [];
                 dict[cb.CollectionId] = list;
             }
 
-            list.Add(new CardBannerSupport.BookCoverSource(b.Id, v));
+            list.Add(new CardBannerSupport.BookCoverSource(b.Id));
         }
 
         return dict;

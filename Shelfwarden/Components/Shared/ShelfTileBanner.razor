@@ -12,7 +12,7 @@ else if (Preview.CoverRefs.Count > 0)
         @foreach (var c in Preview.CoverRefs)
         {
             <div class="shelf-tile-banner-cover">
-                <img src="@($"covers/{c.BookId}?v={c.CoverCacheVersion}")" alt="" loading="lazy" />
+                <img src="@($"covers/{c.BookId}")" alt="" loading="lazy" />
             </div>
         }
     </div>

@@ -18,7 +18,7 @@ public record CardBannerPreview(
     IReadOnlyList<BookCoverRefDto> CoverRefs);
 
 /// <summary>Minimal data for a cover thumbnail URL.</summary>
-public record BookCoverRefDto(int BookId, long CoverCacheVersion);
+public record BookCoverRefDto(int BookId);
 
 /// <summary>Settings loaded for edit forms (detail pages).</summary>
 public record CardBannerSettingsDto(

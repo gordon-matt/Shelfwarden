@@ -598,14 +598,13 @@ public class ReadingListService(
                 continue;
             }
 
-            long v = BookCoverCaching.GetCoverCacheVersion(b.LastScannedAt, b.UpdatedAt, b.CreatedAt);
             if (!dict.TryGetValue(item.ReadingListId, out List<CardBannerSupport.BookCoverSource>? list))
             {
                 list = [];
                 dict[item.ReadingListId] = list;
             }
 
-            list.Add(new CardBannerSupport.BookCoverSource(b.Id, v));
+            list.Add(new CardBannerSupport.BookCoverSource(b.Id));
         }
 
         return dict;

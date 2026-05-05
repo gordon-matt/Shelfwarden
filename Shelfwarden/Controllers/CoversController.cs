@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
-using Shelfwarden.Models;
 using Shelfwarden.Services;
 using Shelfwarden.Services.Storage;
 
@@ -10,8 +9,6 @@ namespace Shelfwarden.Controllers;
 /// Streams extracted cover images from <see cref="IStoragePathProvider.CoversDirectory"/>.
 /// Files are stored as <c>{bookId}.{ext}</c>, but we deliberately do not trust the requested
 /// extension — we look up the book's actual cover path and serve that.
-/// Book IDs are reused after DB resets — combine with <c>?v=</c> (see <see cref="BookCoverCaching"/>)
-/// so browsers never show another edition's cached bytes at the same URL.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -49,7 +46,7 @@ public class CoversController(
         // Use the file's actual extension to set the content type — never trust the URL.
         string contentType = MimeFromExtension(Path.GetExtension(fullPath));
 
-        // Never allow shared proxies to pin /covers/{id}: IDs recycle; UI passes ?v=ticks to bust caches.
+        // Keep covers revalidating so clients refresh quickly when cover files change.
         Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue
         {
             Private = true,

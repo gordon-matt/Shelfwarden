@@ -231,8 +231,7 @@ public class AuthorService(
                     .Take(4)
                     .Select(b => new SeriesCoverDto(
                         b.Id,
-                        b.CoverImagePath,
-                        BookCoverCaching.GetCoverCacheVersion(b.LastScannedAt, b.UpdatedAt, b.CreatedAt)))
+                        b.CoverImagePath))
                     .ToList()))
             .OrderBy(s => s.SeriesName, StringComparer.OrdinalIgnoreCase)
             .ToList();

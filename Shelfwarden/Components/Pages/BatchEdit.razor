@@ -247,7 +247,7 @@ else
                                 <a href="@($"books/{row.Id}")" target="_blank" title="Open in new tab">
                                     @if (!string.IsNullOrEmpty(row.CoverImagePath))
                                     {
-                                        <img src="@($"covers/{row.Id}?v={row.CoverCacheVersion}")" class="batch-edit-cover" alt="@row.Title" />
+                                        <img src="@($"covers/{row.Id}")" class="batch-edit-cover" alt="@row.Title" />
                                     }
                                     else
                                     {
@@ -342,7 +342,6 @@ else
             {
                 Id = b.Id,
                 CoverImagePath = b.CoverImagePath,
-                CoverCacheVersion = b.CoverCacheVersion,
                 Title = b.Title,
                 SortTitle = b.SortTitle,
                 Subtitle = b.Subtitle,
@@ -737,7 +736,6 @@ else
     {
         public int Id { get; set; }
         public string? CoverImagePath { get; set; }
-        public long CoverCacheVersion { get; set; }
         public string Title { get; set; } = string.Empty;
         public string? SortTitle { get; set; }
         public string? Subtitle { get; set; }

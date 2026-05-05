@@ -12,7 +12,7 @@ internal static class CardBannerSupport
 
     private static readonly JsonSerializerOptions JsonOptions = new();
 
-    internal readonly record struct BookCoverSource(int BookId, long CoverCacheVersion);
+    internal readonly record struct BookCoverSource(int BookId);
 
     internal static IReadOnlyList<int> ParseBookIds(string? json)
     {
@@ -101,7 +101,7 @@ internal static class CardBannerSupport
             if (result.Count >= CardBannerLimits.MaxStripCovers) break;
             if (byId.TryGetValue(id, out var c))
             {
-                result.Add(new BookCoverRefDto(c.BookId, c.CoverCacheVersion));
+                result.Add(new BookCoverRefDto(c.BookId));
             }
         }
 
@@ -124,6 +124,6 @@ internal static class CardBannerSupport
             (pool[i], pool[j]) = (pool[j], pool[i]);
         }
 
-        return pool.Take(n).Select(c => new BookCoverRefDto(c.BookId, c.CoverCacheVersion)).ToList();
+        return pool.Take(n).Select(c => new BookCoverRefDto(c.BookId)).ToList();
     }
 }

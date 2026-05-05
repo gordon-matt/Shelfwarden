@@ -24,7 +24,6 @@ internal static class BookProjections
         CoverImagePath: b.CoverImagePath,
         FileFormat: b.FileFormat,
         ProgressPercentage: progressPercent,
-        CoverCacheVersion: BookCoverCaching.GetCoverCacheVersion(b.LastScannedAt, b.UpdatedAt, b.CreatedAt),
         SortTitle: b.SortTitle,
         Description: b.Description);
 
