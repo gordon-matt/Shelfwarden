@@ -268,6 +268,7 @@ public sealed class ScannerService(
         ShelfwardenImportOverlay? importOverlay = importJsonPath is null
             ? null
             : await TryLoadImportOverlayAsync(importJsonPath, cancellationToken);
+        bool hasImportOverlay = importOverlay is not null;
 
         IReadOnlyList<string> authorNames = ShelfwardenImportMerger.MergeList(metadata.AuthorNames, importOverlay?.Author);
         IReadOnlyList<string> genreNames = ShelfwardenImportMerger.MergeList(metadata.Genres, importOverlay?.Genres);
@@ -293,6 +294,11 @@ public sealed class ScannerService(
                 CreatedAt = DateTime.UtcNow,
             };
             ApplyMetadata(book, metadata);
+            if (hasImportOverlay)
+            {
+                // Sidecar-driven metadata counts as reviewed/import-curated content.
+                book.UpdatedAt = DateTime.UtcNow;
+            }
             book = await bookRepository.InsertAsync(book);
             existingByPath[filePath] = book;
 
@@ -319,6 +325,11 @@ public sealed class ScannerService(
             }
 
             ApplyMetadata(book, metadata);
+            if (hasImportOverlay)
+            {
+                // Keep sidecar-imported books out of "Awaiting Review" filters.
+                book.UpdatedAt = DateTime.UtcNow;
+            }
 
             await ResolveSeriesAsync(book, seriesName, seriesCache);
             await bookRepository.UpdateAsync(book);

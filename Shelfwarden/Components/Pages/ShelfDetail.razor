@@ -8,6 +8,7 @@
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
+@inject IConfiguration Configuration
 
 <PageTitle>@(shelf?.Name ?? "Shelf") - Shelfwarden</PageTitle>
 
@@ -112,19 +113,22 @@ else
                     <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllVisible" disabled="@(books.Count == 0)">
                         <i class="bi bi-ui-checks"></i> Select visible
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary"
-                            @onclick="SelectAllMatchingAsync"
-                            disabled="@(totalBookCount == 0 || selectAllMatchingBusy)">
-                        @if (selectAllMatchingBusy)
-                        {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
-                        }
-                        else
-                        {
-                            <i class="bi bi-check2-all"></i>
-                        }
-                        Select all@(totalBookCount > 0 ? $" ({totalBookCount})" : "")
-                    </button>
+                    @if (CanSelectAllMatching)
+                    {
+                        <button class="btn btn-sm btn-outline-secondary"
+                                @onclick="SelectAllMatchingAsync"
+                                disabled="@(totalBookCount == 0 || selectAllMatchingBusy)">
+                            @if (selectAllMatchingBusy)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check2-all"></i>
+                            }
+                            Select all@(totalBookCount > 0 ? $" ({totalBookCount})" : "")
+                        </button>
+                    }
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
                         <i class="bi bi-x-circle"></i> Clear
                     </button>
@@ -199,6 +203,8 @@ else
     private bool isLoadingMoreBooks;
     private string? startsWithFilter;
     private enum ViewMode { Grid, List }
+    private int BulkEditMaxBookCount => Math.Max(1, Configuration.GetValue<int?>("BulkEditMaxBookCount") ?? 100);
+    private bool CanSelectAllMatching => totalBookCount > 0 && totalBookCount <= BulkEditMaxBookCount;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -324,7 +330,7 @@ else
 
     private async Task SelectAllMatchingAsync()
     {
-        if (selectAllMatchingBusy || shelf is null || totalBookCount == 0)
+        if (selectAllMatchingBusy || shelf is null || !CanSelectAllMatching)
         {
             return;
         }

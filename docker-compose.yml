@@ -32,6 +32,7 @@ services:
       # Seeded on first start (see Seed:Admin in appsettings.json). Use Seed__Admin__* — not SeedAdmin__*.
       Seed__Admin__Email: "admin@shelfwarden.local"
       Seed__Admin__Password: "${ADMIN_PASSWORD:-Admin123!}"
+      BulkEditMaxBookCount: 100
       Storage__CoversPath: /app/data/covers
 
       # ---- All configuration keys (defaults per appsettings.json or app code; uncomment to override) ----

@@ -10,6 +10,7 @@
 @inject ITagService TagService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
+@inject IConfiguration Configuration
 
 <PageTitle>Books - Shelfwarden</PageTitle>
 
@@ -61,19 +62,22 @@
                 <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAllVisible" disabled="@(results.Count == 0)">
                     <i class="bi bi-ui-checks"></i> Select visible
                 </button>
-                <button class="btn btn-sm btn-outline-secondary"
-                        @onclick="SelectAllMatchingAsync"
-                        disabled="@(totalCount == 0 || selectAllMatchingBusy)">
-                    @if (selectAllMatchingBusy)
-                    {
-                        <span class="spinner-border spinner-border-sm me-1"></span>
-                    }
-                    else
-                    {
-                        <i class="bi bi-check2-all"></i>
-                    }
-                    Select all@(totalCount > 0 ? $" ({totalCount})" : "")
-                </button>
+                @if (CanSelectAllMatching)
+                {
+                    <button class="btn btn-sm btn-outline-secondary"
+                            @onclick="SelectAllMatchingAsync"
+                            disabled="@(totalCount == 0 || selectAllMatchingBusy)">
+                        @if (selectAllMatchingBusy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check2-all"></i>
+                        }
+                        Select all@(totalCount > 0 ? $" ({totalCount})" : "")
+                    </button>
+                }
                 <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection" disabled="@(selectedBookIds.Count == 0)">
                     <i class="bi bi-x-circle"></i> Clear
                 </button>
@@ -404,6 +408,8 @@
         || !string.IsNullOrWhiteSpace(query);
 
     private bool UseLetterRail => string.IsNullOrEmpty(seriesId);
+    private int BulkEditMaxBookCount => Math.Max(1, Configuration.GetValue<int?>("BulkEditMaxBookCount") ?? 100);
+    private bool CanSelectAllMatching => totalCount > 0 && totalCount <= BulkEditMaxBookCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -672,7 +678,7 @@
 
     private async Task SelectAllMatchingAsync()
     {
-        if (selectAllMatchingBusy || totalCount == 0)
+        if (selectAllMatchingBusy || !CanSelectAllMatching)
         {
             return;
         }
