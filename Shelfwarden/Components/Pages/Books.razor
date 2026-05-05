@@ -202,16 +202,28 @@
             <div class="col-sm-6 col-lg-3">
                 <label class="form-label small text-body-secondary mb-1">Tag</label>
                 <select class="form-select form-select-sm"
-                        @bind="tagId"
-                        @bind:after="OnFilterChangedAsync">
-                    <option value="">Any tag</option>
-                    <option value="-1">No tags</option>
-                    @foreach (var t in tags)
-                    {
-                        <option value="@t.Id">#@t.Name</option>
-                    }
+                        @bind="tagFilterMode"
+                        @bind:after="OnTagModeChangedAsync">
+                    <option value="@TagFilterMode.Any">Any</option>
+                    <option value="@TagFilterMode.None">None</option>
+                    <option value="@TagFilterMode.Selected">Selected</option>
                 </select>
             </div>
+            @if (tagFilterMode == TagFilterMode.Selected)
+            {
+                <div class="col-12 col-lg-6">
+                    <label class="form-label small text-body-secondary mb-1">Selected tags (must match all)</label>
+                    <ChipInput TItem="TagDto"
+                               Label="Tags"
+                               Selected="selectedTagFilters"
+                               ChipCssSuffix="chip-tag"
+                               NameOf="(t => t.Name)"
+                               SearchAsync="SearchTagFilterOptionsAsync"
+                               OnAddAsync="AddTagFilterAsync"
+                               AllowCreate="false"
+                               OnChanged="OnFilterChangedAsync" />
+                </div>
+            }
             <div class="col-12">
                 <div class="form-check form-switch">
                     <input class="form-check-input"
@@ -342,6 +354,7 @@
     public int? TagFromUrl { get; set; }
 
     private enum ViewMode { Grid, List }
+    private enum TagFilterMode { Any, None, Selected }
 
     private readonly List<BookListItemDto> results = [];
     private readonly string observerKey = $"books-page-{Guid.NewGuid():N}";
@@ -351,7 +364,8 @@
     private string authorId = "";
     private string seriesId = "";
     private string genreId = "";
-    private string tagId = "";
+    private TagFilterMode tagFilterMode = TagFilterMode.Any;
+    private readonly List<TagDto> selectedTagFilters = [];
     private bool awaitingReview;
     private BookSortBy sortBy = BookSortBy.Title;
     private bool sortDescending;
@@ -383,7 +397,8 @@
         || !string.IsNullOrEmpty(authorId)
         || !string.IsNullOrEmpty(seriesId)
         || !string.IsNullOrEmpty(genreId)
-        || !string.IsNullOrEmpty(tagId)
+        || tagFilterMode == TagFilterMode.None
+        || (tagFilterMode == TagFilterMode.Selected && selectedTagFilters.Count > 0)
         || awaitingReview
         || !string.IsNullOrWhiteSpace(startsWithFilter)
         || !string.IsNullOrWhiteSpace(query);
@@ -438,9 +453,17 @@
         {
             genreId = gId.ToString();
         }
-        if (TagFromUrl is { } tid && tagId != tid.ToString())
+        if (TagFromUrl is { } tid && tid > 0)
         {
-            tagId = tid.ToString();
+            tagFilterMode = TagFilterMode.Selected;
+            if (!selectedTagFilters.Any(t => t.Id == tid))
+            {
+                var resolved = tags.FirstOrDefault(t => t.Id == tid);
+                if (resolved is not null)
+                {
+                    selectedTagFilters.Add(resolved);
+                }
+            }
         }
         dotNetRef ??= DotNetObjectReference.Create(this);
         await ResetAndLoadAsync();
@@ -512,7 +535,8 @@
             SeriesId = ParseFilterId(seriesId),
             GenreId = ParseFilterId(genreId),
             CollectionId = ParseFilterId(collectionId),
-            TagId = ParseFilterId(tagId),
+            TagId = GetTagFilterId(),
+            TagIds = GetSelectedTagFilterIds(),
             AwaitingReview = awaitingReview,
             SortBy = sortBy,
             SortDescending = sortDescending,
@@ -553,7 +577,8 @@
                 SeriesId = ParseFilterId(seriesId),
                 GenreId = ParseFilterId(genreId),
                 CollectionId = ParseFilterId(collectionId),
-                TagId = ParseFilterId(tagId),
+                TagId = GetTagFilterId(),
+                TagIds = GetSelectedTagFilterIds(),
                 AwaitingReview = awaitingReview,
                 SortBy = sortBy,
                 SortDescending = sortDescending,
@@ -585,6 +610,16 @@
 
     private async Task OnFilterChangedAsync() => await ResetAndLoadAsync();
 
+    private async Task OnTagModeChangedAsync()
+    {
+        if (tagFilterMode != TagFilterMode.Selected)
+        {
+            selectedTagFilters.Clear();
+        }
+
+        await ResetAndLoadAsync();
+    }
+
     private async Task OnSearchQueryChangedAsync()
     {
         searchDebounceCts?.Cancel();
@@ -611,7 +646,8 @@
         authorId = "";
         seriesId = "";
         genreId = "";
-        tagId = "";
+        tagFilterMode = TagFilterMode.Any;
+        selectedTagFilters.Clear();
         awaitingReview = false;
         startsWithFilter = null;
         await ResetAndLoadAsync();
@@ -659,7 +695,8 @@
                     SeriesId = ParseFilterId(seriesId),
                     GenreId = ParseFilterId(genreId),
                     CollectionId = ParseFilterId(collectionId),
-                    TagId = ParseFilterId(tagId),
+                    TagId = GetTagFilterId(),
+                    TagIds = GetSelectedTagFilterIds(),
                     AwaitingReview = awaitingReview,
                     SortBy = sortBy,
                     SortDescending = sortDescending,
@@ -705,6 +742,51 @@
 
     private static int? ParseFilterId(string raw) =>
         string.IsNullOrEmpty(raw) ? null : int.TryParse(raw, out int id) ? id : null;
+
+    private int? GetTagFilterId() => tagFilterMode switch
+    {
+        TagFilterMode.None => -1,
+        _ => null,
+    };
+
+    private IReadOnlyList<int> GetSelectedTagFilterIds()
+        => tagFilterMode == TagFilterMode.Selected
+            ? selectedTagFilters.Select(t => t.Id).Distinct().ToList()
+            : [];
+
+    private Task<IReadOnlyList<TagDto>> SearchTagFilterOptionsAsync(string queryText)
+    {
+        IEnumerable<TagDto> q = tags;
+        if (!string.IsNullOrWhiteSpace(queryText))
+        {
+            string needle = queryText.Trim();
+            q = q.Where(t => t.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var list = q
+            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<TagDto>>(list);
+    }
+
+    private Task AddTagFilterAsync(string tagName)
+    {
+        string trimmed = tagName.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return Task.CompletedTask;
+        }
+
+        var existing = tags.FirstOrDefault(t => string.Equals(t.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null && !selectedTagFilters.Any(t => t.Id == existing.Id))
+        {
+            selectedTagFilters.Add(existing);
+        }
+
+        return Task.CompletedTask;
+    }
 
     public async ValueTask DisposeAsync()
     {

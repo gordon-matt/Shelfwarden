@@ -103,7 +103,21 @@ public class BookService(
             predicate = predicate.And(b => b.ReadingListItems.Any(i => i.ReadingListId == listId));
         }
 
-        if (request.TagId is int tagFilter)
+        var requestedTagIds = request.TagIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+
+        if (requestedTagIds.Count > 0)
+        {
+            predicate = predicate.And(b =>
+                b.BookTags
+                    .Where(bt => requestedTagIds.Contains(bt.TagId))
+                    .Select(bt => bt.TagId)
+                    .Distinct()
+                    .Count() == requestedTagIds.Count);
+        }
+        else if (request.TagId is int tagFilter)
         {
             if (tagFilter == -1)
             {
