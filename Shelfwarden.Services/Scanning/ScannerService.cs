@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text.Json;
-using Extenso;
 using Humanizer;
 using Shelfwarden.Extensions;
 using Shelfwarden.Services.Storage;
@@ -278,9 +277,10 @@ public sealed class ScannerService(
                 FilePath = filePath,
                 FileFormat = extractor.Format,
 
-                Title = !string.IsNullOrEmpty(metadata.Title)
-                    ? metadata.Title.ToLower().Humanize(LetterCasing.Title)
-                    : "Unknown Title",
+                Title =
+                    !string.IsNullOrEmpty(metadata.Title)
+                        ? metadata.Title.ToLower().Humanize(LetterCasing.Title).Truncate(MaxBookTitleFieldLength)
+                        : "Unknown Title",
 
                 FileSizeBytes = fileInfo.Length,
                 FileLastModified = fileInfo.LastWriteTimeUtc,
@@ -371,13 +371,13 @@ public sealed class ScannerService(
 
     private static void ApplyMetadata(Book book, EbookMetadata metadata)
     {
-        book.Title ??= metadata.Title;
-        book.SortTitle ??= metadata.Title.ToSortTitle();
-        book.Subtitle ??= metadata.Subtitle;
+        book.Title ??= metadata.Title.Truncate(MaxBookTitleFieldLength);
+        book.SortTitle ??= metadata.Title.ToSortTitle().Truncate(MaxBookTitleFieldLength);
+        book.Subtitle ??= metadata.Subtitle.Truncate(MaxBookTitleFieldLength);
         book.Description ??= metadata.Description;
-        book.Language ??= Truncate(metadata.Language, 16);
-        book.Publisher ??= Truncate(metadata.Publisher, 256);
-        book.Isbn ??= Truncate(metadata.Isbn, 32);
+        book.Language ??= metadata.Language.Truncate(16);
+        book.Publisher ??= metadata.Publisher.Truncate(256);
+        book.Isbn ??= metadata.Isbn.Truncate(32);
         book.PublishedOn ??= metadata.PublishedOn;
         book.PageCount ??= metadata.PageCount;
         book.NumberInSeries ??= metadata.NumberInSeries;
@@ -632,7 +632,5 @@ public sealed class ScannerService(
         }
     }
 
-    private static string? Truncate(string? value, int max) => string.IsNullOrEmpty(value) ? value : value.Length <= max ? value : value[..max];
-
-    
+    private const int MaxBookTitleFieldLength = 512;
 }
