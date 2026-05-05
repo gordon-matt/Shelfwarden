@@ -31,7 +31,10 @@
         <input class="form-control form-control-sm" type="text"
                placeholder="@($"Add {Label.ToLowerInvariant()}…")"
                @bind="input" @bind:event="oninput"
-               @onkeydown="OnKeyDownAsync"
+               @bind:after="OnInputChangedAsync"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();}"
+               @onkeyup="OnKeyUpAsync"
+               @onkeyup:stopPropagation="true"
                @onfocus="OnFocusAsync" />
 
         @if (showSuggestions && (suggestions.Count > 0 || !string.IsNullOrWhiteSpace(input)))
@@ -97,20 +100,23 @@
         await RefreshSuggestionsAsync();
     }
 
-    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    private async Task OnInputChangedAsync()
+    {
+        showSuggestions = true;
+        await RefreshSuggestionsAsync();
+    }
+
+    private async Task OnKeyUpAsync(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(input))
         {
             await CommitAsync(input.Trim());
+            return;
         }
-        else if (e.Key == "Escape")
+
+        if (e.Key == "Escape")
         {
             showSuggestions = false;
-        }
-        else
-        {
-            // Bind has already updated `input`; refresh suggestions on the next tick.
-            await RefreshSuggestionsAsync();
         }
     }
 
