@@ -11,4 +11,7 @@ public enum ChipApplyMode
 
     /// <summary>Throw away the book's current values and use only what the user entered.</summary>
     Replace = 1,
+
+    /// <summary>Clear the field entirely on each selected book.</summary>
+    Remove = 2,
 }

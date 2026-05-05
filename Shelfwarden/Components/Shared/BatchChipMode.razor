@@ -1,6 +1,8 @@
 @*
-    Two-button toggle picking between "Append" (merge with each book's existing values) and
-    "Replace" (clear the book's existing values and use only what the user entered).
+    Three-way toggle:
+    - Append: merge with each book's existing values
+    - Replace: overwrite with only what the user entered
+    - Remove: clear the field entirely
 *@
 
 <div class="btn-group btn-group-sm mb-2" role="group" aria-label="How to apply">
@@ -13,6 +15,11 @@
             class="btn @(Mode == ChipApplyMode.Replace ? "btn-primary" : "btn-outline-secondary")"
             @onclick="() => Set(ChipApplyMode.Replace)">
         <i class="bi bi-arrow-repeat"></i> Replace
+    </button>
+    <button type="button"
+            class="btn @(Mode == ChipApplyMode.Remove ? "btn-primary" : "btn-outline-secondary")"
+            @onclick="() => Set(ChipApplyMode.Remove)">
+        <i class="bi bi-trash"></i> Remove
     </button>
 </div>
 

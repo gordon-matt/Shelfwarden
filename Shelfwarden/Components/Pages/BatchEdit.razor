@@ -125,75 +125,80 @@ else
                 <div class="col-lg-6">
                     <BatchSectionSwitch Title="Authors" @bind-Enabled="bulk.UpdateAuthors">
                         <BatchChipMode @bind-Mode="bulk.AuthorsMode" />
-                        <ChipInput TItem="AuthorDto"
-                                   Label="Authors"
-                                   Selected="bulkAuthors"
-                                   NameOf="@(a => a.Name)"
-                                   SearchAsync="SearchAuthorsAsync"
-                                   OnAddAsync="AddAuthorAsync" />
+                        @if (bulk.AuthorsMode != ChipApplyMode.Remove)
+                        {
+                            <ChipInput TItem="AuthorDto"
+                                       Label="Authors"
+                                       Selected="bulkAuthors"
+                                       NameOf="@(a => a.Name)"
+                                       SearchAsync="SearchAuthorsAsync"
+                                       OnAddAsync="AddAuthorAsync" />
+                        }
                     </BatchSectionSwitch>
                 </div>
 
                 <div class="col-lg-6">
                     <BatchSectionSwitch Title="Genres" @bind-Enabled="bulk.UpdateGenres">
                         <BatchChipMode @bind-Mode="bulk.GenresMode" />
-                        <ChipInput TItem="GenreDto"
-                                   Label="Genres"
-                                   Selected="bulkGenres"
-                                   NameOf="@(g => g.Name)"
-                                   SearchAsync="SearchGenresAsync"
-                                   OnAddAsync="AddGenreAsync" />
+                        @if (bulk.GenresMode != ChipApplyMode.Remove)
+                        {
+                            <ChipInput TItem="GenreDto"
+                                       Label="Genres"
+                                       Selected="bulkGenres"
+                                       NameOf="@(g => g.Name)"
+                                       SearchAsync="SearchGenresAsync"
+                                       OnAddAsync="AddGenreAsync" />
+                        }
                     </BatchSectionSwitch>
                 </div>
 
                 <div class="col-lg-6">
                     <BatchSectionSwitch Title="Tags" @bind-Enabled="bulk.UpdateTags">
                         <BatchChipMode @bind-Mode="bulk.TagsMode" />
-                        <div class="d-flex flex-wrap gap-1 mb-2">
-                            @if (bulkTags.Count == 0)
-                            {
-                                <span class="text-secondary small fst-italic">No tags yet.</span>
-                            }
-                            else
-                            {
-                                @foreach (var tag in bulkTags)
+                        @if (bulk.TagsMode != ChipApplyMode.Remove)
+                        {
+                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                @if (bulkTags.Count == 0)
                                 {
-                                    <span class="chip chip-tag">
-                                        #@tag
-                                        <button type="button" class="btn-close btn-close-sm ms-1"
-                                                aria-label="Remove" @onclick="() => RemoveBulkTag(tag)"></button>
-                                    </span>
+                                    <span class="text-secondary small fst-italic">No tags yet.</span>
                                 }
-                            }
-                        </div>
-                        <input class="form-control form-control-sm" type="text"
-                               placeholder="Type a tag and press Enter…"
-                               value="@bulkTagInput"
-                               @oninput="e => bulkTagInput = e.Value?.ToString() ?? string.Empty"
-                               @onkeydown="OnBulkTagKeyDown" />
+                                else
+                                {
+                                    @foreach (var tag in bulkTags)
+                                    {
+                                        <span class="chip chip-tag">
+                                            #@tag
+                                            <button type="button" class="btn-close btn-close-sm ms-1"
+                                                    aria-label="Remove" @onclick="() => RemoveBulkTag(tag)"></button>
+                                        </span>
+                                    }
+                                }
+                            </div>
+                            <input class="form-control form-control-sm" type="text"
+                                   placeholder="Type a tag and press Enter…"
+                                   value="@bulkTagInput"
+                                   @oninput="e => bulkTagInput = e.Value?.ToString() ?? string.Empty"
+                                   @onkeydown="OnBulkTagKeyDown" />
+                        }
                     </BatchSectionSwitch>
                 </div>
 
                 <div class="col-lg-6">
                     <BatchSectionSwitch Title="Publication" @bind-Enabled="bulk.UpdatePublication">
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label class="form-label">Publisher</label>
-                                <input class="form-control" @bind="bulk.Publisher" />
+                        <BatchChipMode @bind-Mode="bulk.PublicationMode" />
+                        @if (bulk.PublicationMode != ChipApplyMode.Remove)
+                        {
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">Publisher</label>
+                                    <input class="form-control" @bind="bulk.Publisher" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Language</label>
+                                    <input class="form-control" @bind="bulk.Language" placeholder="en, fr, de…" />
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Published on</label>
-                                <input class="form-control" type="date" @bind="bulk.PublishedOn" />
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Language</label>
-                                <input class="form-control" @bind="bulk.Language" placeholder="en, fr, de…" />
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">ISBN</label>
-                                <input class="form-control" @bind="bulk.Isbn" />
-                            </div>
-                        </div>
+                        }
                     </BatchSectionSwitch>
                 </div>
             </div>
@@ -686,33 +691,53 @@ else
         // keep the book's current values verbatim. UpdateBookRequest is a full-replace shape
         // so we always have to send a complete list.
         IReadOnlyList<int> authorIds = bulk.UpdateAuthors
-            ? bulk.AuthorsMode == ChipApplyMode.Replace
-                ? bulkAuthors.Select(a => a.Id).ToList()
-                : book.Authors.Select(a => a.Id).Concat(bulkAuthors.Select(a => a.Id)).Distinct().ToList()
+            ? bulk.AuthorsMode switch
+            {
+                ChipApplyMode.Replace => bulkAuthors.Select(a => a.Id).ToList(),
+                ChipApplyMode.Remove => [],
+                _ => book.Authors.Select(a => a.Id).Concat(bulkAuthors.Select(a => a.Id)).Distinct().ToList(),
+            }
             : book.Authors.Select(a => a.Id).ToList();
 
         IReadOnlyList<int> genreIds = bulk.UpdateGenres
-            ? bulk.GenresMode == ChipApplyMode.Replace
-                ? bulkGenres.Select(g => g.Id).ToList()
-                : book.Genres.Select(g => g.Id).Concat(bulkGenres.Select(g => g.Id)).Distinct().ToList()
+            ? bulk.GenresMode switch
+            {
+                ChipApplyMode.Replace => bulkGenres.Select(g => g.Id).ToList(),
+                ChipApplyMode.Remove => [],
+                _ => book.Genres.Select(g => g.Id).Concat(bulkGenres.Select(g => g.Id)).Distinct().ToList(),
+            }
             : book.Genres.Select(g => g.Id).ToList();
 
         IReadOnlyList<string> tags = bulk.UpdateTags
-            ? bulk.TagsMode == ChipApplyMode.Replace
-                ? bulkTags.ToList()
-                : book.Tags.Select(t => t.Name).Concat(bulkTags).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            ? bulk.TagsMode switch
+            {
+                ChipApplyMode.Replace => bulkTags.ToList(),
+                ChipApplyMode.Remove => [],
+                _ => book.Tags.Select(t => t.Name).Concat(bulkTags).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            }
             : book.Tags.Select(t => t.Name).ToList();
 
         // Series: enabled = override (clearing if no series picked); disabled = keep current.
         int? seriesId = bulk.UpdateSeries ? resolvedSeriesId : book.Series?.Id;
         decimal? numberInSeries = seriesId is null ? null : row.NumberInSeries ?? book.NumberInSeries;
 
-        // Publication block applies all four fields together (intentional; partial overrides
-        // would surprise users). When disabled, keep the book's current values.
-        string? publisher = bulk.UpdatePublication ? bulk.Publisher : book.Publisher;
-        DateTime? publishedOn = bulk.UpdatePublication ? bulk.PublishedOn : book.PublishedOn;
-        string? language = bulk.UpdatePublication ? bulk.Language : book.Language;
-        string? isbn = bulk.UpdatePublication ? bulk.Isbn : book.Isbn;
+        // Publication block now edits publisher/language only.
+        string? publisher = bulk.UpdatePublication
+            ? bulk.PublicationMode switch
+            {
+                ChipApplyMode.Replace => bulk.Publisher,
+                ChipApplyMode.Remove => null,
+                _ => string.IsNullOrWhiteSpace(bulk.Publisher) ? book.Publisher : bulk.Publisher,
+            }
+            : book.Publisher;
+        string? language = bulk.UpdatePublication
+            ? bulk.PublicationMode switch
+            {
+                ChipApplyMode.Replace => bulk.Language,
+                ChipApplyMode.Remove => null,
+                _ => string.IsNullOrWhiteSpace(bulk.Language) ? book.Language : bulk.Language,
+            }
+            : book.Language;
 
         return new UpdateBookRequest
         {
@@ -722,8 +747,8 @@ else
             Description = string.IsNullOrWhiteSpace(row.Description) ? null : row.Description,
             Language = string.IsNullOrWhiteSpace(language) ? null : language,
             Publisher = string.IsNullOrWhiteSpace(publisher) ? null : publisher,
-            Isbn = string.IsNullOrWhiteSpace(isbn) ? null : isbn,
-            PublishedOn = publishedOn,
+            Isbn = book.Isbn,
+            PublishedOn = book.PublishedOn,
             SeriesId = seriesId,
             NumberInSeries = numberInSeries,
             AuthorIds = authorIds,
@@ -753,9 +778,8 @@ else
         public bool UpdateTags { get; set; }
         public ChipApplyMode TagsMode { get; set; } = ChipApplyMode.Append;
         public bool UpdatePublication { get; set; }
+        public ChipApplyMode PublicationMode { get; set; } = ChipApplyMode.Append;
         public string? Publisher { get; set; }
-        public DateTime? PublishedOn { get; set; }
         public string? Language { get; set; }
-        public string? Isbn { get; set; }
     }
 }
