@@ -329,7 +329,8 @@ html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
         color: var(--bs-secondary-color);
     }
 
-/* Format badge top-right (selection checkboxes use top-left on book-card-wrap / book-list-wrap) */
+/* Default: top-right (used by the list-row thumbnail). The card view overrides this to
+   bottom-left below so the top-right corner is free for the "finished" checkmark. */
 .book-format-badge {
     position: absolute;
     top: 0.5rem;
@@ -346,9 +347,89 @@ html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
     backdrop-filter: blur(2px);
 }
 
-/* Collection remove button is also top-right; keep the badge clear of it */
-.book-card-wrapper:has(.book-card-remove) .book-format-badge {
+/* Card view (Plex-style layout): badge bottom-left, finished check top-right, three-dot menu
+   bottom-right. `bottom: 0.5rem` clears the 4px progress bar that hugs the bottom edge. */
+.book-cover .book-format-badge {
+    top: auto;
+    right: auto;
+    bottom: 0.5rem;
+    left: 0.5rem;
+}
+
+/* "Finished" checkmark — Plex-style green pip top-right of the cover. */
+.book-finished-badge {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-success);
+    background-color: rgba(0, 0, 0, 0.55);
+    border-radius: 50%;
+    font-size: 1.05rem;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+}
+
+/* Collection remove button still lives top-right; nudge the finished pip left of it. */
+.book-card-wrapper:has(.book-card-remove) .book-finished-badge {
     right: 2.35rem;
+}
+
+/* Three-dot context menu pinned to the bottom-right corner of the cover. Subtle by default;
+   becomes fully opaque on card hover (and stays visible while open via .show on the toggle). */
+.book-card-menu {
+    position: absolute;
+    bottom: 0.35rem;
+    right: 0.35rem;
+    z-index: 4;
+}
+
+.book-card-menu-toggle {
+    width: 1.85rem;
+    height: 1.85rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-white);
+    background-color: rgba(0, 0, 0, 0.55);
+    border: none;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 160ms ease, background-color 160ms ease;
+    line-height: 1;
+}
+
+    .book-card-menu-toggle::after {
+        display: none;
+    }
+
+    .book-card-menu-toggle:hover,
+    .book-card-menu-toggle:focus,
+    .book-card-menu-toggle.show,
+    .book-card:hover .book-card-menu-toggle {
+        opacity: 1;
+        color: var(--bs-white);
+        background-color: rgba(0, 0, 0, 0.75);
+    }
+
+/* Touch devices never trigger :hover, so always show the menu button there. */
+@media (hover: none) {
+    .book-card-menu-toggle {
+        opacity: 1;
+    }
+}
+
+/* The dropdown is rendered with `data-bs-strategy="fixed"` so Popper positions it relative to
+   the viewport — but the menu itself is still a child of the card's <a>. Make sure clicks on
+   menu items don't get swallowed by the parent anchor. */
+.book-card-menu .dropdown-menu {
+    z-index: 1080;
 }
 
 /* Progress bar across the bottom of the cover */
@@ -366,28 +447,6 @@ html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
         background-color: var(--bs-primary);
         transition: width 200ms ease;
     }
-
-/* "Read" hover overlay */
-.book-cover-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.65) 100%);
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 0.35rem;
-    padding: 0.75rem;
-    opacity: 0;
-    transition: opacity 160ms ease;
-}
-
-.book-card:hover .book-cover-overlay {
-    opacity: 1;
-}
-
-.book-cover-overlay .btn {
-    pointer-events: auto;
-}
 
 .book-meta {
     padding: 0.55rem 0.1rem 0.25rem 0.1rem;

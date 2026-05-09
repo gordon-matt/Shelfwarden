@@ -1,3 +1,5 @@
+@inject IBookService BookService
+
 @if (Book is not null)
 {
     <a class="book-card" href="@($"books/{Book.Id}")" title="@Book.Title">
@@ -11,32 +13,80 @@
                 <i class="bi bi-book placeholder-icon"></i>
             }
 
+            @if (IsFinished)
+            {
+                <span class="book-finished-badge" title="Read">
+                    <i class="bi bi-check-circle-fill"></i>
+                </span>
+            }
+
             @if (Book.FileFormat != EbookFormat.Unknown)
             {
                 <span class="book-format-badge">@Book.FileFormat.ToString().ToUpperInvariant()</span>
             }
 
-            @if (Book.ProgressPercentage > 0)
+            @* Three-dot context menu — bottom-right of the cover. We keep it as a Bootstrap
+               dropdown so click-away handling and keyboard nav come for free. Each interactive
+               child carries `@onclick:stopPropagation="true"` so its click doesn't bubble up to
+               the outer `<a class="book-card">` and trigger an unwanted navigate to the detail
+               page. We deliberately DO NOT set `:preventDefault` on the wrapper — that would
+               cancel the default action of every bubbled click, including the Read/Edit anchor
+               navigations themselves.
+               `data-bs-strategy="fixed"` makes Popper position the menu with `position: fixed`,
+               which escapes `.book-cover { overflow: hidden }` clipping. *@
+            <div class="book-card-menu dropdown">
+                <button type="button"
+                        class="btn btn-sm book-card-menu-toggle"
+                        data-bs-toggle="dropdown"
+                        data-bs-strategy="fixed"
+                        aria-expanded="false"
+                        aria-label="Book actions"
+                        @onclick:stopPropagation="true"
+                        @onclick:preventDefault="true">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a class="dropdown-item" href="@($"read/{Book.Id}")"
+                           @onclick:stopPropagation="true">
+                            <i class="bi bi-book-half me-1"></i> Read
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="@($"books/{Book.Id}/edit")"
+                           @onclick:stopPropagation="true">
+                            <i class="bi bi-pencil me-1"></i> Edit
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider" /></li>
+                    <li>
+                        <button type="button" class="dropdown-item"
+                                disabled="@isUpdatingProgress"
+                                @onclick="ToggleReadAsync"
+                                @onclick:stopPropagation="true"
+                                @onclick:preventDefault="true">
+                            @if (IsFinished)
+                            {
+                                <i class="bi bi-bookmark-x me-1"></i>
+                                <span>Mark as Unread</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check2-circle me-1"></i>
+                                <span>Mark as Read</span>
+                            }
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            @if (CurrentProgress is > 0 and < 100)
             {
                 <div class="book-cover-progress" role="progressbar"
-                     aria-valuenow="@Book.ProgressPercentage" aria-valuemin="0" aria-valuemax="100">
-                    <div class="bar" style="width: @($"{Book.ProgressPercentage:0}%")"></div>
+                     aria-valuenow="@CurrentProgress" aria-valuemin="0" aria-valuemax="100">
+                    <div class="bar" style="width: @($"{CurrentProgress:0}%")"></div>
                 </div>
             }
-
-            <div class="book-cover-overlay">
-                <a class="btn btn-sm btn-primary"
-                   href="@($"read/{Book.Id}")"
-                   @onclick:stopPropagation="true">
-                    <i class="bi bi-book-half"></i> Read
-                </a>
-                <a class="btn btn-sm btn-outline-light"
-                   href="@($"books/{Book.Id}/edit")"
-                   title="Edit metadata"
-                   @onclick:stopPropagation="true">
-                    <i class="bi bi-pencil"></i>
-                </a>
-            </div>
         </div>
         <div class="book-meta">
             <div class="book-title">@Book.Title</div>
@@ -60,4 +110,77 @@
 @code {
     [Parameter, EditorRequired]
     public BookListItemDto? Book { get; set; }
+
+    /// <summary>
+    /// Raised after a successful Mark as Read / Unread so the parent grid can update its
+    /// in-memory <see cref="BookListItemDto"/> (records are immutable). Optional — when not wired
+    /// up, the card still reflects the new state via its own override.
+    /// </summary>
+    [Parameter]
+    public EventCallback<BookListItemDto> OnBookChanged { get; set; }
+
+    /// <summary>
+    /// Local override applied after a Mark as Read/Unread click so the card reflects the new
+    /// state immediately without forcing the parent to re-fetch. Resets when the parent passes
+    /// in a new <see cref="Book"/> instance.
+    /// </summary>
+    private double? progressOverride;
+
+    private bool isUpdatingProgress;
+    private BookListItemDto? lastSeenBook;
+
+    private double CurrentProgress => progressOverride ?? Book?.ProgressPercentage ?? 0;
+
+    private bool IsFinished => CurrentProgress >= Constants.FinishedThresholdPercent;
+
+    protected override void OnParametersSet()
+    {
+        // Drop our local override whenever the parent hands us a new DTO instance — that's our
+        // signal that the source of truth has been refreshed (e.g. after a search) and our
+        // in-memory tweak is no longer needed.
+        if (!ReferenceEquals(Book, lastSeenBook))
+        {
+            progressOverride = null;
+            lastSeenBook = Book;
+        }
+    }
+
+    private async Task ToggleReadAsync()
+    {
+        if (Book is null || isUpdatingProgress) return;
+
+        isUpdatingProgress = true;
+        try
+        {
+            if (IsFinished)
+            {
+                var result = await BookService.MarkAsUnreadAsync(Book.Id);
+                if (result.IsSuccess)
+                {
+                    progressOverride = 0;
+                    await NotifyBookChangedAsync(0);
+                }
+            }
+            else
+            {
+                var result = await BookService.MarkAsReadAsync(Book.Id);
+                if (result.IsSuccess)
+                {
+                    progressOverride = result.Value.Percentage;
+                    await NotifyBookChangedAsync(result.Value.Percentage);
+                }
+            }
+        }
+        finally
+        {
+            isUpdatingProgress = false;
+        }
+    }
+
+    private Task NotifyBookChangedAsync(double newPercentage)
+    {
+        if (Book is null || !OnBookChanged.HasDelegate) return Task.CompletedTask;
+        var updated = Book with { ProgressPercentage = newPercentage };
+        return OnBookChanged.InvokeAsync(updated);
+    }
 }

@@ -19,7 +19,6 @@ public class DashboardService(
 {
     private const int ContinueReadingSize = 10;
     private const int RecentlyAddedSize = 20;
-    private const double FinishedThresholdPercent = 95d;
 
     public async Task<Result<DashboardDto>> GetAsync(CancellationToken cancellationToken = default)
     {
@@ -41,7 +40,7 @@ public class DashboardService(
         var seriesCountTask = seriesRepository.CountAsync();
         var finishedCountTask = string.IsNullOrEmpty(userId)
             ? Task.FromResult(0)
-            : progressRepository.CountAsync(p => p.UserId == userId && p.Percentage >= FinishedThresholdPercent);
+            : progressRepository.CountAsync(p => p.UserId == userId && p.Percentage >= Constants.FinishedThresholdPercent);
 
         await Task.WhenAll(authorCountTask, seriesCountTask, finishedCountTask);
 
@@ -74,7 +73,7 @@ public class DashboardService(
             {
                 Query = p => p.UserId == userId
                     && p.Percentage > 0
-                    && p.Percentage < FinishedThresholdPercent,
+                    && p.Percentage < Constants.FinishedThresholdPercent,
                 OrderBy = q => q.OrderByDescending(p => p.LastReadAt),
                 PageNumber = 1,
                 PageSize = ContinueReadingSize,

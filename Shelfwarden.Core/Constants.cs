@@ -76,6 +76,13 @@ public static class Constants
     public const string ClientThemeLocalStorageKey = "shelfwarden.theme";
 
     /// <summary>
+    /// Reading-progress percentage at which a book is considered "finished". Used by the
+    /// dashboard's Finished count, the "Continue Reading" filter, and the Mark as Read action
+    /// so the UI and services can't drift apart.
+    /// </summary>
+    public const double FinishedThresholdPercent = 95d;
+
+    /// <summary>
     /// Bootswatch themes shipped via LibMan to <c>wwwroot/lib/bootswatch/dist/&lt;theme&gt;/bootstrap.min.css</c>.
     /// Keep this list in lock-step with the <c>files</c> entries in <c>libman.json</c> — themes
     /// listed here but not restored produce 404s when selected.

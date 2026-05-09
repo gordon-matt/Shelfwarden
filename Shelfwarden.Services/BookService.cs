@@ -386,6 +386,70 @@ public class BookService(
             saved.BookId, saved.Percentage, saved.PageNumber, saved.Location, saved.LastReadAt));
     }
 
+    public async Task<Result<BookProgressDto>> MarkAsReadAsync(int id, CancellationToken cancellationToken = default)
+    {
+        string? userId = userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Result.Unauthorized();
+        }
+
+        var book = await bookRepository.FindOneAsync(new SearchOptions<Book> { Query = b => b.Id == id });
+        if (book is null)
+        {
+            return Result.NotFound();
+        }
+
+        var existing = await progressRepository.FindOneAsync(new SearchOptions<BookProgress>
+        {
+            Query = p => p.BookId == id && p.UserId == userId,
+        });
+
+        // Pin to 100% and preserve the existing locator/page so the reader still knows where they
+        // were if they later "unread" by re-opening the book.
+        BookProgress saved;
+        if (existing is null)
+        {
+            saved = await progressRepository.InsertAsync(new BookProgress
+            {
+                BookId = id,
+                UserId = userId,
+                Percentage = 100d,
+                LastReadAt = DateTime.UtcNow,
+            });
+        }
+        else
+        {
+            existing.Percentage = 100d;
+            existing.LastReadAt = DateTime.UtcNow;
+            saved = await progressRepository.UpdateAsync(existing);
+        }
+
+        return Result.Success(new BookProgressDto(
+            saved.BookId, saved.Percentage, saved.PageNumber, saved.Location, saved.LastReadAt));
+    }
+
+    public async Task<Result> MarkAsUnreadAsync(int id, CancellationToken cancellationToken = default)
+    {
+        string? userId = userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Result.Unauthorized();
+        }
+
+        var existing = await progressRepository.FindOneAsync(new SearchOptions<BookProgress>
+        {
+            Query = p => p.BookId == id && p.UserId == userId,
+        });
+
+        if (existing is not null)
+        {
+            await progressRepository.DeleteAsync(existing);
+        }
+
+        return Result.Success();
+    }
+
     private async Task<Dictionary<int, BookProgress>> LoadProgressMapAsync(string? userId, IReadOnlyList<int> bookIds)
     {
         if (string.IsNullOrEmpty(userId) || bookIds.Count == 0)
