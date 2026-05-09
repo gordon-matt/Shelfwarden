@@ -149,12 +149,6 @@
                 <i class="bi bi-bookmark"></i>
                 @(progressPercent.HasValue ? $"{progressPercent.Value:0}% read" : "Tracking progress…")
             </span>
-            @if (lastSavedAt.HasValue)
-            {
-                <span class="ms-auto text-secondary small">
-                    <i class="bi bi-cloud-check"></i> Saved @FormatRelative(lastSavedAt.Value)
-                </span>
-            }
         }
         else if (book?.FileFormat == EbookFormat.Pdf)
         {
@@ -173,12 +167,12 @@
                     <text>Loading…</text>
                 }
             </span>
-            @if (lastSavedAt.HasValue)
-            {
-                <span class="ms-auto text-secondary small">
-                    <i class="bi bi-cloud-check"></i> Saved @FormatRelative(lastSavedAt.Value)
-                </span>
-            }
+        }
+        @if (lastSavedAt.HasValue)
+        {
+            <span class="ms-auto text-secondary small">
+                <i class="bi bi-cloud-check"></i> Saved @FormatRelative(lastSavedAt.Value)
+            </span>
         }
     </footer>
 </div>
@@ -291,41 +285,14 @@
             return;
         }
 
-        string fileUrl = $"/files/{Id}";
+        var fileUrl = $"/files/{Id}";
 
         try
         {
             if (book.FileFormat == EbookFormat.Epub)
-            {
-                // Resume from saved CFI if we have one, otherwise start from the beginning.
-                string? resumeCfi = null;
-                var progressResult = await BookService.GetProgressAsync(Id);
-                if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
-                {
-                    resumeCfi = dto.Location;
-                    progressPercent = dto.Percentage;
-                }
-
-                selfRef = DotNetObjectReference.Create(this);
-                await JS.InvokeVoidAsync("shelfwardenReader.mountEpub", "epub-viewer", fileUrl, selfRef, resumeCfi);
-            }
-            else if (book.FileFormat == EbookFormat.Pdf)
-            {
-                int? resumePage = null;
-                var progressResult = await BookService.GetProgressAsync(Id);
-                if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
-                {
-                    progressPercent = dto.Percentage;
-                    lastSavedAt = dto.LastReadAt;
-                    resumePage = dto.PageNumber;
-                }
-
-                selfRef = DotNetObjectReference.Create(this);
-                var mount = await JS.InvokeAsync<PdfMountResult>(
-                    "shelfwardenReader.mountPdf", "pdf-viewer", fileUrl, selfRef, resumePage);
-                pdfPageCount = mount.PageCount;
-                pdfCurrentPage = resumePage ?? 1;
-            }
+                await MountEpubAsync(fileUrl);
+            else
+                await MountPdfAsync(fileUrl);
 
             jsMounted = true;
         }
@@ -349,37 +316,59 @@
     private static bool IsBenignJsInteropFailure(Exception ex)
         => ex is JSDisconnectedException or OperationCanceledException;
 
-    private async Task PrevPage() => await JS.InvokeVoidAsync("shelfwardenReader.prevPage");
-    private async Task NextPage() => await JS.InvokeVoidAsync("shelfwardenReader.nextPage");
-    private async Task PrevPdfPage() => await JS.InvokeVoidAsync("shelfwardenReader.prevPdfPage");
-    private async Task NextPdfPage() => await JS.InvokeVoidAsync("shelfwardenReader.nextPdfPage");
+    private async Task MountEpubAsync(string fileUrl)
+    {
+        string? resumeCfi = null;
+        var progressResult = await BookService.GetProgressAsync(Id);
+        if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
+        {
+            resumeCfi = dto.Location;
+            progressPercent = dto.Percentage;
+        }
 
-    private async Task ZoomInAsync()
+        selfRef = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("shelfwardenReader.mountEpub", "epub-viewer", fileUrl, selfRef, resumeCfi);
+    }
+
+    private async Task MountPdfAsync(string fileUrl)
+    {
+        int? resumePage = null;
+        var progressResult = await BookService.GetProgressAsync(Id);
+        if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
+        {
+            progressPercent = dto.Percentage;
+            lastSavedAt = dto.LastReadAt;
+            resumePage = dto.PageNumber;
+        }
+
+        selfRef = DotNetObjectReference.Create(this);
+        var mount = await JS.InvokeAsync<PdfMountResult>(
+            "shelfwardenReader.mountPdf", "pdf-viewer", fileUrl, selfRef, resumePage);
+        pdfPageCount = mount.PageCount;
+        pdfCurrentPage = resumePage ?? 1;
+    }
+
+    /// <summary>Fire-and-forget safe interop for reader controls (circuit may drop).</summary>
+    private async Task InvokeReaderAsync(string method, params object?[] args)
     {
         try
         {
-            await JS.InvokeVoidAsync("shelfwardenReader.zoomIn");
+            if (args.Length == 0)
+                await JS.InvokeVoidAsync($"shelfwardenReader.{method}");
+            else
+                await JS.InvokeVoidAsync($"shelfwardenReader.{method}", args);
         }
         catch (JSDisconnectedException) { }
     }
 
-    private async Task ZoomOutAsync()
-    {
-        try
-        {
-            await JS.InvokeVoidAsync("shelfwardenReader.zoomOut");
-        }
-        catch (JSDisconnectedException) { }
-    }
+    private Task PrevPage() => InvokeReaderAsync("prevPage");
+    private Task NextPage() => InvokeReaderAsync("nextPage");
+    private Task PrevPdfPage() => InvokeReaderAsync("prevPdfPage");
+    private Task NextPdfPage() => InvokeReaderAsync("nextPdfPage");
 
-    private async Task ResetZoomAsync()
-    {
-        try
-        {
-            await JS.InvokeVoidAsync("shelfwardenReader.resetZoom");
-        }
-        catch (JSDisconnectedException) { }
-    }
+    private Task ZoomInAsync() => InvokeReaderAsync("zoomIn");
+    private Task ZoomOutAsync() => InvokeReaderAsync("zoomOut");
+    private Task ResetZoomAsync() => InvokeReaderAsync("resetZoom");
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
@@ -499,13 +488,9 @@
     {
         if (book is null) return;
         if (book.FileFormat == EbookFormat.Epub && !string.IsNullOrEmpty(bm.Location))
-        {
-            await JS.InvokeVoidAsync("shelfwardenReader.gotoEpub", bm.Location);
-        }
+            await InvokeReaderAsync("gotoEpub", bm.Location);
         else if (book.FileFormat == EbookFormat.Pdf && bm.PageNumber.HasValue)
-        {
-            await JS.InvokeVoidAsync("shelfwardenReader.gotoPdfPage", bm.PageNumber.Value);
-        }
+            await InvokeReaderAsync("gotoPdfPage", bm.PageNumber.Value);
         showBookmarks = false;
     }
 

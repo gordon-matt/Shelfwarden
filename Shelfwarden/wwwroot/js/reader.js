@@ -1,25 +1,11 @@
-// Reader-specific JS interop. EPUB rendering is delegated to epub.js, PDF rendering to
-// pdf.js — both libraries are self-hosted under wwwroot/lib (see libman.json) so the
-// reader works offline and we don't depend on any CDN's uptime. Blazor stays the source
-// of truth for navigation / progress save scheduling; this file is the thin glue that
-// translates between Blazor calls and the underlying viewer libraries.
-//
-// Architecture: only the inner `.reader-document-content` node scrolls and receives zoom;
-// toolbar / sidebar chrome stay in Blazor at fixed CSS size (no transform/zoom on shells).
-//
-// /**
-//  * @typedef {Object} ShelfwardenReaderAdapter
-//  * @property {'epub'|'pdf'} format
-//  * @property {function(): void} zoomIn
-//  * @property {function(): void} zoomOut
-//  * @property {function(): void} resetZoom
-//  * @property {function(number): void} setScale — PDF: multiplier on fit-width; EPUB: font scale (1 = 100%)
-//  */
+// shelfwardenReader — Blazor interop for epub.js (EPUB) and pdf.js (PDF). Libraries live under
+// wwwroot/lib. Only `.reader-document-content` scrolls/zooms; chrome is fixed in Blazor.
 
 (function () {
     if (window.shelfwardenReader) return;
 
-    /** User multiplier on top of fit-to-viewport base scale (whole page visible at 1.0). */
+    // --- Constants -------------------------------------------------------------------------
+
     var PDF_ZOOM_MIN = 0.12;
     var PDF_ZOOM_MAX = 3;
     var PDF_ZOOM_STEP = 0.12;
@@ -27,12 +13,12 @@
     var EPUB_FONT_MIN = 0.75;
     var EPUB_FONT_MAX = 2.25;
     var EPUB_FONT_STEP = 0.1;
+    var EPUB_LOCATION_PROBE_FRAMES = 16;
 
-    // Serialize EPUB opens so a new mount never runs while the previous book is still
-    // tearing down — overlapping unpack() calls corrupt epub.js (this.resources undefined).
+    /** Serialize EPUB opens — overlapping unpack() corrupts epub.js. */
     var epubMountChain = Promise.resolve();
 
-    /** Serializes typography + display(cfi) + next/prev so rendition.manager is never used mid-display. */
+    /** Serialize EPUB pagination, typography, and goto so manager state stays consistent. */
     var epubRenditionChain = Promise.resolve();
 
     function createEpubMountGate() {
@@ -43,18 +29,16 @@
         return gate;
     }
 
+    // --- Mutable state --------------------------------------------------------------------
+
     var state = {
         epub: null,
         rendition: null,
         epubContainerId: null,
         epubSessionId: 0,
         epubLocationsReady: false,
-        /** Resolves when EPUB mount (display, locations, seed, initial typography) is finished — next/prev must await this. */
-        epubMountGate: (function () {
-            var g = createEpubMountGate();
-            g.resolve();
-            return g;
-        })(),
+        /** Open after first display+seed so next/prev/zoom never block on locations.generate(). */
+        epubMountGate: createEpubMountGate(),
         /** First EPUB progress push in this session is sent immediately so Blazor/UI and DB update without waiting for debounce. */
         epubHadFirstProgressPush: false,
         /** Ignore relocated until mount seeding finishes — early events used to force OnProgress(0) before locations exist. */
@@ -84,12 +68,51 @@
         /** @type {function(): void|null} */
         pdfScrollListener: null,
     };
+    state.epubMountGate.resolve();
 
     var pdfResizeTimer = null;
 
     function clamp(n, lo, hi) {
         return Math.min(hi, Math.max(lo, n));
     }
+
+    function delay(ms) {
+        return new Promise(function (resolve) {
+            setTimeout(resolve, ms);
+        });
+    }
+
+    function nextFrame() {
+        return new Promise(function (resolve) {
+            requestAnimationFrame(resolve);
+        });
+    }
+
+    function reopenEpubMountGate() {
+        if (state.epubMountGate && typeof state.epubMountGate.resolve === 'function') {
+            state.epubMountGate.resolve();
+        }
+        var g = createEpubMountGate();
+        g.resolve();
+        state.epubMountGate = g;
+    }
+
+    /**
+     * @param {number} sessionId
+     * @param {string} label — console label on failure
+     * @param {function(): Promise<void>} work
+     */
+    function chainEpubRendition(sessionId, label, work) {
+        epubRenditionChain = epubRenditionChain.then(async function () {
+            await state.epubMountGate.promise;
+            if (sessionId !== state.epubSessionId) return;
+            await work();
+        }).catch(function (e) {
+            console.warn(label, e);
+        });
+    }
+
+    // --- Zoom adapters & EPUB typography -------------------------------------------------
 
     /**
      * @returns {ShelfwardenReaderAdapter|null}
@@ -218,6 +241,8 @@
         // jumps back + visible flicker. Font + resize must preserve the current location.
     }
 
+    // --- EPUB progress --------------------------------------------------------------------
+
     function normalizeLocationsPercentage(raw) {
         if (raw == null || typeof raw !== 'number' || isNaN(raw)) return null;
         if (raw >= 0 && raw <= 1) return Math.round(raw * 100);
@@ -294,10 +319,10 @@
             if (typeof r.reportLocation === 'function') {
                 r.reportLocation();
             }
-            await new Promise(function (resolve) { setTimeout(resolve, 0); });
+            await delay(0);
             var loc = null;
-            for (var attempt = 0; attempt < 16; attempt++) {
-                await new Promise(function (resolve) { requestAnimationFrame(resolve); });
+            for (var attempt = 0; attempt < EPUB_LOCATION_PROBE_FRAMES; attempt++) {
+                await nextFrame();
                 if (sessionId !== state.epubSessionId) return;
                 loc = r.location;
                 if (loc && loc.start && loc.start.cfi) break;
@@ -312,6 +337,64 @@
             console.warn('EPUB progress seed failed', e);
         }
     }
+
+    function scheduleProgressPush(percent, cfi) {
+        if (!state.dotnetRef) return;
+        var sessionId = state.epubSessionId;
+        if (!state.epubHadFirstProgressPush) {
+            state.epubHadFirstProgressPush = true;
+            try {
+                if (sessionId === state.epubSessionId && state.dotnetRef) {
+                    state.dotnetRef.invokeMethodAsync('OnProgress', percent, null, cfi || null);
+                }
+            } catch (err) {
+                console.warn('EPUB progress (initial) failed', err);
+            }
+        }
+        if (state.pendingProgressTimer) clearTimeout(state.pendingProgressTimer);
+        state.pendingProgressTimer = setTimeout(function () {
+            try {
+                if (sessionId !== state.epubSessionId || !state.dotnetRef) return;
+                state.dotnetRef.invokeMethodAsync('OnProgress', percent, null, cfi || null);
+            } catch (err) {
+                console.warn('Progress push failed', err);
+            }
+        }, EPUB_PROGRESS_DEBOUNCE_MS);
+    }
+
+    function installEpubRelocatedHandler(sessionId) {
+        state.epubMountSeedDone = false;
+        state.rendition.on('relocated', function (location) {
+            if (sessionId !== state.epubSessionId || !state.epubMountSeedDone) return;
+            var cfi = location && location.start ? location.start.cfi : null;
+            var percent = computeEpubProgressPercent(state.epub, location);
+            state.currentCfi = cfi;
+            state.currentPercent = percent;
+            scheduleProgressPush(percent, cfi);
+        });
+    }
+
+    function startBackgroundEpubLocationIndex(sessionId) {
+        Promise.resolve().then(async function () {
+            try {
+                if (sessionId !== state.epubSessionId || !state.epub || !state.epub.locations) return;
+                await state.epub.locations.generate(1024);
+                if (sessionId !== state.epubSessionId) return;
+                state.epubLocationsReady = true;
+                var r = state.rendition;
+                if (r && typeof r.reportLocation === 'function') {
+                    r.reportLocation();
+                }
+            } catch (err) {
+                if (sessionId === state.epubSessionId) {
+                    console.warn('EPUB locations generation skipped', err);
+                    state.epubLocationsReady = false;
+                }
+            }
+        });
+    }
+
+    // --- PDF ------------------------------------------------------------------------------
 
     function invalidateAllPdfRenders() {
         state.pdfRenderedPages.clear();
@@ -582,30 +665,6 @@
         state.pdfScriptLoaded = true;
     }
 
-    function scheduleProgressPush(percent, cfi) {
-        if (!state.dotnetRef) return;
-        var sessionId = state.epubSessionId;
-        if (!state.epubHadFirstProgressPush) {
-            state.epubHadFirstProgressPush = true;
-            try {
-                if (sessionId === state.epubSessionId && state.dotnetRef) {
-                    state.dotnetRef.invokeMethodAsync('OnProgress', percent, null, cfi || null);
-                }
-            } catch (err) {
-                console.warn('EPUB progress (initial) failed', err);
-            }
-        }
-        if (state.pendingProgressTimer) clearTimeout(state.pendingProgressTimer);
-        state.pendingProgressTimer = setTimeout(function () {
-            try {
-                if (sessionId !== state.epubSessionId || !state.dotnetRef) return;
-                state.dotnetRef.invokeMethodAsync('OnProgress', percent, null, cfi || null);
-            } catch (err) {
-                console.warn('Progress push failed', err);
-            }
-        }, EPUB_PROGRESS_DEBOUNCE_MS);
-    }
-
     var pdfProgressTimer = null;
     function schedulePdfProgressPush() {
         if (!state.pdfDotnetRef || !state.pdfPageCount) return;
@@ -719,11 +778,9 @@
         });
     }
 
+    // --- Public API (Blazor invokes these) ------------------------------------------------
+
     window.shelfwardenReader = {
-        /**
-         * Mount epub.js into the given container element, load the book at `url`, and start
-         * pushing progress updates back into the Blazor component via the supplied .NET ref.
-         */
         mountEpub: function (containerId, url, dotnetRef, resumeCfi) {
             var self = this;
             epubMountChain = epubMountChain.then(function () {
@@ -749,71 +806,39 @@
                 host.innerHTML = '';
             }
             try {
-            state.epub = window.ePub(url, { openAs: 'epub' });
-            state.rendition = state.epub.renderTo(containerId, {
-                width: '100%',
-                height: '100%',
-                manager: 'default',
-                flow: 'paginated',
-                spread: 'auto',
-            });
-
-            state.epubMountSeedDone = false;
-            state.rendition.on('relocated', function (location) {
-                if (sessionId !== state.epubSessionId) return;
-                if (!state.epubMountSeedDone) return;
-                var cfi = location && location.start ? location.start.cfi : null;
-                var percent = computeEpubProgressPercent(state.epub, location);
-                state.currentCfi = cfi;
-                state.currentPercent = percent;
-                scheduleProgressPush(percent, cfi);
-            });
-
-            await state.epub.ready;
-            if (sessionId !== state.epubSessionId) return;
-
-            if (state.rendition.started && typeof state.rendition.started.then === 'function') {
-                await state.rendition.started;
-            }
-            if (sessionId !== state.epubSessionId) return;
-
-            await state.rendition.display(resumeCfi || undefined);
-            if (sessionId !== state.epubSessionId) return;
-
-            await seedEpubProgressAfterMount(sessionId);
-            state.epubMountSeedDone = true;
-
-            // Never hold this gate until locations.generate() — that pass can take a long time
-            // or stall on some EPUBs, which would freeze next/prev/zoom (they all await the gate).
-            mountGate.resolve();
-
-            // Character-offset index for finer "% complete"; runs in the background.
-            (function () {
-                var sid = sessionId;
-                Promise.resolve().then(async function () {
-                    try {
-                        if (sid !== state.epubSessionId || !state.epub || !state.epub.locations) return;
-                        await state.epub.locations.generate(1024);
-                        if (sid !== state.epubSessionId) return;
-                        state.epubLocationsReady = true;
-                        var r = state.rendition;
-                        if (r && typeof r.reportLocation === 'function') {
-                            r.reportLocation();
-                        }
-                    } catch (err) {
-                        if (sid === state.epubSessionId) {
-                            console.warn('EPUB locations generation skipped', err);
-                            state.epubLocationsReady = false;
-                        }
-                    }
+                state.epub = window.ePub(url, { openAs: 'epub' });
+                state.rendition = state.epub.renderTo(containerId, {
+                    width: '100%',
+                    height: '100%',
+                    manager: 'default',
+                    flow: 'paginated',
+                    spread: 'auto',
                 });
-            })();
 
-            await applyEpubTypographyAsync(sessionId);
-            if (sessionId !== state.epubSessionId) return;
+                installEpubRelocatedHandler(sessionId);
 
-            attachDocumentZoomInteraction(host);
-            applyReaderChromeViewport(true);
+                await state.epub.ready;
+                if (sessionId !== state.epubSessionId) return;
+
+                if (state.rendition.started && typeof state.rendition.started.then === 'function') {
+                    await state.rendition.started;
+                }
+                if (sessionId !== state.epubSessionId) return;
+
+                await state.rendition.display(resumeCfi || undefined);
+                if (sessionId !== state.epubSessionId) return;
+
+                await seedEpubProgressAfterMount(sessionId);
+                state.epubMountSeedDone = true;
+
+                mountGate.resolve();
+                startBackgroundEpubLocationIndex(sessionId);
+
+                await applyEpubTypographyAsync(sessionId);
+                if (sessionId !== state.epubSessionId) return;
+
+                attachDocumentZoomInteraction(host);
+                applyReaderChromeViewport(true);
             } finally {
                 mountGate.resolve();
             }
@@ -821,9 +846,7 @@
 
         nextPage: function () {
             var sessionId = state.epubSessionId;
-            epubRenditionChain = epubRenditionChain.then(async function () {
-                await state.epubMountGate.promise;
-                if (sessionId !== state.epubSessionId) return;
+            chainEpubRendition(sessionId, 'EPUB next', async function () {
                 var r = state.rendition;
                 if (!(await whenEpubManagerReady(r, sessionId)) || typeof r.next !== 'function') return;
                 var settled = waitForRelocated(r, 900);
@@ -833,15 +856,11 @@
                     console.warn('EPUB next', e);
                 }
                 await settled;
-            }).catch(function (e) {
-                console.warn('EPUB next', e);
             });
         },
         prevPage: function () {
             var sessionId = state.epubSessionId;
-            epubRenditionChain = epubRenditionChain.then(async function () {
-                await state.epubMountGate.promise;
-                if (sessionId !== state.epubSessionId) return;
+            chainEpubRendition(sessionId, 'EPUB prev', async function () {
                 var r = state.rendition;
                 if (!(await whenEpubManagerReady(r, sessionId)) || typeof r.prev !== 'function') return;
                 var settled = waitForRelocated(r, 900);
@@ -851,8 +870,6 @@
                     console.warn('EPUB prev', e);
                 }
                 await settled;
-            }).catch(function (e) {
-                console.warn('EPUB prev', e);
             });
         },
 
@@ -871,9 +888,7 @@
         gotoEpub: function (cfi) {
             if (!cfi) return false;
             var sessionId = state.epubSessionId;
-            epubRenditionChain = epubRenditionChain.then(async function () {
-                await state.epubMountGate.promise;
-                if (sessionId !== state.epubSessionId) return;
+            chainEpubRendition(sessionId, 'gotoEpub failed', async function () {
                 var r = state.rendition;
                 if (!(await whenEpubManagerReady(r, sessionId))) return;
                 var settled = waitForRelocated(r, 900);
@@ -883,21 +898,12 @@
                     console.warn('gotoEpub failed', err);
                 }
                 await settled;
-            }).catch(function (err) {
-                console.warn('gotoEpub failed', err);
             });
             return true;
         },
 
         disposeEpub: function () {
-            if (state.epubMountGate && typeof state.epubMountGate.resolve === 'function') {
-                state.epubMountGate.resolve();
-            }
-            state.epubMountGate = (function () {
-                var g = createEpubMountGate();
-                g.resolve();
-                return g;
-            })();
+            reopenEpubMountGate();
             state.epubSessionId += 1;
             state.epubHadFirstProgressPush = false;
             state.epubMountSeedDone = false;
