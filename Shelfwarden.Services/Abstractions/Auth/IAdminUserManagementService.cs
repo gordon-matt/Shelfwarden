@@ -1,6 +1,3 @@
-using Ardalis.Result;
-using Shelfwarden.Models;
-
 namespace Shelfwarden.Services.Auth;
 
 /// <summary>

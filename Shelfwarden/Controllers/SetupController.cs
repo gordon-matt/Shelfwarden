@@ -174,7 +174,7 @@ public class SetupController(
 
         if (!string.IsNullOrWhiteSpace(message))
         {
-            var previewLen = Math.Min(message.Length, 400);
+            int previewLen = Math.Min(message.Length, 400);
             logger.LogWarning("[SetupWizard] User-facing message preview ({PreviewLen} chars): {Preview}", previewLen, message[..previewLen]);
         }
 

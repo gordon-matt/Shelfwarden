@@ -26,14 +26,13 @@ internal static class ResultMessages
             .OfType<string>()
             .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s));
         if (!string.IsNullOrWhiteSpace(fromErrors))
+        {
             return fromErrors.Trim();
+        }
 
         string validation = string.Join("; ", validationErrors
             .Select(v => v.ErrorMessage)
             .Where(s => !string.IsNullOrWhiteSpace(s)));
-        if (!string.IsNullOrWhiteSpace(validation))
-            return validation;
-
-        return fallback;
+        return !string.IsNullOrWhiteSpace(validation) ? validation : fallback;
     }
 }

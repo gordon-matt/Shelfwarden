@@ -128,7 +128,7 @@ public sealed class AudioStitcher(
                 float clamped = Math.Clamp(samples[i], -1f, 1f);
                 short pcm = (short)Math.Round(clamped * short.MaxValue);
                 buffer[i * 2] = (byte)(pcm & 0xFF);
-                buffer[i * 2 + 1] = (byte)((pcm >> 8) & 0xFF);
+                buffer[(i * 2) + 1] = (byte)((pcm >> 8) & 0xFF);
             }
 
             await stream.WriteAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
@@ -181,12 +181,11 @@ public sealed class AudioStitcher(
             float clamped = Math.Clamp(samples[i], -1f, 1f);
             short pcm = (short)Math.Round(clamped * short.MaxValue);
             buffer[i * 2] = (byte)(pcm & 0xFF);
-            buffer[i * 2 + 1] = (byte)((pcm >> 8) & 0xFF);
+            buffer[(i * 2) + 1] = (byte)((pcm >> 8) & 0xFF);
         }
 
         await stream.WriteAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
     }
-
 }
 
 /// <summary>Result of a successful audiobook encoding pass.</summary>

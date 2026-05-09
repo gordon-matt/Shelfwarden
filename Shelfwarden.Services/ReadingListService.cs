@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Shelfwarden.Models;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
@@ -236,7 +234,7 @@ public class ReadingListService(
             new SearchOptions<ReadingListItem> { Query = i => i.ReadingListId == id },
             i => i.BookId)).ToHashSet();
 
-        Result bannerResult = ApplyReadingListBannerUpdateAsync(
+        var bannerResult = ApplyReadingListBannerUpdateAsync(
             id, list, request.CardBannerMode, request.CardBannerSelectedBookIds, memberIds);
         if (!bannerResult.IsSuccess)
         {
@@ -590,15 +588,15 @@ public class ReadingListService(
         })).ToList();
 
         var dict = new Dictionary<int, List<CardBannerSupport.BookCoverSource>>();
-        foreach (ReadingListItem item in rows)
+        foreach (var item in rows)
         {
-            Book? b = item.Book;
+            var b = item.Book;
             if (b is null || string.IsNullOrEmpty(b.CoverImagePath))
             {
                 continue;
             }
 
-            if (!dict.TryGetValue(item.ReadingListId, out List<CardBannerSupport.BookCoverSource>? list))
+            if (!dict.TryGetValue(item.ReadingListId, out var list))
             {
                 list = [];
                 dict[item.ReadingListId] = list;

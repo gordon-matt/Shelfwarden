@@ -28,17 +28,9 @@ public static class BookListLetterFilter
         }
 
         string f = filter.Trim();
-        if (f == "#")
-        {
-            return TitleOrSortStartsWithNonLetter(book);
-        }
-
-        if (f.Length == 1 && char.IsLetter(f[0]))
-        {
-            return StartsWithLetter(book.Title, f) || StartsWithLetter(book.SortTitle, f);
-        }
-
-        return false;
+        return f == "#"
+            ? TitleOrSortStartsWithNonLetter(book)
+            : f.Length == 1 && char.IsLetter(f[0]) && (StartsWithLetter(book.Title, f) || StartsWithLetter(book.SortTitle, f));
     }
 
     private static bool TitleOrSortStartsWithNonLetter(BookListItemDto book)
@@ -48,9 +40,6 @@ public static class BookListLetterFilter
         return titleHit || sortHit;
     }
 
-    private static bool StartsWithLetter(string? text, string letter)
-    {
-        return !string.IsNullOrEmpty(text) &&
-               text.StartsWith(letter, StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool StartsWithLetter(string? text, string letter) => !string.IsNullOrEmpty(text) &&
+        text.StartsWith(letter, StringComparison.OrdinalIgnoreCase);
 }

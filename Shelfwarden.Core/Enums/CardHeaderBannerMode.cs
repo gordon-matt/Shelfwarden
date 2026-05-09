@@ -1,4 +1,4 @@
-namespace Shelfwarden.Models;
+namespace Shelfwarden.Enums;
 
 /// <summary>How a shelf / collection / reading list tile preview image is chosen.</summary>
 public enum CardHeaderBannerMode : byte

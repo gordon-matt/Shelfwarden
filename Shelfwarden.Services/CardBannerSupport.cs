@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Shelfwarden.Models;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
@@ -65,7 +64,7 @@ internal static class CardBannerSupport
             return new CardBannerPreview(CardHeaderBannerMode.UploadedImage, uploadedUrl, []);
         }
 
-        IReadOnlyList<BookCoverRefDto> covers = mode switch
+        var covers = mode switch
         {
             CardHeaderBannerMode.SelectedBooks => BuildSelectedCovers(ParseBookIds(selectedBookIdsJson), candidates),
             _ => PickRandomCovers(candidates, CardBannerLimits.MaxStripCovers),
@@ -98,7 +97,11 @@ internal static class CardBannerSupport
         var result = new List<BookCoverRefDto>();
         foreach (int id in order)
         {
-            if (result.Count >= CardBannerLimits.MaxStripCovers) break;
+            if (result.Count >= CardBannerLimits.MaxStripCovers)
+            {
+                break;
+            }
+
             if (byId.TryGetValue(id, out var c))
             {
                 result.Add(new BookCoverRefDto(c.BookId));

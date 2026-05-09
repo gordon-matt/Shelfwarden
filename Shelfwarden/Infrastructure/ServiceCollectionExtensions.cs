@@ -11,7 +11,6 @@ using Shelfwarden.Data.MySql;
 using Shelfwarden.Data.Npgsql;
 using Shelfwarden.Data.Sql;
 using Shelfwarden.Data.Sqlite;
-using Shelfwarden.Services.Auth;
 
 namespace Shelfwarden.Infrastructure;
 

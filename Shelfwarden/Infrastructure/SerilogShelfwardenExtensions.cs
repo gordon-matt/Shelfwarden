@@ -1,10 +1,8 @@
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Configuration;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.MSSqlServer;
 using Serilog.Sinks.PostgreSQL.ColumnWriters;
-using Shelfwarden;
 
 namespace Shelfwarden.Infrastructure;
 
@@ -26,40 +24,37 @@ internal static class SerilogShelfwardenExtensions
         string? connectionString = configuration.GetConnectionString("DefaultConnection");
         string provider = configuration["Database:Provider"] ?? Constants.DatabaseProviders.Sqlite;
 
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            return loggerConfiguration;
-        }
+        return string.IsNullOrWhiteSpace(connectionString)
+            ? loggerConfiguration
+            : provider switch
+            {
+                Constants.DatabaseProviders.Npgsql => loggerConfiguration.WriteTo.PostgreSQL(
+                    connectionString,
+                    LogTableName,
+                    PostgreSqlColumnWriters(),
+                    needAutoCreateTable: true),
 
-        return provider switch
-        {
-            Constants.DatabaseProviders.Npgsql => loggerConfiguration.WriteTo.PostgreSQL(
-                connectionString,
-                LogTableName,
-                PostgreSqlColumnWriters(),
-                needAutoCreateTable: true),
+                Constants.DatabaseProviders.SqlServer => loggerConfiguration.WriteTo.MSSqlServer(
+                    connectionString,
+                    new MSSqlServerSinkOptions
+                    {
+                        TableName = LogTableName,
+                        AutoCreateSqlTable = true,
+                    },
+                    columnOptions: new ColumnOptions()),
 
-            Constants.DatabaseProviders.SqlServer => loggerConfiguration.WriteTo.MSSqlServer(
-                connectionString,
-                new MSSqlServerSinkOptions
-                {
-                    TableName = LogTableName,
-                    AutoCreateSqlTable = true,
-                },
-                columnOptions: new ColumnOptions()),
+                Constants.DatabaseProviders.Sqlite => loggerConfiguration.WriteTo.SQLite(
+                    SqliteDatabasePath(connectionString),
+                    tableName: LogTableName,
+                    restrictedToMinimumLevel: LogEventLevel.Information),
 
-            Constants.DatabaseProviders.Sqlite => loggerConfiguration.WriteTo.SQLite(
-                SqliteDatabasePath(connectionString),
-                tableName: LogTableName,
-                restrictedToMinimumLevel: LogEventLevel.Information),
+                Constants.DatabaseProviders.MySql => loggerConfiguration.WriteTo.MySQL(
+                    connectionString,
+                    tableName: LogTableName,
+                    restrictedToMinimumLevel: LogEventLevel.Information),
 
-            Constants.DatabaseProviders.MySql => loggerConfiguration.WriteTo.MySQL(
-                connectionString,
-                tableName: LogTableName,
-                restrictedToMinimumLevel: LogEventLevel.Information),
-
-            _ => loggerConfiguration,
-        };
+                _ => loggerConfiguration,
+            };
     }
 
     private static Dictionary<string, ColumnWriterBase> PostgreSqlColumnWriters() =>

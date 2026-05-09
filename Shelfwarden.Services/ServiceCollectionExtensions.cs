@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using Shelfwarden.Services.Jobs;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
-using Shelfwarden.Services.Jobs;
 using Shelfwarden.Services.Tts;
 
 namespace Shelfwarden.Services;

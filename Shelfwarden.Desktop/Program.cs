@@ -1,8 +1,8 @@
 using ElectronNET.API;
 using ElectronNET.API.Entities;
 using Hangfire;
-using Serilog;
 using Sejil;
+using Serilog;
 using Shelfwarden;
 using Shelfwarden.Desktop;
 using Shelfwarden.Infrastructure;

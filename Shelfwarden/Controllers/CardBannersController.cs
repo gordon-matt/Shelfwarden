@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
-using Shelfwarden.Data.Entities;
-using Shelfwarden.Services;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Controllers;
@@ -28,17 +26,9 @@ public class CardBannersController(
             Query = s => s.Id == id,
             CancellationToken = cancellationToken,
         });
-        if (shelf is null)
-        {
-            return NotFound();
-        }
-
-        if (!await shelfAccessService.CanAccessShelfAsync(id, cancellationToken))
-        {
-            return NotFound();
-        }
-
-        return StreamBanner("shelves", id);
+        return shelf is null
+            ? NotFound()
+            : !await shelfAccessService.CanAccessShelfAsync(id, cancellationToken) ? NotFound() : StreamBanner("shelves", id);
     }
 
     [HttpGet("collections/{id:int}")]
@@ -62,12 +52,7 @@ public class CardBannersController(
 
         // Shelfwarden.Core.Constants.GlobalUserId — avoid taking a Core dependency from this project.
         bool isGlobal = collection.OwnerUserId == "_global";
-        if (!isGlobal && collection.OwnerUserId != userId)
-        {
-            return NotFound();
-        }
-
-        return StreamBanner("collections", id);
+        return !isGlobal && collection.OwnerUserId != userId ? NotFound() : StreamBanner("collections", id);
     }
 
     [HttpGet("reading-lists/{id:int}")]
@@ -84,12 +69,7 @@ public class CardBannersController(
             Query = l => l.Id == id,
             CancellationToken = cancellationToken,
         });
-        if (list is null || list.OwnerUserId != userId)
-        {
-            return NotFound();
-        }
-
-        return StreamBanner("reading-lists", id);
+        return list is null || list.OwnerUserId != userId ? NotFound() : StreamBanner("reading-lists", id);
     }
 
     private IActionResult StreamBanner(string kind, int id)

@@ -1,7 +1,4 @@
 using Hangfire;
-using Microsoft.EntityFrameworkCore;
-using Shelfwarden.Data.Entities;
-using Shelfwarden.Models;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
 
@@ -67,7 +64,7 @@ public class ShelfService(
 
     public async Task<Result<ShelfDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        Shelf? shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
+        var shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
         {
             Query = x => x.Id == id,
             Include = q => q
@@ -227,7 +224,7 @@ public class ShelfService(
             new SearchOptions<Book> { Query = b => b.ShelfId == id },
             b => b.Id)).ToHashSet();
 
-        Result bannerResult = ApplyShelfBannerUpdateAsync(
+        var bannerResult = ApplyShelfBannerUpdateAsync(
             id, shelf, request.CardBannerMode, request.CardBannerSelectedBookIds, memberIds);
         if (!bannerResult.IsSuccess)
         {
@@ -354,13 +351,13 @@ public class ShelfService(
         IReadOnlyList<string>? roleNames,
         CancellationToken cancellationToken)
     {
-        List<string> users = (userIds ?? [])
+        var users = (userIds ?? [])
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Select(s => s.Trim())
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
-        List<string> roles = (roleNames ?? [])
+        var roles = (roleNames ?? [])
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Select(s => s.Trim().ToUpperInvariant())
             .Distinct(StringComparer.Ordinal)
@@ -424,7 +421,7 @@ public class ShelfService(
             CancellationToken = cancellationToken,
         });
 
-        foreach (ShelfFolder row in rows)
+        foreach (var row in rows)
         {
             string rowNorm = NormalizeFolderPath(row.Path);
             if (!wanted.Contains(rowNorm))
@@ -444,7 +441,7 @@ public class ShelfService(
     private static List<string> NormalizeFolders(IReadOnlyList<string> folders)
         => [.. folders
             .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => NormalizeFolderPath(p))
+            .Select(NormalizeFolderPath)
             .Distinct(StringComparer.OrdinalIgnoreCase)];
 
     private static ShelfDto MapShelf(Shelf shelf, int bookCount, CardBannerPreview preview, CardBannerSettingsDto? BannerSettings = null)
@@ -529,9 +526,9 @@ public class ShelfService(
         })).ToList();
 
         var dict = new Dictionary<int, List<CardBannerSupport.BookCoverSource>>();
-        foreach (Book b in books)
+        foreach (var b in books)
         {
-            if (!dict.TryGetValue(b.ShelfId, out List<CardBannerSupport.BookCoverSource>? list))
+            if (!dict.TryGetValue(b.ShelfId, out var list))
             {
                 list = [];
                 dict[b.ShelfId] = list;

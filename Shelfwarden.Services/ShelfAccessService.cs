@@ -1,6 +1,3 @@
-using Shelfwarden.Data.Entities;
-using Shelfwarden.Services.Auth;
-
 namespace Shelfwarden.Services;
 
 public class ShelfAccessService(
@@ -25,7 +22,7 @@ public class ShelfAccessService(
         });
 
         var set = new HashSet<int>();
-        foreach (Shelf s in shelves)
+        foreach (var s in shelves)
         {
             if (ShelfAccessEvaluator.CanAccessShelf(s, userContext))
             {
@@ -43,7 +40,7 @@ public class ShelfAccessService(
             return true;
         }
 
-        Shelf? shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
+        var shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
         {
             Query = x => x.Id == shelfId,
             Include = q => q
@@ -52,27 +49,17 @@ public class ShelfAccessService(
             CancellationToken = cancellationToken,
         });
 
-        if (shelf is null)
-        {
-            return false;
-        }
-
-        return ShelfAccessEvaluator.CanAccessShelf(shelf, userContext);
+        return shelf is not null && ShelfAccessEvaluator.CanAccessShelf(shelf, userContext);
     }
 
     public async Task<bool> CanAccessBookAsync(int bookId, CancellationToken cancellationToken = default)
     {
-        Book? book = await bookRepository.FindOneAsync(new SearchOptions<Book>
+        var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
         {
             Query = b => b.Id == bookId,
             CancellationToken = cancellationToken,
         });
 
-        if (book is null)
-        {
-            return false;
-        }
-
-        return await CanAccessShelfAsync(book.ShelfId, cancellationToken);
+        return book is not null && await CanAccessShelfAsync(book.ShelfId, cancellationToken);
     }
 }

@@ -253,7 +253,7 @@ public class CollectionService(
             new SearchOptions<CollectionBook> { Query = cb => cb.CollectionId == id },
             cb => cb.BookId)).ToHashSet();
 
-        Result bannerResult = ApplyCollectionBannerUpdate(
+        var bannerResult = ApplyCollectionBannerUpdate(
             id, collection, request.CardBannerMode, request.CardBannerSelectedBookIds, memberIds);
         if (!bannerResult.IsSuccess)
         {
@@ -527,15 +527,15 @@ public class CollectionService(
         })).ToList();
 
         var dict = new Dictionary<int, List<CardBannerSupport.BookCoverSource>>();
-        foreach (CollectionBook cb in rows)
+        foreach (var cb in rows)
         {
-            Book? b = cb.Book;
+            var b = cb.Book;
             if (b is null || string.IsNullOrEmpty(b.CoverImagePath))
             {
                 continue;
             }
 
-            if (!dict.TryGetValue(cb.CollectionId, out List<CardBannerSupport.BookCoverSource>? list))
+            if (!dict.TryGetValue(cb.CollectionId, out var list))
             {
                 list = [];
                 dict[cb.CollectionId] = list;

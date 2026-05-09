@@ -33,6 +33,7 @@ public enum AudiobookState
 {
     /// <summary>No row exists yet — the user hasn't requested generation for this book.</summary>
     None = -1,
+
     Pending = 0,
     Running = 1,
     Completed = 2,

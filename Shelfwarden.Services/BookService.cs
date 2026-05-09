@@ -265,12 +265,9 @@ public class BookService(
             CancellationToken = cancellationToken,
         });
 
-        if (book is null)
-        {
-            return Result.NotFound($"Book {id} not found.");
-        }
-
-        return !ShelfAccessEvaluator.CanAccessShelf(book.Shelf, userContext)
+        return book is null
+            ? (Result<BookDto>)Result.NotFound($"Book {id} not found.")
+            : !ShelfAccessEvaluator.CanAccessShelf(book.Shelf, userContext)
             ? (Result<BookDto>)Result.NotFound($"Book {id} not found.")
             : Result.Success(MapBook(book));
     }

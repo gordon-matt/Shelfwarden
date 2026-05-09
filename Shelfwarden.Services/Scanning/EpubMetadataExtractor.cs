@@ -187,7 +187,7 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
     {
         foreach (string htmlKey in EnumerateCoverHtmlManifestKeys(book))
         {
-            if (!TryGetHtmlFileByKey(book, htmlKey, out EpubLocalTextContentFile? html) || html is null)
+            if (!TryGetHtmlFileByKey(book, htmlKey, out var html) || html is null)
             {
                 continue;
             }
@@ -218,7 +218,7 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
 
         if (book.Schema.Package.Guide?.Items is { } guideItems)
         {
-            foreach (EpubGuideReference g in guideItems)
+            foreach (var g in guideItems)
             {
                 if (!string.Equals(g.Type, "cover", StringComparison.OrdinalIgnoreCase))
                 {
@@ -273,7 +273,7 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
             return true;
         }
 
-        foreach (EpubLocalTextContentFile h in book.Content.Html.Local)
+        foreach (var h in book.Content.Html.Local)
         {
             if (h.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
             {
@@ -288,12 +288,12 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
 
     private static EpubLocalByteContentFile? TryGetImageFileByKey(EpubBook book, string key)
     {
-        if (book.Content.Images.TryGetLocalFileByKey(key, out EpubLocalByteContentFile? img))
+        if (book.Content.Images.TryGetLocalFileByKey(key, out var img))
         {
             return img;
         }
 
-        foreach (EpubLocalByteContentFile b in book.Content.Images.Local)
+        foreach (var b in book.Content.Images.Local)
         {
             if (b.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
             {
@@ -333,12 +333,7 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
             candidates.Add((m.Index, u));
         }
 
-        if (candidates.Count == 0)
-        {
-            return null;
-        }
-
-        return candidates.MinBy(t => t.Index).Url;
+        return candidates.Count == 0 ? null : candidates.MinBy(t => t.Index).Url;
     }
 
     private static bool IsPackagedRelativeReference(string href)
@@ -349,14 +344,9 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
         }
 
         string t = href.Trim();
-        if (t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return true;
+        return !t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !t.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
+            !t.StartsWith("data:", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

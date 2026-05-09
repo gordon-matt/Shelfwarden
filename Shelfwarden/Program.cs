@@ -43,10 +43,12 @@ switch (authProvider)
         builder.Services.ConfigureSejil(options =>
             options.AuthenticationScheme = CookieAuthenticationDefaults.AuthenticationScheme);
         break;
+
     case AuthProvider.Identity:
         builder.Services.ConfigureSejil(options =>
             options.AuthenticationScheme = IdentityConstants.ApplicationScheme);
         break;
+
     case AuthProvider.None:
         builder.Services.ConfigureSejil(options =>
             options.AuthenticationScheme = NoneAuthenticationHandler.SchemeName);

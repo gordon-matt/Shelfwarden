@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
-using Shelfwarden.Services;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Controllers;

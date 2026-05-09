@@ -242,12 +242,7 @@ public sealed class StoragePathProvider : IStoragePathProvider
 
         string full = Path.GetFullPath(Path.Combine(CardBannersDirectory, relativeFileName));
         string root = Path.GetFullPath(CardBannersDirectory) + Path.DirectorySeparatorChar;
-        if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(full))
-        {
-            return null;
-        }
-
-        return full;
+        return !full.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(full) ? null : full;
     }
 
     public string? FindCardBannerFilePath(string kind, int entityId)

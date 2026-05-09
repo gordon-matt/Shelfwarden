@@ -175,10 +175,8 @@ public sealed class TtsJobService(
         }
 
         progressTracker.Update(book.Id, p =>
-        {
             // User-visible — surfaced in BookDetail while FFmpeg merges PCM + encodes AAC.
-            p.CurrentStage = "Stitching and encoding";
-        });
+            p.CurrentStage = "Stitching and encoding");
 
         string outputPath = storage.GetAudiobookFilePath(book.Id);
         var encoded = await audioStitcher.EncodeAsync(pcmFiles, outputPath, cancellationToken);

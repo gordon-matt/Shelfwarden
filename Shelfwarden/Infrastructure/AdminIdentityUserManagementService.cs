@@ -53,12 +53,7 @@ public sealed class AdminIdentityUserManagementService(
         }
 
         var user = await userManager.FindByIdAsync(id);
-        if (user is null)
-        {
-            return Result.NotFound();
-        }
-
-        return Result.Success((user.Id, user.Email, user.UserName));
+        return user is null ? (Result<(string Id, string? Email, string? UserName)>)Result.NotFound() : Result.Success((user.Id, user.Email, user.UserName));
     }
 
     public async Task<Result<IReadOnlyList<RoleOption>>> GetAssignableRolesAsync(
@@ -205,12 +200,9 @@ public sealed class AdminIdentityUserManagementService(
         }
 
         var deleteResult = await userManager.DeleteAsync(user);
-        if (!deleteResult.Succeeded)
-        {
-            return Result.Invalid(
-                deleteResult.Errors.Select(e => new ValidationError("", e.Description)).ToArray());
-        }
-
-        return Result.Success();
+        return !deleteResult.Succeeded
+            ? Result.Invalid(
+                deleteResult.Errors.Select(e => new ValidationError("", e.Description)).ToArray())
+            : Result.Success();
     }
 }

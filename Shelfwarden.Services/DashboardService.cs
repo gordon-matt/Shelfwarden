@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace Shelfwarden.Services;
 
 /// <summary>
@@ -24,7 +22,7 @@ public class DashboardService(
     {
         string? userId = userContext.GetCurrentUserId();
 
-        IReadOnlySet<int>? accessibleShelves = await shelfAccessService.GetAccessibleShelfIdsAsync(cancellationToken);
+        var accessibleShelves = await shelfAccessService.GetAccessibleShelfIdsAsync(cancellationToken);
 
         int shelfCount = accessibleShelves is null
             ? await shelfRepository.CountAsync()

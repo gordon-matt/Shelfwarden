@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using OpenLibraryNET.Loader;
 using OpenLibraryNET.Utility;
 using Shelfwarden.Services.Storage;
@@ -99,7 +98,7 @@ public class AuthorService(
         var authors = (await authorRepository.FindAsync(options)).ToList();
         var ids = authors.Select(a => a.Id).ToList();
 
-        SearchOptions<BookAuthor> countOptions = shelfId is int shelf
+        var countOptions = shelfId is int shelf
             ? new SearchOptions<BookAuthor>
             {
                 Query = ba => ids.Contains(ba.AuthorId) && ba.Book.ShelfId == shelf,
@@ -405,7 +404,7 @@ public class AuthorService(
                 .Select(a => new
                 {
                     Id = NormalizeOpenLibraryAuthorId(a.ID),
-                    Name = a.Name,
+                    a.Name,
                 })
                 .Where(a => !string.IsNullOrWhiteSpace(a.Id) && !string.IsNullOrWhiteSpace(a.Name))
                 .GroupBy(a => a.Id, StringComparer.OrdinalIgnoreCase)

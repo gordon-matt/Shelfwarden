@@ -36,9 +36,8 @@ public class AudiobookService(
             CancellationToken = cancellationToken,
         });
 
-        if (existing is null)
-        {
-            return Result.Success(new AudiobookDto(
+        return existing is null
+            ? Result.Success(new AudiobookDto(
                 bookId,
                 AudiobookState.None,
                 VoiceName: string.Empty,
@@ -51,10 +50,8 @@ public class AudiobookService(
                 ErrorMessage: null,
                 CreatedAt: default,
                 StartedAt: null,
-                CompletedAt: null));
-        }
-
-        return Result.Success(MergeWithLiveProgress(existing));
+                CompletedAt: null))
+            : Result.Success(MergeWithLiveProgress(existing));
     }
 
     public async Task<Result<AudiobookDto>> GenerateAsync(int bookId, GenerateAudiobookRequest request, CancellationToken cancellationToken = default)
@@ -80,7 +77,7 @@ public class AudiobookService(
             return Result.NotFound();
         }
 
-        if (book.FileFormat != EbookFormat.Epub && book.FileFormat != EbookFormat.Pdf)
+        if (book.FileFormat is not EbookFormat.Epub and not EbookFormat.Pdf)
         {
             return Result.Invalid(new ValidationError(nameof(book.FileFormat),
                 "Only EPUB and PDF books support text-to-speech."));

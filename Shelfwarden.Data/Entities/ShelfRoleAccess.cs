@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
 namespace Shelfwarden.Data.Entities;
 
 /// <summary>Grants everyone in a role access to a shelf when the shelf has restricted visibility.</summary>

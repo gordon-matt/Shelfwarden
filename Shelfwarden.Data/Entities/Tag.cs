@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
 namespace Shelfwarden.Data.Entities;
 
 public class Tag : BaseEntity<int>

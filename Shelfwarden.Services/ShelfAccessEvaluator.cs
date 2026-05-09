@@ -1,6 +1,3 @@
-using Shelfwarden.Data.Entities;
-using Shelfwarden.Services.Auth;
-
 namespace Shelfwarden.Services;
 
 internal static class ShelfAccessEvaluator
@@ -29,8 +26,8 @@ internal static class ShelfAccessEvaluator
             return true;
         }
 
-        IReadOnlyList<string> userRoles = userContext.GetRoleNames();
-        foreach (ShelfRoleAccess ra in shelf.RoleAccessEntries)
+        var userRoles = userContext.GetRoleNames();
+        foreach (var ra in shelf.RoleAccessEntries)
         {
             foreach (string role in userRoles)
             {

@@ -68,70 +68,53 @@ internal static class ShelfwardenImportMerger
         }
 
         var cleaned = CleanValues(field.Values);
-        if (cleaned.Count == 0)
-        {
-            return fromFile;
-        }
-
-        return field.Mode switch
-        {
-            ImportFieldMode.Replace => cleaned,
-            ImportFieldMode.Append => AppendDistinct(fromFile, cleaned),
-            _ => fromFile,
-        };
+        return cleaned.Count == 0
+            ? fromFile
+            : field.Mode switch
+            {
+                ImportFieldMode.Replace => cleaned,
+                ImportFieldMode.Append => AppendDistinct(fromFile, cleaned),
+                _ => fromFile,
+            };
     }
 
     /// <summary>Sidecar <c>series</c> is a single string; when non-empty it overrides extracted metadata.</summary>
-    public static string? MergeSeries(string? fromFile, string? seriesFromSidecar)
-    {
-        if (string.IsNullOrWhiteSpace(seriesFromSidecar))
-        {
-            return fromFile;
-        }
+    public static string? MergeSeries(string? fromFile, string? seriesFromSidecar) => string.IsNullOrWhiteSpace(seriesFromSidecar) ? fromFile : seriesFromSidecar.Trim();
 
-        return seriesFromSidecar.Trim();
-    }
-
-    private static List<string> CleanValues(IEnumerable<string>? values)
-    {
-        if (values is null)
-        {
-            return [];
-        }
-
-        return values
+    private static List<string> CleanValues(IEnumerable<string>? values) => values is null
+            ? []
+            : values
             .Select(v => v?.Trim())
             .Where(v => !string.IsNullOrEmpty(v))
             .Cast<string>()
             .ToList();
-    }
 
     private static List<string> AppendDistinct(IReadOnlyList<string> first, IReadOnlyList<string> second)
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var result = new List<string>();
-        foreach (var x in first)
+        foreach (string x in first)
         {
             if (string.IsNullOrWhiteSpace(x))
             {
                 continue;
             }
 
-            var t = x.Trim();
+            string t = x.Trim();
             if (set.Add(t))
             {
                 result.Add(t);
             }
         }
 
-        foreach (var x in second)
+        foreach (string x in second)
         {
             if (string.IsNullOrWhiteSpace(x))
             {
                 continue;
             }
 
-            var t = x.Trim();
+            string t = x.Trim();
             if (set.Add(t))
             {
                 result.Add(t);

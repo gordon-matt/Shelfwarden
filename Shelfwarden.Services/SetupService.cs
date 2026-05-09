@@ -1,4 +1,3 @@
-using Shelfwarden.Models;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
