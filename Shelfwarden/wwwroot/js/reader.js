@@ -902,6 +902,34 @@
             return true;
         },
 
+        /** Jump to the start of the book (first linear spine item). */
+        firstEpubPage: function () {
+            var sessionId = state.epubSessionId;
+            chainEpubRendition(sessionId, 'EPUB first page', async function () {
+                var r = state.rendition;
+                var book = state.epub;
+                if (!(await whenEpubManagerReady(r, sessionId)) || !book || !book.spine) return;
+                var href = null;
+                var spine = book.spine;
+                if (typeof spine.first === 'function') {
+                    var sec = spine.first();
+                    href = sec && sec.href ? sec.href : null;
+                }
+                if (!href && spine.get) {
+                    var s0 = spine.get(0);
+                    href = s0 && s0.href ? s0.href : null;
+                }
+                if (!href) return;
+                var settled = waitForRelocated(r, 900);
+                try {
+                    await Promise.resolve(r.display(href));
+                } catch (e) {
+                    console.warn('EPUB first page', e);
+                }
+                await settled;
+            });
+        },
+
         disposeEpub: function () {
             reopenEpubMountGate();
             state.epubSessionId += 1;

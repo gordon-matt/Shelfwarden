@@ -26,6 +26,9 @@
         </div>
         @if (book?.FileFormat == EbookFormat.Epub)
         {
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="GoToFirstPageAsync" @onclick:preventDefault="true" title="First page (Home)">
+                <i class="bi bi-house"></i>
+            </button>
             <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="PrevPage" @onclick:preventDefault="true" title="Previous page (←)">
                 <i class="bi bi-chevron-left"></i>
             </button>
@@ -35,6 +38,9 @@
         }
         else if (book?.FileFormat == EbookFormat.Pdf)
         {
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="GoToFirstPageAsync" @onclick:preventDefault="true" title="First page (Home)">
+                <i class="bi bi-house"></i>
+            </button>
             <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="PrevPdfPage" @onclick:preventDefault="true" title="Previous page (←)">
                 <i class="bi bi-chevron-left"></i>
             </button>
@@ -361,6 +367,11 @@
         catch (JSDisconnectedException) { }
     }
 
+    private Task GoToFirstPageAsync() =>
+        book?.FileFormat == EbookFormat.Pdf
+            ? InvokeReaderAsync("gotoPdfPage", 1)
+            : InvokeReaderAsync("firstEpubPage");
+
     private Task PrevPage() => InvokeReaderAsync("prevPage");
     private Task NextPage() => InvokeReaderAsync("nextPage");
     private Task PrevPdfPage() => InvokeReaderAsync("prevPdfPage");
@@ -372,13 +383,15 @@
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "ArrowLeft") await PrevPage();
+        if (e.Key == "Home") await GoToFirstPageAsync();
+        else if (e.Key == "ArrowLeft") await PrevPage();
         else if (e.Key == "ArrowRight") await NextPage();
     }
 
     private async Task HandlePdfKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "ArrowLeft" || e.Key == "PageUp") await PrevPdfPage();
+        if (e.Key == "Home") await GoToFirstPageAsync();
+        else if (e.Key == "ArrowLeft" || e.Key == "PageUp") await PrevPdfPage();
         else if (e.Key == "ArrowRight" || e.Key == "PageDown") await NextPdfPage();
     }
 
