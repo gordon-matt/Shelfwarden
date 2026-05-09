@@ -64,16 +64,18 @@ public class DashboardService(
             ? recentResult.Value.Items
             : [];
 
-        // "Continue Reading" is per-user — books with progress > 0 and < FinishedThreshold,
-        // ordered by most recently read.
+        // "Continue Reading" is per-user — in-progress books (< FinishedThreshold) with either
+        // a non-zero percentage or a saved EPUB CFI, ordered by most recently read.
         IReadOnlyList<BookListItemDto> continueReading = [];
         if (!string.IsNullOrEmpty(userId))
         {
             var inProgress = await progressRepository.FindAsync(new SearchOptions<BookProgress>
             {
+                // EPUB progress may have a saved CFI with Percentage still at 0 if location indexing failed;
+                // include those rows so "Continue reading" matches PDF behaviour.
                 Query = p => p.UserId == userId
-                    && p.Percentage > 0
-                    && p.Percentage < Constants.FinishedThresholdPercent,
+                    && p.Percentage < Constants.FinishedThresholdPercent
+                    && (p.Percentage > 0 || (p.Location != null && p.Location != "")),
                 OrderBy = q => q.OrderByDescending(p => p.LastReadAt),
                 PageNumber = 1,
                 PageSize = ContinueReadingSize,

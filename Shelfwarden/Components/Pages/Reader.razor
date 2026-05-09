@@ -9,11 +9,11 @@
 
 <PageTitle>@(book?.Title ?? "Reader") - Shelfwarden</PageTitle>
 
-@* The reader takes over the full viewport. We render outside the normal sidebar layout
-   feel by using `position: fixed` styles in site.css; the sidebar is still mounted under
-   us so links via the back button still work. *@
+@* Full-viewport shell: fixed chrome (toolbar + bottom bar) + flex main row (optional bookmarks
+   sidebar + document viewport). Zoom/transform never applies to chrome — only pdf.js canvas scale
+   or epub.js typography inside `.reader-document-content`. *@
 <div class="reader-shell" @key="Id">
-    <div class="reader-topbar">
+    <header class="reader-topbar reader-toolbar">
         <a class="btn btn-sm btn-outline-secondary border-0" href="@($"books/{Id}")" title="Back">
             <i class="bi bi-arrow-left"></i>
         </a>
@@ -26,28 +26,43 @@
         </div>
         @if (book?.FileFormat == EbookFormat.Epub)
         {
-            <button class="btn btn-sm btn-outline-secondary" @onclick="PrevPage" title="Previous page (←)">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="PrevPage" @onclick:preventDefault="true" title="Previous page (←)">
                 <i class="bi bi-chevron-left"></i>
             </button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="NextPage" title="Next page (→)">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="NextPage" @onclick:preventDefault="true" title="Next page (→)">
                 <i class="bi bi-chevron-right"></i>
             </button>
         }
         else if (book?.FileFormat == EbookFormat.Pdf)
         {
-            <button class="btn btn-sm btn-outline-secondary" @onclick="PrevPdfPage" title="Previous page (←)">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="PrevPdfPage" @onclick:preventDefault="true" title="Previous page (←)">
                 <i class="bi bi-chevron-left"></i>
             </button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="NextPdfPage" title="Next page (→)">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="NextPdfPage" @onclick:preventDefault="true" title="Next page (→)">
                 <i class="bi bi-chevron-right"></i>
             </button>
         }
+        @if (book is not null && (book.FileFormat == EbookFormat.Epub || book.FileFormat == EbookFormat.Pdf))
+        {
+            <div class="btn-group btn-group-sm reader-zoom-group" role="group" aria-label="Zoom"
+                 @onclick:stopPropagation="true" @onpointerdown:stopPropagation="true">
+                <button type="button" class="btn btn-outline-secondary" @onclick="ZoomOutAsync" @onclick:preventDefault="true" title="Zoom out (smaller text / page)">
+                    <i class="bi bi-zoom-out"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="ResetZoomAsync" @onclick:preventDefault="true" title="Reset zoom">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="ZoomInAsync" @onclick:preventDefault="true" title="Zoom in (larger text / page)">
+                    <i class="bi bi-zoom-in"></i>
+                </button>
+            </div>
+        }
         @if (book is not null)
         {
-            <button class="btn btn-sm btn-outline-secondary" @onclick="AddBookmarkAsync" title="Bookmark this spot">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="AddBookmarkAsync" title="Bookmark this spot">
                 <i class="bi bi-bookmark-plus"></i>
             </button>
-            <button class="btn btn-sm btn-outline-secondary @(showBookmarks ? "active" : null)"
+            <button type="button" class="btn btn-sm btn-outline-secondary @(showBookmarks ? "active" : null)"
                     @onclick="ToggleBookmarks" title="Bookmarks">
                 <i class="bi bi-bookmarks"></i>
                 @if (bookmarks.Count > 0)
@@ -56,74 +71,78 @@
                 }
             </button>
         }
-    </div>
+    </header>
 
-    @if (showBookmarks)
-    {
-        <div class="reader-bookmarks-panel">
-            <div class="d-flex align-items-center justify-content-between mb-2">
-                <strong>Bookmarks</strong>
-                <button class="btn-close" aria-label="Close" @onclick="() => showBookmarks = false"></button>
+    <div class="reader-main">
+        @if (showBookmarks)
+        {
+            <aside class="reader-sidebar reader-bookmarks-panel" aria-label="Bookmarks">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <strong>Bookmarks</strong>
+                    <button class="btn-close" aria-label="Close" @onclick="() => showBookmarks = false"></button>
+                </div>
+                @if (bookmarks.Count == 0)
+                {
+                    <p class="text-secondary small mb-0">No bookmarks yet. Use <i class="bi bi-bookmark-plus"></i> in the toolbar to drop one.</p>
+                }
+                else
+                {
+                    <ul class="list-unstyled mb-0">
+                        @foreach (var bm in bookmarks)
+                        {
+                            <li class="bookmark-row">
+                                <button class="btn btn-link p-0 text-start" @onclick="() => GotoBookmarkAsync(bm)" title="Jump to this spot">
+                                    <span class="d-block fw-semibold">@(bm.Title ?? DefaultBookmarkTitle(bm))</span>
+                                    <span class="d-block text-secondary small">@bm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary border-0" title="Remove" @onclick="() => DeleteBookmarkAsync(bm)">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+            </aside>
+        }
+
+        <div class="reader-document-viewport">
+            <div class="reader-document-content">
+                @if (loadError is not null)
+                {
+                    <div class="empty-state reader-document-empty">
+                        <i class="bi bi-exclamation-triangle empty-icon"></i>
+                        <h3>@loadError</h3>
+                        <a class="btn btn-outline-secondary" href="books"><i class="bi bi-arrow-left"></i> Back to books</a>
+                    </div>
+                }
+                else if (book is null)
+                {
+                    <div class="text-center text-secondary py-5 reader-document-empty">
+                        <div class="spinner-border" role="status"></div>
+                        <div class="mt-2">Loading book…</div>
+                    </div>
+                }
+                else if (book.FileFormat == EbookFormat.Epub)
+                {
+                    <div id="epub-viewer" class="reader-format-host" @onkeydown="HandleKeyDown" tabindex="0"></div>
+                }
+                else if (book.FileFormat == EbookFormat.Pdf)
+                {
+                    <div id="pdf-viewer" class="reader-format-host pdf-scroll-root" tabindex="0" @onkeydown="HandlePdfKeyDown"></div>
+                }
+                else
+                {
+                    <div class="empty-state reader-document-empty">
+                        <i class="bi bi-file-earmark-x empty-icon"></i>
+                        <h3>Unsupported format</h3>
+                        <p>Shelfwarden currently supports EPUB and PDF.</p>
+                    </div>
+                }
             </div>
-            @if (bookmarks.Count == 0)
-            {
-                <p class="text-secondary small mb-0">No bookmarks yet. Use <i class="bi bi-bookmark-plus"></i> in the toolbar to drop one.</p>
-            }
-            else
-            {
-                <ul class="list-unstyled mb-0">
-                    @foreach (var bm in bookmarks)
-                    {
-                        <li class="bookmark-row">
-                            <button class="btn btn-link p-0 text-start" @onclick="() => GotoBookmarkAsync(bm)" title="Jump to this spot">
-                                <span class="d-block fw-semibold">@(bm.Title ?? DefaultBookmarkTitle(bm))</span>
-                                <span class="d-block text-secondary small">@bm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary border-0" title="Remove" @onclick="() => DeleteBookmarkAsync(bm)">
-                                <i class="bi bi-x-lg"></i>
-                            </button>
-                        </li>
-                    }
-                </ul>
-            }
         </div>
-    }
-
-    <div class="reader-viewport">
-        @if (loadError is not null)
-        {
-            <div class="empty-state">
-                <i class="bi bi-exclamation-triangle empty-icon"></i>
-                <h3>@loadError</h3>
-                <a class="btn btn-outline-secondary" href="books"><i class="bi bi-arrow-left"></i> Back to books</a>
-            </div>
-        }
-        else if (book is null)
-        {
-            <div class="text-center text-secondary py-5">
-                <div class="spinner-border" role="status"></div>
-                <div class="mt-2">Loading book…</div>
-            </div>
-        }
-        else if (book.FileFormat == EbookFormat.Epub)
-        {
-            <div id="epub-viewer" @onkeydown="HandleKeyDown" tabindex="0"></div>
-        }
-        else if (book.FileFormat == EbookFormat.Pdf)
-        {
-            <div id="pdf-viewer" class="pdf-viewer" tabindex="0" @onkeydown="HandlePdfKeyDown"></div>
-        }
-        else
-        {
-            <div class="empty-state">
-                <i class="bi bi-file-earmark-x empty-icon"></i>
-                <h3>Unsupported format</h3>
-                <p>Shelfwarden currently supports EPUB and PDF.</p>
-            </div>
-        }
     </div>
 
-    <div class="reader-bottombar">
+    <footer class="reader-bottombar">
         @if (book?.FileFormat == EbookFormat.Epub)
         {
             <span class="text-secondary">
@@ -161,7 +180,7 @@
                 </span>
             }
         }
-    </div>
+    </footer>
 </div>
 
 @code {
@@ -237,6 +256,7 @@
         {
             await JS.InvokeVoidAsync("shelfwardenReader.disposeEpub");
             await JS.InvokeVoidAsync("shelfwardenReader.disposePdf");
+            await JS.InvokeVoidAsync("shelfwardenReader.releaseReaderChromeViewport");
         }
         catch (Exception ex) when (IsBenignJsInteropFailure(ex))
         {
@@ -315,6 +335,14 @@
             selfRef?.Dispose();
             selfRef = null;
         }
+        catch (Exception)
+        {
+            selfRef?.Dispose();
+            selfRef = null;
+            loadError = "Could not initialize the reader for this book.";
+            jsMounted = true;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     /// <summary>JS interop failed because the connection ended or the call was canceled — not an app bug.</summary>
@@ -325,6 +353,33 @@
     private async Task NextPage() => await JS.InvokeVoidAsync("shelfwardenReader.nextPage");
     private async Task PrevPdfPage() => await JS.InvokeVoidAsync("shelfwardenReader.prevPdfPage");
     private async Task NextPdfPage() => await JS.InvokeVoidAsync("shelfwardenReader.nextPdfPage");
+
+    private async Task ZoomInAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("shelfwardenReader.zoomIn");
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    private async Task ZoomOutAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("shelfwardenReader.zoomOut");
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    private async Task ResetZoomAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("shelfwardenReader.resetZoom");
+        }
+        catch (JSDisconnectedException) { }
+    }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
@@ -348,9 +403,18 @@
     [JSInvokable]
     public async Task OnProgress(double percentage, int? page, string? cfi)
     {
+        // Avoid Blazor re-renders when epub.js emits duplicate relocated events (same CFI/%).
+        // Full rerenders were visibly "flickering" the reader and could race the JS rendition chain.
+        bool uiNeedsUpdate =
+            !progressPercent.HasValue
+            || Math.Abs(progressPercent.Value - percentage) >= 0.5
+            || !string.Equals(lastSavedCfi, cfi, StringComparison.Ordinal)
+            || (page.HasValue && pdfCurrentPage != page.Value);
+
         progressPercent = percentage;
         lastSavedCfi = cfi;
         if (page.HasValue) pdfCurrentPage = page.Value;
+
         var result = await BookService.SaveProgressAsync(Id, new SaveProgressRequest
         {
             Percentage = Math.Clamp(percentage, 0, 100),
@@ -361,7 +425,11 @@
         {
             lastSavedAt = result.Value.LastReadAt;
         }
-        await InvokeAsync(StateHasChanged);
+
+        if (uiNeedsUpdate)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void ToggleBookmarks() => showBookmarks = !showBookmarks;
