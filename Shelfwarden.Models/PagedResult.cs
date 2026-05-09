@@ -55,6 +55,15 @@ public record BookSearchRequest
     /// </summary>
     public bool AwaitingReview { get; init; }
 
+    /// <summary>
+    /// Filter by the calling user's reading state. <see cref="BookReadStatusFilter.Any"/> is the
+    /// default and applies no filter; <see cref="BookReadStatusFilter.Read"/> keeps books whose
+    /// progress for this user is at or above <c>Constants.FinishedThresholdPercent</c>;
+    /// <see cref="BookReadStatusFilter.Unread"/> keeps everything else (including books with no
+    /// progress row at all).
+    /// </summary>
+    public BookReadStatusFilter ReadStatus { get; init; } = BookReadStatusFilter.Any;
+
     public string? Query { get; init; }
 
     public int Page { get; init; } = 1;
@@ -74,4 +83,11 @@ public enum BookSortBy
     LastReadAt = 3,
     NumberInSeries = 4,
     UpdatedAt = 5,
+}
+
+public enum BookReadStatusFilter
+{
+    Any = 0,
+    Read = 1,
+    Unread = 2,
 }

@@ -192,6 +192,16 @@
                 </select>
             </div>
             <div class="col-sm-6 col-lg-3">
+                <label class="form-label small text-body-secondary mb-1">Read status</label>
+                <select class="form-select form-select-sm"
+                        @bind="readStatus"
+                        @bind:after="OnFilterChangedAsync">
+                    <option value="@BookReadStatusFilter.Any">Any</option>
+                    <option value="@BookReadStatusFilter.Read">Read</option>
+                    <option value="@BookReadStatusFilter.Unread">Unread</option>
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-3">
                 <label class="form-label small text-body-secondary mb-1">Genre</label>
                 <select class="form-select form-select-sm"
                         @bind="genreId"
@@ -216,7 +226,7 @@
             </div>
             @if (tagFilterMode == TagFilterMode.Selected)
             {
-                <div class="col-12 col-lg-6">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small text-body-secondary mb-1">Selected tags (must match all)</label>
                     <ChipInput TItem="TagDto"
                                Label="Tags"
@@ -378,6 +388,7 @@
     private TagFilterMode tagFilterMode = TagFilterMode.Any;
     private readonly List<TagDto> selectedTagFilters = [];
     private bool awaitingReview;
+    private BookReadStatusFilter readStatus = BookReadStatusFilter.Any;
     private BookSortBy sortBy = BookSortBy.Title;
     private bool sortDescending;
     private int nextPageToLoad = 1;
@@ -411,6 +422,7 @@
         || tagFilterMode == TagFilterMode.None
         || (tagFilterMode == TagFilterMode.Selected && selectedTagFilters.Count > 0)
         || awaitingReview
+        || readStatus != BookReadStatusFilter.Any
         || !string.IsNullOrWhiteSpace(startsWithFilter)
         || !string.IsNullOrWhiteSpace(query);
 
@@ -551,6 +563,7 @@
             TagId = GetTagFilterId(),
             TagIds = GetSelectedTagFilterIds(),
             AwaitingReview = awaitingReview,
+            ReadStatus = readStatus,
             SortBy = sortBy,
             SortDescending = sortDescending,
         });
@@ -593,6 +606,7 @@
                 TagId = GetTagFilterId(),
                 TagIds = GetSelectedTagFilterIds(),
                 AwaitingReview = awaitingReview,
+                ReadStatus = readStatus,
                 SortBy = sortBy,
                 SortDescending = sortDescending,
             });
@@ -662,6 +676,7 @@
         tagFilterMode = TagFilterMode.Any;
         selectedTagFilters.Clear();
         awaitingReview = false;
+        readStatus = BookReadStatusFilter.Any;
         startsWithFilter = null;
         await ResetAndLoadAsync();
     }
@@ -711,6 +726,7 @@
                     TagId = GetTagFilterId(),
                     TagIds = GetSelectedTagFilterIds(),
                     AwaitingReview = awaitingReview,
+                    ReadStatus = readStatus,
                     SortBy = sortBy,
                     SortDescending = sortDescending,
                 });

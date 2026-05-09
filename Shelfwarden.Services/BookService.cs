@@ -141,6 +141,30 @@ public class BookService(
             predicate = predicate.And(b => b.UpdatedAt == null);
         }
 
+        // Read-status filter is per-user; quietly degrades to "no filter" for anonymous calls
+        // (e.g. a future API client without a session) so we don't accidentally return zero
+        // results when the caller has no identity to resolve "Read" against.
+        if (request.ReadStatus != BookReadStatusFilter.Any)
+        {
+            string? readStatusUserId = userContext.GetCurrentUserId();
+            if (!string.IsNullOrEmpty(readStatusUserId))
+            {
+                double threshold = Constants.FinishedThresholdPercent;
+                if (request.ReadStatus == BookReadStatusFilter.Read)
+                {
+                    predicate = predicate.And(b => b.ReadingProgress.Any(
+                        p => p.UserId == readStatusUserId && p.Percentage >= threshold));
+                }
+                else
+                {
+                    // Unread = no progress row, OR progress below the finished threshold.
+                    // `!Any(p => …finished)` covers both cases in a single sub-query.
+                    predicate = predicate.And(b => !b.ReadingProgress.Any(
+                        p => p.UserId == readStatusUserId && p.Percentage >= threshold));
+                }
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Query))
         {
             string q = request.Query.Trim().ToUpperInvariant();
