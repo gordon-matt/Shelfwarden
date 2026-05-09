@@ -83,6 +83,11 @@
                             }
                         </button>
                     </li>
+                    @if (ExtraMenuItems is not null)
+                    {
+                        <li><hr class="dropdown-divider" /></li>
+                        @ExtraMenuItems
+                    }
                 </ul>
             </div>
 
@@ -124,6 +129,16 @@
     /// </summary>
     [Parameter]
     public EventCallback<BookListItemDto> OnBookChanged { get; set; }
+
+    /// <summary>
+    /// Optional <see cref="RenderFragment"/> appended to the bottom of the context menu (after
+    /// a divider). Used by parent screens like <c>CollectionDetail</c> to inject context-specific
+    /// actions (e.g. "Remove from collection") without having to fork the card markup. Items
+    /// should be `<li>` elements containing `dropdown-item` controls; remember `@onclick:stopPropagation`
+    /// so the click doesn't bubble to the outer card anchor and trigger detail-page navigation.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ExtraMenuItems { get; set; }
 
     /// <summary>
     /// Local override applied after a Mark as Read/Unread click so the card reflects the new

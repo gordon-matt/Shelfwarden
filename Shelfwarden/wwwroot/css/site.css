@@ -379,14 +379,6 @@ html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
     pointer-events: none;
 }
 
-/* When hovering a card that exposes a remove button (CollectionDetail), the remove button
-   wins the top-right corner and visually covers the finished badge. We deliberately don't
-   shift the badge — its "always at the corner" position is what makes the read-state legible
-   at a glance, and the remove button is only visible during the brief hover. */
-.book-card-wrapper:hover .book-finished-badge {
-    visibility: hidden;
-}
-
 /* Three-dot context menu pinned to the bottom-right corner of the cover. Subtle by default;
    becomes fully opaque on card hover (and stays visible while open via .show on the toggle). */
 .book-card-menu {
@@ -966,25 +958,6 @@ ol.reading-list {
     }
 }
 
-/* Wraps a BookCard so we can layer admin actions (e.g. "remove from collection") in the
-   top-right without disturbing the card's hover overlay. */
-.book-card-wrapper {
-    position: relative;
-}
-
-    .book-card-wrapper .book-card-remove {
-        position: absolute;
-        top: 0.35rem;
-        right: 0.35rem;
-        z-index: 3;
-        opacity: 0;
-        transition: opacity 160ms ease;
-    }
-
-    .book-card-wrapper:hover .book-card-remove {
-        opacity: 1;
-    }
-
 .bookmark-row {
     display: flex;
     align-items: center;
@@ -1257,7 +1230,7 @@ ol.reading-list {
     position: relative;
 }
 
-/* Same hover-reveal pattern as .book-card-wrapper .book-card-remove */
+/* Hover-reveal pattern for tile chrome — invisible by default, fades in on tile hover. */
 .series-tile-shell .series-tile-edit,
 .series-tile-shell .series-tile-remove {
     position: absolute;
@@ -1515,12 +1488,10 @@ ol.reading-list {
 }
 
 .book-card-wrap:hover .book-card-select,
-.book-card-wrapper:hover .book-card-select,
 .book-list-wrap:hover .book-list-select,
 .book-card-select:checked,
 .book-list-select:checked,
 .book-card-wrap.selected .book-card-select,
-.book-card-wrapper.selected .book-card-select,
 .book-list-wrap.selected .book-list-select {
     opacity: 1;
 }

@@ -204,20 +204,31 @@ else
                     <div class="book-grid">
                         @foreach (var b in FilteredBooks)
                         {
-                            <div class="book-card-wrapper book-card-wrap @(UserContext.IsAdministrator() && selectedBookIds.Contains(b.Id) ? "selected" : null)">
+                            <div class="book-card-wrap @(UserContext.IsAdministrator() && selectedBookIds.Contains(b.Id) ? "selected" : null)">
                                 @if (UserContext.IsAdministrator())
                                 {
                                     <input class="form-check-input book-card-select" type="checkbox"
                                            checked="@selectedBookIds.Contains(b.Id)"
                                            @onchange="e => ToggleSelection(b.Id, (bool)(e.Value ?? false))" />
                                 }
-                                <BookCard Book="b" />
                                 @if (canModify)
                                 {
-                                    <button class="btn btn-sm btn-danger book-card-remove" title="Remove from collection"
-                                            @onclick="() => RemoveBookAsync(b.Id)">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
+                                    <BookCard Book="b">
+                                        <ExtraMenuItems>
+                                            <li>
+                                                <button type="button" class="dropdown-item text-danger"
+                                                        @onclick="() => RemoveBookAsync(b.Id)"
+                                                        @onclick:stopPropagation="true"
+                                                        @onclick:preventDefault="true">
+                                                    <i class="bi bi-x-circle me-1"></i> Remove from collection
+                                                </button>
+                                            </li>
+                                        </ExtraMenuItems>
+                                    </BookCard>
+                                }
+                                else
+                                {
+                                    <BookCard Book="b" />
                                 }
                             </div>
                         }
