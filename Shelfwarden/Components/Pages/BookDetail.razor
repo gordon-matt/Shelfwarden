@@ -835,7 +835,11 @@ else
         var listsTask = ReadingListService.ListAsync();
         await Task.WhenAll(collectionsTask, listsTask);
 
-        collections = collectionsTask.Result.IsSuccess ? collectionsTask.Result.Value : [];
+        IReadOnlyList<CollectionDto> loadedCollections =
+            collectionsTask.Result.IsSuccess ? collectionsTask.Result.Value : [];
+        collections = UserContext.IsAdministrator()
+            ? loadedCollections
+            : loadedCollections.Where(c => !c.IsGlobal).ToList();
         readingLists = listsTask.Result.IsSuccess ? listsTask.Result.Value : [];
     }
 
