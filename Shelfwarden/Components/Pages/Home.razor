@@ -103,23 +103,3 @@ else
         }
     </section>
 }
-
-@code {
-    private DashboardDto? dashboard;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var result = await DashboardService.GetAsync();
-        if (result.IsSuccess)
-        {
-            dashboard = result.Value;
-        }
-        else
-        {
-            dashboard = new DashboardDto(
-                new DashboardStatsDto(0, 0, 0, 0, 0),
-                [],
-                []);
-        }
-    }
-}
