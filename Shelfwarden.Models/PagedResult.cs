@@ -21,6 +21,9 @@ public record BookSearchRequest
     /// </summary>
     public int? SeriesId { get; init; }
 
+    /// <summary>
+    /// Author filter. Positive id restricts to books that list that author; <c>-1</c> means books with no authors assigned.
+    /// </summary>
     public int? AuthorId { get; init; }
 
     /// <summary>

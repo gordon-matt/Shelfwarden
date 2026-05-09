@@ -17,7 +17,8 @@ public class DashboardService(
     IRepository<Series> seriesRepository,
     IRepository<BookProgress> progressRepository) : IDashboardService
 {
-    private const int CarouselSize = 12;
+    private const int ContinueReadingSize = 10;
+    private const int RecentlyAddedSize = 20;
     private const double FinishedThresholdPercent = 95d;
 
     public async Task<Result<DashboardDto>> GetAsync(CancellationToken cancellationToken = default)
@@ -55,7 +56,7 @@ public class DashboardService(
         var recentResult = await bookService.SearchAsync(new BookSearchRequest
         {
             Page = 1,
-            PageSize = CarouselSize,
+            PageSize = RecentlyAddedSize,
             SortBy = BookSortBy.AddedAt,
             SortDescending = true,
         }, cancellationToken);
@@ -76,7 +77,7 @@ public class DashboardService(
                     && p.Percentage < FinishedThresholdPercent,
                 OrderBy = q => q.OrderByDescending(p => p.LastReadAt),
                 PageNumber = 1,
-                PageSize = CarouselSize,
+                PageSize = ContinueReadingSize,
             });
 
             var bookIds = inProgress.Select(p => p.BookId).ToList();

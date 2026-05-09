@@ -30,7 +30,7 @@ public class BookService(
 
         var predicate = PredicateBuilder.New<Book>(true);
 
-        IReadOnlySet<int>? accessibleShelves = await shelfAccessService.GetAccessibleShelfIdsAsync(cancellationToken);
+        var accessibleShelves = await shelfAccessService.GetAccessibleShelfIdsAsync(cancellationToken);
         if (accessibleShelves is not null)
         {
             if (accessibleShelves.Count == 0)
@@ -69,9 +69,16 @@ public class BookService(
             }
         }
 
-        if (request.AuthorId is int aId)
+        if (request.AuthorId is int authorFilter)
         {
-            predicate = predicate.And(b => b.BookAuthors.Any(ba => ba.AuthorId == aId));
+            if (authorFilter == -1)
+            {
+                predicate = predicate.And(b => !b.BookAuthors.Any());
+            }
+            else if (authorFilter > 0)
+            {
+                predicate = predicate.And(b => b.BookAuthors.Any(ba => ba.AuthorId == authorFilter));
+            }
         }
 
         if (request.GenreId is int genreFilter)
@@ -147,19 +154,12 @@ public class BookService(
             {
                 predicate = predicate.And(b =>
                 (
-                    b.Title.Length > 0 &&
-                    !(
-                        (b.Title[0] >= 'A' && b.Title[0] <= 'Z') ||
-                        (b.Title[0] >= 'a' && b.Title[0] <= 'z')
-                    )
+                    !string.IsNullOrEmpty(b.Title) &&
+                    !Constants.Letters.Any(l => b.Title.StartsWith(l))
                 ) ||
                 (
-                    b.SortTitle != null &&
-                    b.SortTitle.Length > 0 &&
-                    !(
-                        (b.SortTitle[0] >= 'A' && b.SortTitle[0] <= 'Z') ||
-                        (b.SortTitle[0] >= 'a' && b.SortTitle[0] <= 'z')
-                    )
+                    !string.IsNullOrEmpty(b.SortTitle) &&
+                    !Constants.Letters.Any(l => b.SortTitle.StartsWith(l))
                 ));
             }
             else if (startsWith.Length == 1 && char.IsLetter(startsWith[0]))
@@ -169,15 +169,14 @@ public class BookService(
                 string upperText = upper.ToString();
                 predicate = predicate.And(b =>
                 (
-                    b.Title.Length > 0 &&
+                    !string.IsNullOrEmpty(b.Title) &&
                     (
                         b.Title.StartsWith(upperText) ||
                         b.Title.StartsWith(lower)
                     )
                 ) ||
                 (
-                    b.SortTitle != null &&
-                    b.SortTitle.Length > 0 &&
+                    !string.IsNullOrEmpty(b.SortTitle) &&
                     (
                         b.SortTitle.StartsWith(upperText) ||
                         b.SortTitle.StartsWith(lower)
@@ -247,12 +246,9 @@ public class BookService(
             return Result.NotFound($"Book {id} not found.");
         }
 
-        if (!ShelfAccessEvaluator.CanAccessShelf(book.Shelf, userContext))
-        {
-            return Result.NotFound($"Book {id} not found.");
-        }
-
-        return Result.Success(MapBook(book));
+        return !ShelfAccessEvaluator.CanAccessShelf(book.Shelf, userContext)
+            ? (Result<BookDto>)Result.NotFound($"Book {id} not found.")
+            : Result.Success(MapBook(book));
     }
 
     public async Task<Result<BookDto>> UpdateAsync(int id, UpdateBookRequest request, CancellationToken cancellationToken = default)

@@ -171,6 +171,7 @@
                         @bind="authorId"
                         @bind:after="OnFilterChangedAsync">
                     <option value="">Any author</option>
+                    <option value="-1">None</option>
                     @foreach (var a in authors)
                     {
                         <option value="@a.Id">@a.Name</option>
@@ -537,7 +538,7 @@
             Query = string.IsNullOrWhiteSpace(query) ? null : query,
             StartsWith = startsWithFilter,
             ShelfId = ParseId(shelfId),
-            AuthorId = ParseId(authorId),
+            AuthorId = ParseFilterId(authorId),
             SeriesId = ParseFilterId(seriesId),
             GenreId = ParseFilterId(genreId),
             CollectionId = ParseFilterId(collectionId),
@@ -579,7 +580,7 @@
                 PageSize = seriesPageSize,
                 Query = string.IsNullOrWhiteSpace(query) ? null : query,
                 ShelfId = ParseId(shelfId),
-                AuthorId = ParseId(authorId),
+                AuthorId = ParseFilterId(authorId),
                 SeriesId = ParseFilterId(seriesId),
                 GenreId = ParseFilterId(genreId),
                 CollectionId = ParseFilterId(collectionId),
@@ -697,7 +698,7 @@
                     Query = string.IsNullOrWhiteSpace(query) ? null : query,
                     StartsWith = startsWithFilter,
                     ShelfId = ParseId(shelfId),
-                    AuthorId = ParseId(authorId),
+                    AuthorId = ParseFilterId(authorId),
                     SeriesId = ParseFilterId(seriesId),
                     GenreId = ParseFilterId(genreId),
                     CollectionId = ParseFilterId(collectionId),

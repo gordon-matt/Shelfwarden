@@ -104,4 +104,6 @@ public static class Constants
         public static bool IsDarkColorScheme(string? theme) =>
             !string.IsNullOrEmpty(theme) && DarkColorScheme.Contains(theme);
     }
+
+    public static readonly IReadOnlyList<string> Letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".Select(c => c.ToString()).ToList();
 }

@@ -265,14 +265,14 @@ public sealed class ScannerService(
         var metadata = await extractor.ExtractAsync(filePath, cancellationToken);
 
         string? importJsonPath = ShelfwardenImportPath.FindNearestImportJsonPath(filePath, shelfFolderRoot);
-        ShelfwardenImportOverlay? importOverlay = importJsonPath is null
+        var importOverlay = importJsonPath is null
             ? null
             : await TryLoadImportOverlayAsync(importJsonPath, cancellationToken);
         bool hasImportOverlay = importOverlay is not null;
 
-        IReadOnlyList<string> authorNames = ShelfwardenImportMerger.MergeList(metadata.AuthorNames, importOverlay?.Author);
-        IReadOnlyList<string> genreNames = ShelfwardenImportMerger.MergeList(metadata.Genres, importOverlay?.Genres);
-        IReadOnlyList<string> tagNames = ShelfwardenImportMerger.MergeList(metadata.Tags, importOverlay?.Tags);
+        var authorNames = ShelfwardenImportMerger.MergeList(metadata.AuthorNames, importOverlay?.Author);
+        var genreNames = ShelfwardenImportMerger.MergeList(metadata.Genres, importOverlay?.Genres);
+        var tagNames = ShelfwardenImportMerger.MergeList(metadata.Tags, importOverlay?.Tags);
         string? seriesName = ShelfwardenImportMerger.MergeSeries(metadata.SeriesName, importOverlay?.Series);
         string? collectionName = ShelfwardenImportMerger.MergeCollection(importOverlay?.Collection);
         bool useFileNameForTitle = ShelfwardenImportMerger.UseFileNameForTitle(importOverlay?.UseFileNameForTitle);
