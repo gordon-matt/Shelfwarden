@@ -22,15 +22,3 @@
         <i class="bi bi-trash"></i> Remove
     </button>
 </div>
-
-@code {
-    [Parameter] public ChipApplyMode Mode { get; set; }
-    [Parameter] public EventCallback<ChipApplyMode> ModeChanged { get; set; }
-
-    private async Task Set(ChipApplyMode mode)
-    {
-        if (Mode == mode) return;
-        Mode = mode;
-        if (ModeChanged.HasDelegate) await ModeChanged.InvokeAsync(mode);
-    }
-}
