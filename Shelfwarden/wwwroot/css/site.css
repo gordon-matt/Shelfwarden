@@ -286,15 +286,19 @@ html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
     display: block;
     background-color: var(--bs-body-bg);
     border-radius: var(--bs-border-radius);
-    overflow: hidden;
     color: var(--bs-body-color);
     text-decoration: none;
-    transition: transform 160ms ease;
+    /* Hover lift uses `top` rather than `transform`. A non-`none` transform on an ancestor
+       becomes the containing block for `position: fixed` descendants and clips them to its
+       overflow box — which would hide the bottom-right context-menu dropdown the moment the
+       user hovers the card to click it. */
     position: relative;
+    top: 0;
+    transition: top 160ms ease;
 }
 
     .book-card:hover {
-        transform: translateY(-2px);
+        top: -2px;
     }
 
 .book-cover {
@@ -356,28 +360,31 @@ html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
     left: 0.5rem;
 }
 
-/* "Finished" checkmark — Plex-style green pip top-right of the cover. */
+/* "Finished" badge — solid black square flush against the top-right corner of the cover with
+   a white check. Sits above the cover image (z-index isn't needed because this paints last in
+   source order, but `pointer-events: none` keeps it from swallowing clicks meant for the card). */
 .book-finished-badge {
     position: absolute;
-    top: 0.4rem;
-    right: 0.4rem;
-    width: 1.5rem;
-    height: 1.5rem;
+    top: 0;
+    right: 0;
+    width: 1.6rem;
+    height: 1.6rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: var(--bs-success);
-    background-color: rgba(0, 0, 0, 0.55);
-    border-radius: 50%;
-    font-size: 1.05rem;
+    color: var(--bs-white);
+    background-color: #000;
+    font-size: 1.1rem;
     line-height: 1;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     pointer-events: none;
 }
 
-/* Collection remove button still lives top-right; nudge the finished pip left of it. */
-.book-card-wrapper:has(.book-card-remove) .book-finished-badge {
-    right: 2.35rem;
+/* When hovering a card that exposes a remove button (CollectionDetail), the remove button
+   wins the top-right corner and visually covers the finished badge. We deliberately don't
+   shift the badge — its "always at the corner" position is what makes the read-state legible
+   at a glance, and the remove button is only visible during the brief hover. */
+.book-card-wrapper:hover .book-finished-badge {
+    visibility: hidden;
 }
 
 /* Three-dot context menu pinned to the bottom-right corner of the cover. Subtle by default;
@@ -1479,6 +1486,10 @@ ol.reading-list {
     }
 }
 
+/* Selection checkboxes are hover-revealed (matches the `.book-card-remove` pattern) so the
+   cards stay clean when you're just browsing. They become permanent once the card is checked
+   so the multi-select state remains legible at a glance, and they're always visible on touch
+   devices that can't fire :hover. */
 .book-card-select {
     position: absolute;
     top: 8px;
@@ -1488,6 +1499,8 @@ ol.reading-list {
     height: 1.25rem;
     background-color: var(--bs-body-bg);
     box-shadow: 0 0 0 2px var(--bs-body-bg);
+    opacity: 0;
+    transition: opacity 160ms ease;
 }
 
 .book-list-select {
@@ -1497,6 +1510,26 @@ ol.reading-list {
     z-index: 5;
     width: 1.25rem;
     height: 1.25rem;
+    opacity: 0;
+    transition: opacity 160ms ease;
+}
+
+.book-card-wrap:hover .book-card-select,
+.book-card-wrapper:hover .book-card-select,
+.book-list-wrap:hover .book-list-select,
+.book-card-select:checked,
+.book-list-select:checked,
+.book-card-wrap.selected .book-card-select,
+.book-card-wrapper.selected .book-card-select,
+.book-list-wrap.selected .book-list-select {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .book-card-select,
+    .book-list-select {
+        opacity: 1;
+    }
 }
 
 .book-card-wrap.selected,

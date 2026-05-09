@@ -16,7 +16,7 @@
             @if (IsFinished)
             {
                 <span class="book-finished-badge" title="Read">
-                    <i class="bi bi-check-circle-fill"></i>
+                    <i class="bi bi-check-lg"></i>
                 </span>
             }
 
@@ -32,20 +32,26 @@
                page. We deliberately DO NOT set `:preventDefault` on the wrapper — that would
                cancel the default action of every bubbled click, including the Read/Edit anchor
                navigations themselves.
-               `data-bs-strategy="fixed"` makes Popper position the menu with `position: fixed`,
-               which escapes `.book-cover { overflow: hidden }` clipping. *@
-            <div class="book-card-menu dropdown">
+
+               `data-bs-config` is a Bootstrap 5.2+ JSON config blob merged into the dropdown's
+               options. Bootstrap's Dropdown does NOT honour `data-bs-strategy` (that's tooltip /
+               popover only), so we have to push `strategy: "fixed"` in via `popperConfig`. With
+               a fixed strategy, Popper positions the menu with `position: fixed`, which escapes
+               `.book-cover { overflow: hidden }` (this only works because no ancestor uses
+               `transform`/`filter`/`will-change` — those would re-establish the containing
+               block and re-clip the menu). *@
+            <div class="book-card-menu dropend">
                 <button type="button"
                         class="btn btn-sm book-card-menu-toggle"
                         data-bs-toggle="dropdown"
-                        data-bs-strategy="fixed"
+                        data-bs-config='{"popperConfig":{"strategy":"fixed"}}'
                         aria-expanded="false"
                         aria-label="Book actions"
                         @onclick:stopPropagation="true"
                         @onclick:preventDefault="true">
                     <i class="bi bi-three-dots-vertical"></i>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end">
+                <ul class="dropdown-menu">
                     <li>
                         <a class="dropdown-item" href="@($"read/{Book.Id}")"
                            @onclick:stopPropagation="true">
