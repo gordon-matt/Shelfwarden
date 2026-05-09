@@ -128,7 +128,10 @@ else
                                    checked="@selectedBookIds.Contains(b.Id)"
                                    @onchange="e => ToggleSelection(b.Id, (bool)(e.Value ?? false))" />
                         }
-                        <BookCard Book="b" />
+                        <BookCard Book="b"
+                                  SelectionMode="selectMode && selectedBookIds.Count > 0"
+                                  IsSelected="selectedBookIds.Contains(b.Id)"
+                                  OnSelectionToggled="checkedNow => ToggleSelection(b.Id, checkedNow)" />
                     </div>
                 }
             </div>

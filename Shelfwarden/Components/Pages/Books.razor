@@ -287,7 +287,10 @@
                                    checked="@selectedBookIds.Contains(book.Id)"
                                    @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
                         }
-                        <BookListRow Book="book" />
+                        <BookListRow Book="book"
+                                     SelectionMode="selectMode && selectedBookIds.Count > 0"
+                                     IsSelected="selectedBookIds.Contains(book.Id)"
+                                     OnSelectionToggled="checkedNow => ToggleSelection(book.Id, checkedNow)" />
                     </div>
                 }
             </div>
@@ -304,7 +307,10 @@
                                    checked="@selectedBookIds.Contains(book.Id)"
                                    @onchange="e => ToggleSelection(book.Id, (bool)(e.Value ?? false))" />
                         }
-                        <BookCard Book="book" />
+                        <BookCard Book="book"
+                                  SelectionMode="selectMode && selectedBookIds.Count > 0"
+                                  IsSelected="selectedBookIds.Contains(book.Id)"
+                                  OnSelectionToggled="checkedNow => ToggleSelection(book.Id, checkedNow)" />
                     </div>
                 }
             </div>

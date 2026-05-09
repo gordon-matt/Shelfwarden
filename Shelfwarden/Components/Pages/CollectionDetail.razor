@@ -213,7 +213,10 @@ else
                                 }
                                 @if (canModify)
                                 {
-                                    <BookCard Book="b">
+                                    <BookCard Book="b"
+                                              SelectionMode="selectedBookIds.Count > 0"
+                                              IsSelected="selectedBookIds.Contains(b.Id)"
+                                              OnSelectionToggled="checkedNow => ToggleSelection(b.Id, checkedNow)">
                                         <ExtraMenuItems>
                                             <li>
                                                 <button type="button" class="dropdown-item text-danger"

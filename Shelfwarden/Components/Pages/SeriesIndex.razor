@@ -44,7 +44,51 @@ else
         {
             <div class="series-tile-shell">
                 <a class="series-tile" href="@($"books?series={s.Id}")" title="@s.Name">
-                    <SeriesCollage Covers="s.Covers" />
+                    @* Wrap the collage in a positioning container so the three-dot toggle can be
+                       pinned to its bottom-right (matching BookCard) without having to know the
+                       variable height of the title/count body underneath. *@
+                    <div class="series-tile-cover">
+                        <SeriesCollage Covers="s.Covers" />
+                        <AuthorizeView Roles="@Constants.Roles.Administrator">
+                            <Authorized>
+                                @* Three-dot context menu mirroring BookCard. `data-bs-config`
+                                   pushes `strategy: "fixed"` into Popper so the menu can escape
+                                   `.series-tile`'s `overflow: hidden`. Each interactive child
+                                   uses stop+preventDefault so the click never falls through to
+                                   the parent anchor's navigation. *@
+                                <div class="series-tile-menu dropend">
+                                    <button type="button"
+                                            class="btn btn-sm series-tile-menu-toggle"
+                                            data-bs-toggle="dropdown"
+                                            data-bs-config='{"popperConfig":{"strategy":"fixed"}}'
+                                            aria-expanded="false"
+                                            aria-label="Series actions"
+                                            @onclick:stopPropagation="true"
+                                            @onclick:preventDefault="true">
+                                        <i class="bi bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <button type="button" class="dropdown-item"
+                                                    @onclick="() => OpenRenameModal(s)"
+                                                    @onclick:stopPropagation="true"
+                                                    @onclick:preventDefault="true">
+                                                <i class="bi bi-pencil me-1"></i> Rename
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button type="button" class="dropdown-item text-danger"
+                                                    @onclick="() => ConfirmDeleteSeriesAsync(s)"
+                                                    @onclick:stopPropagation="true"
+                                                    @onclick:preventDefault="true">
+                                                <i class="bi bi-trash me-1"></i> Delete
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </Authorized>
+                        </AuthorizeView>
+                    </div>
                     <div class="series-tile-body">
                         <div class="series-tile-name text-truncate">@s.Name</div>
                         <div class="series-tile-count text-secondary small">
@@ -52,22 +96,6 @@ else
                         </div>
                     </div>
                 </a>
-                <AuthorizeView Roles="@Constants.Roles.Administrator">
-                    <Authorized>
-                        <button type="button"
-                                class="btn btn-sm btn-outline-secondary series-tile-edit"
-                                title="Rename series"
-                                @onclick="() => OpenRenameModal(s)">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button type="button"
-                                class="btn btn-sm btn-danger series-tile-remove"
-                                title="Delete series"
-                                @onclick="() => ConfirmDeleteSeriesAsync(s)">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    </Authorized>
-                </AuthorizeView>
             </div>
         }
     </div>

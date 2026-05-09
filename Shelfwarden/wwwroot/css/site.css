@@ -1230,27 +1230,60 @@ ol.reading-list {
     position: relative;
 }
 
-/* Hover-reveal pattern for tile chrome — invisible by default, fades in on tile hover. */
-.series-tile-shell .series-tile-edit,
-.series-tile-shell .series-tile-remove {
+/* Positioning context that hugs the SeriesCollage area only — the title/count body lives in
+   `.series-tile-body` below. Lets us pin the three-dot toggle to the cover's bottom-right
+   without the variable body height affecting the offset. */
+.series-tile-cover {
+    position: relative;
+}
+
+/* Three-dot context menu pinned to the bottom-right of the series collage (matches BookCard).
+   Subtle by default, fades to fully opaque on tile hover (or while the dropdown is open via
+   .show on the toggle). */
+.series-tile-menu {
     position: absolute;
-    top: 0.35rem;
-    z-index: 4;
-    opacity: 0;
-    transition: opacity 160ms ease;
-}
-
-.series-tile-shell .series-tile-edit {
-    right: 2.35rem;
-}
-
-.series-tile-shell .series-tile-remove {
+    bottom: 0.35rem;
     right: 0.35rem;
+    z-index: 4;
 }
 
-.series-tile-shell:hover .series-tile-edit,
-.series-tile-shell:hover .series-tile-remove {
-    opacity: 1;
+.series-tile-menu-toggle {
+    width: 1.85rem;
+    height: 1.85rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-white);
+    background-color: rgba(0, 0, 0, 0.55);
+    border: none;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 160ms ease, background-color 160ms ease;
+    line-height: 1;
+}
+
+    .series-tile-menu-toggle::after {
+        display: none;
+    }
+
+    .series-tile-menu-toggle:hover,
+    .series-tile-menu-toggle:focus,
+    .series-tile-menu-toggle.show,
+    .series-tile-shell:hover .series-tile-menu-toggle {
+        opacity: 1;
+        color: var(--bs-white);
+        background-color: rgba(0, 0, 0, 0.75);
+    }
+
+@media (hover: none) {
+    .series-tile-menu-toggle {
+        opacity: 1;
+    }
+}
+
+.series-tile-menu .dropdown-menu {
+    z-index: 1080;
 }
 
 .series-tile {
@@ -1261,11 +1294,15 @@ ol.reading-list {
     border: 1px solid var(--bs-border-color);
     border-radius: var(--bs-border-radius);
     overflow: hidden;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    /* Hover lift via `top` (not `transform`) so the tile doesn't establish a containing block
+       for the dropdown's `position: fixed` menu — same reasoning as `.book-card`. */
+    position: relative;
+    top: 0;
+    transition: top 0.15s ease, box-shadow 0.15s ease;
 }
 
     .series-tile:hover {
-        transform: translateY(-2px);
+        top: -2px;
         color: inherit;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
     }
