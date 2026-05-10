@@ -569,10 +569,21 @@
     }
 
     /**
-     * Ctrl+wheel (trackpad / desktop) zoom for PDF and EPUB.
+     * Ctrl+wheel (trackpad pinch) + two-finger pinch zoom for PDF and EPUB.
      *
-     * Mobile two-finger pinch is gated by ENABLE_TOUCH_PINCH_ZOOM (currently false).
-     * When enabled, see the block below — it still needs work vs. scroll and pdf.js.
+     * PDF: no canvas operations happen mid-gesture (would blank the page). The new scale
+     * is committed and pages re-rendered in one pass when the fingers lift.
+     *
+     * EPUB: font resize is applied once per gesture — it's too heavy to do every frame.
+     *
+     * Navigation-during-zoom is prevented by two mechanisms:
+     *   1. preventDefault on touchstart (2 fingers) aborts any in-progress browser pan.
+     *   2. A short cooldown after gesture end blocks the "trailing" single-finger scroll
+     *      that would otherwise fire while the second finger is still lifting.
+     *
+     * Pages-disappearing-during-pinch was caused by CSS transform: scale() on an element
+     * inside overflow:auto — the scroll container clips the transformed content. We no
+     * longer apply any CSS transform mid-gesture; the scale is only committed at the end.
      */
     function attachDocumentZoomInteraction(element) {
         if (!element || element.dataset.swZoomGuard === '1') return;

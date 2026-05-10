@@ -169,6 +169,22 @@ public partial class ShelfEdit : ComponentBase
         return list;
     }
 
+    private bool _showFolderPicker;
+    private int _pickerTargetIndex;
+
+    private void ShowFolderPicker(int index)
+    {
+        _pickerTargetIndex = index;
+        _showFolderPicker = true;
+    }
+
+    private void OnFolderPickerConfirm(string path)
+    {
+        if (_pickerTargetIndex >= 0 && _pickerTargetIndex < folders.Count)
+            folders[_pickerTargetIndex] = path;
+        _showFolderPicker = false;
+    }
+
     private void AddFolder() => folders.Add(string.Empty);
 
     private void RemoveFolder(int index)

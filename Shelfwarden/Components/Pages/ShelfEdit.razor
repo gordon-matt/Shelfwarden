@@ -110,6 +110,10 @@
                 <span class="input-group-text"><i class="bi bi-folder"></i></span>
                 <input class="form-control" placeholder="/path/to/books" value="@folders[captured]"
                        @oninput="@(e => folders[captured] = e.Value?.ToString() ?? string.Empty)" />
+                <button class="btn btn-outline-secondary" type="button" @onclick="() => ShowFolderPicker(captured)"
+                        title="Browse container filesystem">
+                    <i class="bi bi-folder2-open"></i>
+                </button>
                 <button class="btn btn-outline-danger" type="button" @onclick="() => RemoveFolder(captured)" disabled="@(folders.Count == 1)">
                     <i class="bi bi-trash"></i>
                 </button>
@@ -119,6 +123,14 @@
             <i class="bi bi-plus-lg"></i> Add folder
         </button>
     </div>
+
+    @if (_showFolderPicker)
+    {
+        <FileSystemPicker Mode="FileSystemPicker.PickerMode.Folder"
+                          Title="Select Shelf Folder"
+                          OnConfirm="OnFolderPickerConfirm"
+                          OnCancel="() => _showFolderPicker = false" />
+    }
 
     @if (!string.IsNullOrWhiteSpace(saveError))
     {

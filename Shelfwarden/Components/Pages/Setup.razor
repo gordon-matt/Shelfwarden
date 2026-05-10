@@ -137,8 +137,17 @@ else
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="setup-lib-folders">Folders (one per line)</label>
-                        <textarea id="setup-lib-folders" name="folders" class="form-control" rows="4"
-                                  placeholder="@FolderPlaceholder()" required>@shelfFolders</textarea>
+                        <div class="input-group">
+                            <textarea id="setup-lib-folders" name="folders" class="form-control" rows="4"
+                                      placeholder="@FolderPlaceholder()" required
+                                      value="@shelfFolders"
+                                      @oninput="e => shelfFolders = e.Value?.ToString() ?? string.Empty"></textarea>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    @onclick="() => _showSetupFolderPicker = true"
+                                    title="Browse container filesystem">
+                                <i class="bi bi-folder2-open"></i>
+                            </button>
+                        </div>
                         <div class="form-text">Absolute paths. We'll create them later if they don't exist.</div>
                     </div>
                     <div class="mb-3">
@@ -153,6 +162,14 @@ else
                         </button>
                     </div>
                 </form>
+
+                @if (_showSetupFolderPicker)
+                {
+                    <FileSystemPicker Mode="FileSystemPicker.PickerMode.Folder"
+                                      Title="Select Shelf Folder"
+                                      OnConfirm="OnSetupFolderPickerConfirm"
+                                      OnCancel="() => _showSetupFolderPicker = false" />
+                }
             }
             break;
 

@@ -12,7 +12,15 @@ public partial class Setup : ComponentBase
     private string? errorMessage;
     private readonly string adminEmail = "admin@shelfwarden.local";
     private readonly string shelfName = "My Shelf";
-    private readonly string shelfFolders = "";
+    private string shelfFolders = "";
+    private bool _showSetupFolderPicker;
+
+    private void OnSetupFolderPickerConfirm(string path)
+    {
+        var existing = shelfFolders.Trim();
+        shelfFolders = string.IsNullOrEmpty(existing) ? path : $"{existing}\n{path}";
+        _showSetupFolderPicker = false;
+    }
 
     private record StepDescriptor(string Id, int Number, string Label);
 
