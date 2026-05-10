@@ -15,6 +15,13 @@
     var EPUB_FONT_STEP = 0.1;
     var EPUB_LOCATION_PROBE_FRAMES = 16;
 
+    /**
+     * Mobile two-finger pinch-to-zoom on the reader document. Disabled for now: it still
+     * fights native scroll / overflow clipping / lazy pdf.js renders on small screens.
+     * Trackpad ctrl+wheel zoom remains enabled. Set true to re-test after a proper rework.
+     */
+    var ENABLE_TOUCH_PINCH_ZOOM = false;
+
     /** Serialize EPUB opens — overlapping unpack() corrupts epub.js. */
     var epubMountChain = Promise.resolve();
 
@@ -67,8 +74,13 @@
         pdfUserScale: 1,
         /** @type {function(): void|null} */
         pdfScrollListener: null,
+        /** @type {HTMLDivElement|null} Inner wrapper used for CSS-transform pinch preview. */
+        pdfPagesWrapper: null,
     };
     state.epubMountGate.resolve();
+
+    /** Tracks epub iframe documents that already have swipe listeners attached. */
+    var epubSwipeAttachedDocs = new WeakSet();
 
     var pdfResizeTimer = null;
 
@@ -403,6 +415,12 @@
             if (h > 0) {
                 wrapper.style.minHeight = h + 'px';
             }
+            // Clear the canvas so every page is in a consistent blank state at the new
+            // scale. Pages re-render via the offscreen-swap path: visible pages are
+            // queued immediately by rerenderVisiblePdfPages (so their blank period is
+            // minimal), while off-screen pages re-render lazily as they scroll into view.
+            // This prevents the "mixed sizes" artifact where some pages show old-scale
+            // canvases while others already show new-scale canvases.
             var c = wrapper.querySelector('canvas');
             if (c) {
                 c.width = 0;
@@ -551,8 +569,10 @@
     }
 
     /**
-     * Ctrl+wheel (trackpad pinch) + two-finger pinch: PDF updates live; EPUB applies once
-     * per gesture (font + CFI restore are too heavy every frame).
+     * Ctrl+wheel (trackpad / desktop) zoom for PDF and EPUB.
+     *
+     * Mobile two-finger pinch is gated by ENABLE_TOUCH_PINCH_ZOOM (currently false).
+     * When enabled, see the block below — it still needs work vs. scroll and pdf.js.
      */
     function attachDocumentZoomInteraction(element) {
         if (!element || element.dataset.swZoomGuard === '1') return;
@@ -568,64 +588,79 @@
             }
         }, { passive: false });
 
-        var pinchStartDist = 0;
-        var pinchStartPdf = 1;
-        var pinchStartEpub = 1;
-        var pinchRaf = 0;
-        var pinchPendingFactor = 1;
+        if (ENABLE_TOUCH_PINCH_ZOOM) {
+            var pinchStartDist = 0;
+            var pinchStartPdf = 1;
+            var pinchStartEpub = 1;
+            var pinchPendingFactor = 1;
 
-        function flushPdfPinch() {
-            pinchRaf = 0;
-            if (!state.pdfDoc || pinchStartDist <= 0) return;
-            var factor = clamp(pinchPendingFactor, 0.15, 6);
-            setPdfUserScale(clamp(pinchStartPdf * factor, PDF_ZOOM_MIN, PDF_ZOOM_MAX));
+            // After a pinch ends, the finger that lifts last can still produce touchmove
+            // events that scroll the PDF to a different page. Block those for a short window.
+            var pinchActive = false;
+            var pinchCooldownTimer = null;
+
+            function beginPinchCooldown() {
+                pinchActive = true;
+                if (pinchCooldownTimer) clearTimeout(pinchCooldownTimer);
+                pinchCooldownTimer = setTimeout(function () {
+                    pinchActive = false;
+                }, 380);
+            }
+
+            element.addEventListener('touchstart', function (e) {
+                if (e.touches.length === 2) {
+                    // preventDefault on touchstart (non-passive) cancels any browser pan/scroll
+                    // that began when the first finger landed before the second arrived.
+                    e.preventDefault();
+                    // Also cancel the cooldown — the user put a second finger down again.
+                    pinchActive = false;
+                    if (pinchCooldownTimer) { clearTimeout(pinchCooldownTimer); pinchCooldownTimer = null; }
+                    pinchStartDist = touchPairDistance(e.touches[0], e.touches[1]);
+                    pinchStartPdf = state.pdfUserScale;
+                    pinchStartEpub = state.epubFontScale;
+                    pinchPendingFactor = 1;
+                }
+            }, { passive: false });
+
+            element.addEventListener('touchmove', function (e) {
+                if (pinchActive && e.touches.length < 2) {
+                    // Block the trailing single-finger scroll during the cooldown window.
+                    e.preventDefault();
+                    return;
+                }
+                if (e.touches.length !== 2 || pinchStartDist <= 0) return;
+                e.preventDefault();
+                var d = touchPairDistance(e.touches[0], e.touches[1]);
+                pinchPendingFactor = d / pinchStartDist;
+            }, { passive: false });
+
+            function endPinchGesture() {
+                if (pinchStartDist <= 0) return;
+                beginPinchCooldown();
+                // Dampen the raw distance ratio so a wide finger spread doesn't jump to an
+                // extreme scale in one gesture. Math.pow(x, 0.65) compresses the magnitude
+                // while preserving direction — e.g. a 3× spread → ~2× zoom.
+                var rawFactor = clamp(pinchPendingFactor, 0.15, 6);
+                var factor = rawFactor >= 1
+                    ? Math.pow(rawFactor, 0.65)
+                    : 1 / Math.pow(1 / rawFactor, 0.65);
+                if (state.pdfDoc) {
+                    setPdfUserScale(clamp(pinchStartPdf * factor, PDF_ZOOM_MIN, PDF_ZOOM_MAX));
+                } else if (state.rendition) {
+                    setEpubFontScale(clamp(pinchStartEpub * factor, EPUB_FONT_MIN, EPUB_FONT_MAX));
+                }
+                pinchStartDist = 0;
+            }
+
+            element.addEventListener('touchend', function (e) {
+                if (e.touches.length < 2) endPinchGesture();
+            }, { passive: true });
+
+            element.addEventListener('touchcancel', function () {
+                if (pinchStartDist > 0) beginPinchCooldown();
+                pinchStartDist = 0;
+            }, { passive: true });
         }
-
-        element.addEventListener('touchstart', function (e) {
-            if (e.touches.length === 2) {
-                pinchStartDist = touchPairDistance(e.touches[0], e.touches[1]);
-                pinchStartPdf = state.pdfUserScale;
-                pinchStartEpub = state.epubFontScale;
-                pinchPendingFactor = 1;
-            }
-        }, { passive: true });
-
-        element.addEventListener('touchmove', function (e) {
-            if (e.touches.length !== 2 || pinchStartDist <= 0) return;
-            e.preventDefault();
-            var d = touchPairDistance(e.touches[0], e.touches[1]);
-            pinchPendingFactor = d / pinchStartDist;
-            if (state.pdfDoc && !pinchRaf) {
-                pinchRaf = requestAnimationFrame(flushPdfPinch);
-            }
-        }, { passive: false });
-
-        function endPinchGesture() {
-            if (pinchRaf) {
-                cancelAnimationFrame(pinchRaf);
-                pinchRaf = 0;
-            }
-            if (pinchStartDist <= 0) return;
-            var factor = clamp(pinchPendingFactor, 0.15, 6);
-            if (state.pdfDoc) {
-                setPdfUserScale(clamp(pinchStartPdf * factor, PDF_ZOOM_MIN, PDF_ZOOM_MAX));
-            } else if (state.rendition) {
-                setEpubFontScale(clamp(pinchStartEpub * factor, EPUB_FONT_MIN, EPUB_FONT_MAX));
-            }
-            pinchStartDist = 0;
-        }
-
-        element.addEventListener('touchend', function (e) {
-            if (e.touches.length < 2) endPinchGesture();
-        }, { passive: true });
-
-        element.addEventListener('touchcancel', function () {
-            if (pinchRaf) {
-                cancelAnimationFrame(pinchRaf);
-                pinchRaf = 0;
-            }
-            pinchStartDist = 0;
-        }, { passive: true });
     }
 
     function loadScript(src) {
@@ -684,8 +719,10 @@
     }
 
     /**
-     * Render one PDF page onto its placeholder canvas. Pages render lazily as they scroll into
-     * view because rendering every page up-front is prohibitively expensive on large PDFs.
+     * Render one PDF page. Pages render lazily as they scroll into view.
+     * Renders into an offscreen canvas first, then swaps it into the DOM in one
+     * synchronous step. This means the page goes from "placeholder / previous render"
+     * directly to fully-painted content with no partially-drawn intermediate frame.
      */
     async function renderPdfPage(pageNum) {
         if (!state.pdfDoc || state.pdfRenderedPages.has(pageNum)) return;
@@ -699,8 +736,6 @@
 
             try {
                 var page = await state.pdfDoc.getPage(pageNum);
-                var canvas = pageWrapper.querySelector('canvas');
-                if (!canvas) return;
 
                 // Fit entire page in the scroll viewport (min of width / height), then apply user zoom.
                 var dpr = window.devicePixelRatio || 1;
@@ -714,13 +749,24 @@
                 var fitScale = Math.max(0.06, Math.min(scaleW, scaleH));
                 var viewport = page.getViewport({ scale: fitScale * state.pdfUserScale * dpr });
 
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
-                canvas.style.width = (viewport.width / dpr) + 'px';
-                canvas.style.height = (viewport.height / dpr) + 'px';
+                // Render into an offscreen canvas first so the visible DOM canvas is never blank.
+                var offscreen = document.createElement('canvas');
+                offscreen.width = viewport.width;
+                offscreen.height = viewport.height;
+                await page.render({ canvasContext: offscreen.getContext('2d'), viewport: viewport }).promise;
 
-                var ctx = canvas.getContext('2d');
-                await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                // Atomic swap: insert the fully-rendered canvas before removing the old one.
+                // The old pixels stay on-screen until the new frame is composited — no blank flash.
+                offscreen.style.display = 'block';
+                offscreen.style.width = (viewport.width / dpr) + 'px';
+                offscreen.style.height = (viewport.height / dpr) + 'px';
+                var oldCanvas = pageWrapper.querySelector('canvas');
+                if (oldCanvas) {
+                    pageWrapper.insertBefore(offscreen, oldCanvas);
+                    pageWrapper.removeChild(oldCanvas);
+                } else {
+                    pageWrapper.appendChild(offscreen);
+                }
                 pageWrapper.style.minHeight = '';
             } catch (err) {
                 console.warn('Failed to render PDF page ' + pageNum, err);
@@ -733,6 +779,13 @@
         state.pdfContainer.innerHTML = '';
         state.pdfPageElements.clear();
         state.pdfRenderedPages.clear();
+
+        // Inner wrapper: CSS transform is applied here during pinch for a smooth preview
+        // without touching canvas content. The outer container keeps its scroll position.
+        var pagesWrapper = document.createElement('div');
+        pagesWrapper.className = 'pdf-pages-wrapper';
+        state.pdfContainer.appendChild(pagesWrapper);
+        state.pdfPagesWrapper = pagesWrapper;
 
         for (var i = 1; i <= state.pdfPageCount; i++) {
             var pageWrapper = document.createElement('div');
@@ -747,7 +800,7 @@
             label.textContent = 'Page ' + i + ' / ' + state.pdfPageCount;
             pageWrapper.appendChild(label);
 
-            state.pdfContainer.appendChild(pageWrapper);
+            pagesWrapper.appendChild(pageWrapper);
             state.pdfPageElements.set(i, pageWrapper);
         }
     }
@@ -776,6 +829,68 @@
         state.pdfPageElements.forEach(function (el) {
             state.pdfPageObserver.observe(el);
         });
+    }
+
+    // --- EPUB swipe navigation -----------------------------------------------------------
+
+    /**
+     * Attach touchstart/touchend swipe-detection to an epub.js view's iframe document.
+     * Called on every `rendered` event so new spreads/sections are covered after navigation.
+     * Uses a WeakSet so duplicate attachment is a no-op even if epub.js fires `rendered`
+     * multiple times for the same view.
+     */
+    function attachSwipeToEpubView(view, sessionId) {
+        if (!view) return;
+        var doc = null;
+        try {
+            doc = view.document || (view.iframe && view.iframe.contentDocument);
+        } catch (e) { return; }
+        if (!doc || epubSwipeAttachedDocs.has(doc)) return;
+        epubSwipeAttachedDocs.add(doc);
+
+        var startX = 0, startY = 0, nTouches = 0;
+
+        doc.addEventListener('touchstart', function (e) {
+            nTouches = e.touches.length;
+            if (e.touches.length === 1) {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        doc.addEventListener('touchend', function (e) {
+            if (sessionId !== state.epubSessionId) return;
+            if (nTouches !== 1 || e.changedTouches.length < 1) return;
+            var dx = e.changedTouches[0].clientX - startX;
+            var dy = e.changedTouches[0].clientY - startY;
+            // Require a clear horizontal swipe: at least 40 px and not more diagonal than 3:4.
+            if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx) * 0.75) return;
+            if (dx < 0) {
+                window.shelfwardenReader.nextPage();
+            } else {
+                window.shelfwardenReader.prevPage();
+            }
+        }, { passive: true });
+    }
+
+    /**
+     * Subscribe to the epub.js `rendered` event so every new spread/section gets swipe
+     * listeners, and also attach to any views that are already rendered at mount time.
+     */
+    function installEpubSwipeHandlers(sessionId) {
+        var r = state.rendition;
+        if (!r) return;
+        r.on('rendered', function (section, view) {
+            if (sessionId !== state.epubSessionId) return;
+            attachSwipeToEpubView(view, sessionId);
+        });
+        // Cover views that are already displayed before the listener was registered.
+        try {
+            var initial = typeof r.getContents === 'function' ? r.getContents() : [];
+            if (Array.isArray(initial)) {
+                initial.forEach(function (c) { attachSwipeToEpubView(c, sessionId); });
+            }
+        } catch (e) { /* ignore — view API varies across epub.js versions */ }
     }
 
     // --- Public API (Blazor invokes these) ------------------------------------------------
@@ -838,6 +953,7 @@
                 if (sessionId !== state.epubSessionId) return;
 
                 attachDocumentZoomInteraction(host);
+                installEpubSwipeHandlers(sessionId);
                 applyReaderChromeViewport(true);
             } finally {
                 mountGate.resolve();
@@ -1115,6 +1231,7 @@
             }
             state.pdfContainer = null;
             state.pdfContainerId = null;
+            state.pdfPagesWrapper = null;
             state.pdfPageCount = 0;
             state.pdfCurrentPage = 1;
             state.pdfPageElements.clear();

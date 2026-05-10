@@ -88,7 +88,6 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
             return new EbookMetadata
             {
                 Title = title.Trim(),
-                Subtitle = sortTitle is null ? null : NullIfWhitespace(sortTitle),
                 Description = description,
                 Language = language,
                 Publisher = publisher,

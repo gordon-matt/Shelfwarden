@@ -864,9 +864,17 @@ html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
     background-color: var(--bs-tertiary-bg);
     padding: 1rem 0;
     outline: none;
-    touch-action: pan-x pan-y pinch-zoom;
-    /* Do not use transform/zoom here — pdf.js owns pixel scale on the canvas. */
+    touch-action: pan-x pan-y;
+    /* pinch-zoom is handled entirely by JS (attachDocumentZoomInteraction).
+       Leaving it out prevents the browser's native viewport zoom from fighting
+       our custom scale logic and causing double-zoom or scroll interference. */
 }
+
+    /* Inner wrapper scaled via CSS transform during pinch for a flicker-free preview.
+       transform-origin is set via JS so the scale appears to originate from the top. */
+    #pdf-viewer .pdf-pages-wrapper {
+        width: 100%;
+    }
 
     #pdf-viewer .pdf-page {
         margin: 0 auto 1rem auto;

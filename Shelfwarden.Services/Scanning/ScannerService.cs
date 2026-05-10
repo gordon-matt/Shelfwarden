@@ -623,7 +623,7 @@ public sealed class ScannerService(
         }
 
         string trimmed = seriesName.Trim();
-        string key = trimmed.ToLowerInvariant();
+        string key = trimmed.ToSortTitle().ToLowerInvariant();
 
         if (!cache.TryGetValue(key, out var series))
         {

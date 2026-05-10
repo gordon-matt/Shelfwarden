@@ -63,7 +63,7 @@ public class SeriesService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToLowerInvariant();
+        string normalised = trimmed.ToSortTitle().ToLowerInvariant();
 
         var existing = await seriesRepository.FindOneAsync(new SearchOptions<Series>
         {
@@ -149,7 +149,7 @@ public class SeriesService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToLowerInvariant();
+        string normalised = trimmed.ToSortTitle().ToLowerInvariant();
 
         var series = await seriesRepository.FindOneAsync(new SearchOptions<Series>
         {
