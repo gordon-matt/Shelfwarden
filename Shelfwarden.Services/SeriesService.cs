@@ -196,18 +196,13 @@ public class SeriesService(
             return Result.NotFound();
         }
 
-        var linkedBooks = (await bookRepository.FindAsync(new SearchOptions<Book>
-        {
-            Query = b => b.SeriesId == id,
-            CancellationToken = cancellationToken,
-        })).ToList();
-
-        foreach (var book in linkedBooks)
-        {
-            book.SeriesId = null;
-            book.NumberInSeries = null;
-            await bookRepository.UpdateAsync(book);
-        }
+        // Detach every book from this series in a single ExecuteUpdate call instead of
+        // loading + saving them individually.
+        await bookRepository.UpdateAsync(
+            b => b.SeriesId == id,
+            setters => setters
+                .SetProperty(b => b.SeriesId, (int?)null)
+                .SetProperty(b => b.NumberInSeries, (decimal?)null));
 
         await seriesRepository.DeleteAsync(series);
         return Result.Success();

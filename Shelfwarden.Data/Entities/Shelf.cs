@@ -1,8 +1,6 @@
-using Shelfwarden.Models;
-
 namespace Shelfwarden.Data.Entities;
 
-public class Shelf : BaseEntity<int>
+public class Shelf : BaseEntity<int>, ICardBannerOwner
 {
     public required string Name { get; set; }
 

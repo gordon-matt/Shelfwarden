@@ -21,7 +21,7 @@ public record ReadingListDetailDto(
     string OwnerUserId,
     DateTime CreatedAt,
     IReadOnlyList<ReadingListEntryDto> Items,
-    CardBannerSettingsDto CardBanner);
+    CardBannerSettingsDto BannerSettings);
 
 /// <summary>Single entry inside a reading list. Holds the position so reorder UIs have something to bind to.</summary>
 public record ReadingListEntryDto(

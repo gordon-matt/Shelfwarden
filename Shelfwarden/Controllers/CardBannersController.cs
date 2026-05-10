@@ -27,9 +27,10 @@ public class CardBannersController(
             Query = s => s.Id == id,
             CancellationToken = cancellationToken,
         });
-        return shelf is null
+
+        return shelf is null || !await shelfAccessService.CanAccessShelfAsync(id, cancellationToken)
             ? NotFound()
-            : !await shelfAccessService.CanAccessShelfAsync(id, cancellationToken) ? NotFound() : StreamBanner("shelves", id);
+            : StreamBanner(Constants.CardBannerKinds.Shelves, id);
     }
 
     [HttpGet("collections/{id:int}")]
@@ -51,9 +52,10 @@ public class CardBannersController(
             return NotFound();
         }
 
-        // Shelfwarden.Core.Constants.GlobalUserId — avoid taking a Core dependency from this project.
-        bool isGlobal = collection.OwnerUserId == "_global";
-        return !isGlobal && collection.OwnerUserId != userId ? NotFound() : StreamBanner("collections", id);
+        // Global collections are visible to every signed-in user; personal collections are
+        // visible only to their owner.
+        bool isGlobal = collection.OwnerUserId == Constants.GlobalUserId;
+        return !isGlobal && collection.OwnerUserId != userId ? NotFound() : StreamBanner(Constants.CardBannerKinds.Collections, id);
     }
 
     [HttpGet("reading-lists/{id:int}")]
@@ -70,7 +72,8 @@ public class CardBannersController(
             Query = l => l.Id == id,
             CancellationToken = cancellationToken,
         });
-        return list is null || list.OwnerUserId != userId ? NotFound() : StreamBanner("reading-lists", id);
+
+        return list is null || list.OwnerUserId != userId ? NotFound() : StreamBanner(Constants.CardBannerKinds.ReadingLists, id);
     }
 
     private IActionResult StreamBanner(string kind, int id)

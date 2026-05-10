@@ -24,13 +24,19 @@ public partial class Shelves : ComponentBase
         await Task.WhenAll(libsTask, statusTask);
 
         shelves = libsTask.Result.IsSuccess ? libsTask.Result.Value : [];
-        if (statusTask.Result.IsSuccess) statuses = statusTask.Result.Value;
+        if (statusTask.Result.IsSuccess)
+        {
+            statuses = statusTask.Result.Value;
+        }
     }
 
     private async Task RefreshStatusesAsync()
     {
         var result = await ScanStatusService.GetAllAsync();
-        if (!result.IsSuccess) return;
+        if (!result.IsSuccess)
+        {
+            return;
+        }
 
         var snapshot = result.Value;
 
@@ -47,7 +53,10 @@ public partial class Shelves : ComponentBase
         if (needShelfReload)
         {
             var libsResult = await ShelfService.GetAllAsync();
-            if (libsResult.IsSuccess) shelves = libsResult.Value;
+            if (libsResult.IsSuccess)
+            {
+                shelves = libsResult.Value;
+            }
         }
 
         await InvokeAsync(StateHasChanged);
@@ -95,13 +104,21 @@ public partial class Shelves : ComponentBase
 
     private void PruneOptimisticBusy()
     {
-        if (optimisticBusyUntil.Count == 0) return;
+        if (optimisticBusyUntil.Count == 0)
+        {
+            return;
+        }
+
         var now = DateTime.UtcNow;
         var keys = optimisticBusyUntil.Keys.ToList();
         foreach (int id in keys)
         {
             bool serverBusy = statuses.TryGetValue(id, out var s) && IsBusy(s);
-            if (serverBusy) continue;
+            if (serverBusy)
+            {
+                continue;
+            }
+
             if (optimisticBusyUntil[id] <= now)
             {
                 optimisticBusyUntil.Remove(id);
@@ -111,7 +128,11 @@ public partial class Shelves : ComponentBase
 
     private static RenderFragment RenderStatusBadge(ScanStatusDto? status) => __builder =>
     {
-        if (status is null) return;
+        if (status is null)
+        {
+            return;
+        }
+
         switch (status.State)
         {
             case ScanState.Running:
@@ -134,11 +155,13 @@ public partial class Shelves : ComponentBase
     private static string FormatRelative(DateTime utc)
     {
         var delta = DateTime.UtcNow - utc;
-        if (delta < TimeSpan.FromMinutes(1)) return "just now";
-        if (delta < TimeSpan.FromHours(1)) return $"{(int)delta.TotalMinutes}m ago";
-        if (delta < TimeSpan.FromDays(1)) return $"{(int)delta.TotalHours}h ago";
-        if (delta < TimeSpan.FromDays(30)) return $"{(int)delta.TotalDays}d ago";
-        return utc.ToLocalTime().ToString("yyyy-MM-dd");
+        return delta < TimeSpan.FromMinutes(1)
+            ? "just now"
+            : delta < TimeSpan.FromHours(1)
+            ? $"{(int)delta.TotalMinutes}m ago"
+            : delta < TimeSpan.FromDays(1)
+            ? $"{(int)delta.TotalHours}h ago"
+            : delta < TimeSpan.FromDays(30) ? $"{(int)delta.TotalDays}d ago" : utc.ToLocalTime().ToString("yyyy-MM-dd");
     }
 
     public void Dispose()
@@ -154,7 +177,11 @@ public partial class Shelves : ComponentBase
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(1.5), token);
-                if (token.IsCancellationRequested) break;
+                if (token.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 await RefreshStatusesAsync();
             }
             catch (TaskCanceledException)

@@ -84,7 +84,7 @@ public class ReadingListService(
                     l.CardBannerMode,
                     l.CardBannerImageFileName,
                     l.CardBannerBookIdsJson,
-                    CardBannerSupport.KindReadingLists,
+                    Constants.CardBannerKinds.ReadingLists,
                     l.Id,
                     bannerSources.GetValueOrDefault(l.Id) ?? [],
                     storage);
@@ -157,7 +157,7 @@ public class ReadingListService(
             list.CardBannerMode,
             list.CardBannerImageFileName,
             list.CardBannerBookIdsJson,
-            CardBannerSupport.KindReadingLists,
+            Constants.CardBannerKinds.ReadingLists,
             list.Id,
             storage);
 
@@ -196,7 +196,7 @@ public class ReadingListService(
             CardHeaderBannerMode.RandomCovers,
             null,
             null,
-            CardBannerSupport.KindReadingLists,
+            Constants.CardBannerKinds.ReadingLists,
             inserted.Id,
             [],
             storage);
@@ -234,8 +234,17 @@ public class ReadingListService(
             new SearchOptions<ReadingListItem> { Query = i => i.ReadingListId == id },
             i => i.BookId)).ToHashSet();
 
-        var bannerResult = ApplyReadingListBannerUpdateAsync(
-            id, list, request.CardBannerMode, request.CardBannerSelectedBookIds, memberIds);
+        var bannerResult = CardBannerSupport.ApplyBannerUpdate(
+            Constants.CardBannerKinds.ReadingLists,
+            id,
+            list,
+            request.CardBannerMode,
+            request.CardBannerSelectedBookIds,
+            memberIds,
+            storage,
+            modeFieldName: nameof(request.CardBannerMode),
+            selectedBooksFieldName: nameof(request.CardBannerSelectedBookIds),
+            entityNoun: "reading list");
         if (!bannerResult.IsSuccess)
         {
             return Result<ReadingListDto>.Invalid(bannerResult.ValidationErrors);
@@ -250,7 +259,7 @@ public class ReadingListService(
             updated.CardBannerMode,
             updated.CardBannerImageFileName,
             updated.CardBannerBookIdsJson,
-            CardBannerSupport.KindReadingLists,
+            Constants.CardBannerKinds.ReadingLists,
             updated.Id,
             bannerSources.GetValueOrDefault(id) ?? [],
             storage);
@@ -281,7 +290,7 @@ public class ReadingListService(
             return Result.Forbidden();
         }
 
-        storage.DeleteCardBannerFile(CardBannerSupport.KindReadingLists, id);
+        storage.DeleteCardBannerFile(Constants.CardBannerKinds.ReadingLists, id);
 
         await listRepository.DeleteAsync(list);
         return Result.Success();
@@ -336,7 +345,7 @@ public class ReadingListService(
 
         ms.Position = 0;
         string relative = await storage.SaveCardBannerFileAsync(
-            CardBannerSupport.KindReadingLists,
+            Constants.CardBannerKinds.ReadingLists,
             readingListId,
             ms,
             fileName,
@@ -408,6 +417,81 @@ public class ReadingListService(
         });
 
         return Result.Success();
+    }
+
+    public async Task<Result<int>> AddBooksAsync(int readingListId, IReadOnlyCollection<int> bookIds, CancellationToken cancellationToken = default)
+    {
+        string? userId = userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Result.Unauthorized();
+        }
+
+        var distinctBookIds = bookIds.Where(id => id > 0).Distinct().ToList();
+        if (distinctBookIds.Count == 0)
+        {
+            return Result.Success(0);
+        }
+
+        var list = await listRepository.FindOneAsync(new SearchOptions<ReadingList>
+        {
+            Query = l => l.Id == readingListId,
+            CancellationToken = cancellationToken,
+        });
+        if (list is null)
+        {
+            return Result.NotFound("Reading list not found.");
+        }
+
+        if (list.OwnerUserId != userId)
+        {
+            return Result.Forbidden();
+        }
+
+        // Filter out non-existent books and books already in the list — keeps the call idempotent.
+        var existingBookIds = (await bookRepository.FindAsync(
+            new SearchOptions<Book>
+            {
+                Query = b => distinctBookIds.Contains(b.Id),
+                CancellationToken = cancellationToken,
+            },
+            b => b.Id)).ToHashSet();
+
+        var alreadyLinked = (await itemRepository.FindAsync(
+            new SearchOptions<ReadingListItem>
+            {
+                Query = i => i.ReadingListId == readingListId && distinctBookIds.Contains(i.BookId),
+                CancellationToken = cancellationToken,
+            },
+            i => i.BookId)).ToHashSet();
+
+        var newBookIds = distinctBookIds
+            .Where(id => existingBookIds.Contains(id) && !alreadyLinked.Contains(id))
+            .ToList();
+
+        if (newBookIds.Count == 0)
+        {
+            return Result.Success(0);
+        }
+
+        // Append at the end, preserving caller order.
+        int maxPosition = (await itemRepository.FindAsync(
+                new SearchOptions<ReadingListItem> { Query = i => i.ReadingListId == readingListId },
+                i => i.Position))
+            .DefaultIfEmpty(-1)
+            .Max();
+
+        var toInsert = newBookIds
+            .Select((bid, idx) => new ReadingListItem
+            {
+                ReadingListId = readingListId,
+                BookId = bid,
+                Position = maxPosition + 1 + idx,
+            })
+            .ToList();
+
+        await itemRepository.InsertAsync(toInsert);
+        return Result.Success(toInsert.Count);
     }
 
     public async Task<Result> RemoveBookAsync(int readingListId, int bookId, CancellationToken cancellationToken = default)
@@ -534,43 +618,6 @@ public class ReadingListService(
     private static ReadingListDto Map(ReadingList l, int BookCount, CardBannerPreview preview) => new(
         l.Id, l.Name, l.Description, l.OwnerUserId, BookCount, l.CreatedAt, preview);
 
-    private Result ApplyReadingListBannerUpdateAsync(
-        int readingListId,
-        ReadingList list,
-        CardHeaderBannerMode mode,
-        IReadOnlyList<int> selectedBookIds,
-        HashSet<int> memberBookIds)
-    {
-        if (mode == CardHeaderBannerMode.UploadedImage && string.IsNullOrEmpty(list.CardBannerImageFileName)
-                                                      && storage.FindCardBannerFilePath(CardBannerSupport.KindReadingLists, readingListId) is null)
-        {
-            return Result.Invalid(new ValidationError(
-                nameof(mode),
-                "Upload a banner image first, or choose another header option."));
-        }
-
-        var normalized = selectedBookIds.Where(memberBookIds.Contains).Take(CardBannerLimits.MaxStripCovers).ToList();
-        if (mode == CardHeaderBannerMode.SelectedBooks && normalized.Count == 0)
-        {
-            return Result.Invalid(new ValidationError(
-                nameof(selectedBookIds),
-                $"Pick up to {CardBannerLimits.MaxStripCovers} books from this reading list for the header."));
-        }
-
-        if (mode != CardHeaderBannerMode.UploadedImage)
-        {
-            storage.DeleteCardBannerFile(CardBannerSupport.KindReadingLists, readingListId);
-            list.CardBannerImageFileName = null;
-        }
-
-        list.CardBannerMode = mode;
-        list.CardBannerBookIdsJson = mode == CardHeaderBannerMode.SelectedBooks
-            ? CardBannerSupport.SerializeBookIds(normalized)
-            : null;
-
-        return Result.Success();
-    }
-
     private async Task<Dictionary<int, List<CardBannerSupport.BookCoverSource>>> LoadReadingListBannerSourcesAsync(
         IReadOnlyList<int> listIds,
         CancellationToken cancellationToken)
@@ -580,31 +627,16 @@ public class ReadingListService(
             return [];
         }
 
-        var rows = (await itemRepository.FindAsync(new SearchOptions<ReadingListItem>
-        {
-            Query = i => listIds.Contains(i.ReadingListId),
-            Include = q => q.Include(i => i.Book),
-            CancellationToken = cancellationToken,
-        })).ToList();
-
-        var dict = new Dictionary<int, List<CardBannerSupport.BookCoverSource>>();
-        foreach (var item in rows)
-        {
-            var b = item.Book;
-            if (b is null || string.IsNullOrEmpty(b.CoverImagePath))
+        // Project across the join to (ReadingListId, BookId, CoverImagePath) — same shape as
+        // CollectionService uses for collections.
+        var rows = await itemRepository.FindAsync(
+            new SearchOptions<ReadingListItem>
             {
-                continue;
-            }
+                Query = i => listIds.Contains(i.ReadingListId),
+                CancellationToken = cancellationToken,
+            },
+            i => new { i.ReadingListId, i.BookId, i.Book.CoverImagePath });
 
-            if (!dict.TryGetValue(item.ReadingListId, out var list))
-            {
-                list = [];
-                dict[item.ReadingListId] = list;
-            }
-
-            list.Add(new CardBannerSupport.BookCoverSource(b.Id));
-        }
-
-        return dict;
+        return CardBannerSupport.GroupCandidates(rows, r => r.ReadingListId, r => r.BookId, r => r.CoverImagePath);
     }
 }

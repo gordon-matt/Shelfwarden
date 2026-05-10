@@ -11,5 +11,9 @@ public interface ITagService
 
     Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>Bulk-deletes the supplied tags (and their book links) in one round-trip.</summary>
+    /// <returns>Number of tags actually removed.</returns>
+    Task<Result<int>> DeleteManyAsync(IReadOnlyCollection<int> ids, CancellationToken cancellationToken = default);
+
     Task<Result> MergeAsync(int targetTagId, IReadOnlyCollection<int> sourceTagIds, CancellationToken cancellationToken = default);
 }

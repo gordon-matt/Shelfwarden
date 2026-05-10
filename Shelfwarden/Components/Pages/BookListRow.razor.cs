@@ -26,29 +26,30 @@ public partial class BookListRow : ComponentBase
     [Parameter]
     public EventCallback<bool> OnSelectionToggled { get; set; }
 
-    private Task HandleRowClickAsync()
-    {
-        if (!SelectionMode || Book is null || !OnSelectionToggled.HasDelegate)
-        {
-            return Task.CompletedTask;
-        }
-
-        return OnSelectionToggled.InvokeAsync(!IsSelected);
-    }
+    private Task HandleRowClickAsync() => !SelectionMode || Book is null || !OnSelectionToggled.HasDelegate
+            ? Task.CompletedTask
+            : OnSelectionToggled.InvokeAsync(!IsSelected);
 
     private static string Truncate(string raw, int max)
     {
         // Strip HTML tags so a description containing inline markup doesn't break the layout
         // or leak partial elements when we cut it short. The detail page still renders full HTML.
-        var plain = System.Text.RegularExpressions.Regex
+        string plain = System.Text.RegularExpressions.Regex
             .Replace(raw, "<.*?>", string.Empty)
             .Replace("&nbsp;", " ", StringComparison.OrdinalIgnoreCase)
             .Trim();
 
-        if (plain.Length <= max) return plain;
+        if (plain.Length <= max)
+        {
+            return plain;
+        }
         // Try to break at a word boundary so we don't slice mid-word.
         int cut = plain.LastIndexOf(' ', max);
-        if (cut < max / 2) cut = max;
+        if (cut < max / 2)
+        {
+            cut = max;
+        }
+
         return plain[..cut].TrimEnd(',', '.', ';', ':') + "…";
     }
 }

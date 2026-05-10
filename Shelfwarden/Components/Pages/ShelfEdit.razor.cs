@@ -9,7 +9,7 @@ public partial class ShelfEdit : ComponentBase
 
     private bool IsCreate => Id is null;
 
-    private ShelfFormModel model = new();
+    private readonly ShelfFormModel model = new();
     private List<string> folders = [string.Empty];
     private string? loadError;
     private string? saveError;
@@ -24,10 +24,7 @@ public partial class ShelfEdit : ComponentBase
     private CardHeaderBannerMode bannerMode = CardHeaderBannerMode.RandomCovers;
     private readonly List<BookListItemDto> bannerSelectedBooks = [];
 
-    protected override async Task OnInitializedAsync()
-    {
-        catalogUsers = await UserInfoService.GetAllUsersAsync();
-    }
+    protected override async Task OnInitializedAsync() => catalogUsers = await UserInfoService.GetAllUsersAsync();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -94,18 +91,15 @@ public partial class ShelfEdit : ComponentBase
             return;
         }
 
-        var result = await BookService.SearchAsync(new BookSearchRequest
-        {
-            ShelfId = shelfId,
-            Page = 1,
-            PageSize = 2000,
-        });
+        // Look up exactly the selected books rather than scanning the whole shelf — the
+        // chip widget needs ~12 entries at most.
+        var result = await BookService.GetListItemsByIdsAsync(ids);
         if (!result.IsSuccess)
         {
             return;
         }
 
-        var byId = result.Value.Items.ToDictionary(b => b.Id);
+        var byId = result.Value.ToDictionary(b => b.Id);
         foreach (int bookId in ids)
         {
             if (byId.TryGetValue(bookId, out var b))
@@ -115,18 +109,6 @@ public partial class ShelfEdit : ComponentBase
         }
     }
 
-    private async Task<IReadOnlyList<BookListItemDto>> SearchBooksOnShelfForBannerAsync(int shelfId, string query)
-    {
-        var result = await BookService.SearchAsync(new BookSearchRequest
-        {
-            ShelfId = shelfId,
-            Query = string.IsNullOrWhiteSpace(query) ? null : query,
-            Page = 1,
-            PageSize = 20,
-        });
-        return result.IsSuccess ? result.Value.Items : [];
-    }
-
     private async Task<IReadOnlyList<BookListItemDto>> SearchBooksOnThisShelfForBannerAsync(string query)
     {
         if (Id is not int sid)
@@ -134,7 +116,14 @@ public partial class ShelfEdit : ComponentBase
             return [];
         }
 
-        return await SearchBooksOnShelfForBannerAsync(sid, query);
+        var result = await BookService.SearchAsync(new BookSearchRequest
+        {
+            ShelfId = sid,
+            Query = string.IsNullOrWhiteSpace(query) ? null : query,
+            Page = 1,
+            PageSize = 20,
+        });
+        return result.IsSuccess ? result.Value.Items : [];
     }
 
     private async Task UploadThisShelfBannerAsync(IBrowserFile file)
@@ -144,7 +133,7 @@ public partial class ShelfEdit : ComponentBase
             return;
         }
 
-        await using Stream s = file.OpenReadStream(2_000_000);
+        await using var s = file.OpenReadStream(2_000_000);
         var result = await ShelfService.UploadCardBannerAsync(sid, s, file.Name, file.Size);
         if (result.IsSuccess)
         {
@@ -184,7 +173,10 @@ public partial class ShelfEdit : ComponentBase
 
     private void RemoveFolder(int index)
     {
-        if (folders.Count > 1) folders.RemoveAt(index);
+        if (folders.Count > 1)
+        {
+            folders.RemoveAt(index);
+        }
     }
 
     private async Task SaveAsync()

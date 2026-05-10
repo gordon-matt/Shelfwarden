@@ -71,28 +71,14 @@ public partial class BulkBookActions : ComponentBase
         busy = true;
         try
         {
-            int ok = 0;
-            int failed = 0;
-            foreach (int bookId in SelectedBookIds)
+            var result = await CollectionService.AddBooksAsync(selectedCollectionId, [.. SelectedBookIds]);
+            if (result.IsSuccess)
             {
-                var r = await CollectionService.AddBookAsync(selectedCollectionId, bookId);
-                if (r.IsSuccess)
-                {
-                    ok++;
-                }
-                else
-                {
-                    failed++;
-                }
-            }
-
-            if (failed > 0 && ok == 0)
-            {
-                bulkActionError = "Could not add books to this collection. You may not have permission.";
+                collectionModalOpen = false;
             }
             else
             {
-                collectionModalOpen = false;
+                bulkActionError = "Could not add books to this collection. You may not have permission.";
             }
         }
         finally
@@ -143,28 +129,14 @@ public partial class BulkBookActions : ComponentBase
         busy = true;
         try
         {
-            int ok = 0;
-            int failed = 0;
-            foreach (int bookId in SelectedBookIds)
+            var result = await ReadingListService.AddBooksAsync(selectedReadingListId, [.. SelectedBookIds]);
+            if (result.IsSuccess)
             {
-                var r = await ReadingListService.AddBookAsync(selectedReadingListId, bookId);
-                if (r.IsSuccess)
-                {
-                    ok++;
-                }
-                else
-                {
-                    failed++;
-                }
-            }
-
-            if (failed > 0 && ok == 0)
-            {
-                bulkActionError = "Could not add books to this list.";
+                readingListModalOpen = false;
             }
             else
             {
-                readingListModalOpen = false;
+                bulkActionError = "Could not add books to this list.";
             }
         }
         finally

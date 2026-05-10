@@ -16,5 +16,9 @@ public interface IGenreService
 
     Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>Bulk-deletes the supplied genres (and their book links) in one round-trip.</summary>
+    /// <returns>Number of genres actually removed.</returns>
+    Task<Result<int>> DeleteManyAsync(IReadOnlyCollection<int> ids, CancellationToken cancellationToken = default);
+
     Task<Result> MergeAsync(int targetGenreId, IReadOnlyCollection<int> sourceGenreIds, CancellationToken cancellationToken = default);
 }

@@ -87,7 +87,7 @@ public class CollectionService(
                     c.CardBannerMode,
                     c.CardBannerImageFileName,
                     c.CardBannerBookIdsJson,
-                    CardBannerSupport.KindCollections,
+                    Constants.CardBannerKinds.Collections,
                     c.Id,
                     bannerSources.GetValueOrDefault(c.Id) ?? [],
                     storage);
@@ -147,7 +147,7 @@ public class CollectionService(
             collection.CardBannerMode,
             collection.CardBannerImageFileName,
             collection.CardBannerBookIdsJson,
-            CardBannerSupport.KindCollections,
+            Constants.CardBannerKinds.Collections,
             collection.Id,
             storage);
 
@@ -191,7 +191,7 @@ public class CollectionService(
             CardHeaderBannerMode.RandomCovers,
             null,
             null,
-            CardBannerSupport.KindCollections,
+            Constants.CardBannerKinds.Collections,
             inserted.Id,
             [],
             storage);
@@ -253,8 +253,17 @@ public class CollectionService(
             new SearchOptions<CollectionBook> { Query = cb => cb.CollectionId == id },
             cb => cb.BookId)).ToHashSet();
 
-        var bannerResult = ApplyCollectionBannerUpdate(
-            id, collection, request.CardBannerMode, request.CardBannerSelectedBookIds, memberIds);
+        var bannerResult = CardBannerSupport.ApplyBannerUpdate(
+            Constants.CardBannerKinds.Collections,
+            id,
+            collection,
+            request.CardBannerMode,
+            request.CardBannerSelectedBookIds,
+            memberIds,
+            storage,
+            modeFieldName: nameof(request.CardBannerMode),
+            selectedBooksFieldName: nameof(request.CardBannerSelectedBookIds),
+            entityNoun: "collection");
         if (!bannerResult.IsSuccess)
         {
             return Result<CollectionDto>.Invalid(bannerResult.ValidationErrors);
@@ -269,7 +278,7 @@ public class CollectionService(
             updated.CardBannerMode,
             updated.CardBannerImageFileName,
             updated.CardBannerBookIdsJson,
-            CardBannerSupport.KindCollections,
+            Constants.CardBannerKinds.Collections,
             updated.Id,
             bannerSources.GetValueOrDefault(id) ?? [],
             storage);
@@ -301,7 +310,7 @@ public class CollectionService(
             return Result.Forbidden();
         }
 
-        storage.DeleteCardBannerFile(CardBannerSupport.KindCollections, id);
+        storage.DeleteCardBannerFile(Constants.CardBannerKinds.Collections, id);
 
         // Cascade delete handles CollectionBook rows on the database side (configured in
         // CollectionBookMap). Just drop the parent.
@@ -359,6 +368,65 @@ public class CollectionService(
             BookId = bookId,
         });
         return Result.Success();
+    }
+
+    public async Task<Result<int>> AddBooksAsync(int collectionId, IReadOnlyCollection<int> bookIds, CancellationToken cancellationToken = default)
+    {
+        string? userId = userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Result.Unauthorized();
+        }
+
+        var distinctBookIds = bookIds.Where(id => id > 0).Distinct().ToList();
+        if (distinctBookIds.Count == 0)
+        {
+            return Result.Success(0);
+        }
+
+        var collection = await collectionRepository.FindOneAsync(new SearchOptions<Collection>
+        {
+            Query = c => c.Id == collectionId,
+            CancellationToken = cancellationToken,
+        });
+        if (collection is null)
+        {
+            return Result.NotFound("Collection not found.");
+        }
+
+        if (!CanModify(collection, userId))
+        {
+            return Result.Forbidden();
+        }
+
+        // Ignore books that don't exist or are already linked — keeps the call idempotent.
+        var existingBookIds = (await bookRepository.FindAsync(
+            new SearchOptions<Book>
+            {
+                Query = b => distinctBookIds.Contains(b.Id),
+                CancellationToken = cancellationToken,
+            },
+            b => b.Id)).ToHashSet();
+
+        var alreadyLinked = (await collectionBookRepository.FindAsync(
+            new SearchOptions<CollectionBook>
+            {
+                Query = cb => cb.CollectionId == collectionId && distinctBookIds.Contains(cb.BookId),
+                CancellationToken = cancellationToken,
+            },
+            cb => cb.BookId)).ToHashSet();
+
+        var toInsert = distinctBookIds
+            .Where(id => existingBookIds.Contains(id) && !alreadyLinked.Contains(id))
+            .Select(id => new CollectionBook { CollectionId = collectionId, BookId = id })
+            .ToList();
+
+        if (toInsert.Count > 0)
+        {
+            await collectionBookRepository.InsertAsync(toInsert);
+        }
+
+        return Result.Success(toInsert.Count);
     }
 
     public async Task<Result> RemoveBookAsync(int collectionId, int bookId, CancellationToken cancellationToken = default)
@@ -458,7 +526,7 @@ public class CollectionService(
 
         ms.Position = 0;
         string relative = await storage.SaveCardBannerFileAsync(
-            CardBannerSupport.KindCollections,
+            Constants.CardBannerKinds.Collections,
             collectionId,
             ms,
             fileName,
@@ -472,44 +540,6 @@ public class CollectionService(
         return Result.Success();
     }
 
-    private Result ApplyCollectionBannerUpdate(
-        int collectionId,
-        Collection collection,
-        CardHeaderBannerMode mode,
-        IReadOnlyList<int> selectedBookIds,
-        HashSet<int> memberBookIds)
-    {
-        if (mode == CardHeaderBannerMode.UploadedImage &&
-            string.IsNullOrEmpty(collection.CardBannerImageFileName) &&
-            storage.FindCardBannerFilePath(CardBannerSupport.KindCollections, collectionId) is null)
-        {
-            return Result.Invalid(new ValidationError(
-                nameof(mode),
-                "Upload a banner image first, or choose another header option."));
-        }
-
-        var normalized = selectedBookIds.Where(memberBookIds.Contains).Take(CardBannerLimits.MaxStripCovers).ToList();
-        if (mode == CardHeaderBannerMode.SelectedBooks && normalized.Count == 0)
-        {
-            return Result.Invalid(new ValidationError(
-                nameof(selectedBookIds),
-                $"Pick up to {CardBannerLimits.MaxStripCovers} books from this collection for the header."));
-        }
-
-        if (mode != CardHeaderBannerMode.UploadedImage)
-        {
-            storage.DeleteCardBannerFile(CardBannerSupport.KindCollections, collectionId);
-            collection.CardBannerImageFileName = null;
-        }
-
-        collection.CardBannerMode = mode;
-        collection.CardBannerBookIdsJson = mode == CardHeaderBannerMode.SelectedBooks
-            ? CardBannerSupport.SerializeBookIds(normalized)
-            : null;
-
-        return Result.Success();
-    }
-
     private async Task<Dictionary<int, List<CardBannerSupport.BookCoverSource>>> LoadCollectionBannerSourcesAsync(
         IReadOnlyList<int> collectionIds,
         CancellationToken cancellationToken)
@@ -519,31 +549,16 @@ public class CollectionService(
             return [];
         }
 
-        var rows = (await collectionBookRepository.FindAsync(new SearchOptions<CollectionBook>
-        {
-            Query = cb => collectionIds.Contains(cb.CollectionId),
-            Include = q => q.Include(cb => cb.Book),
-            CancellationToken = cancellationToken,
-        })).ToList();
-
-        var dict = new Dictionary<int, List<CardBannerSupport.BookCoverSource>>();
-        foreach (var cb in rows)
-        {
-            var b = cb.Book;
-            if (b is null || string.IsNullOrEmpty(b.CoverImagePath))
+        // Project across the join to (CollectionId, BookId, CoverImagePath) so we don't pull
+        // entire CollectionBook + Book entities just for cover refs.
+        var rows = await collectionBookRepository.FindAsync(
+            new SearchOptions<CollectionBook>
             {
-                continue;
-            }
+                Query = cb => collectionIds.Contains(cb.CollectionId),
+                CancellationToken = cancellationToken,
+            },
+            cb => new { cb.CollectionId, cb.BookId, cb.Book.CoverImagePath });
 
-            if (!dict.TryGetValue(cb.CollectionId, out var list))
-            {
-                list = [];
-                dict[cb.CollectionId] = list;
-            }
-
-            list.Add(new CardBannerSupport.BookCoverSource(b.Id));
-        }
-
-        return dict;
+        return CardBannerSupport.GroupCandidates(rows, r => r.CollectionId, r => r.BookId, r => r.CoverImagePath);
     }
 }

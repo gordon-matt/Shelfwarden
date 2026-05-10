@@ -14,10 +14,7 @@ public partial class SeriesIndex : ComponentBase
     private string? renameError;
     private bool renameSaving;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
@@ -26,7 +23,10 @@ public partial class SeriesIndex : ComponentBase
         var token = searchCts.Token;
 
         var result = await SeriesService.ListAsync(query, token);
-        if (token.IsCancellationRequested) return;
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
 
         series = result.IsSuccess ? result.Value : [];
     }
@@ -45,7 +45,11 @@ public partial class SeriesIndex : ComponentBase
         try
         {
             await Task.Delay(250, token);
-            if (token.IsCancellationRequested) return;
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
             await LoadAsync();
         }
         catch (TaskCanceledException) { }
@@ -94,7 +98,10 @@ public partial class SeriesIndex : ComponentBase
         bool ok = await JS.InvokeAsync<bool>(
             "confirm",
             $"Delete series \"{s.Name}\"? Books stay in the library but are removed from this series.");
-        if (!ok) return;
+        if (!ok)
+        {
+            return;
+        }
 
         var result = await SeriesService.DeleteAsync(s.Id);
         if (result.IsSuccess)

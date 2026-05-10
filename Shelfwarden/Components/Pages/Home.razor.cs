@@ -7,16 +7,11 @@ public partial class Home : ComponentBase
     protected override async Task OnInitializedAsync()
     {
         var result = await DashboardService.GetAsync();
-        if (result.IsSuccess)
-        {
-            dashboard = result.Value;
-        }
-        else
-        {
-            dashboard = new DashboardDto(
+        dashboard = result.IsSuccess
+            ? result.Value
+            : new DashboardDto(
                 new DashboardStatsDto(0, 0, 0, 0, 0),
                 [],
                 []);
-        }
     }
 }

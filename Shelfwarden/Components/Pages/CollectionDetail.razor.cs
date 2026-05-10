@@ -53,9 +53,9 @@ public partial class CollectionDetail : ComponentBase
                 Description = collection.Description,
                 IsGlobal = collection.IsGlobal,
             };
-            bannerMode = collection.CardBanner.Mode;
+            bannerMode = collection.BannerSettings.Mode;
             bannerSelectedBooks.Clear();
-            foreach (int bid in collection.CardBanner.SelectedBookIds)
+            foreach (int bid in collection.BannerSettings.SelectedBookIds)
             {
                 var b = collection.Books.FirstOrDefault(x => x.Id == bid);
                 if (b is not null)
@@ -134,7 +134,10 @@ public partial class CollectionDetail : ComponentBase
                 Page = 1,
                 PageSize = 8,
             }, token);
-            if (token.IsCancellationRequested) return;
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
 
             // Filter out books already in the collection so the user doesn't try to re-add them.
             var existing = collection?.Books.Select(b => b.Id).ToHashSet() ?? [];
@@ -172,18 +175,31 @@ public partial class CollectionDetail : ComponentBase
 
     private void ToggleSelection(int bookId, bool include)
     {
-        if (include) selectedBookIds.Add(bookId);
-        else selectedBookIds.Remove(bookId);
+        if (include)
+        {
+            selectedBookIds.Add(bookId);
+        }
+        else
+        {
+            selectedBookIds.Remove(bookId);
+        }
     }
 
     private void SelectAllVisible()
     {
-        foreach (var b in FilteredBooks) selectedBookIds.Add(b.Id);
+        foreach (var b in FilteredBooks)
+        {
+            selectedBookIds.Add(b.Id);
+        }
     }
 
     private void SelectAllMatching()
     {
-        if (collection is null || !CanSelectAllMatching) return;
+        if (collection is null || !CanSelectAllMatching)
+        {
+            return;
+        }
+
         foreach (var b in collection.Books.Where(b => BookListLetterFilter.MatchesTitleOrSortTitle(b, startsWithFilter)))
         {
             selectedBookIds.Add(b.Id);
@@ -194,7 +210,11 @@ public partial class CollectionDetail : ComponentBase
 
     private void GoToBatchEdit()
     {
-        if (selectedBookIds.Count == 0) return;
+        if (selectedBookIds.Count == 0)
+        {
+            return;
+        }
+
         string ids = string.Join(',', selectedBookIds.Order());
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=collections/{Id}");
     }
@@ -213,7 +233,7 @@ public partial class CollectionDetail : ComponentBase
 
     private async Task UploadCollectionBannerAsync(IBrowserFile file)
     {
-        await using Stream s = file.OpenReadStream(2_000_000);
+        await using var s = file.OpenReadStream(2_000_000);
         var result = await CollectionService.UploadCardBannerAsync(Id, s, file.Name, file.Size);
         if (result.IsSuccess)
         {

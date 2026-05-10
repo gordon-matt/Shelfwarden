@@ -20,6 +20,10 @@ public interface IReadingListService
     /// <summary>Appends a book at the end of the list. Returns Conflict if it's already present.</summary>
     Task<Result> AddBookAsync(int readingListId, int bookId, CancellationToken cancellationToken = default);
 
+    /// <summary>Bulk variant of <see cref="AddBookAsync"/>. Books already in the list are skipped silently.</summary>
+    /// <returns>Number of brand-new entries appended.</returns>
+    Task<Result<int>> AddBooksAsync(int readingListId, IReadOnlyCollection<int> bookIds, CancellationToken cancellationToken = default);
+
     Task<Result> RemoveBookAsync(int readingListId, int bookId, CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -87,7 +87,11 @@ public partial class ShelfDetail : ComponentBase
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(1.5), token);
-                if (token.IsCancellationRequested) break;
+                if (token.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 await RefreshScanIndicatorAsync(token);
             }
             catch (TaskCanceledException)
@@ -100,7 +104,10 @@ public partial class ShelfDetail : ComponentBase
     private async Task RefreshScanIndicatorAsync(CancellationToken cancellationToken)
     {
         var statusResult = await ScanStatusService.GetForShelfAsync(Id, cancellationToken);
-        if (!statusResult.IsSuccess) return;
+        if (!statusResult.IsSuccess)
+        {
+            return;
+        }
 
         var status = statusResult.Value;
         bool optimisticBusy = optimisticBusyUntilUtc is { } until && until > DateTime.UtcNow;
@@ -142,13 +149,22 @@ public partial class ShelfDetail : ComponentBase
 
     private void ToggleSelection(int id, bool include)
     {
-        if (include) selectedBookIds.Add(id);
-        else selectedBookIds.Remove(id);
+        if (include)
+        {
+            selectedBookIds.Add(id);
+        }
+        else
+        {
+            selectedBookIds.Remove(id);
+        }
     }
 
     private void SelectAllVisible()
     {
-        foreach (var b in books) selectedBookIds.Add(b.Id);
+        foreach (var b in books)
+        {
+            selectedBookIds.Add(b.Id);
+        }
     }
 
     private async Task SelectAllMatchingAsync()
@@ -203,7 +219,11 @@ public partial class ShelfDetail : ComponentBase
 
     private void GoToBatchEdit()
     {
-        if (selectedBookIds.Count == 0) return;
+        if (selectedBookIds.Count == 0)
+        {
+            return;
+        }
+
         string ids = string.Join(',', selectedBookIds);
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=shelves/{Id}");
     }
@@ -219,7 +239,7 @@ public partial class ShelfDetail : ComponentBase
     [JSInvokable]
     public async Task LoadMoreBooksAsync()
     {
-        if (isLoadingMoreBooks || !hasMoreBooks && pageNumber > 1 || shelf is null)
+        if (isLoadingMoreBooks || (!hasMoreBooks && pageNumber > 1) || shelf is null)
         {
             return;
         }

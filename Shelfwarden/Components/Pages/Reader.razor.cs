@@ -102,23 +102,30 @@ public partial class Reader : ComponentBase
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (book is null || jsMounted) return;
+        if (book is null || jsMounted)
+        {
+            return;
+        }
 
         // Nothing to mount for unsupported formats — mark complete so we don't re-enter forever.
-        if (book.FileFormat != EbookFormat.Epub && book.FileFormat != EbookFormat.Pdf)
+        if (book.FileFormat is not EbookFormat.Epub and not EbookFormat.Pdf)
         {
             jsMounted = true;
             return;
         }
 
-        var fileUrl = $"/files/{Id}";
+        string fileUrl = $"/files/{Id}";
 
         try
         {
             if (book.FileFormat == EbookFormat.Epub)
+            {
                 await MountEpubAsync(fileUrl);
+            }
             else
+            {
                 await MountPdfAsync(fileUrl);
+            }
 
             jsMounted = true;
         }
@@ -180,9 +187,13 @@ public partial class Reader : ComponentBase
         try
         {
             if (args.Length == 0)
+            {
                 await JS.InvokeVoidAsync($"shelfwardenReader.{method}");
+            }
             else
+            {
                 await JS.InvokeVoidAsync($"shelfwardenReader.{method}", args);
+            }
         }
         catch (JSDisconnectedException) { }
     }
@@ -208,16 +219,34 @@ public partial class Reader : ComponentBase
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Home") await GoToFirstPageAsync();
-        else if (e.Key == "ArrowLeft") await PrevPage();
-        else if (e.Key == "ArrowRight") await NextPage();
+        if (e.Key == "Home")
+        {
+            await GoToFirstPageAsync();
+        }
+        else if (e.Key == "ArrowLeft")
+        {
+            await PrevPage();
+        }
+        else if (e.Key == "ArrowRight")
+        {
+            await NextPage();
+        }
     }
 
     private async Task HandlePdfKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Home") await GoToFirstPageAsync();
-        else if (e.Key == "ArrowLeft" || e.Key == "PageUp") await PrevPdfPage();
-        else if (e.Key == "ArrowRight" || e.Key == "PageDown") await NextPdfPage();
+        if (e.Key == "Home")
+        {
+            await GoToFirstPageAsync();
+        }
+        else if (e.Key is "ArrowLeft" or "PageUp")
+        {
+            await PrevPdfPage();
+        }
+        else if (e.Key is "ArrowRight" or "PageDown")
+        {
+            await NextPdfPage();
+        }
     }
 
     private record PdfMountResult(int PageCount);
@@ -240,7 +269,10 @@ public partial class Reader : ComponentBase
 
         progressPercent = percentage;
         lastSavedCfi = cfi;
-        if (page.HasValue) pdfCurrentPage = page.Value;
+        if (page.HasValue)
+        {
+            pdfCurrentPage = page.Value;
+        }
 
         var result = await BookService.SaveProgressAsync(Id, new SaveProgressRequest
         {
@@ -263,7 +295,11 @@ public partial class Reader : ComponentBase
 
     private async Task AddBookmarkAsync()
     {
-        if (book is null) return;
+        if (book is null)
+        {
+            return;
+        }
+
         bookmarkError = null;
 
         // EPUB: ask the renderer for the current spot. Fall back to the last CFI we saved
@@ -324,11 +360,20 @@ public partial class Reader : ComponentBase
 
     private async Task GotoBookmarkAsync(BookmarkDto bm)
     {
-        if (book is null) return;
+        if (book is null)
+        {
+            return;
+        }
+
         if (book.FileFormat == EbookFormat.Epub && !string.IsNullOrEmpty(bm.Location))
+        {
             await InvokeReaderAsync("gotoEpub", bm.Location);
+        }
         else if (book.FileFormat == EbookFormat.Pdf && bm.PageNumber.HasValue)
+        {
             await InvokeReaderAsync("gotoPdfPage", bm.PageNumber.Value);
+        }
+
         showBookmarks = false;
     }
 
@@ -349,14 +394,12 @@ public partial class Reader : ComponentBase
     private static string FormatRelative(DateTime utc)
     {
         var delta = DateTime.UtcNow - utc;
-        if (delta < TimeSpan.FromSeconds(5)) return "just now";
-        if (delta < TimeSpan.FromMinutes(1)) return $"{(int)delta.TotalSeconds}s ago";
-        if (delta < TimeSpan.FromHours(1)) return $"{(int)delta.TotalMinutes}m ago";
-        return utc.ToLocalTime().ToString("HH:mm");
+        return delta < TimeSpan.FromSeconds(5)
+            ? "just now"
+            : delta < TimeSpan.FromMinutes(1)
+            ? $"{(int)delta.TotalSeconds}s ago"
+            : delta < TimeSpan.FromHours(1) ? $"{(int)delta.TotalMinutes}m ago" : utc.ToLocalTime().ToString("HH:mm");
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await TearDownReaderInteropAsync();
-    }
+    public async ValueTask DisposeAsync() => await TearDownReaderInteropAsync();
 }

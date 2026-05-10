@@ -73,7 +73,10 @@ public partial class BookCard : ComponentBase
 
     private async Task ToggleReadAsync()
     {
-        if (Book is null || isUpdatingProgress) return;
+        if (Book is null || isUpdatingProgress)
+        {
+            return;
+        }
 
         isUpdatingProgress = true;
         try
@@ -105,21 +108,20 @@ public partial class BookCard : ComponentBase
 
     private Task NotifyBookChangedAsync(double newPercentage)
     {
-        if (Book is null || !OnBookChanged.HasDelegate) return Task.CompletedTask;
-        var updated = Book with { ProgressPercentage = newPercentage };
-        return OnBookChanged.InvokeAsync(updated);
-    }
-
-    private Task HandleCardClickAsync()
-    {
-        // When SelectionMode is off, `@onclick:preventDefault` is false and the anchor's
-        // href takes over — nothing to do here. When SelectionMode is on, preventDefault is
-        // active so the browser won't navigate; we just flip the selection.
-        if (!SelectionMode || Book is null || !OnSelectionToggled.HasDelegate)
+        if (Book is null || !OnBookChanged.HasDelegate)
         {
             return Task.CompletedTask;
         }
 
-        return OnSelectionToggled.InvokeAsync(!IsSelected);
+        var updated = Book with { ProgressPercentage = newPercentage };
+        return OnBookChanged.InvokeAsync(updated);
     }
+
+    private Task HandleCardClickAsync() =>
+        // When SelectionMode is off, `@onclick:preventDefault` is false and the anchor's
+        // href takes over — nothing to do here. When SelectionMode is on, preventDefault is
+        // active so the browser won't navigate; we just flip the selection.
+        !SelectionMode || Book is null || !OnSelectionToggled.HasDelegate
+            ? Task.CompletedTask
+            : OnSelectionToggled.InvokeAsync(!IsSelected);
 }

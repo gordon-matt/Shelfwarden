@@ -34,34 +34,51 @@ public partial class AuthorDetail : ComponentBase
     private void ToggleSelectMode()
     {
         selectMode = !selectMode;
-        if (!selectMode) selectedBookIds.Clear();
+        if (!selectMode)
+        {
+            selectedBookIds.Clear();
+        }
     }
 
     private void ToggleSelection(int id, bool include)
     {
-        if (include) selectedBookIds.Add(id);
-        else selectedBookIds.Remove(id);
+        if (include)
+        {
+            selectedBookIds.Add(id);
+        }
+        else
+        {
+            selectedBookIds.Remove(id);
+        }
     }
 
     private void SelectAll()
     {
-        if (author is null) return;
-        foreach (var b in author.StandaloneBooks) selectedBookIds.Add(b.Id);
+        if (author is null)
+        {
+            return;
+        }
+
+        foreach (var b in author.StandaloneBooks)
+        {
+            selectedBookIds.Add(b.Id);
+        }
     }
 
     private void ClearSelection() => selectedBookIds.Clear();
 
     private void GoToBatchEdit()
     {
-        if (selectedBookIds.Count == 0) return;
+        if (selectedBookIds.Count == 0)
+        {
+            return;
+        }
+
         string ids = string.Join(',', selectedBookIds);
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=authors/{Id}");
     }
 
-    private void OpenAuthorEditModal()
-    {
-        isAuthorEditModalOpen = true;
-    }
+    private void OpenAuthorEditModal() => isAuthorEditModalOpen = true;
 
     private Task CloseAuthorEditModalAsync()
     {

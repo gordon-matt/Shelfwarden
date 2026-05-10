@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Components;
-
 namespace Shelfwarden.Components.Shared;
 
 public partial class BatchChipMode : ComponentBase
@@ -9,8 +7,15 @@ public partial class BatchChipMode : ComponentBase
 
     private async Task Set(ChipApplyMode mode)
     {
-        if (Mode == mode) return;
+        if (Mode == mode)
+        {
+            return;
+        }
+
         Mode = mode;
-        if (ModeChanged.HasDelegate) await ModeChanged.InvokeAsync(mode);
+        if (ModeChanged.HasDelegate)
+        {
+            await ModeChanged.InvokeAsync(mode);
+        }
     }
 }

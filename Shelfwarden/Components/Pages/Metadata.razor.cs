@@ -29,10 +29,7 @@ public partial class Metadata : ComponentBase
     private int tagMergeTargetId;
     private List<TagDto> tagMergeCandidates = [];
 
-    protected override async Task OnInitializedAsync()
-    {
-        await Task.WhenAll(LoadGenresAsync(), LoadTagsAsync());
-    }
+    protected override async Task OnInitializedAsync() => await Task.WhenAll(LoadGenresAsync(), LoadTagsAsync());
 
     private void SetTab(MetadataTab tab)
     {
@@ -110,14 +107,26 @@ public partial class Metadata : ComponentBase
 
     private void ToggleGenreSelection(int genreId, bool include)
     {
-        if (include) selectedGenreIds.Add(genreId);
-        else selectedGenreIds.Remove(genreId);
+        if (include)
+        {
+            selectedGenreIds.Add(genreId);
+        }
+        else
+        {
+            selectedGenreIds.Remove(genreId);
+        }
     }
 
     private void ToggleTagSelection(int tagId, bool include)
     {
-        if (include) selectedTagIds.Add(tagId);
-        else selectedTagIds.Remove(tagId);
+        if (include)
+        {
+            selectedTagIds.Add(tagId);
+        }
+        else
+        {
+            selectedTagIds.Remove(tagId);
+        }
     }
 
     private void ClearGenreSelection() => selectedGenreIds.Clear();
@@ -250,14 +259,11 @@ public partial class Metadata : ComponentBase
             return;
         }
 
-        foreach (int id in selectedGenreIds.ToList())
+        var result = await GenreService.DeleteManyAsync(selectedGenreIds.ToList());
+        if (!result.IsSuccess)
         {
-            var result = await GenreService.DeleteAsync(id);
-            if (!result.IsSuccess)
-            {
-                error = FormatResult(result);
-                return;
-            }
+            error = FormatResult(result);
+            return;
         }
 
         selectedGenreIds.Clear();
@@ -277,14 +283,11 @@ public partial class Metadata : ComponentBase
             return;
         }
 
-        foreach (int id in selectedTagIds.ToList())
+        var result = await TagService.DeleteManyAsync(selectedTagIds.ToList());
+        if (!result.IsSuccess)
         {
-            var result = await TagService.DeleteAsync(id);
-            if (!result.IsSuccess)
-            {
-                error = FormatResult(result);
-                return;
-            }
+            error = FormatResult(result);
+            return;
         }
 
         selectedTagIds.Clear();
@@ -408,23 +411,11 @@ public partial class Metadata : ComponentBase
         await LoadTagsAsync();
     }
 
-    private static string FormatResult(Ardalis.Result.Result result)
-    {
-        if (result.ValidationErrors is not null && result.ValidationErrors.Any())
-        {
-            return string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage));
-        }
+    private static string FormatResult(Ardalis.Result.Result result) => result.ValidationErrors is not null && result.ValidationErrors.Any()
+            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
+            : string.Join(" ", result.Errors);
 
-        return string.Join(" ", result.Errors);
-    }
-
-    private static string FormatResult<T>(Ardalis.Result.Result<T> result)
-    {
-        if (result.ValidationErrors is not null && result.ValidationErrors.Any())
-        {
-            return string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage));
-        }
-
-        return string.Join(" ", result.Errors);
-    }
+    private static string FormatResult<T>(Ardalis.Result.Result<T> result) => result.ValidationErrors is not null && result.ValidationErrors.Any()
+            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
+            : string.Join(" ", result.Errors);
 }

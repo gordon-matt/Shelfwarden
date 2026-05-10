@@ -247,6 +247,46 @@ public class BookService(
         return Result.Success(result);
     }
 
+    public async Task<Result<IReadOnlyList<BookListItemDto>>> GetListItemsByIdsAsync(
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken = default)
+    {
+        var distinctIds = ids.Where(i => i > 0).Distinct().ToList();
+        if (distinctIds.Count == 0)
+        {
+            return Result.Success<IReadOnlyList<BookListItemDto>>([]);
+        }
+
+        var accessibleShelves = await shelfAccessService.GetAccessibleShelfIdsAsync(cancellationToken);
+
+        var query = new SearchOptions<Book>
+        {
+            Query = accessibleShelves is null
+                ? b => distinctIds.Contains(b.Id)
+                : b => distinctIds.Contains(b.Id) && accessibleShelves.Contains(b.ShelfId),
+            Include = q => q
+                .Include(b => b.Series)
+                .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
+            SplitQuery = true,
+            CancellationToken = cancellationToken,
+        };
+
+        var books = (await bookRepository.FindAsync(query)).ToList();
+        if (books.Count == 0)
+        {
+            return Result.Success<IReadOnlyList<BookListItemDto>>([]);
+        }
+
+        string? userId = userContext.GetCurrentUserId();
+        var progress = await BookProjections.LoadProgressPercentagesAsync(
+            progressRepository, userId, books.Select(b => b.Id).ToList(), cancellationToken);
+
+        IReadOnlyList<BookListItemDto> items = books
+            .Select(b => BookProjections.ToListItem(b, progress.GetValueOrDefault(b.Id, 0)))
+            .ToList();
+        return Result.Success(items);
+    }
+
     public async Task<Result<BookDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
         var book = await bookRepository.FindOneAsync(new SearchOptions<Book>

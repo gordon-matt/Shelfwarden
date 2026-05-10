@@ -234,18 +234,32 @@ public class GenreService(
             .Select(j => j.BookId)
             .ToHashSet();
 
+        // Partition source rows: any source-genre row whose BookId is already linked to the
+        // target is a duplicate (delete); the rest get re-pointed to the target. Doing this in
+        // bulk avoids one round-trip per join row.
         var sourceJoins = joins.Where(j => sourceIds.Contains(j.GenreId)).ToList();
+        var toDelete = new List<BookGenre>();
+        var toRepoint = new List<BookGenre>();
         foreach (var join in sourceJoins)
         {
-            if (targetBookIds.Contains(join.BookId))
+            if (!targetBookIds.Add(join.BookId))
             {
-                await bookGenreRepository.DeleteAsync(join);
+                toDelete.Add(join);
                 continue;
             }
 
             join.GenreId = targetGenreId;
-            await bookGenreRepository.UpdateAsync(join);
-            targetBookIds.Add(join.BookId);
+            toRepoint.Add(join);
+        }
+
+        if (toDelete.Count > 0)
+        {
+            await bookGenreRepository.DeleteAsync(toDelete);
+        }
+
+        if (toRepoint.Count > 0)
+        {
+            await bookGenreRepository.UpdateAsync(toRepoint);
         }
 
         var sources = await genreRepository.FindAsync(new SearchOptions<Genre>
@@ -259,5 +273,39 @@ public class GenreService(
         }
 
         return Result.Success();
+    }
+
+    public async Task<Result<int>> DeleteManyAsync(IReadOnlyCollection<int> ids, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var distinctIds = ids.Where(i => i > 0).Distinct().ToList();
+        if (distinctIds.Count == 0)
+        {
+            return Result.Success(0);
+        }
+
+        var entities = (await genreRepository.FindAsync(new SearchOptions<Genre>
+        {
+            Query = g => distinctIds.Contains(g.Id),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        if (entities.Count == 0)
+        {
+            return Result.Success(0);
+        }
+
+        // Cascade is configured in the entity map but EF still wants the joins removed when
+        // we use a hard delete on the principal — drop them explicitly so the operation
+        // succeeds across providers regardless of cascade configuration.
+        var joinIds = entities.Select(g => g.Id).ToList();
+        await bookGenreRepository.DeleteAsync(bg => joinIds.Contains(bg.GenreId));
+        await genreRepository.DeleteAsync(entities);
+
+        return Result.Success(entities.Count);
     }
 }

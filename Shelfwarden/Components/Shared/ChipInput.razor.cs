@@ -73,7 +73,10 @@ public partial class ChipInput<TItem> : ComponentBase
             // Allow a 150ms breath so we're not hammering the backend on every keystroke.
             await Task.Delay(150, token);
             var results = await SearchAsync(input ?? string.Empty);
-            if (token.IsCancellationRequested) return;
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
 
             // Drop anything already selected — exact case-insensitive match on name.
             var selectedNames = Selected.Select(NameOf).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -85,7 +88,10 @@ public partial class ChipInput<TItem> : ComponentBase
 
     private async Task CommitAsync(string name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
 
         // Skip duplicates (case-insensitive).
         if (Selected.Any(s => string.Equals(NameOf(s), name, StringComparison.OrdinalIgnoreCase)))
@@ -97,12 +103,18 @@ public partial class ChipInput<TItem> : ComponentBase
         await OnAddAsync(name);
         input = string.Empty;
         suggestions = [];
-        if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+        if (OnChanged.HasDelegate)
+        {
+            await OnChanged.InvokeAsync();
+        }
     }
 
     private async Task RemoveAsync(TItem item)
     {
         Selected.Remove(item);
-        if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+        if (OnChanged.HasDelegate)
+        {
+            await OnChanged.InvokeAsync();
+        }
     }
 }

@@ -61,7 +61,10 @@ public partial class Authors : ComponentBase
         var unknownTask = AuthorService.GetBooksWithoutAuthorsCountAsync(shelfFilter, token);
         await Task.WhenAll(listTask, unknownTask);
 
-        if (token.IsCancellationRequested) return;
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
 
         var lr = await listTask;
         var ur = await unknownTask;
@@ -83,7 +86,11 @@ public partial class Authors : ComponentBase
         try
         {
             await Task.Delay(250, token);
-            if (token.IsCancellationRequested) return;
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
             await LoadAsync();
         }
         catch (TaskCanceledException) { }
@@ -92,32 +99,55 @@ public partial class Authors : ComponentBase
     private void ToggleSelectMode()
     {
         selectMode = !selectMode;
-        if (!selectMode) selectedAuthorIds.Clear();
+        if (!selectMode)
+        {
+            selectedAuthorIds.Clear();
+        }
     }
 
     private void ToggleSelection(int authorId, bool include)
     {
-        if (include) selectedAuthorIds.Add(authorId);
-        else selectedAuthorIds.Remove(authorId);
+        if (include)
+        {
+            selectedAuthorIds.Add(authorId);
+        }
+        else
+        {
+            selectedAuthorIds.Remove(authorId);
+        }
     }
 
     private void SelectAllListed()
     {
-        if (authors is null) return;
-        foreach (var a in authors) selectedAuthorIds.Add(a.Id);
+        if (authors is null)
+        {
+            return;
+        }
+
+        foreach (var a in authors)
+        {
+            selectedAuthorIds.Add(a.Id);
+        }
     }
 
     private void ClearSelection() => selectedAuthorIds.Clear();
 
     private void HandleAuthorTileClick(int authorId)
     {
-        if (!selectMode) return;
+        if (!selectMode)
+        {
+            return;
+        }
+
         ToggleSelection(authorId, !selectedAuthorIds.Contains(authorId));
     }
 
     private async Task DeleteSelectedAsync()
     {
-        if (selectedAuthorIds.Count == 0) return;
+        if (selectedAuthorIds.Count == 0)
+        {
+            return;
+        }
 
         int n = selectedAuthorIds.Count;
         if (!await JSRuntime.InvokeAsync<bool>(
@@ -166,7 +196,10 @@ public partial class Authors : ComponentBase
 
     private async Task ConfirmMergeAsync()
     {
-        if (mergeCandidates.Count < 2) return;
+        if (mergeCandidates.Count < 2)
+        {
+            return;
+        }
 
         string primaryName = mergeCandidates.FirstOrDefault(c => c.Id == mergePrimaryAuthorId)?.Name ?? "Primary";
         var others = mergeCandidates.Where(c => c.Id != mergePrimaryAuthorId).Select(c => c.Id).ToList();

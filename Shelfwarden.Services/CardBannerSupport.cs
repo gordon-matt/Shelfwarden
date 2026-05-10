@@ -3,12 +3,13 @@ using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
 
+/// <summary>
+/// Tile / card header banner helpers, shared by <see cref="ShelfService"/>,
+/// <see cref="CollectionService"/> and <see cref="ReadingListService"/>. Centralises the
+/// validate-and-apply flow plus the (de)serialisation of selected book ids.
+/// </summary>
 internal static class CardBannerSupport
 {
-    internal const string KindShelves = "shelves";
-    internal const string KindCollections = "collections";
-    internal const string KindReadingLists = "reading-lists";
-
     private static readonly JsonSerializerOptions JsonOptions = new();
 
     internal readonly record struct BookCoverSource(int BookId);
@@ -87,6 +88,101 @@ internal static class CardBannerSupport
              || storage.FindCardBannerFilePath(urlKind, entityId) is not null);
 
         return new CardBannerSettingsDto(mode, ids, hasFile);
+    }
+
+    /// <summary>
+    /// Validates the supplied banner mode + selected book ids against the entity's current
+    /// state and (when valid) writes the result back onto <paramref name="owner"/>.
+    /// </summary>
+    /// <param name="kind">One of the Kind* constants (controls where files are stored).</param>
+    /// <param name="entityId">Id of the entity being updated. Used for file path lookups.</param>
+    /// <param name="owner">The entity (mutated in place when validation passes).</param>
+    /// <param name="mode">The banner mode the caller wants to switch to.</param>
+    /// <param name="selectedBookIds">Book ids the caller wants on the strip when <paramref name="mode"/> is <see cref="CardHeaderBannerMode.SelectedBooks"/>.</param>
+    /// <param name="memberBookIds">Books actually inside the entity right now — selections outside this set are silently dropped.</param>
+    /// <param name="storage">Storage provider for locating / deleting uploaded images.</param>
+    /// <param name="modeFieldName">Field name for validation errors targeting <paramref name="mode"/>.</param>
+    /// <param name="selectedBooksFieldName">Field name for validation errors targeting <paramref name="selectedBookIds"/>.</param>
+    /// <param name="entityNoun">Human-friendly noun ("shelf" / "collection" / "reading list") used in error text.</param>
+    internal static Result ApplyBannerUpdate(
+        string kind,
+        int entityId,
+        ICardBannerOwner owner,
+        CardHeaderBannerMode mode,
+        IReadOnlyList<int> selectedBookIds,
+        HashSet<int> memberBookIds,
+        IStoragePathProvider storage,
+        string modeFieldName,
+        string selectedBooksFieldName,
+        string entityNoun)
+    {
+        // Switching to "uploaded image" only makes sense if there is — or has ever been — an
+        // uploaded file. Otherwise the user would land on a blank tile with nothing to show.
+        if (mode == CardHeaderBannerMode.UploadedImage
+            && string.IsNullOrEmpty(owner.CardBannerImageFileName)
+            && storage.FindCardBannerFilePath(kind, entityId) is null)
+        {
+            return Result.Invalid(new ValidationError(
+                modeFieldName,
+                "Upload a banner image first, or choose another header option."));
+        }
+
+        var normalized = selectedBookIds.Where(memberBookIds.Contains).Take(CardBannerLimits.MaxStripCovers).ToList();
+        if (mode == CardHeaderBannerMode.SelectedBooks && normalized.Count == 0)
+        {
+            return Result.Invalid(new ValidationError(
+                selectedBooksFieldName,
+                $"Pick up to {CardBannerLimits.MaxStripCovers} books from this {entityNoun} for the header."));
+        }
+
+        if (mode != CardHeaderBannerMode.UploadedImage)
+        {
+            // Switching away from the uploaded image — clean up the file so we don't leak it
+            // on disk and so a future "upload" radio click forces a fresh upload.
+            storage.DeleteCardBannerFile(kind, entityId);
+            owner.CardBannerImageFileName = null;
+        }
+
+        owner.CardBannerMode = mode;
+        owner.CardBannerBookIdsJson = mode == CardHeaderBannerMode.SelectedBooks
+            ? SerializeBookIds(normalized)
+            : null;
+
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Groups <paramref name="rows"/> by the <paramref name="ownerKey"/> selector into the
+    /// shape <see cref="BuildPreview"/> wants for the candidates parameter. Callers fetch the
+    /// raw rows however they like (single book query for shelves, joined queries for
+    /// collections / reading lists).
+    /// </summary>
+    internal static Dictionary<int, List<BookCoverSource>> GroupCandidates<TRow>(
+        IEnumerable<TRow> rows,
+        Func<TRow, int> ownerKey,
+        Func<TRow, int> bookIdSelector,
+        Func<TRow, string?> coverPathSelector)
+    {
+        var dict = new Dictionary<int, List<BookCoverSource>>();
+        foreach (var row in rows)
+        {
+            string? coverPath = coverPathSelector(row);
+            if (string.IsNullOrEmpty(coverPath))
+            {
+                continue;
+            }
+
+            int key = ownerKey(row);
+            if (!dict.TryGetValue(key, out var list))
+            {
+                list = [];
+                dict[key] = list;
+            }
+
+            list.Add(new BookCoverSource(bookIdSelector(row)));
+        }
+
+        return dict;
     }
 
     private static IReadOnlyList<BookCoverRefDto> BuildSelectedCovers(

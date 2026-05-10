@@ -1,6 +1,3 @@
-using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Forms;
-
 namespace Shelfwarden.Components.Shared;
 
 public partial class AuthorProfileModal : ComponentBase
@@ -174,7 +171,11 @@ public partial class AuthorProfileModal : ComponentBase
 
     private void StartImportConfirmation()
     {
-        if (pendingMatchSelection is null) return;
+        if (pendingMatchSelection is null)
+        {
+            return;
+        }
+
         isAwaitingImportConfirmation = true;
     }
 
@@ -209,8 +210,5 @@ public partial class AuthorProfileModal : ComponentBase
         }
     }
 
-    private async Task CloseAsync()
-    {
-        await OnClose.InvokeAsync();
-    }
+    private async Task CloseAsync() => await OnClose.InvokeAsync();
 }

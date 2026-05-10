@@ -24,6 +24,10 @@ public interface ICollectionService
 
     Task<Result> AddBookAsync(int collectionId, int bookId, CancellationToken cancellationToken = default);
 
+    /// <summary>Bulk variant of <see cref="AddBookAsync"/>. Books already in the collection are skipped silently.</summary>
+    /// <returns>Number of brand-new associations created.</returns>
+    Task<Result<int>> AddBooksAsync(int collectionId, IReadOnlyCollection<int> bookIds, CancellationToken cancellationToken = default);
+
     Task<Result> RemoveBookAsync(int collectionId, int bookId, CancellationToken cancellationToken = default);
 
     Task<Result> UploadCardBannerAsync(

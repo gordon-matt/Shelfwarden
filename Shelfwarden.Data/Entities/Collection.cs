@@ -1,12 +1,10 @@
-using Shelfwarden.Models;
-
 namespace Shelfwarden.Data.Entities;
 
 /// <summary>
 /// A user-curated grouping of books. Use <see cref="Constants.GlobalUserId"/> for collections
 /// that should be visible to everyone.
 /// </summary>
-public class Collection : BaseEntity<int>
+public class Collection : BaseEntity<int>, ICardBannerOwner
 {
     public required string Name { get; set; }
 

@@ -88,20 +88,24 @@ public partial class BatchEdit : ComponentBase
         loading = false;
     }
 
-    private static List<int> ParseIds(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return [];
-        return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(s => int.TryParse(s, out var n) ? n : 0)
+    private static List<int> ParseIds(string? raw) => string.IsNullOrWhiteSpace(raw)
+            ? []
+            : raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => int.TryParse(s, out int n) ? n : 0)
             .Where(n => n > 0)
             .Distinct()
             .ToList();
-    }
 
     private void ToggleRow(int id, bool include)
     {
-        if (include) selectedIds.Add(id);
-        else selectedIds.Remove(id);
+        if (include)
+        {
+            selectedIds.Add(id);
+        }
+        else
+        {
+            selectedIds.Remove(id);
+        }
     }
 
     private void ToggleSelectAll(ChangeEventArgs e)
@@ -110,7 +114,10 @@ public partial class BatchEdit : ComponentBase
         selectedIds.Clear();
         if (select && books is not null)
         {
-            foreach (var b in books) selectedIds.Add(b.Id);
+            foreach (var b in books)
+            {
+                selectedIds.Add(b.Id);
+            }
         }
     }
 
@@ -190,7 +197,7 @@ public partial class BatchEdit : ComponentBase
     {
         if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(bulkTagInput))
         {
-            var trimmed = bulkTagInput.Trim().TrimStart('#');
+            string trimmed = bulkTagInput.Trim().TrimStart('#');
             if (!string.IsNullOrEmpty(trimmed) &&
                 !bulkTags.Any(t => string.Equals(t, trimmed, StringComparison.OrdinalIgnoreCase)))
             {
@@ -273,37 +280,20 @@ public partial class BatchEdit : ComponentBase
         }
 
         string? seriesName = GetEffectiveSeriesName(book);
-        if (!string.IsNullOrWhiteSpace(seriesName))
-        {
-            row.SortTitle = BuildSeriesSortTitle(seriesName, row.NumberInSeries);
-        }
-        else
-        {
-            row.SortTitle = SortTitleFromBookTitle(row.Title);
-        }
+        row.SortTitle = !string.IsNullOrWhiteSpace(seriesName)
+            ? BuildSeriesSortTitle(seriesName, row.NumberInSeries)
+            : SortTitleFromBookTitle(row.Title);
     }
 
     /// <summary>Series name that will apply when saving: bulk panel override, else the book&apos;s current series.</summary>
-    private string? GetEffectiveSeriesName(BookDto book)
-    {
-        if (bulk.UpdateSeries)
-        {
-            if (string.IsNullOrWhiteSpace(seriesInput))
-            {
-                return null;
-            }
-
-            if (bulkSeries is not null &&
-                string.Equals(bulkSeries.Name, seriesInput.Trim(), StringComparison.OrdinalIgnoreCase))
-            {
-                return bulkSeries.Name;
-            }
-
-            return seriesInput.Trim();
-        }
-
-        return book.Series?.Name;
-    }
+    private string? GetEffectiveSeriesName(BookDto book) => bulk.UpdateSeries
+            ? string.IsNullOrWhiteSpace(seriesInput)
+                ? null
+                : bulkSeries is not null &&
+                string.Equals(bulkSeries.Name, seriesInput.Trim(), StringComparison.OrdinalIgnoreCase)
+                ? bulkSeries.Name
+                : seriesInput.Trim()
+            : (book.Series?.Name);
 
     private static string? SortTitleFromBookTitle(string title)
     {
@@ -335,7 +325,11 @@ public partial class BatchEdit : ComponentBase
 
     private async Task SaveAsync()
     {
-        if (books is null || books.Count == 0) return;
+        if (books is null || books.Count == 0)
+        {
+            return;
+        }
+
         saving = true;
         errorMessage = null;
         saveSummary = null;
@@ -349,13 +343,23 @@ public partial class BatchEdit : ComponentBase
             int updated = 0, failed = 0;
             foreach (var row in rows)
             {
-                if (!selectedIds.Contains(row.Id)) continue;
+                if (!selectedIds.Contains(row.Id))
+                {
+                    continue;
+                }
+
                 var book = books.FirstOrDefault(b => b.Id == row.Id);
-                if (book is null) continue;
+                if (book is null)
+                {
+                    continue;
+                }
 
                 var request = BuildRequest(book, row, resolvedSeriesId);
                 var result = await BookService.UpdateAsync(book.Id, request);
-                if (result.IsSuccess) updated++;
+                if (result.IsSuccess)
+                {
+                    updated++;
+                }
                 else
                 {
                     failed++;

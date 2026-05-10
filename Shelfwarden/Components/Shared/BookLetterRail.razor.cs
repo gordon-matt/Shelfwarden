@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Components;
-
 namespace Shelfwarden.Components.Shared;
 
 public partial class BookLetterRail : ComponentBase
@@ -13,18 +11,11 @@ public partial class BookLetterRail : ComponentBase
 
     private async Task OnSelectAsync(string value)
     {
-        string? next;
-        if (string.IsNullOrEmpty(value))
-        {
-            next = null;
-        }
-        else
-        {
-            next = string.Equals(StartsWith ?? string.Empty, value, StringComparison.Ordinal)
+        string? next = string.IsNullOrEmpty(value)
+            ? null
+            : string.Equals(StartsWith ?? string.Empty, value, StringComparison.Ordinal)
                 ? null
                 : value;
-        }
-
         await StartsWithChanged.InvokeAsync(next);
     }
 }

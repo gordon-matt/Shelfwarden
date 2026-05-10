@@ -163,10 +163,7 @@ public partial class BookEdit : ComponentBase
     {
         selectedSeries = null;
         seriesInput = null;
-        if (form is not null)
-        {
-            form.NumberInSeries = null;
-        }
+        form?.NumberInSeries = null;
     }
 
     private Task<IReadOnlyList<string>> SearchTagsAsync(string query)
@@ -183,7 +180,7 @@ public partial class BookEdit : ComponentBase
 
     private Task AddTagAsync(string name)
     {
-        var trimmed = name.Trim().TrimStart('#');
+        string trimmed = name.Trim().TrimStart('#');
         if (string.IsNullOrEmpty(trimmed))
         {
             return Task.CompletedTask;
@@ -199,7 +196,11 @@ public partial class BookEdit : ComponentBase
 
     private async Task SaveAsync()
     {
-        if (form is null || book is null) return;
+        if (form is null || book is null)
+        {
+            return;
+        }
+
         saving = true;
         errorMessage = null;
         try

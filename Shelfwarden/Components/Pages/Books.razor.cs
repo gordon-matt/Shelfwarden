@@ -98,12 +98,35 @@ public partial class Books : ComponentBase
 
         await Task.WhenAll(shelvesTask, collectionsTask, authorsTask, seriesTask, genresTask, tagsTask);
 
-        if (shelvesTask.Result.IsSuccess) shelves = shelvesTask.Result.Value;
-        if (collectionsTask.Result.IsSuccess) collections = collectionsTask.Result.Value;
-        if (authorsTask.Result.IsSuccess) authors = authorsTask.Result.Value;
-        if (seriesTask.Result.IsSuccess) series = seriesTask.Result.Value;
-        if (genresTask.Result.IsSuccess) genres = genresTask.Result.Value;
-        if (tagsTask.Result.IsSuccess) tags = tagsTask.Result.Value;
+        if (shelvesTask.Result.IsSuccess)
+        {
+            shelves = shelvesTask.Result.Value;
+        }
+
+        if (collectionsTask.Result.IsSuccess)
+        {
+            collections = collectionsTask.Result.Value;
+        }
+
+        if (authorsTask.Result.IsSuccess)
+        {
+            authors = authorsTask.Result.Value;
+        }
+
+        if (seriesTask.Result.IsSuccess)
+        {
+            series = seriesTask.Result.Value;
+        }
+
+        if (genresTask.Result.IsSuccess)
+        {
+            genres = genresTask.Result.Value;
+        }
+
+        if (tagsTask.Result.IsSuccess)
+        {
+            tags = tagsTask.Result.Value;
+        }
     }
 
     protected override async Task OnParametersSetAsync()
@@ -152,7 +175,11 @@ public partial class Books : ComponentBase
 
     private async Task SetViewMode(ViewMode mode)
     {
-        if (viewMode == mode) return;
+        if (viewMode == mode)
+        {
+            return;
+        }
+
         viewMode = mode;
         // List rows are larger so render fewer per page; grid uses the dense default.
         pageSize = mode == ViewMode.List ? 12 : 24;
@@ -198,7 +225,7 @@ public partial class Books : ComponentBase
     [JSInvokable]
     public async Task LoadMoreAsync()
     {
-        if (isLoadingMore || !hasMorePages && nextPageToLoad > 1)
+        if (isLoadingMore || (!hasMorePages && nextPageToLoad > 1))
         {
             return;
         }
@@ -340,18 +367,30 @@ public partial class Books : ComponentBase
     private void ToggleSelectMode()
     {
         selectMode = !selectMode;
-        if (!selectMode) selectedBookIds.Clear();
+        if (!selectMode)
+        {
+            selectedBookIds.Clear();
+        }
     }
 
     private void ToggleSelection(int id, bool include)
     {
-        if (include) selectedBookIds.Add(id);
-        else selectedBookIds.Remove(id);
+        if (include)
+        {
+            selectedBookIds.Add(id);
+        }
+        else
+        {
+            selectedBookIds.Remove(id);
+        }
     }
 
     private void SelectAllVisible()
     {
-        foreach (var b in results) selectedBookIds.Add(b.Id);
+        foreach (var b in results)
+        {
+            selectedBookIds.Add(b.Id);
+        }
     }
 
     private async Task SelectAllMatchingAsync()
@@ -416,7 +455,11 @@ public partial class Books : ComponentBase
 
     private void GoToBatchEdit()
     {
-        if (selectedBookIds.Count == 0) return;
+        if (selectedBookIds.Count == 0)
+        {
+            return;
+        }
+
         string ids = string.Join(',', selectedBookIds);
         // Round-trip back to the books page (preserving the current URL ish — simplest is /books).
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=books");

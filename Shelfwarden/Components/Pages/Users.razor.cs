@@ -209,23 +209,11 @@ public partial class Users : ComponentBase
         }
     }
 
-    private static string FormatResult(Ardalis.Result.Result result)
-    {
-        if (result.ValidationErrors is not null && result.ValidationErrors.Any())
-        {
-            return string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage));
-        }
+    private static string FormatResult(Ardalis.Result.Result result) => result.ValidationErrors is not null && result.ValidationErrors.Any()
+            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
+            : string.Join(" ", result.Errors);
 
-        return string.Join(" ", result.Errors);
-    }
-
-    private static string FormatResult<T>(Ardalis.Result.Result<T> result)
-    {
-        if (result.ValidationErrors is not null && result.ValidationErrors.Any())
-        {
-            return string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage));
-        }
-
-        return string.Join(" ", result.Errors);
-    }
+    private static string FormatResult<T>(Ardalis.Result.Result<T> result) => result.ValidationErrors is not null && result.ValidationErrors.Any()
+            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
+            : string.Join(" ", result.Errors);
 }

@@ -1,5 +1,3 @@
-using Shelfwarden.Enums;
-
 namespace Shelfwarden.Models;
 
 /// <summary>Lightweight projection used for browse / search grids.</summary>

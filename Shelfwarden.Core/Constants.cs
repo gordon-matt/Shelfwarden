@@ -2,6 +2,9 @@ namespace Shelfwarden;
 
 public static class Constants
 {
+    /// <summary>Browser <c>localStorage</c> key for the per-user Bootswatch theme (client-only).</summary>
+    public const string ClientThemeLocalStorageKey = "shelfwarden.theme";
+
     /// <summary>
     /// Synthetic user id used by the "None" authentication mode (desktop / kiosk scenarios).
     /// </summary>
@@ -13,16 +16,19 @@ public static class Constants
     public const string DefaultUserName = "Default User";
 
     /// <summary>
+    /// Reading-progress percentage at which a book is considered "finished". Used by the
+    /// dashboard's Finished count, the "Continue Reading" filter, and the Mark as Read action
+    /// so the UI and services can't drift apart.
+    /// </summary>
+    public const double FinishedThresholdPercent = 95d;
+
+    /// <summary>
     /// Sentinel UserId stored on records that are global / system-wide rather than owned
     /// by a specific user (e.g. a built-in collection visible to everyone).
     /// </summary>
     public const string GlobalUserId = "_global";
 
-    public static class Roles
-    {
-        public const string Administrator = "Administrator";
-        public const string User = "User";
-    }
+    public static readonly IReadOnlyList<string> Letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".Select(c => c.ToString()).ToList();
 
     public static class AuthProviders
     {
@@ -30,57 +36,6 @@ public static class Constants
         public const string Keycloak = "Keycloak";
         public const string None = "None";
     }
-
-    public static class DatabaseProviders
-    {
-        public const string Sqlite = "Sqlite";
-        public const string SqlServer = "SqlServer";
-        public const string Npgsql = "Npgsql";
-        public const string MySql = "MySql";
-    }
-
-    public static class HangfireQueues
-    {
-        public const string Default = "default";
-        public const string Critical = "critical";
-        public const string Scan = "scan";
-        public const string Tts = "tts";
-    }
-
-    public static class Schemas
-    {
-        public const string App = "app";
-    }
-
-    /// <summary>
-    /// Well-known keys persisted in the <c>ServerSettings</c> table by
-    /// <c>IServerSettingsService</c>. Keep the strings stable — they are the source of truth
-    /// once written to the database.
-    /// </summary>
-    public static class ServerSettingKeys
-    {
-        public const string Theme = "ui.theme";
-        public const string SetupComplete = "setup.complete";
-    }
-
-    /// <summary>
-    /// Default values applied when a setting has never been written. Centralised here so the
-    /// theme picker and the layout component can't drift apart.
-    /// </summary>
-    public static class ServerSettingDefaults
-    {
-        public const string Theme = "flatly";
-    }
-
-    /// <summary>Browser <c>localStorage</c> key for the per-user Bootswatch theme (client-only).</summary>
-    public const string ClientThemeLocalStorageKey = "shelfwarden.theme";
-
-    /// <summary>
-    /// Reading-progress percentage at which a book is considered "finished". Used by the
-    /// dashboard's Finished count, the "Continue Reading" filter, and the Mark as Read action
-    /// so the UI and services can't drift apart.
-    /// </summary>
-    public const double FinishedThresholdPercent = 95d;
 
     /// <summary>
     /// Bootswatch themes shipped via LibMan to <c>wwwroot/lib/bootswatch/dist/&lt;theme&gt;/bootstrap.min.css</c>.
@@ -112,5 +67,62 @@ public static class Constants
             !string.IsNullOrEmpty(theme) && DarkColorScheme.Contains(theme);
     }
 
-    public static readonly IReadOnlyList<string> Letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".Select(c => c.ToString()).ToList();
+    /// <summary>
+    /// URL/route discriminators used to scope card banner files (and the <c>/card-banners</c>
+    /// controller routes) per entity kind. Centralising the strings here keeps the file naming
+    /// scheme in lock-step between the storage provider, the helper, and the streaming controller.
+    /// </summary>
+    public static class CardBannerKinds
+    {
+        public const string Shelves = "shelves";
+        public const string Collections = "collections";
+        public const string ReadingLists = "reading-lists";
+    }
+
+    public static class DatabaseProviders
+    {
+        public const string MySql = "MySql";
+        public const string Npgsql = "Npgsql";
+        public const string Sqlite = "Sqlite";
+        public const string SqlServer = "SqlServer";
+    }
+
+    public static class HangfireQueues
+    {
+        public const string Critical = "critical";
+        public const string Default = "default";
+        public const string Scan = "scan";
+        public const string Tts = "tts";
+    }
+
+    public static class Roles
+    {
+        public const string Administrator = "Administrator";
+        public const string User = "User";
+    }
+
+    public static class Schemas
+    {
+        public const string App = "app";
+    }
+
+    /// <summary>
+    /// Default values applied when a setting has never been written. Centralised here so the
+    /// theme picker and the layout component can't drift apart.
+    /// </summary>
+    public static class ServerSettingDefaults
+    {
+        public const string Theme = "flatly";
+    }
+
+    /// <summary>
+    /// Well-known keys persisted in the <c>ServerSettings</c> table by
+    /// <c>IServerSettingsService</c>. Keep the strings stable — they are the source of truth
+    /// once written to the database.
+    /// </summary>
+    public static class ServerSettingKeys
+    {
+        public const string SetupComplete = "setup.complete";
+        public const string Theme = "ui.theme";
+    }
 }

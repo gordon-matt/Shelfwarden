@@ -195,15 +195,12 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
         selectedVoiceName = list[0].Name;
     }
 
-    private void SelectVoice(KokoroVoiceDto voice)
-    {
-        selectedVoiceName = voice.Name;
-    }
+    private void SelectVoice(KokoroVoiceDto voice) => selectedVoiceName = voice.Name;
 
     private void OnVoiceKeyDown(KeyboardEventArgs e, KokoroVoiceDto voice)
     {
         // Mirror native button keyboard semantics — Enter / Space activate the row.
-        if (e.Key == "Enter" || e.Key == " ")
+        if (e.Key is "Enter" or " ")
         {
             SelectVoice(voice);
         }
@@ -229,14 +226,15 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
         }
     }
 
-    private void OnPreviewEnded()
-    {
-        playingVoiceName = null;
-    }
+    private void OnPreviewEnded() => playingVoiceName = null;
 
     private async Task ConfirmAsync()
     {
-        if (string.IsNullOrEmpty(selectedVoiceName)) return;
+        if (string.IsNullOrEmpty(selectedVoiceName))
+        {
+            return;
+        }
+
         await StopPreviewAsync();
         await OnSelected.InvokeAsync(selectedVoiceName);
     }
@@ -263,8 +261,5 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await StopPreviewAsync();
-    }
+    public async ValueTask DisposeAsync() => await StopPreviewAsync();
 }

@@ -269,26 +269,27 @@ public class AuthorService(
 
         try
         {
-            int deleted = 0;
-            foreach (int id in distinctIds)
+            // Pull all matching authors in a single round-trip and delete them as a batch.
+            var entities = (await authorRepository.FindAsync(new SearchOptions<Author>
             {
-                var entity = await authorRepository.FindOneAsync(new SearchOptions<Author>
-                {
-                    Query = a => a.Id == id,
-                    CancellationToken = cancellationToken,
-                });
-                if (entity is null)
-                {
-                    continue;
-                }
+                Query = a => distinctIds.Contains(a.Id),
+                CancellationToken = cancellationToken,
+            })).ToList();
 
-                TryDeleteAuthorPhotoFile(id);
-                await authorRepository.DeleteAsync(entity);
-                deleted++;
+            if (entities.Count == 0)
+            {
+                return Result.Success(0);
             }
 
-            logger.LogInformation("Administrator deleted {Count} author record(s) by id.", deleted);
-            return Result.Success(deleted);
+            foreach (var entity in entities)
+            {
+                TryDeleteAuthorPhotoFile(entity.Id);
+            }
+
+            await authorRepository.DeleteAsync(entities);
+
+            logger.LogInformation("Administrator deleted {Count} author record(s) by id.", entities.Count);
+            return Result.Success(entities.Count);
         }
         catch (Exception ex)
         {
@@ -327,45 +328,55 @@ public class AuthorService(
 
         try
         {
-            foreach (int otherId in others)
+            // Pull every relevant link in a single query (links to either the primary OR any of
+            // the others). We then partition them in-memory: any "other" link whose BookId is
+            // already covered by the primary becomes a duplicate (delete); the rest get
+            // re-pointed at the primary in one bulk update.
+            var allLinks = (await bookAuthorRepository.FindAsync(new SearchOptions<BookAuthor>
             {
-                var otherAuthor = await authorRepository.FindOneAsync(new SearchOptions<Author>
+                Query = ba => ba.AuthorId == primaryAuthorId || others.Contains(ba.AuthorId),
+                CancellationToken = cancellationToken,
+            })).ToList();
+
+            var primaryBookIds = allLinks
+                .Where(ba => ba.AuthorId == primaryAuthorId)
+                .Select(ba => ba.BookId)
+                .ToHashSet();
+
+            var otherLinks = allLinks.Where(ba => ba.AuthorId != primaryAuthorId).ToList();
+
+            var duplicates = otherLinks.Where(ba => primaryBookIds.Contains(ba.BookId)).ToList();
+            var toRepoint = otherLinks.Where(ba => !primaryBookIds.Contains(ba.BookId)).ToList();
+
+            if (duplicates.Count > 0)
+            {
+                await bookAuthorRepository.DeleteAsync(duplicates);
+            }
+
+            if (toRepoint.Count > 0)
+            {
+                foreach (var ba in toRepoint)
                 {
-                    Query = a => a.Id == otherId,
-                    CancellationToken = cancellationToken,
-                });
-                if (otherAuthor is null)
-                {
-                    continue;
+                    ba.AuthorId = primaryAuthorId;
                 }
+                await bookAuthorRepository.UpdateAsync(toRepoint);
+            }
 
-                var links = (await bookAuthorRepository.FindAsync(new SearchOptions<BookAuthor>
-                {
-                    Query = ba => ba.AuthorId == otherId,
-                    CancellationToken = cancellationToken,
-                })).ToList();
+            // Drop the merged authors (and their photo files) in one shot.
+            var otherAuthors = (await authorRepository.FindAsync(new SearchOptions<Author>
+            {
+                Query = a => others.Contains(a.Id),
+                CancellationToken = cancellationToken,
+            })).ToList();
 
-                foreach (var ba in links)
-                {
-                    var duplicate = await bookAuthorRepository.FindOneAsync(new SearchOptions<BookAuthor>
-                    {
-                        Query = x => x.BookId == ba.BookId && x.AuthorId == primaryAuthorId,
-                        CancellationToken = cancellationToken,
-                    });
+            foreach (var a in otherAuthors)
+            {
+                TryDeleteAuthorPhotoFile(a.Id);
+            }
 
-                    if (duplicate is not null)
-                    {
-                        await bookAuthorRepository.DeleteAsync(ba);
-                    }
-                    else
-                    {
-                        ba.AuthorId = primaryAuthorId;
-                        await bookAuthorRepository.UpdateAsync(ba);
-                    }
-                }
-
-                TryDeleteAuthorPhotoFile(otherId);
-                await authorRepository.DeleteAsync(otherAuthor);
+            if (otherAuthors.Count > 0)
+            {
+                await authorRepository.DeleteAsync(otherAuthors);
             }
 
             logger.LogInformation(
@@ -592,20 +603,20 @@ public class AuthorService(
                 CancellationToken = cancellationToken,
             })).ToList();
 
-            int deleted = 0;
+            if (orphans.Count == 0)
+            {
+                return Result.Success(0);
+            }
+
             foreach (var author in orphans)
             {
                 TryDeleteAuthorPhotoFile(author.Id);
-                await authorRepository.DeleteAsync(author);
-                deleted++;
             }
 
-            if (deleted > 0)
-            {
-                logger.LogInformation("Deleted {Count} author(s) with no linked books.", deleted);
-            }
+            await authorRepository.DeleteAsync(orphans);
 
-            return Result.Success(deleted);
+            logger.LogInformation("Deleted {Count} author(s) with no linked books.", orphans.Count);
+            return Result.Success(orphans.Count);
         }
         catch (Exception ex)
         {

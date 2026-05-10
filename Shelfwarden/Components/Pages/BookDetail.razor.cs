@@ -118,10 +118,7 @@ public partial class BookDetail : ComponentBase
         voicePickerOpen = true;
     }
 
-    private void CloseVoicePicker()
-    {
-        voicePickerOpen = false;
-    }
+    private void CloseVoicePicker() => voicePickerOpen = false;
 
     private void OnVoiceSelected(string voiceName)
     {
@@ -169,20 +166,22 @@ public partial class BookDetail : ComponentBase
         }
     }
 
-    private void ToggleListen()
-    {
-        showPlayer = !showPlayer;
-    }
+    private void ToggleListen() => showPlayer = !showPlayer;
 
     private async Task CancelAudiobookGenerationAsync()
     {
-        if (audiobook is null) return;
+        if (audiobook is null)
+        {
+            return;
+        }
 
-        var msg = audiobook.State == AudiobookState.Failed
+        string msg = audiobook.State == AudiobookState.Failed
             ? "Remove this failed attempt so you can try again? Partial files will be deleted."
             : "Cancel audiobook generation? The job will stop and partial files will be removed.";
         if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog", msg))
+        {
             return;
+        }
 
         audiobookActionBusy = true;
         generateError = null;
@@ -209,11 +208,16 @@ public partial class BookDetail : ComponentBase
 
     private async Task DeleteFinishedAudiobookAsync()
     {
-        if (audiobook?.State != AudiobookState.Completed) return;
+        if (audiobook?.State != AudiobookState.Completed)
+        {
+            return;
+        }
 
         if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog",
                 "Delete this audiobook file from disk? You can generate again with any voice."))
+        {
             return;
+        }
 
         audiobookActionBusy = true;
         generateError = null;
@@ -291,12 +295,7 @@ public partial class BookDetail : ComponentBase
 
         // All chunks accounted for but job still running — must be final I/O unless we're in
         // the sub-second window before CurrentStage updates away from Synthesising.
-        if (string.IsNullOrWhiteSpace(a.CurrentStage))
-        {
-            return true;
-        }
-
-        return !a.CurrentStage.Contains("Synthes", StringComparison.OrdinalIgnoreCase);
+        return string.IsNullOrWhiteSpace(a.CurrentStage) || !a.CurrentStage.Contains("Synthes", StringComparison.OrdinalIgnoreCase);
     }
 
     public ValueTask DisposeAsync()
@@ -329,14 +328,18 @@ public partial class BookDetail : ComponentBase
     /// </summary>
     private async Task EnsureAddToLoadedAsync()
     {
-        if (addToLoaded) return;
+        if (addToLoaded)
+        {
+            return;
+        }
+
         addToLoaded = true;
 
         var collectionsTask = CollectionService.ListAsync();
         var listsTask = ReadingListService.ListAsync();
         await Task.WhenAll(collectionsTask, listsTask);
 
-        IReadOnlyList<CollectionDto> loadedCollections =
+        var loadedCollections =
             collectionsTask.Result.IsSuccess ? collectionsTask.Result.Value : [];
         collections = UserContext.IsAdministrator()
             ? loadedCollections
@@ -375,7 +378,10 @@ public partial class BookDetail : ComponentBase
 
     private async Task CreateAndAddAsync()
     {
-        if (creatingTarget is null || string.IsNullOrWhiteSpace(newName)) return;
+        if (creatingTarget is null || string.IsNullOrWhiteSpace(newName))
+        {
+            return;
+        }
 
         creating = true;
         addToError = null;

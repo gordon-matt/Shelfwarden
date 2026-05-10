@@ -23,7 +23,7 @@ public record CollectionDetailDto(
     bool IsGlobal,
     DateTime CreatedAt,
     IReadOnlyList<BookListItemDto> Books,
-    CardBannerSettingsDto CardBanner);
+    CardBannerSettingsDto BannerSettings);
 
 public record CreateCollectionRequest
 {

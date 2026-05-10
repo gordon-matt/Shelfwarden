@@ -51,7 +51,7 @@ public class ShelfService(
                     s.CardBannerMode,
                     s.CardBannerImageFileName,
                     s.CardBannerBookIdsJson,
-                    CardBannerSupport.KindShelves,
+                    Constants.CardBannerKinds.Shelves,
                     s.Id,
                     bannerSources.GetValueOrDefault(s.Id) ?? [],
                     storage);
@@ -91,7 +91,7 @@ public class ShelfService(
             shelf.CardBannerMode,
             shelf.CardBannerImageFileName,
             shelf.CardBannerBookIdsJson,
-            CardBannerSupport.KindShelves,
+            Constants.CardBannerKinds.Shelves,
             shelf.Id,
             bannerSources.GetValueOrDefault(id) ?? [],
             storage);
@@ -100,7 +100,7 @@ public class ShelfService(
             shelf.CardBannerMode,
             shelf.CardBannerImageFileName,
             shelf.CardBannerBookIdsJson,
-            CardBannerSupport.KindShelves,
+            Constants.CardBannerKinds.Shelves,
             shelf.Id,
             storage);
 
@@ -224,8 +224,17 @@ public class ShelfService(
             new SearchOptions<Book> { Query = b => b.ShelfId == id },
             b => b.Id)).ToHashSet();
 
-        var bannerResult = ApplyShelfBannerUpdateAsync(
-            id, shelf, request.CardBannerMode, request.CardBannerSelectedBookIds, memberIds);
+        var bannerResult = CardBannerSupport.ApplyBannerUpdate(
+            Constants.CardBannerKinds.Shelves,
+            id,
+            shelf,
+            request.CardBannerMode,
+            request.CardBannerSelectedBookIds,
+            memberIds,
+            storage,
+            modeFieldName: nameof(request.CardBannerMode),
+            selectedBooksFieldName: nameof(request.CardBannerSelectedBookIds),
+            entityNoun: "shelf");
         if (!bannerResult.IsSuccess)
         {
             return Result<ShelfDto>.Invalid(bannerResult.ValidationErrors);
@@ -279,7 +288,7 @@ public class ShelfService(
 
         ms.Position = 0;
         string relative = await storage.SaveCardBannerFileAsync(
-            CardBannerSupport.KindShelves,
+            Constants.CardBannerKinds.Shelves,
             shelfId,
             ms,
             fileName,
@@ -311,7 +320,7 @@ public class ShelfService(
             return Result.NotFound();
         }
 
-        storage.DeleteCardBannerFile(CardBannerSupport.KindShelves, id);
+        storage.DeleteCardBannerFile(Constants.CardBannerKinds.Shelves, id);
 
         // FK ON DELETE CASCADE handles folders + books + access rows.
         await shelfRepository.DeleteAsync(shelf);
@@ -473,43 +482,6 @@ public class ShelfService(
             BannerSettings);
     }
 
-    private Result ApplyShelfBannerUpdateAsync(
-        int shelfId,
-        Shelf shelf,
-        CardHeaderBannerMode mode,
-        IReadOnlyList<int> selectedBookIds,
-        HashSet<int> memberBookIds)
-    {
-        if (mode == CardHeaderBannerMode.UploadedImage && string.IsNullOrEmpty(shelf.CardBannerImageFileName)
-                                                      && storage.FindCardBannerFilePath(CardBannerSupport.KindShelves, shelfId) is null)
-        {
-            return Result.Invalid(new ValidationError(
-                nameof(mode),
-                "Upload a banner image first, or choose another header option."));
-        }
-
-        var normalized = selectedBookIds.Where(memberBookIds.Contains).Take(CardBannerLimits.MaxStripCovers).ToList();
-        if (mode == CardHeaderBannerMode.SelectedBooks && normalized.Count == 0)
-        {
-            return Result.Invalid(new ValidationError(
-                nameof(selectedBookIds),
-                $"Pick up to {CardBannerLimits.MaxStripCovers} books from this shelf for the header."));
-        }
-
-        if (mode != CardHeaderBannerMode.UploadedImage)
-        {
-            storage.DeleteCardBannerFile(CardBannerSupport.KindShelves, shelfId);
-            shelf.CardBannerImageFileName = null;
-        }
-
-        shelf.CardBannerMode = mode;
-        shelf.CardBannerBookIdsJson = mode == CardHeaderBannerMode.SelectedBooks
-            ? CardBannerSupport.SerializeBookIds(normalized)
-            : null;
-
-        return Result.Success();
-    }
-
     private async Task<Dictionary<int, List<CardBannerSupport.BookCoverSource>>> LoadShelfBannerSourcesAsync(
         IReadOnlyList<int> shelfIds,
         CancellationToken cancellationToken)
@@ -519,24 +491,16 @@ public class ShelfService(
             return [];
         }
 
-        var books = (await bookRepository.FindAsync(new SearchOptions<Book>
-        {
-            Query = b => shelfIds.Contains(b.ShelfId) && !string.IsNullOrEmpty(b.CoverImagePath),
-            CancellationToken = cancellationToken,
-        })).ToList();
-
-        var dict = new Dictionary<int, List<CardBannerSupport.BookCoverSource>>();
-        foreach (var b in books)
-        {
-            if (!dict.TryGetValue(b.ShelfId, out var list))
+        // Project to (BookId, ShelfId, CoverImagePath) to keep the wire payload small — we
+        // only care about the cover existence + the owning shelf for grouping.
+        var rows = await bookRepository.FindAsync(
+            new SearchOptions<Book>
             {
-                list = [];
-                dict[b.ShelfId] = list;
-            }
+                Query = b => shelfIds.Contains(b.ShelfId) && !string.IsNullOrEmpty(b.CoverImagePath),
+                CancellationToken = cancellationToken,
+            },
+            b => new { b.Id, b.ShelfId, b.CoverImagePath });
 
-            list.Add(new CardBannerSupport.BookCoverSource(b.Id));
-        }
-
-        return dict;
+        return CardBannerSupport.GroupCandidates(rows, r => r.ShelfId, r => r.Id, r => r.CoverImagePath);
     }
 }

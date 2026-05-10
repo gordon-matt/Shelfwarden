@@ -33,7 +33,7 @@ public partial class CardHeaderImageSelector : ComponentBase
 
     private async Task OnFileChosenAsync(InputFileChangeEventArgs e)
     {
-        IBrowserFile? file = e.File;
+        var file = e.File;
         if (file is null)
         {
             return;

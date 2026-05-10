@@ -37,9 +37,9 @@ public partial class ReadingListDetail : ComponentBase
         {
             list = result.Value;
             editModel = new EditModel { Name = list.Name, Description = list.Description };
-            bannerMode = list.CardBanner.Mode;
+            bannerMode = list.BannerSettings.Mode;
             bannerSelectedBooks.Clear();
-            foreach (int bid in list.CardBanner.SelectedBookIds)
+            foreach (int bid in list.BannerSettings.SelectedBookIds)
             {
                 var hit = list.Items.FirstOrDefault(i => i.Book.Id == bid);
                 if (hit is not null)
@@ -114,7 +114,10 @@ public partial class ReadingListDetail : ComponentBase
                 Page = 1,
                 PageSize = 8,
             }, token);
-            if (token.IsCancellationRequested) return;
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
 
             var existing = list?.Items.Select(i => i.Book.Id).ToHashSet() ?? [];
             searchResults = result.IsSuccess
@@ -153,8 +156,15 @@ public partial class ReadingListDetail : ComponentBase
     /// </summary>
     private async Task MoveAsync(int fromIndex, int toIndex)
     {
-        if (list is null || reordering) return;
-        if (toIndex < 0 || toIndex >= list.Items.Count) return;
+        if (list is null || reordering)
+        {
+            return;
+        }
+
+        if (toIndex < 0 || toIndex >= list.Items.Count)
+        {
+            return;
+        }
 
         reordering = true;
         try
@@ -188,7 +198,7 @@ public partial class ReadingListDetail : ComponentBase
 
     private async Task UploadReadingListBannerAsync(IBrowserFile file)
     {
-        await using Stream s = file.OpenReadStream(2_000_000);
+        await using var s = file.OpenReadStream(2_000_000);
         var result = await ReadingListService.UploadCardBannerAsync(Id, s, file.Name, file.Size);
         if (result.IsSuccess)
         {

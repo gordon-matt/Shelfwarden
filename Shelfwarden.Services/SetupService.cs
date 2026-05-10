@@ -111,7 +111,7 @@ public class SetupService(
             CardHeaderBannerMode.RandomCovers,
             null,
             null,
-            CardBannerSupport.KindShelves,
+            Constants.CardBannerKinds.Shelves,
             shelf.Id,
             [],
             storage);

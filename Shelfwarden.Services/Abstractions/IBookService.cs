@@ -6,6 +6,15 @@ public interface IBookService
 
     Task<Result<BookDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Resolves the supplied book ids to <see cref="BookListItemDto"/> entries. Missing ids
+    /// are silently dropped; surviving entries follow the database's natural sort order
+    /// (i.e. callers that need a specific order should reorder client-side using a dictionary).
+    /// Cheaper than calling <see cref="SearchAsync"/> with a wide page when the caller already
+    /// knows exactly which ids it wants.
+    /// </summary>
+    Task<Result<IReadOnlyList<BookListItemDto>>> GetListItemsByIdsAsync(IReadOnlyCollection<int> ids, CancellationToken cancellationToken = default);
+
     Task<Result<BookDto>> UpdateAsync(int id, UpdateBookRequest request, CancellationToken cancellationToken = default);
 
     Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default);

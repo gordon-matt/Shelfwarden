@@ -10,13 +10,13 @@ public partial class Setup : ComponentBase
 
     private SetupStatusDto? status;
     private string? errorMessage;
-    private string adminEmail = "admin@shelfwarden.local";
-    private string shelfName = "My Shelf";
-    private string shelfFolders = "";
+    private readonly string adminEmail = "admin@shelfwarden.local";
+    private readonly string shelfName = "My Shelf";
+    private readonly string shelfFolders = "";
 
     private record StepDescriptor(string Id, int Number, string Label);
 
-    private List<StepDescriptor> steps = [];
+    private readonly List<StepDescriptor> steps = [];
 
     private string CurrentStep => ResolveStep(Step);
 
@@ -61,8 +61,15 @@ public partial class Setup : ComponentBase
 
     private string ResolveStep(string? requested)
     {
-        if (status is null) return "welcome";
-        if (string.IsNullOrEmpty(requested)) return "welcome";
+        if (status is null)
+        {
+            return "welcome";
+        }
+
+        if (string.IsNullOrEmpty(requested))
+        {
+            return "welcome";
+        }
 
         bool valid = steps.Any(s => s.Id.Equals(requested, StringComparison.OrdinalIgnoreCase));
         return valid ? requested.ToLowerInvariant() : "welcome";
@@ -75,21 +82,11 @@ public partial class Setup : ComponentBase
         return currentIndex >= 0 && targetIndex >= 0 && targetIndex < currentIndex;
     }
 
-    private string NextLinkAfterWelcome()
-    {
-        if (status?.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Identity))
-        {
-            return "/setup?step=admin";
-        }
-        return "/setup?step=shelf";
-    }
+    private string NextLinkAfterWelcome() => status?.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Identity) ? "/setup?step=admin" : "/setup?step=shelf";
 
-    private static string FolderPlaceholder()
-    {
-        return OperatingSystem.IsWindows()
+    private static string FolderPlaceholder() => OperatingSystem.IsWindows()
             ? "D:\\Library\\Fiction\nD:\\Library\\NonFiction"
             : "/app/data/library/Fiction\n/app/data/library/NonFiction";
-    }
 
     protected override void OnParametersSet()
     {
@@ -168,7 +165,7 @@ public partial class Setup : ComponentBase
     private static string FormatCodePoints(string s, int maxChars)
     {
         int n = Math.Min(s.Length, maxChars);
-        var parts = new string[n];
+        string[] parts = new string[n];
         for (int i = 0; i < n; i++)
         {
             parts[i] = $"U+{(uint)s[i]:X4}";

@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Components;
-
 namespace Shelfwarden.Components.Shared;
 
 public partial class BatchSectionSwitch : ComponentBase
@@ -14,6 +12,9 @@ public partial class BatchSectionSwitch : ComponentBase
     private async Task OnEnabledChanged(ChangeEventArgs e)
     {
         Enabled = (bool)(e.Value ?? false);
-        if (EnabledChanged.HasDelegate) await EnabledChanged.InvokeAsync(Enabled);
+        if (EnabledChanged.HasDelegate)
+        {
+            await EnabledChanged.InvokeAsync(Enabled);
+        }
     }
 }

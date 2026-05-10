@@ -1,6 +1,6 @@
 namespace Shelfwarden.Data.Entities;
 
-public class ReadingList : BaseEntity<int>
+public class ReadingList : BaseEntity<int>, ICardBannerOwner
 {
     public required string Name { get; set; }
 
