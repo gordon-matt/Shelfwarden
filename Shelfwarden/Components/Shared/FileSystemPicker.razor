@@ -114,11 +114,12 @@
             <div class="fsp-actions">
                 @if (Mode == PickerMode.Folder)
                 {
-                    <button class="btn btn-outline-secondary btn-sm"
-                            @onclick="SelectCurrentFolder"
-                            title="Use the currently browsed folder">
-                        <i class="bi bi-folder-check me-1"></i>Use Current Folder
-                    </button>
+                <button class="btn btn-outline-secondary btn-sm"
+                        disabled="@(_currentPath == WindowsVirtualRoot)"
+                        @onclick="SelectCurrentFolder"
+                        title="Use the currently browsed folder">
+                    <i class="bi bi-folder-check me-1"></i>Use Current Folder
+                </button>
                 }
                 <button class="btn btn-link btn-sm px-2" @onclick="Cancel">Cancel</button>
                 <button class="btn btn-primary btn-sm"
@@ -377,6 +378,9 @@
 </style>
 
 @code {
+    // Sentinel path used when on Windows with no explicit RootPath — represents the "This PC" drive list view.
+    private const string WindowsVirtualRoot = "\x00DRIVES";
+
     // ── Public API ──────────────────────────────────────────────────────────────
 
     public enum PickerMode { Folder, File }
@@ -387,7 +391,7 @@
     /// File extensions to show (file mode only). Null = show all files. E.g. new[]{ ".epub", ".pdf" }
     [Parameter] public string[]? AllowedExtensions { get; set; }
 
-    /// Root path to start from. Defaults to "/" on Linux, or the first available drive root on Windows.
+    /// Root path to start from. Defaults to "/" on Linux, or a "This PC" drive list on Windows.
     [Parameter] public string? RootPath { get; set; }
 
     /// Dialog title.
@@ -411,7 +415,8 @@
 
     protected override void OnInitialized()
     {
-        _currentPath = RootPath ?? GetDefaultRoot();
+        // When no RootPath is given on Windows, show the full drive list first.
+        _currentPath = RootPath ?? (IsWindows() ? WindowsVirtualRoot : "/");
         LoadEntries(_currentPath);
     }
 
@@ -431,32 +436,49 @@
 
         try
         {
-            var dirs = Directory.GetDirectories(path)
-                .OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase)
-                .Select(d => new FileSystemEntry
-                {
-                    Name = Path.GetFileName(d),
-                    FullPath = d,
-                    IsDirectory = true
-                });
-
-            _entries.AddRange(dirs);
-
-            if (Mode == PickerMode.File)
+            if (path == WindowsVirtualRoot)
             {
-                var files = Directory.GetFiles(path)
-                    .Where(f => AllowedExtensions == null ||
-                                AllowedExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
-                    .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
-                    .Select(f => new FileSystemEntry
+                // Windows "This PC" — enumerate all ready drives as navigable entries.
+                var drives = DriveInfo.GetDrives()
+                    .Where(d => d.IsReady)
+                    .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(d => new FileSystemEntry
                     {
-                        Name = Path.GetFileName(f),
-                        FullPath = f,
-                        IsDirectory = false,
-                        Size = new FileInfo(f).Length
+                        Name = string.IsNullOrWhiteSpace(d.VolumeLabel)
+                            ? d.Name.TrimEnd('\\', '/')
+                            : $"{d.Name.TrimEnd('\\', '/')}  —  {d.VolumeLabel}",
+                        FullPath = d.RootDirectory.FullName,
+                        IsDirectory = true
                     });
+                _entries.AddRange(drives);
+            }
+            else
+            {
+                var dirs = Directory.GetDirectories(path)
+                    .OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase)
+                    .Select(d => new FileSystemEntry
+                    {
+                        Name = Path.GetFileName(d),
+                        FullPath = d,
+                        IsDirectory = true
+                    });
+                _entries.AddRange(dirs);
 
-                _entries.AddRange(files);
+                if (Mode == PickerMode.File)
+                {
+                    var files = Directory.GetFiles(path)
+                        .Where(f => AllowedExtensions == null ||
+                                    AllowedExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+                        .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
+                        .Select(f => new FileSystemEntry
+                        {
+                            Name = Path.GetFileName(f),
+                            FullPath = f,
+                            IsDirectory = false,
+                            Size = new FileInfo(f).Length
+                        });
+                    _entries.AddRange(files);
+                }
             }
         }
         catch (UnauthorizedAccessException)
@@ -475,22 +497,48 @@
     {
         _breadcrumbs.Clear();
 
-        var root = RootPath ?? GetDefaultRoot();
-        _breadcrumbs.Add(new Breadcrumb { Label = IsWindows() ? "This PC" : "/", Path = root });
+        var isVirtualRoot = RootPath == null && IsWindows();
+        var rootPath  = isVirtualRoot ? WindowsVirtualRoot : (RootPath ?? "/");
+        var rootLabel = IsWindows() ? "This PC" : "/";
 
-        if (string.Equals(path, root, StringComparison.OrdinalIgnoreCase)) return;
+        _breadcrumbs.Add(new Breadcrumb { Label = rootLabel, Path = rootPath });
 
-        var relativePath = path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
-            ? path[root.TrimEnd('/', '\\').Length..]
-            : path;
+        if (path == rootPath) return;
 
-        var parts = relativePath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-        var accumulated = root.TrimEnd('/', '\\');
-
-        foreach (var part in parts)
+        if (isVirtualRoot)
         {
-            accumulated = Path.Combine(accumulated, part);
-            _breadcrumbs.Add(new Breadcrumb { Label = part, Path = accumulated });
+            // Windows with no explicit root: path is a normal absolute Windows path.
+            // First add the drive root segment ("C:\"), then subdirectory segments.
+            var driveRoot = Path.GetPathRoot(path);
+            if (string.IsNullOrEmpty(driveRoot)) return;
+
+            var driveLabel = driveRoot.TrimEnd('\\', '/'); // "C:\" → "C:"
+            _breadcrumbs.Add(new Breadcrumb { Label = driveLabel, Path = driveRoot });
+
+            if (string.Equals(path, driveRoot, StringComparison.OrdinalIgnoreCase)) return;
+
+            var relative = Path.GetRelativePath(driveRoot, path);
+            var accumulated = driveRoot;
+            foreach (var part in relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                                         .Where(p => !string.IsNullOrEmpty(p)))
+            {
+                accumulated = Path.Combine(accumulated, part);
+                _breadcrumbs.Add(new Breadcrumb { Label = part, Path = accumulated });
+            }
+        }
+        else
+        {
+            // Explicit RootPath (or Linux "/" default).
+            var relative = Path.GetRelativePath(rootPath, path);
+            if (relative == ".") return;
+
+            var accumulated = rootPath;
+            foreach (var part in relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                                         .Where(p => !string.IsNullOrEmpty(p)))
+            {
+                accumulated = Path.Combine(accumulated, part);
+                _breadcrumbs.Add(new Breadcrumb { Label = part, Path = accumulated });
+            }
         }
     }
 
@@ -515,7 +563,11 @@
         }
     }
 
-    private void SelectCurrentFolder() => _selectedPath = _currentPath;
+    private void SelectCurrentFolder()
+    {
+        if (_currentPath != WindowsVirtualRoot)
+            _selectedPath = _currentPath;
+    }
 
     private void HandleOverlayClick() => Cancel();
 
@@ -537,42 +589,29 @@
         System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
             System.Runtime.InteropServices.OSPlatform.Windows);
 
-    private static string GetDefaultRoot()
-    {
-        if (IsWindows())
-        {
-            var drives = DriveInfo.GetDrives()
-                .Where(d => d.IsReady)
-                .Select(d => d.RootDirectory.FullName)
-                .ToList();
-            return drives.FirstOrDefault() ?? "C:\\";
-        }
-        return "/";
-    }
-
     private static string GetFileIcon(string filename) =>
         Path.GetExtension(filename).ToLowerInvariant() switch
         {
-            ".epub"                     => "bi-book",
-            ".pdf"                      => "bi-file-earmark-pdf",
-            ".mobi" or ".azw" or ".azw3"=> "bi-file-earmark-text",
-            ".cbz" or ".cbr"            => "bi-images",
-            ".txt"                      => "bi-file-earmark-text",
+            ".epub"                      => "bi-book",
+            ".pdf"                       => "bi-file-earmark-pdf",
+            ".mobi" or ".azw" or ".azw3" => "bi-file-earmark-text",
+            ".cbz" or ".cbr"             => "bi-images",
+            ".txt"                       => "bi-file-earmark-text",
             ".jpg" or ".jpeg"
                 or ".png" or ".gif"
-                or ".webp"              => "bi-file-earmark-image",
-            ".mp3" or ".flac" or ".ogg" => "bi-file-earmark-music",
-            ".mp4" or ".mkv" or ".avi"  => "bi-file-earmark-play",
-            ".zip" or ".tar" or ".gz"   => "bi-file-earmark-zip",
-            _                           => "bi-file-earmark"
+                or ".webp"               => "bi-file-earmark-image",
+            ".mp3" or ".flac" or ".ogg"  => "bi-file-earmark-music",
+            ".mp4" or ".mkv" or ".avi"   => "bi-file-earmark-play",
+            ".zip" or ".tar" or ".gz"    => "bi-file-earmark-zip",
+            _                            => "bi-file-earmark"
         };
 
     private static string FormatSize(long bytes) => bytes switch
     {
-        < 1024               => $"{bytes} B",
-        < 1024 * 1024        => $"{bytes / 1024.0:F1} KB",
+        < 1024                => $"{bytes} B",
+        < 1024 * 1024         => $"{bytes / 1024.0:F1} KB",
         < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
-        _                    => $"{bytes / (1024.0 * 1024 * 1024):F1} GB"
+        _                     => $"{bytes / (1024.0 * 1024 * 1024):F1} GB"
     };
 
     private static string TruncatePath(string path)
