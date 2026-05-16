@@ -223,13 +223,13 @@ public class AdditionalContentService(
         string authorDir = Path.Combine(storage.ExtrasDirectory, authorFolderName);
         Directory.CreateDirectory(authorDir);
 
-        var updatedItems = new List<AdditionalContentItem>();
-        foreach (int itemId in request.ItemIds)
+        var ctx = ContextOptions.ForCancellationToken(cancellationToken);
+
+        foreach (int itemId in request.ItemIds.Distinct())
         {
             var item = await contentRepository.FindOneAsync(new SearchOptions<AdditionalContentItem>
             {
                 Query = i => i.Id == itemId,
-                Include = q => q.Include(i => i.SeriesAdditionalContents).ThenInclude(s => s.Series),
                 CancellationToken = cancellationToken,
             });
 
@@ -239,27 +239,49 @@ public class AdditionalContentService(
                 continue;
             }
 
-            // Move the file to the author (or author/series) directory.
-            string targetDir = authorDir;
-            var firstSeries = item.SeriesAdditionalContents.Select(s => s.Series).FirstOrDefault();
-            if (firstSeries is not null)
+            if (item.AuthorId == request.AuthorId)
             {
-                string seriesFolderName = SanitizeFolderName(firstSeries.Name);
-                targetDir = Path.Combine(authorDir, seriesFolderName);
-                Directory.CreateDirectory(targetDir);
+                logger.LogDebug(
+                    "Extra content item {Id} is already assigned to author {AuthorId}; skipping",
+                    itemId,
+                    request.AuthorId);
+                continue;
             }
 
+            // Moving from one author to another: drop book/series links and relocate under the new author's root only.
+            bool reassigningToDifferentAuthor =
+                item.AuthorId.HasValue && item.AuthorId.Value != request.AuthorId;
+
+            if (reassigningToDifferentAuthor)
+            {
+                await bookContentRepository.DeleteAsync(
+                    bc => bc.AdditionalContentItemId == itemId,
+                    ctx);
+                await seriesContentRepository.DeleteAsync(
+                    sc => sc.AdditionalContentItemId == itemId,
+                    ctx);
+            }
+
+            // Admin "assign to author" always stores files in the author's root extras folder
+            // (never under a series subfolder — series may belong to another author or become stale).
+            string targetDir = authorDir;
+
+            string oldFullPath = Path.GetFullPath(item.FilePath);
+            string? oldContainingDir = Path.GetDirectoryName(oldFullPath);
             string newPath = MoveFile(item.FilePath, targetDir);
+            string newFullPath = Path.GetFullPath(newPath);
+
+            if (!string.Equals(oldFullPath, newFullPath, StringComparison.OrdinalIgnoreCase)
+                && File.Exists(newFullPath))
+            {
+                TryPruneEmptyExtraDirectories(oldContainingDir, storage.ExtrasDirectory);
+            }
+
             item.FilePath = newPath;
             item.AuthorId = author.Id;
-            updatedItems.Add(item);
-        }
 
-        if (updatedItems.Count > 0)
-        {
-            await contentRepository.UpdateAsync(
-                updatedItems,
-                ContextOptions.ForCancellationToken(cancellationToken));
+            // One update per item so EF never tries to attach multiple graphs that share the same tracked Series.
+            await contentRepository.UpdateAsync(item, ctx);
         }
 
         return Result.Success();
@@ -491,7 +513,7 @@ public class AdditionalContentService(
             return sourcePath;
         }
 
-        // Resolve name collisions.
+        // Resolve name collisions: "name.jpg" -> "name - 1.jpg" -> "name - 2.jpg" ...
         if (File.Exists(destPath))
         {
             string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
@@ -499,7 +521,7 @@ public class AdditionalContentService(
             int counter = 1;
             do
             {
-                destPath = Path.Combine(targetDir, $"{nameWithoutExt}_{counter}{ext}");
+                destPath = Path.Combine(targetDir, $"{nameWithoutExt} - {counter}{ext}");
                 counter++;
             }
             while (File.Exists(destPath));
@@ -514,6 +536,56 @@ public class AdditionalContentService(
         {
             logger.LogError(ex, "Failed to move file from '{Src}' to '{Dst}'", sourcePath, destPath);
             return sourcePath;
+        }
+    }
+
+    /// <summary>
+    /// Deletes empty directories upward from <paramref name="leafDirectory"/> until
+    /// <paramref name="extrasRoot"/> is reached, so orphaned series/author folders disappear after moves.
+    /// </summary>
+    private void TryPruneEmptyExtraDirectories(string? leafDirectory, string extrasRoot)
+    {
+        if (string.IsNullOrWhiteSpace(leafDirectory))
+        {
+            return;
+        }
+
+        try
+        {
+            string normExtras = Path.GetFullPath(extrasRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string? dir = Path.GetFullPath(leafDirectory);
+
+            while (dir is not null)
+            {
+                // Never delete the extras root; only prune strict subdirectories (avoids "Extras..." prefix false positives).
+                if (string.Equals(dir, normExtras, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                if (!dir.StartsWith(normExtras + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                    && !dir.StartsWith(normExtras + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                if (!Directory.Exists(dir))
+                {
+                    break;
+                }
+
+                if (Directory.EnumerateFileSystemEntries(dir).Any())
+                {
+                    break;
+                }
+
+                Directory.Delete(dir, recursive: false);
+                dir = Path.GetDirectoryName(dir);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Could not prune empty extras directories under '{Dir}'", leafDirectory);
         }
     }
 }

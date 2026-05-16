@@ -35,9 +35,10 @@ public interface IAdditionalContentService
     Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetForBookAsync(int bookId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Assigns the listed items to the given author, moving files on disk to
-    /// <c>_extras/{AuthorName}/</c>. If an item already has a different author, its author is
-    /// updated and the file is relocated.
+    /// Assigns the listed items to the given author, moving files on disk under
+    /// <c>_extras/{AuthorName}/</c> (author root only — no series subfolders). Items already on
+    /// that author are skipped. When moving from a different author, all book and series links
+    /// are removed first.
     /// </summary>
     Task<Result> AssignToAuthorAsync(AssignContentToAuthorRequest request, CancellationToken cancellationToken = default);
 
