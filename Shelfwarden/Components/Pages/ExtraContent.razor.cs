@@ -23,7 +23,7 @@ public partial class ExtraContent : ComponentBase
     private IReadOnlyList<SeriesListItemDto>? seriesList;
 
     private int authorFilter = -1;
-    private int seriesFilter = -1;
+    private int seriesFilter = 0;
     private TagFilterMode tagFilterMode = TagFilterMode.Any;
     private readonly List<AdditionalContentTagDto> selectedTagFilters = [];
     private List<AdditionalContentTagDto> allTags = [];
