@@ -90,7 +90,8 @@ else
             <h2 class="mb-3">Extra Content</h2>
             <AdditionalContentGrid Items="extraContent"
                                    OnItemDeleted="RefreshExtraContentAsync"
-                                   OnItemRenamed="OnItemRenamed" />
+                                   OnItemRenamed="OnItemRenamed"
+                                   OnItemsChanged="RefreshExtraContentAsync" />
         </section>
     }
     else if (extraContent is not null)

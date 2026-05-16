@@ -24,11 +24,31 @@ public interface IAdditionalContentService
     /// </summary>
     /// <param name="authorFilter"><c>0</c> = any author, <c>-1</c> = unassigned only, otherwise author id.</param>
     /// <param name="seriesFilter"><c>0</c> = any series, <c>-1</c> = not linked to any series, otherwise series id.</param>
+    /// <param name="tagId"><c>-1</c> = items with no tags; <c>null</c> or <c>0</c> = any when <paramref name="tagIds"/> is empty.</param>
+    /// <param name="tagIds">When non-empty, item must have all listed tag ids (AND).</param>
     Task<Result<PagedList<AdditionalContentItemDto>>> ListPagedAsync(
         int page,
         int pageSize,
         int authorFilter = 0,
         int seriesFilter = 0,
+        int? tagId = null,
+        IReadOnlyList<int>? tagIds = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>All extra-content tags (for admin filters and tag pickers).</summary>
+    Task<Result<IReadOnlyList<AdditionalContentTagDto>>> ListTagsAsync(
+        string? query = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Tags used on items assigned to the given author.</summary>
+    Task<Result<IReadOnlyList<AdditionalContentTagDto>>> ListTagsForAuthorAsync(
+        int authorId,
+        string? query = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Replaces tags on each listed item with <see cref="SetAdditionalContentTagsRequest.TagNames"/>.</summary>
+    Task<Result> SetItemsTagsAsync(
+        SetAdditionalContentTagsRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>Returns all items associated with the given author (direct author assignment).</summary>

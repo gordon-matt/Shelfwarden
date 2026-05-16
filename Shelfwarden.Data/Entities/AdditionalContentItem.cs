@@ -32,6 +32,8 @@ public class AdditionalContentItem : BaseEntity<int>
     public virtual ICollection<BookAdditionalContentItem> BookAdditionalContents { get; set; } = [];
 
     public virtual ICollection<SeriesAdditionalContentItem> SeriesAdditionalContents { get; set; } = [];
+
+    public virtual ICollection<AdditionalContentItemTag> AdditionalContentItemTags { get; set; } = [];
 }
 
 public class AdditionalContentItemMap : IEntityTypeConfiguration<AdditionalContentItem>

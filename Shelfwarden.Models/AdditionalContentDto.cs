@@ -3,6 +3,9 @@ namespace Shelfwarden.Models;
 /// <summary>Outcome of registering files that already exist on disk outside the extras scan.</summary>
 public record RegisterExternalFilesResult(int Added, int Skipped);
 
+/// <summary>Tag on an extra content item (separate from book tags).</summary>
+public record AdditionalContentTagDto(int Id, string Name);
+
 /// <summary>Flat projection of a single extra content item, including its author and association lists.</summary>
 public record AdditionalContentItemDto(
     int Id,
@@ -14,8 +17,16 @@ public record AdditionalContentItemDto(
     int? AuthorId,
     string? AuthorName,
     bool IsManuallyImported,
+    IReadOnlyList<AdditionalContentTagDto> Tags,
     IReadOnlyList<AdditionalContentAssociationDto> Books,
     IReadOnlyList<AdditionalContentAssociationDto> Series);
+
+/// <summary>Sets the same tag list on one or more extra content items (replaces existing tags per item).</summary>
+public record SetAdditionalContentTagsRequest
+{
+    public required IReadOnlyList<int> ItemIds { get; init; }
+    public required IReadOnlyList<string> TagNames { get; init; }
+}
 
 /// <summary>Minimal id+name pair used to represent associated books or series.</summary>
 public record AdditionalContentAssociationDto(int Id, string Name);

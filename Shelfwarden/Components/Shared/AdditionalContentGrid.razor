@@ -4,6 +4,27 @@
 @if (Items is { Count: > 0 })
 {
     <div class="additional-content-grid">
+        <div class="row g-2 mb-3">
+            <div class="col-sm-6 col-md-4">
+                <label class="form-label small text-body-secondary mb-1">Tag</label>
+                <select class="form-select form-select-sm"
+                        @bind="tagFilterId"
+                        @bind:after="OnTagFilterChanged">
+                    <option value="0">Any</option>
+                    <option value="-1">None</option>
+                    @foreach (var tag in tagFilterOptions)
+                    {
+                        <option value="@tag.Id">@tag.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        @if (filteredItems.Count == 0)
+        {
+            <div class="text-secondary small fst-italic py-2">No items match the selected tag filter.</div>
+        }
+
         @if (ShowTabs)
         {
             <ul class="nav nav-tabs mb-3 additional-content-tabs" role="tablist">
@@ -40,16 +61,23 @@
                 {
                     <div class="content-masonry-column-item">
                         <figure class="content-masonry-card">
-                            <button type="button"
-                                    class="content-masonry-thumb-btn"
-                                    title="View @item.FileName"
-                                    @onclick="() => OpenViewer(item)">
-                                <img src="extra-content/@item.Id"
-                                     class="content-masonry-img"
-                                     alt=""
-                                     loading="lazy"
-                                     decoding="async" />
-                            </button>
+                            <div class="content-masonry-thumb-wrap">
+                                <button type="button"
+                                        class="content-masonry-thumb-btn"
+                                        title="View @item.FileName"
+                                        @onclick="() => OpenViewer(item)">
+                                    <img src="extra-content/@item.Id"
+                                         class="content-masonry-img"
+                                         alt=""
+                                         loading="lazy"
+                                         decoding="async" />
+                                </button>
+                                <ExtraContentItemContextMenu Item="item"
+                                                             OnView="() => OpenViewer(item)"
+                                                             OnTags="() => OpenTagsModal(item)"
+                                                             OnRename="() => OpenRename(item)"
+                                                             OnDelete="() => ConfirmDeleteAsync(item)" />
+                            </div>
                             <figcaption class="content-masonry-footer">
                                 <div class="content-masonry-title text-truncate small fw-medium" title="@item.FileName">@item.FileName</div>
                                 <div class="content-masonry-meta text-secondary small">
@@ -64,29 +92,15 @@
                                         <span> · @item.Series.Count series</span>
                                     }
                                 </div>
-                                <div class="content-masonry-toolbar">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary"
-                                            title="View" @onclick="() => OpenViewer(item)">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    <a class="btn btn-sm btn-outline-secondary"
-                                       href="extra-content/@item.Id?download=true"
-                                       title="Download">
-                                        <i class="bi bi-download"></i>
-                                    </a>
-                                    <AuthorizeView Roles="@Constants.Roles.Administrator">
-                                        <Authorized>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                                    title="Rename" @onclick="() => OpenRename(item)">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                                    title="Delete" @onclick="() => ConfirmDeleteAsync(item)">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </Authorized>
-                                    </AuthorizeView>
-                                </div>
+                                @if (item.Tags.Count > 0)
+                                {
+                                    <div class="content-masonry-tags d-flex flex-wrap gap-1 mt-1">
+                                        @foreach (var tag in item.Tags)
+                                        {
+                                            <span class="badge rounded-pill text-bg-light border">@tag.Name</span>
+                                        }
+                                    </div>
+                                }
                             </figcaption>
                         </figure>
                     </div>
@@ -116,41 +130,22 @@
                                 <span> · @item.Series.Count series</span>
                             }
                         </div>
-                    </div>
-                    <div class="content-item-actions">
-                        @if (IsViewable(item.FileExtension))
+                        @if (item.Tags.Count > 0)
                         {
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                    title="View" @onclick="() => OpenViewer(item)">
-                                <i class="bi bi-eye"></i>
-                            </button>
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                @foreach (var tag in item.Tags)
+                                {
+                                    <span class="badge rounded-pill text-bg-light border small">@tag.Name</span>
+                                }
+                            </div>
                         }
-                        else if (IsPdf(item.FileExtension))
-                        {
-                            <a class="btn btn-sm btn-outline-secondary"
-                               href="extra-content/@item.Id" target="_blank" rel="noopener"
-                               title="Open PDF">
-                                <i class="bi bi-filetype-pdf"></i>
-                            </a>
-                        }
-                        <a class="btn btn-sm btn-outline-secondary"
-                           href="extra-content/@item.Id?download=true"
-                           title="Download">
-                            <i class="bi bi-download"></i>
-                        </a>
-                        <AuthorizeView Roles="@Constants.Roles.Administrator">
-                            <Authorized>
-                                <button type="button" class="btn btn-sm btn-outline-secondary"
-                                        title="Rename" @onclick="() => OpenRename(item)">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger"
-                                        title="Delete" @onclick="() => ConfirmDeleteAsync(item)">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </Authorized>
-                        </AuthorizeView>
                     </div>
+                    <ExtraContentItemContextMenu Item="item"
+                                                 MenuClass="extra-content-item-menu--inline"
+                                                 OnView="() => OpenViewer(item)"
+                                                 OnTags="() => OpenTagsModal(item)"
+                                                 OnRename="() => OpenRename(item)"
+                                                 OnDelete="() => ConfirmDeleteAsync(item)" />
                 </div>
             }
         }
@@ -160,6 +155,14 @@ else if (ShowEmptyState)
 {
     <div class="text-secondary small fst-italic py-2">No extra content associated.</div>
 }
+
+<EditExtraContentTagsModal IsOpen="tagsModalOpen"
+                          Title="@tagsModalTitle"
+                          ItemIds="tagsModalItemIds"
+                          InitialTagNames="tagsModalInitialNames"
+                          AuthorIdForTagSuggestions="TagScopeAuthorId"
+                          OnClose="CloseTagsModal"
+                          OnSaved="OnTagsSavedAsync" />
 
 @* Content viewer modal (text / images) *@
 @if (viewerItem is not null)

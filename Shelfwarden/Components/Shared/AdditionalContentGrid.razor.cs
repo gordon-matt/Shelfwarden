@@ -1,3 +1,5 @@
+using Shelfwarden.Models;
+
 namespace Shelfwarden.Components.Shared;
 
 public partial class AdditionalContentGrid : ComponentBase
@@ -6,10 +8,25 @@ public partial class AdditionalContentGrid : ComponentBase
     [Parameter] public bool ShowEmptyState { get; set; } = true;
     [Parameter] public EventCallback OnItemDeleted { get; set; }
     [Parameter] public EventCallback<AdditionalContentItemDto> OnItemRenamed { get; set; }
+    [Parameter] public EventCallback OnItemsChanged { get; set; }
 
+    /// <summary>When set, tag filter options are limited to tags on this author's extra content.</summary>
+    [Parameter] public int? TagScopeAuthorId { get; set; }
+
+    /// <summary><c>0</c> = any, <c>-1</c> = untagged, otherwise a tag id.</summary>
+    private int tagFilterId;
+
+    private IReadOnlyList<AdditionalContentItemDto> filteredItems = [];
     private IReadOnlyList<AdditionalContentItemDto> imageItems = [];
     private IReadOnlyList<AdditionalContentItemDto> otherItems = [];
     private string activeTab = "images";
+
+    private List<AdditionalContentTagDto> tagFilterOptions = [];
+
+    private bool tagsModalOpen;
+    private string tagsModalTitle = "Edit tags";
+    private List<int> tagsModalItemIds = [];
+    private List<string> tagsModalInitialNames = [];
 
     private AdditionalContentItemDto? viewerItem;
     private string? viewerContent;
@@ -30,14 +47,42 @@ public partial class AdditionalContentGrid : ComponentBase
 
     private string ImagesMasonryKey => string.Join(',', imageItems.Select(i => i.Id));
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        imageItems = Items
+        await LoadTagFilterOptionsAsync();
+        RefreshFilteredLists();
+    }
+
+    private async Task LoadTagFilterOptionsAsync()
+    {
+        if (TagScopeAuthorId is int authorId)
+        {
+            var tagsResult = await ContentService.ListTagsForAuthorAsync(authorId);
+            if (tagsResult.IsSuccess)
+            {
+                tagFilterOptions = tagsResult.Value.ToList();
+            }
+        }
+        else
+        {
+            tagFilterOptions = Items
+                .SelectMany(i => i.Tags)
+                .DistinctBy(t => t.Id)
+                .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    private void RefreshFilteredLists()
+    {
+        filteredItems = ApplyTagFilter(Items).ToList();
+
+        imageItems = filteredItems
             .Where(i => IsImage(i.FileExtension))
             .OrderBy(i => i.FileName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        otherItems = Items
+        otherItems = filteredItems
             .Where(i => !IsImage(i.FileExtension))
             .OrderBy(i => i.FileName, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -55,9 +100,39 @@ public partial class AdditionalContentGrid : ComponentBase
         }
     }
 
-    private void ActivateTab(string tab)
+    private void OnTagFilterChanged() => RefreshFilteredLists();
+
+    private IEnumerable<AdditionalContentItemDto> ApplyTagFilter(IReadOnlyList<AdditionalContentItemDto> source)
     {
-        activeTab = tab;
+        if (tagFilterId == 0)
+        {
+            return source;
+        }
+
+        if (tagFilterId == -1)
+        {
+            return source.Where(i => i.Tags.Count == 0);
+        }
+
+        return source.Where(i => i.Tags.Any(t => t.Id == tagFilterId));
+    }
+
+    private void ActivateTab(string tab) => activeTab = tab;
+
+    private void OpenTagsModal(AdditionalContentItemDto item)
+    {
+        tagsModalTitle = $"Tags — {item.FileName}";
+        tagsModalItemIds = [item.Id];
+        tagsModalInitialNames = item.Tags.Select(t => t.Name).ToList();
+        tagsModalOpen = true;
+    }
+
+    private void CloseTagsModal() => tagsModalOpen = false;
+
+    private async Task OnTagsSavedAsync()
+    {
+        tagsModalOpen = false;
+        await OnItemsChanged.InvokeAsync();
     }
 
     private async Task OpenViewer(AdditionalContentItemDto item)

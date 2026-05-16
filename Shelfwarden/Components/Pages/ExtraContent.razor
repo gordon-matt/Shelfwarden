@@ -85,6 +85,29 @@
             }
         </select>
     </div>
+    <div class="col-md-4">
+        <label class="form-label">Tag</label>
+        <select class="form-select" @bind="tagFilterMode" @bind:after="OnTagModeChangedAsync">
+            <option value="@TagFilterMode.Any">Any</option>
+            <option value="@TagFilterMode.None">None</option>
+            <option value="@TagFilterMode.Selected">Selected</option>
+        </select>
+    </div>
+    @if (tagFilterMode == TagFilterMode.Selected)
+    {
+        <div class="col-md-8">
+            <label class="form-label">Selected tags (must match all)</label>
+            <ChipInput TItem="AdditionalContentTagDto"
+                       Label="Tags"
+                       Selected="selectedTagFilters"
+                       ChipCssSuffix="chip-tag"
+                       NameOf="(t => t.Name)"
+                       SearchAsync="SearchTagFilterOptionsAsync"
+                       OnAddAsync="AddTagFilterAsync"
+                       AllowCreate="false"
+                       OnChanged="OnFiltersChangedAsync" />
+        </div>
+    }
 </div>
 
 @* Bulk actions bar *@
@@ -101,6 +124,9 @@
         </button>
         <button type="button" class="btn btn-sm btn-primary" @onclick="OpenBulkAssign" disabled="@bulkActionBusy">
             <i class="bi bi-person-plus me-1"></i> Assign to Author
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenBulkTags" disabled="@bulkActionBusy">
+            <i class="bi bi-tags me-1"></i> Edit tags
         </button>
     </div>
 }
@@ -160,6 +186,10 @@ else
                                 <i class="bi @GetFileIcon(item.FileExtension)"></i>
                             </div>
                         }
+                        <ExtraContentItemContextMenu Item="item"
+                                                     ShowAssign="true"
+                                                     OnTags="() => OpenSingleTags(item)"
+                                                     OnAssign="() => OpenSingleAssign(item)" />
                     </div>
                     <div class="content-admin-card-footer">
                         <div class="fw-semibold text-truncate small" title="@item.FileName">@item.FileName</div>
@@ -178,20 +208,15 @@ else
                             }
                         </div>
                         <div class="text-secondary small">@FormatBytes(item.FileSizeBytes)</div>
-                        <div class="content-admin-actions">
-                            <a class="btn btn-sm btn-outline-secondary"
-                               href="extra-content/@item.Id?download=true"
-                               title="Download"
-                               @onclick:stopPropagation="true">
-                                <i class="bi bi-download"></i>
-                            </a>
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                    title="Assign to author"
-                                    @onclick:stopPropagation="true"
-                                    @onclick="() => OpenSingleAssign(item)">
-                                <i class="bi bi-person-plus"></i>
-                            </button>
-                        </div>
+                        @if (item.Tags.Count > 0)
+                        {
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                @foreach (var tag in item.Tags)
+                                {
+                                    <span class="badge rounded-pill text-bg-light border small">@tag.Name</span>
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -257,6 +282,13 @@ else
     </div>
     <div class="modal-backdrop fade show"></div>
 }
+
+<EditExtraContentTagsModal IsOpen="tagsModalOpen"
+                          Title="@tagsModalTitle"
+                          ItemIds="tagsModalItemIds"
+                          InitialTagNames="tagsModalInitialNames"
+                          OnClose="CloseTagsModal"
+                          OnSaved="OnTagsSavedAsync" />
 
 @if (showAddContentPicker)
 {

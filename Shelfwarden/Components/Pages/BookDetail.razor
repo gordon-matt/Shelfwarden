@@ -463,8 +463,10 @@ else
                 <i class="bi bi-folder2-open me-1"></i> Extra Content
             </h3>
             <AdditionalContentGrid Items="bookExtraContent"
+                                   TagScopeAuthorId="extraContentTagScopeAuthorId"
                                    OnItemDeleted="RefreshExtraContentAsync"
-                                   OnItemRenamed="OnContentItemRenamed" />
+                                   OnItemRenamed="OnContentItemRenamed"
+                                   OnItemsChanged="RefreshExtraContentAsync" />
         </div>
     }
 

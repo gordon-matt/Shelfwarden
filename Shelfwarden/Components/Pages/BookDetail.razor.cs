@@ -9,6 +9,7 @@ public partial class BookDetail : ComponentBase
     private bool loading = true;
     private readonly List<BookmarkDto> bookmarks = [];
     private IReadOnlyList<AdditionalContentItemDto>? bookExtraContent;
+    private int? extraContentTagScopeAuthorId;
 
     private AudiobookDto? audiobook;
     private bool audiobookSupported;
@@ -41,6 +42,8 @@ public partial class BookDetail : ComponentBase
         showPlayer = false;
         audiobookSupported = false;
         StopPolling();
+
+        extraContentTagScopeAuthorId = book?.Authors.FirstOrDefault()?.Id;
 
         if (book is not null)
         {

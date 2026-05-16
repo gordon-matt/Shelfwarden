@@ -64,6 +64,10 @@ public abstract class ApplicationDbContextBase
 
     public DbSet<SeriesAdditionalContentItem> SeriesAdditionalContents => Set<SeriesAdditionalContentItem>();
 
+    public DbSet<AdditionalContentTag> AdditionalContentTags => Set<AdditionalContentTag>();
+
+    public DbSet<AdditionalContentItemTag> AdditionalContentItemTags => Set<AdditionalContentItemTag>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

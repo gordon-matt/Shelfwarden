@@ -1,0 +1,42 @@
+@inject IAdditionalContentService ContentService
+
+@if (IsOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@Title</h5>
+                    <button type="button" class="btn-close" @onclick="Close" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (error is not null)
+                    {
+                        <div class="alert alert-danger py-2">@error</div>
+                    }
+                    <ChipInput TItem="string"
+                               Label="Tags"
+                               Selected="selectedTags"
+                               ChipCssSuffix="chip-tag"
+                               NameOf="@(t => t)"
+                               SearchAsync="SearchTagsAsync"
+                               OnAddAsync="AddTagAsync" />
+                    <div class="form-text">
+                        Suggestions come from tags already used on extra content; type a new name to create one.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="Close">Cancel</button>
+                    <button type="button" class="btn btn-primary" disabled="@saving" @onclick="SaveAsync">
+                        @if (saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}

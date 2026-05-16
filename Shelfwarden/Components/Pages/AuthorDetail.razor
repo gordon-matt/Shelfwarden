@@ -199,8 +199,10 @@ else
         <section class="mt-5">
             <h2 class="mb-3">Extra Content</h2>
             <AdditionalContentGrid Items="extraContent"
+                                   TagScopeAuthorId="Id"
                                    OnItemDeleted="RefreshExtraContentAsync"
-                                   OnItemRenamed="OnContentItemRenamed" />
+                                   OnItemRenamed="OnContentItemRenamed"
+                                   OnItemsChanged="RefreshExtraContentAsync" />
         </section>
     }
 }

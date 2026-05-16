@@ -5,6 +5,13 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class ExtraContent : ComponentBase
 {
+    private enum TagFilterMode
+    {
+        Any,
+        None,
+        Selected,
+    }
+
     private const int PageSize = 32; // 4 rows × 8 columns on desktop
 
     private readonly List<AdditionalContentItemDto> loadedItems = [];
@@ -17,6 +24,9 @@ public partial class ExtraContent : ComponentBase
 
     private int authorFilter = -1;
     private int seriesFilter = -1;
+    private TagFilterMode tagFilterMode = TagFilterMode.Any;
+    private readonly List<AdditionalContentTagDto> selectedTagFilters = [];
+    private List<AdditionalContentTagDto> allTags = [];
 
     private int nextPageToLoad = 1;
     private int totalCount;
@@ -38,6 +48,11 @@ public partial class ExtraContent : ComponentBase
     private bool bulkAssignOpen;
     private int bulkAssignAuthorId;
     private string? bulkAssignError;
+
+    private bool tagsModalOpen;
+    private string tagsModalTitle = "Edit tags";
+    private List<int> tagsModalItemIds = [];
+    private List<string> tagsModalInitialNames = [];
 
     private ElementReference infiniteScrollSentinel;
 
@@ -67,7 +82,8 @@ public partial class ExtraContent : ComponentBase
     {
         var authorsTask = AuthorService.ListAsync();
         var seriesTask = SeriesService.ListAsync();
-        await Task.WhenAll(authorsTask, seriesTask);
+        var tagsTask = ContentService.ListTagsAsync();
+        await Task.WhenAll(authorsTask, seriesTask, tagsTask);
 
         if (authorsTask.Result.IsSuccess)
         {
@@ -78,9 +94,24 @@ public partial class ExtraContent : ComponentBase
         {
             seriesList = seriesTask.Result.Value;
         }
+
+        if (tagsTask.Result.IsSuccess)
+        {
+            allTags = tagsTask.Result.Value.ToList();
+        }
     }
 
     private async Task OnFiltersChangedAsync() => await ResetAndLoadAsync();
+
+    private async Task OnTagModeChangedAsync()
+    {
+        if (tagFilterMode != TagFilterMode.Selected)
+        {
+            selectedTagFilters.Clear();
+        }
+
+        await ResetAndLoadAsync();
+    }
 
     private async Task ResetAndLoadAsync()
     {
@@ -116,7 +147,9 @@ public partial class ExtraContent : ComponentBase
                 nextPageToLoad,
                 PageSize,
                 authorFilter,
-                seriesFilter);
+                seriesFilter,
+                GetTagFilterId(),
+                GetSelectedTagFilterIds());
 
             if (result.IsSuccess)
             {
@@ -306,6 +339,88 @@ public partial class ExtraContent : ComponentBase
         bulkAssignAuthorId = 0;
         bulkAssignError = null;
         bulkAssignOpen = true;
+    }
+
+    private void OpenSingleTags(AdditionalContentItemDto item)
+    {
+        tagsModalTitle = $"Tags — {item.FileName}";
+        tagsModalItemIds = [item.Id];
+        tagsModalInitialNames = item.Tags.Select(t => t.Name).ToList();
+        tagsModalOpen = true;
+    }
+
+    private void OpenBulkTags()
+    {
+        if (selectedIds.Count == 0)
+        {
+            return;
+        }
+
+        tagsModalTitle = selectedIds.Count == 1
+            ? "Edit tags"
+            : $"Edit tags ({selectedIds.Count} items)";
+        tagsModalItemIds = selectedIds.ToList();
+
+        if (selectedIds.Count == 1)
+        {
+            var item = loadedItems.FirstOrDefault(i => i.Id == selectedIds.First());
+            tagsModalInitialNames = item?.Tags.Select(t => t.Name).ToList() ?? [];
+        }
+        else
+        {
+            tagsModalInitialNames = [];
+        }
+
+        tagsModalOpen = true;
+    }
+
+    private void CloseTagsModal() => tagsModalOpen = false;
+
+    private async Task OnTagsSavedAsync()
+    {
+        tagsModalOpen = false;
+        actionMessage = "Tags updated.";
+        await ResetAndLoadAsync();
+    }
+
+    private int? GetTagFilterId() => tagFilterMode switch
+    {
+        TagFilterMode.None => -1,
+        _ => null,
+    };
+
+    private IReadOnlyList<int> GetSelectedTagFilterIds()
+        => tagFilterMode == TagFilterMode.Selected
+            ? selectedTagFilters.Select(t => t.Id).Distinct().ToList()
+            : [];
+
+    private Task<IReadOnlyList<AdditionalContentTagDto>> SearchTagFilterOptionsAsync(string queryText)
+    {
+        IEnumerable<AdditionalContentTagDto> q = allTags;
+        if (!string.IsNullOrWhiteSpace(queryText))
+        {
+            q = q.Where(t => t.Name.Contains(queryText, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.FromResult<IReadOnlyList<AdditionalContentTagDto>>(q.Take(20).ToList());
+    }
+
+    private Task AddTagFilterAsync(string tagName)
+    {
+        string trimmed = tagName.Trim();
+        if (trimmed.Length == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var existing = allTags.FirstOrDefault(t =>
+            string.Equals(t.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null && !selectedTagFilters.Any(t => t.Id == existing.Id))
+        {
+            selectedTagFilters.Add(existing);
+        }
+
+        return Task.CompletedTask;
     }
 
     private async Task BulkAssignToAuthorAsync()
