@@ -1920,49 +1920,145 @@ ol.reading-list {
     line-height: 1.6;
 }
 
-/* Admin grid on the Extra Content admin page */
+/* Admin grid on the Extra Content admin page — 8 columns on large viewports */
 .extra-content-admin-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+}
+
+@media (min-width: 576px) {
+    .extra-content-admin-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 768px) {
+    .extra-content-admin-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 992px) {
+    .extra-content-admin-grid {
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+    }
 }
 
 .content-admin-card {
     display: flex;
-    gap: 0.5rem;
-    padding: 0.75rem;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
     border: 1px solid var(--bs-border-color);
     border-radius: var(--bs-border-radius);
     background: var(--bs-body-bg);
-    transition: background 0.15s, border-color 0.15s;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
     position: relative;
 }
 
 .content-admin-card.selected {
     border-color: var(--bs-primary);
     background: var(--bs-primary-bg-subtle);
+    box-shadow: inset 0 0 0 1px var(--bs-primary-border-subtle);
 }
 
+/* Checkbox visibility matches `.book-card-select`: explicit size + body ring so it reads on
+   photos; hover / checked / selected / coarse-pointer always show. */
 .content-admin-check {
-    flex-shrink: 0;
-    padding-top: 0.125rem;
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 5;
+    margin: 0;
+    padding: 0;
+    /* Standalone checkbox: no label — cancel Bootstrap .form-check padding + input negative margin */
+    min-height: 0;
 }
 
-.content-admin-icon {
-    flex-shrink: 0;
+.content-admin-check .form-check-input {
+    margin-top: 0;
+    margin-left: 0;
+    float: none;
+    cursor: pointer;
+    width: 1.25rem;
+    height: 1.25rem;
+    /*background-color: var(--bs-body-bg);*/
+    box-shadow: 0 0 0 2px var(--bs-body-bg);
+    opacity: 0;
+    transition: opacity 160ms ease;
+}
+
+.content-admin-card:hover .content-admin-check .form-check-input,
+.content-admin-check .form-check-input:checked,
+.content-admin-card.selected .content-admin-check .form-check-input {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .content-admin-check .form-check-input {
+        opacity: 1;
+    }
+}
+
+/* Click-to-toggle selection (after first checkbox) — mirrors Books grid + BookCard. */
+.content-admin-card-hit {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.content-admin-card-hit--active {
+    cursor: pointer;
+}
+
+/* Preview: flush to top and side edges of the card */
+.content-admin-preview {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: var(--bs-tertiary-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.content-admin-preview-img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: center;
+}
+
+.content-admin-preview-icon {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: var(--bs-secondary-color);
 }
 
-.content-admin-body {
-    flex: 1;
+.content-admin-preview-icon i {
+    font-size: 3.75rem;
+    line-height: 1;
+    opacity: 0.85;
+}
+
+.content-admin-card-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.75rem;
     min-width: 0;
 }
 
 .content-admin-actions {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    flex-shrink: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.25rem;
 }
 
 /* Assign content modal list */

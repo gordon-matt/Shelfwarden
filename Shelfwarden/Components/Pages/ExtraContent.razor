@@ -1,8 +1,10 @@
 @page "/extra-content"
 @attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@implements IAsyncDisposable
 @inject IAdditionalContentService ContentService
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Extra Content - Shelfwarden</PageTitle>
 
@@ -45,7 +47,7 @@
 <div class="row g-2 mb-3">
     <div class="col-md-4">
         <label class="form-label">Author</label>
-        <select class="form-select" @bind="authorFilter" @bind:after="ApplyFilter">
+        <select class="form-select" @bind="authorFilter" @bind:after="OnFiltersChangedAsync">
             <option value="0">Any</option>
             <option value="-1">None (unassigned)</option>
             @if (authors is not null)
@@ -59,7 +61,7 @@
     </div>
     <div class="col-md-4">
         <label class="form-label">Series</label>
-        <select class="form-select" @bind="seriesFilter" @bind:after="ApplyFilter">
+        <select class="form-select" @bind="seriesFilter" @bind:after="OnFiltersChangedAsync">
             <option value="0">Any</option>
             <option value="-1">None (no series)</option>
             @if (seriesList is not null)
@@ -91,14 +93,14 @@
     </div>
 }
 
-@if (items is null)
+@if ((isLoadingMore && loadedItems.Count == 0) || (gridReloadPending && loadedItems.Count == 0))
 {
     <div class="text-center text-secondary py-5">
         <div class="spinner-border" role="status"></div>
         <div class="mt-2">Loading...</div>
     </div>
 }
-else if (filteredItems.Count == 0)
+else if (loadedItems.Count == 0)
 {
     <div class="empty-state">
         <i class="bi bi-folder2 empty-icon"></i>
@@ -108,69 +110,91 @@ else if (filteredItems.Count == 0)
 }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-2">
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
         <div class="form-check">
             <input class="form-check-input" type="checkbox" id="selectAll"
                    @bind="allSelected"
                    @bind:after="ToggleSelectAll" />
-            <label class="form-check-label" for="selectAll">Select all</label>
+            <label class="form-check-label" for="selectAll">Select all (visible)</label>
         </div>
-        <span class="text-secondary small">@filteredItems.Count item@(filteredItems.Count == 1 ? "" : "s")</span>
+        <span class="text-secondary small">
+            @totalCount total · showing @loadedItems.Count loaded
+        </span>
     </div>
 
     <div class="extra-content-admin-grid">
-        @foreach (var item in filteredItems)
+        @foreach (var item in loadedItems)
         {
             <div class="content-admin-card @(selectedIds.Contains(item.Id) ? "selected" : "")">
-                <div class="form-check content-admin-check">
+                <div class="form-check content-admin-check" @onclick:stopPropagation="true">
                     <input class="form-check-input" type="checkbox"
+                           id="@($"extra-admin-{item.Id}")"
                            checked="@selectedIds.Contains(item.Id)"
                            @onchange="e => ToggleItem(item.Id, (bool)(e.Value ?? false))" />
                 </div>
-                <div class="content-admin-icon">
-                    <i class="bi @GetFileIcon(item.FileExtension) fs-3"></i>
-                </div>
-                <div class="content-admin-body">
-                    <div class="fw-semibold text-truncate" title="@item.FileName">@item.FileName</div>
-                    <div class="text-secondary small">
-                        @if (item.AuthorName is not null)
+                <div class="content-admin-card-hit @(selectedIds.Count > 0 ? "content-admin-card-hit--active" : "")"
+                     @onclick="() => OnCardHitAreaClick(item.Id)">
+                    <div class="content-admin-preview">
+                        @if (IsImageExtension(item.FileExtension))
                         {
-                            <span><i class="bi bi-person me-1"></i>@item.AuthorName</span>
+                            <img class="content-admin-preview-img"
+                                 src="@($"extra-content/{item.Id}")"
+                                 alt=""
+                                 loading="lazy" />
                         }
                         else
                         {
-                            <span class="fst-italic">Unassigned</span>
+                            <div class="content-admin-preview-icon">
+                                <i class="bi @GetFileIcon(item.FileExtension)"></i>
+                            </div>
                         }
                     </div>
-                    @if (item.Books.Count > 0)
-                    {
+                    <div class="content-admin-card-footer">
+                        <div class="fw-semibold text-truncate small" title="@item.FileName">@item.FileName</div>
                         <div class="text-secondary small">
-                            <i class="bi bi-book me-1"></i>
-                            @string.Join(", ", item.Books.Select(b => b.Name))
+                            @if (item.AuthorName is not null)
+                            {
+                                <span><i class="bi bi-person me-1"></i>@item.AuthorName</span>
+                            }
+                            else
+                            {
+                                <span class="fst-italic">Unassigned</span>
+                            }
                         </div>
-                    }
-                    @if (item.Series.Count > 0)
-                    {
-                        <div class="text-secondary small">
-                            <i class="bi bi-collection-fill me-1"></i>
-                            @string.Join(", ", item.Series.Select(s => s.Name))
+                        <div class="text-secondary small">@FormatBytes(item.FileSizeBytes)</div>
+                        <div class="content-admin-actions">
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="extra-content/@item.Id?download=true"
+                               title="Download"
+                               @onclick:stopPropagation="true">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    title="Assign to author"
+                                    @onclick:stopPropagation="true"
+                                    @onclick="() => OpenSingleAssign(item)">
+                                <i class="bi bi-person-plus"></i>
+                            </button>
                         </div>
-                    }
-                    <div class="text-secondary small">@FormatBytes(item.FileSizeBytes)</div>
-                </div>
-                <div class="content-admin-actions">
-                    <a class="btn btn-sm btn-outline-secondary" href="extra-content/@item.Id?download=true" title="Download">
-                        <i class="bi bi-download"></i>
-                    </a>
-                    <button type="button" class="btn btn-sm btn-outline-secondary"
-                            title="Assign to author"
-                            @onclick="() => OpenSingleAssign(item)">
-                        <i class="bi bi-person-plus"></i>
-                    </button>
+                    </div>
                 </div>
             </div>
         }
     </div>
+
+    <div class="mt-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <small class="text-body-secondary">
+            Showing @(loadedItems.Count == 0 ? 0 : 1)-@loadedItems.Count of @totalCount
+        </small>
+        @if (isLoadingMore && loadedItems.Count > 0)
+        {
+            <span class="text-secondary small"><span class="spinner-border spinner-border-sm me-1" role="status"></span>Loading more…</span>
+        }
+    </div>
+    @if (hasMorePages || isLoadingMore)
+    {
+        <div class="infinite-scroll-sentinel" @ref="infiniteScrollSentinel"></div>
+    }
 }
 
 @* Bulk assign author modal *@

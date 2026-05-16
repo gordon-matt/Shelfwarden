@@ -1,3 +1,4 @@
+using LinqKit;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
@@ -83,38 +84,52 @@ public class AdditionalContentService(
         return Result.Success(added);
     }
 
-    public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> ListAsync(
-        int? authorId = null,
-        int? seriesId = null,
+    public async Task<Result<PagedList<AdditionalContentItemDto>>> ListPagedAsync(
+        int page,
+        int pageSize,
+        int authorFilter = 0,
+        int seriesFilter = 0,
         CancellationToken cancellationToken = default)
     {
-        var items = (await contentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var predicate = PredicateBuilder.New<AdditionalContentItem>(true);
+        if (authorFilter == -1)
         {
+            predicate = predicate.And(i => i.AuthorId == null);
+        }
+        else if (authorFilter > 0)
+        {
+            predicate = predicate.And(i => i.AuthorId == authorFilter);
+        }
+
+        if (seriesFilter == -1)
+        {
+            predicate = predicate.And(i => !i.SeriesAdditionalContents.Any());
+        }
+        else if (seriesFilter > 0)
+        {
+            predicate = predicate.And(i => i.SeriesAdditionalContents.Any(s => s.SeriesId == seriesFilter));
+        }
+
+        var options = new SearchOptions<AdditionalContentItem>
+        {
+            Query = predicate,
+            PageNumber = page,
+            PageSize = pageSize,
             Include = q => q
                 .Include(i => i.Author)
                 .Include(i => i.BookAdditionalContents).ThenInclude(b => b.Book)
                 .Include(i => i.SeriesAdditionalContents).ThenInclude(s => s.Series),
             OrderBy = q => q.OrderBy(i => i.FileName),
+            SplitQuery = true,
             CancellationToken = cancellationToken,
-        })).ToList();
+        };
 
-        // Filter by authorId: 0 = unassigned, positive = specific author.
-        if (authorId.HasValue)
-        {
-            items = authorId.Value == 0
-                ? items.Where(i => i.AuthorId is null).ToList()
-                : items.Where(i => i.AuthorId == authorId.Value).ToList();
-        }
-
-        // Filter by seriesId: 0 = not associated with any series, positive = specific series.
-        if (seriesId.HasValue)
-        {
-            items = seriesId.Value == 0
-                ? items.Where(i => i.SeriesAdditionalContents.Count == 0).ToList()
-                : items.Where(i => i.SeriesAdditionalContents.Any(s => s.SeriesId == seriesId.Value)).ToList();
-        }
-
-        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(ToDto).ToList());
+        var page_ = await contentRepository.FindAsync(options);
+        var items = page_.Select(ToDto).ToList();
+        return Result.Success(new PagedList<AdditionalContentItemDto>(items, page_.ItemCount, page, pageSize));
     }
 
     public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetForAuthorAsync(

@@ -1,16 +1,28 @@
+using Microsoft.JSInterop;
+
 namespace Shelfwarden.Components.Pages;
 
 public partial class ExtraContent : ComponentBase
 {
-    private IReadOnlyList<AdditionalContentItemDto>? items;
-    private List<AdditionalContentItemDto> filteredItems = [];
+    private const int PageSize = 32; // 4 rows × 8 columns on desktop
+
+    private readonly List<AdditionalContentItemDto> loadedItems = [];
+    private readonly string observerKey = $"extra-content-{Guid.NewGuid():N}";
+    private readonly HashSet<int> selectedIds = [];
+    private DotNetObjectReference<ExtraContent>? dotNetRef;
+
     private IReadOnlyList<AuthorListItemDto>? authors;
     private IReadOnlyList<SeriesListItemDto>? seriesList;
 
     private int authorFilter;
     private int seriesFilter;
 
-    private readonly HashSet<int> selectedIds = [];
+    private int nextPageToLoad = 1;
+    private int totalCount;
+    private bool hasMorePages;
+    private bool isLoadingMore;
+    /// <summary>Keeps the loading spinner visible while clearing + refetching so we never flash the empty state.</summary>
+    private bool gridReloadPending;
     private bool allSelected;
 
     private bool scanning;
@@ -23,21 +35,28 @@ public partial class ExtraContent : ComponentBase
     private int bulkAssignAuthorId;
     private string? bulkAssignError;
 
-    private AdditionalContentItemDto? singleAssignItem;
+    private ElementReference infiniteScrollSentinel;
 
     protected override async Task OnInitializedAsync()
     {
-        await Task.WhenAll(LoadItemsAsync(), LoadFiltersAsync());
+        dotNetRef = DotNetObjectReference.Create(this);
+        await LoadFiltersAsync();
+        await ResetAndLoadAsync();
     }
 
-    private async Task LoadItemsAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var result = await ContentService.ListAsync();
-        if (result.IsSuccess)
+        if (!hasMorePages && !isLoadingMore)
         {
-            items = result.Value;
-            ApplyFilter();
+            return;
         }
+
+        await JSRuntime.InvokeVoidAsync(
+            "shelfwarden.observeInfiniteScroll",
+            observerKey,
+            infiniteScrollSentinel,
+            dotNetRef,
+            nameof(LoadMoreAsync));
     }
 
     private async Task LoadFiltersAsync()
@@ -46,56 +65,113 @@ public partial class ExtraContent : ComponentBase
         var seriesTask = SeriesService.ListAsync();
         await Task.WhenAll(authorsTask, seriesTask);
 
-        if (authorsTask.Result.IsSuccess) authors = authorsTask.Result.Value;
-        if (seriesTask.Result.IsSuccess) seriesList = seriesTask.Result.Value;
+        if (authorsTask.Result.IsSuccess)
+        {
+            authors = authorsTask.Result.Value;
+        }
+
+        if (seriesTask.Result.IsSuccess)
+        {
+            seriesList = seriesTask.Result.Value;
+        }
     }
 
-    private void ApplyFilter()
+    private async Task OnFiltersChangedAsync() => await ResetAndLoadAsync();
+
+    private async Task ResetAndLoadAsync()
     {
-        if (items is null)
+        gridReloadPending = true;
+        try
         {
-            filteredItems = [];
+            loadedItems.Clear();
+            nextPageToLoad = 1;
+            totalCount = 0;
+            hasMorePages = false;
+            selectedIds.Clear();
+            allSelected = false;
+            await LoadMoreAsync();
+        }
+        finally
+        {
+            gridReloadPending = false;
+        }
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreAsync()
+    {
+        if (isLoadingMore || (!hasMorePages && nextPageToLoad > 1))
+        {
             return;
         }
 
-        IEnumerable<AdditionalContentItemDto> query = items;
-
-        // Author filter: 0 = Any, -1 = None (unassigned), positive = specific author
-        if (authorFilter != 0)
+        isLoadingMore = true;
+        try
         {
-            query = authorFilter == -1
-                ? query.Where(i => i.AuthorId is null)
-                : query.Where(i => i.AuthorId == authorFilter);
-        }
+            var result = await ContentService.ListPagedAsync(
+                nextPageToLoad,
+                PageSize,
+                authorFilter,
+                seriesFilter);
 
-        // Series filter: 0 = Any, -1 = None, positive = specific series
-        if (seriesFilter != 0)
+            if (result.IsSuccess)
+            {
+                var page = result.Value;
+                loadedItems.AddRange(page.Items);
+                totalCount = page.TotalCount;
+                hasMorePages = nextPageToLoad < page.TotalPages;
+                nextPageToLoad++;
+            }
+            else
+            {
+                hasMorePages = false;
+            }
+        }
+        finally
         {
-            query = seriesFilter == -1
-                ? query.Where(i => i.Series.Count == 0)
-                : query.Where(i => i.Series.Any(s => s.Id == seriesFilter));
+            isLoadingMore = false;
+            SyncAllSelectedState();
+            await InvokeAsync(StateHasChanged);
         }
-
-        filteredItems = query.ToList();
-
-        // Clear selections that are no longer visible.
-        selectedIds.RemoveWhere(id => !filteredItems.Any(i => i.Id == id));
-        allSelected = filteredItems.Count > 0 && filteredItems.All(i => selectedIds.Contains(i.Id));
     }
+
+    private void SyncAllSelectedState() =>
+        allSelected = loadedItems.Count > 0 && loadedItems.All(i => selectedIds.Contains(i.Id));
 
     private void ToggleItem(int id, bool include)
     {
-        if (include) selectedIds.Add(id);
-        else selectedIds.Remove(id);
+        if (include)
+        {
+            selectedIds.Add(id);
+        }
+        else
+        {
+            selectedIds.Remove(id);
+        }
 
-        allSelected = filteredItems.Count > 0 && filteredItems.All(i => selectedIds.Contains(i.Id));
+        SyncAllSelectedState();
+    }
+
+    /// <summary>
+    /// After at least one item is selected, clicking the card body toggles membership (same idea
+    /// as <see cref="BookCard"/> selection mode on the Books page). The first item is still
+    /// chosen via the checkbox or Select all.
+    /// </summary>
+    private void OnCardHitAreaClick(int itemId)
+    {
+        if (selectedIds.Count == 0)
+        {
+            return;
+        }
+
+        ToggleItem(itemId, !selectedIds.Contains(itemId));
     }
 
     private void ToggleSelectAll()
     {
         if (allSelected)
         {
-            foreach (var item in filteredItems)
+            foreach (var item in loadedItems)
             {
                 selectedIds.Add(item.Id);
             }
@@ -104,6 +180,8 @@ public partial class ExtraContent : ComponentBase
         {
             selectedIds.Clear();
         }
+
+        SyncAllSelectedState();
     }
 
     private async Task ScanExtrasAsync()
@@ -118,7 +196,7 @@ public partial class ExtraContent : ComponentBase
                 scanMessage = result.Value > 0
                     ? $"Scan complete — {result.Value} new item(s) discovered."
                     : "Scan complete — no new items found.";
-                await LoadItemsAsync();
+                await ResetAndLoadAsync();
             }
             else
             {
@@ -133,7 +211,10 @@ public partial class ExtraContent : ComponentBase
 
     private async Task BulkDeleteAsync()
     {
-        if (selectedIds.Count == 0) return;
+        if (selectedIds.Count == 0)
+        {
+            return;
+        }
 
         bulkActionBusy = true;
         actionError = null;
@@ -144,7 +225,7 @@ public partial class ExtraContent : ComponentBase
             {
                 actionMessage = $"Deleted {selectedIds.Count} item(s).";
                 selectedIds.Clear();
-                await LoadItemsAsync();
+                await ResetAndLoadAsync();
             }
             else
             {
@@ -175,7 +256,10 @@ public partial class ExtraContent : ComponentBase
 
     private async Task BulkAssignToAuthorAsync()
     {
-        if (bulkAssignAuthorId == 0 || selectedIds.Count == 0) return;
+        if (bulkAssignAuthorId == 0 || selectedIds.Count == 0)
+        {
+            return;
+        }
 
         bulkActionBusy = true;
         bulkAssignError = null;
@@ -193,7 +277,7 @@ public partial class ExtraContent : ComponentBase
                 actionMessage = $"Assigned {selectedIds.Count} item(s) to {author?.Name ?? "author"}.";
                 bulkAssignOpen = false;
                 selectedIds.Clear();
-                await LoadItemsAsync();
+                await ResetAndLoadAsync();
             }
             else
             {
@@ -205,6 +289,9 @@ public partial class ExtraContent : ComponentBase
             bulkActionBusy = false;
         }
     }
+
+    private static bool IsImageExtension(string ext) =>
+        ext is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".bmp" or ".svg";
 
     private static string GetFileIcon(string ext) => ext switch
     {
@@ -227,6 +314,21 @@ public partial class ExtraContent : ComponentBase
             value /= 1024;
             unit++;
         }
+
         return $"{value:0.##} {units[unit]}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        dotNetRef?.Dispose();
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("shelfwarden.disconnectInfiniteScroll", observerKey);
+        }
+        catch
+        {
+            // Ignore disposal-time JS failures during teardown.
+        }
     }
 }

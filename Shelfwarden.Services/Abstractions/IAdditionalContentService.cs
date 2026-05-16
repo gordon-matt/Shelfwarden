@@ -9,12 +9,16 @@ public interface IAdditionalContentService
     /// <returns>The count of newly discovered files.</returns>
     Task<Result<int>> ScanExtrasAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Lists all extra content items with optional author and series filters.</summary>
-    /// <param name="authorId">When non-null, only returns items assigned to this author (or 0 for unassigned).</param>
-    /// <param name="seriesId">When non-null, only returns items associated with this series (or 0 for unassociated).</param>
-    Task<Result<IReadOnlyList<AdditionalContentItemDto>>> ListAsync(
-        int? authorId = null,
-        int? seriesId = null,
+    /// <summary>
+    /// Lists extra content with optional author/series filters and server-side paging.
+    /// </summary>
+    /// <param name="authorFilter"><c>0</c> = any author, <c>-1</c> = unassigned only, otherwise author id.</param>
+    /// <param name="seriesFilter"><c>0</c> = any series, <c>-1</c> = not linked to any series, otherwise series id.</param>
+    Task<Result<PagedList<AdditionalContentItemDto>>> ListPagedAsync(
+        int page,
+        int pageSize,
+        int authorFilter = 0,
+        int seriesFilter = 0,
         CancellationToken cancellationToken = default);
 
     /// <summary>Returns all items associated with the given author (direct author assignment).</summary>
