@@ -471,6 +471,44 @@ public class AdditionalContentService(
         return Result.Success(ToDto(item));
     }
 
+    /// <inheritdoc />
+    public async Task<Result<string>> GetViewableTextAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var itemResult = await GetByIdAsync(id, cancellationToken);
+        if (!itemResult.IsSuccess)
+        {
+            string msg = itemResult.Errors.FirstOrDefault() ?? "Could not load content item.";
+            return itemResult.Status switch
+            {
+                ResultStatus.NotFound => Result.NotFound(msg),
+                _ => Result.Error(msg),
+            };
+        }
+
+        AdditionalContentItemDto dto = itemResult.Value;
+        string ext = dto.FileExtension.ToLowerInvariant();
+        if (ext is not (".txt" or ".md" or ".html" or ".htm"))
+        {
+            return Result.Invalid(new ValidationError(nameof(id), "This file type is not opened as text in the viewer."));
+        }
+
+        if (!File.Exists(dto.FilePath))
+        {
+            return Result.NotFound($"Content file for id {id} is missing on disk.");
+        }
+
+        try
+        {
+            string text = await File.ReadAllTextAsync(dto.FilePath, System.Text.Encoding.UTF8, cancellationToken);
+            return Result.Success(text);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not read extra content file '{Path}' for id {Id}", dto.FilePath, id);
+            return Result.Error("Unable to read file.");
+        }
+    }
+
     // ----- helpers -----
 
     private static AdditionalContentItemDto ToDto(AdditionalContentItem item) =>

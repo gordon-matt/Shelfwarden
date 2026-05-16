@@ -75,13 +75,10 @@ public partial class AdditionalContentGrid : ComponentBase
 
         try
         {
-            // Fetch the text content from the controller endpoint.
-            using var http = new System.Net.Http.HttpClient();
-            viewerContent = await http.GetStringAsync($"extra-content/{item.Id}");
-        }
-        catch
-        {
-            viewerContent = "(Unable to load content)";
+            var result = await ContentService.GetViewableTextAsync(item.Id);
+            viewerContent = result.IsSuccess
+                ? result.Value
+                : (result.Errors.FirstOrDefault() ?? "(Unable to load content)");
         }
         finally
         {

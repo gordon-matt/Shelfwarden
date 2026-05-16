@@ -62,4 +62,10 @@ public interface IAdditionalContentService
 
     /// <summary>Returns a single item by id (used for download/serve operations).</summary>
     Task<Result<AdditionalContentItemDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads UTF-8 text from disk for in-app viewing (txt / md / html). Same visibility as
+    /// <see cref="GetByIdAsync"/>; avoids HTTP so Blazor Server does not need cookie-forwarding.
+    /// </summary>
+    Task<Result<string>> GetViewableTextAsync(int id, CancellationToken cancellationToken = default);
 }
