@@ -178,6 +178,11 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Property<long>("FileSizeBytes")
                         .HasColumnType("bigint");
 
+                    b.Property<bool>("IsManuallyImported")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorId");
@@ -478,7 +483,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.ToTable("Books", "app");
                 });
 
-            modelBuilder.Entity("Shelfwarden.Data.Entities.BookAdditionalContent", b =>
+            modelBuilder.Entity("Shelfwarden.Data.Entities.BookAdditionalContentItem", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -864,7 +869,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.ToTable("Series", "app");
                 });
 
-            modelBuilder.Entity("Shelfwarden.Data.Entities.SeriesAdditionalContent", b =>
+            modelBuilder.Entity("Shelfwarden.Data.Entities.SeriesAdditionalContentItem", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1126,7 +1131,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
             modelBuilder.Entity("Shelfwarden.Data.Entities.AdditionalContentItem", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Author", "Author")
-                        .WithMany("AdditionalContentItems")
+                        .WithMany("AdditionalContent")
                         .HasForeignKey("AuthorId")
                         .OnDelete(DeleteBehavior.SetNull);
 
@@ -1162,7 +1167,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("Shelf");
                 });
 
-            modelBuilder.Entity("Shelfwarden.Data.Entities.BookAdditionalContent", b =>
+            modelBuilder.Entity("Shelfwarden.Data.Entities.BookAdditionalContentItem", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.AdditionalContentItem", "AdditionalContentItem")
                         .WithMany("BookAdditionalContents")
@@ -1171,7 +1176,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .IsRequired();
 
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
-                        .WithMany("BookAdditionalContents")
+                        .WithMany("BookAdditionalContent")
                         .HasForeignKey("BookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1298,7 +1303,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("ReadingList");
                 });
 
-            modelBuilder.Entity("Shelfwarden.Data.Entities.SeriesAdditionalContent", b =>
+            modelBuilder.Entity("Shelfwarden.Data.Entities.SeriesAdditionalContentItem", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.AdditionalContentItem", "AdditionalContentItem")
                         .WithMany("SeriesAdditionalContents")
@@ -1307,7 +1312,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .IsRequired();
 
                     b.HasOne("Shelfwarden.Data.Entities.Series", "Series")
-                        .WithMany("SeriesAdditionalContents")
+                        .WithMany("SeriesAdditionalContent")
                         .HasForeignKey("SeriesId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1359,14 +1364,14 @@ namespace Shelfwarden.Data.Npgsql.Migrations
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Author", b =>
                 {
-                    b.Navigation("AdditionalContentItems");
+                    b.Navigation("AdditionalContent");
 
                     b.Navigation("BookAuthors");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>
                 {
-                    b.Navigation("BookAdditionalContents");
+                    b.Navigation("BookAdditionalContent");
 
                     b.Navigation("BookAuthors");
 
@@ -1402,7 +1407,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                 {
                     b.Navigation("Books");
 
-                    b.Navigation("SeriesAdditionalContents");
+                    b.Navigation("SeriesAdditionalContent");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Shelf", b =>

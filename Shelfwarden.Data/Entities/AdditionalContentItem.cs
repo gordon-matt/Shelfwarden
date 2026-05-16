@@ -16,6 +16,12 @@ public class AdditionalContentItem : BaseEntity<int>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// When true, the file was registered from an arbitrary path (not discovered under
+    /// <c>_extras</c>). Scanning must not delete or relocate this row; deletes should not remove the file from disk.
+    /// </summary>
+    public bool IsManuallyImported { get; set; }
+
+    /// <summary>
     /// The author this content is attributed to. Nullable while the item is unassigned
     /// (i.e. freshly discovered on disk but not yet associated by an admin).
     /// </summary>
@@ -37,6 +43,7 @@ public class AdditionalContentItemMap : IEntityTypeConfiguration<AdditionalConte
         builder.Property(m => m.FileName).IsRequired().HasMaxLength(512).IsUnicode(true);
         builder.Property(m => m.FilePath).IsRequired().HasMaxLength(1024).IsUnicode(true);
         builder.Property(m => m.FileExtension).IsRequired().HasMaxLength(32);
+        builder.Property(m => m.IsManuallyImported).HasDefaultValue(false);
 
         builder.HasIndex(m => m.FilePath).IsUnique();
         builder.HasIndex(m => m.AuthorId);

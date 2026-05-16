@@ -1,5 +1,8 @@
 namespace Shelfwarden.Models;
 
+/// <summary>Outcome of registering files that already exist on disk outside the extras scan.</summary>
+public record RegisterExternalFilesResult(int Added, int Skipped);
+
 /// <summary>Flat projection of a single extra content item, including its author and association lists.</summary>
 public record AdditionalContentItemDto(
     int Id,
@@ -10,6 +13,7 @@ public record AdditionalContentItemDto(
     DateTime CreatedAt,
     int? AuthorId,
     string? AuthorName,
+    bool IsManuallyImported,
     IReadOnlyList<AdditionalContentAssociationDto> Books,
     IReadOnlyList<AdditionalContentAssociationDto> Series);
 

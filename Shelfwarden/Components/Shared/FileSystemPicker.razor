@@ -8,9 +8,11 @@
     PARAMETERS:
         Mode              - PickerMode.Folder (default) or PickerMode.File
         AllowedExtensions - Optional file filter (file mode only), e.g. new[]{ ".epub", ".pdf" }. Null = all files.
-        RootPath          - Starting root path. Defaults to "/" on Linux, or first drive root on Windows.
+        AllowMultiple       - File mode only: true = toggle-select many files (uses OnConfirmMultiple).
+        RootPath            - Starting root path. Defaults to "/" on Linux, or first drive root on Windows.
         Title             - Dialog title text.
         OnConfirm         - Callback with the selected path (string).
+        OnConfirmMultiple - File mode + AllowMultiple: callback with all selected absolute paths.
         OnCancel          - Callback when the dialog is dismissed.
 
     USAGE (folder picker):
@@ -26,6 +28,14 @@
             AllowedExtensions='new[]{ ".epub", ".pdf", ".mobi" }'
             Title="Select an Ebook"
             OnConfirm="HandleFileSelected"
+            OnCancel="HidePicker" />
+
+    USAGE (multi file picker):
+        <FileSystemPicker
+            Mode="FileSystemPicker.PickerMode.File"
+            AllowMultiple="true"
+            Title="Select files"
+            OnConfirmMultiple="HandleFilesSelected"
             OnCancel="HidePicker" />
 *@
 
@@ -76,9 +86,8 @@
                     @foreach (var entry in _entries)
                     {
                         var e = entry;
-                        var isSelected = _selectedPath == e.FullPath;
 
-                        <li class="fsp-item @(isSelected ? "fsp-item--selected" : "") @(e.IsDirectory ? "fsp-item--dir" : "fsp-item--file")"
+                        <li class="fsp-item @(IsEntrySelected(e) ? "fsp-item--selected" : "") @(e.IsDirectory ? "fsp-item--dir" : "fsp-item--file")"
                             @onclick="() => HandleEntryClick(e)"
                             @ondblclick="() => HandleEntryDoubleClick(e)">
                             <i class="bi @(e.IsDirectory ? "bi-folder-fill" : GetFileIcon(e.Name)) fsp-item-icon"></i>
@@ -95,7 +104,19 @@
 
         <div class="fsp-footer">
             <div class="fsp-selection">
-                @if (_selectedPath != null)
+                @if (AllowMultiple && Mode == PickerMode.File)
+                {
+                    @if (_selectedPaths.Count > 0)
+                    {
+                        <span class="fsp-selection-label">@(_selectedPaths.Count) file(s) selected</span>
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-2" @onclick="ClearMultiSelection">Clear</button>
+                    }
+                    else
+                    {
+                        <span class="fsp-selection-hint">Click files to select or deselect. Browse folders to add more. Then click Select.</span>
+                    }
+                }
+                else if (_selectedPath != null)
                 {
                     <span class="fsp-selection-label">Selected:</span>
                     <span class="fsp-selection-path" title="@_selectedPath">@TruncatePath(_selectedPath)</span>
@@ -121,7 +142,7 @@
                 }
                 <button class="btn btn-link btn-sm px-2" @onclick="Cancel">Cancel</button>
                 <button class="btn btn-primary btn-sm"
-                        disabled="@(_selectedPath == null)"
+                        disabled="@(AllowMultiple && Mode == PickerMode.File ? _selectedPaths.Count == 0 : _selectedPath == null)"
                         @onclick="Confirm">
                     <i class="bi bi-check-lg me-1"></i>Select
                 </button>

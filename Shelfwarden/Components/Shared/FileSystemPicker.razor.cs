@@ -10,10 +10,17 @@ public partial class FileSystemPicker : ComponentBase
     public enum PickerMode : byte
     {
         Folder,
-        File
+        File,
     }
 
     [Parameter] public PickerMode Mode { get; set; } = PickerMode.Folder;
+
+    /// <summary>
+    /// When <see cref="Mode"/> is <see cref="PickerMode.File"/>, allows selecting several files
+    /// (across folders) before confirming. Invokes <see cref="OnConfirmMultiple"/> instead of
+    /// <see cref="OnConfirm"/>.
+    /// </summary>
+    [Parameter] public bool AllowMultiple { get; set; }
 
     [Parameter] public string[]? AllowedExtensions { get; set; }
 
@@ -23,13 +30,18 @@ public partial class FileSystemPicker : ComponentBase
 
     [Parameter] public EventCallback<string> OnConfirm { get; set; }
 
+    [Parameter] public EventCallback<IReadOnlyList<string>> OnConfirmMultiple { get; set; }
+
     [Parameter] public EventCallback OnCancel { get; set; }
 
     private string _currentPath = "/";
     private string? _selectedPath;
+    private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
     private string? _error;
     private readonly List<FileSystemEntry> _entries = [];
     private readonly List<Breadcrumb> _breadcrumbs = [];
+
+    private bool IsMultiFile => AllowMultiple && Mode == PickerMode.File;
 
     protected override void OnInitialized()
     {
@@ -39,7 +51,11 @@ public partial class FileSystemPicker : ComponentBase
 
     private void NavigateTo(string path)
     {
-        _selectedPath = null;
+        if (!IsMultiFile)
+        {
+            _selectedPath = null;
+        }
+
         _currentPath = path;
         LoadEntries(path);
     }
@@ -173,7 +189,17 @@ public partial class FileSystemPicker : ComponentBase
         }
         else if (Mode == PickerMode.File && !entry.IsDirectory)
         {
-            _selectedPath = entry.FullPath;
+            if (IsMultiFile)
+            {
+                if (!_selectedPaths.Add(entry.FullPath))
+                {
+                    _selectedPaths.Remove(entry.FullPath);
+                }
+            }
+            else
+            {
+                _selectedPath = entry.FullPath;
+            }
         }
     }
 
@@ -185,8 +211,15 @@ public partial class FileSystemPicker : ComponentBase
         }
         else if (Mode == PickerMode.File)
         {
-            _selectedPath = entry.FullPath;
-            Confirm();
+            if (IsMultiFile)
+            {
+                _ = _selectedPaths.Add(entry.FullPath);
+            }
+            else
+            {
+                _selectedPath = entry.FullPath;
+                Confirm();
+            }
         }
     }
 
@@ -208,12 +241,37 @@ public partial class FileSystemPicker : ComponentBase
         }
     }
 
+    private void ClearMultiSelection()
+    {
+        _selectedPaths.Clear();
+    }
+
     private void Confirm()
     {
+        if (IsMultiFile)
+        {
+            if (_selectedPaths.Count > 0 && OnConfirmMultiple.HasDelegate)
+            {
+                OnConfirmMultiple.InvokeAsync(_selectedPaths.OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList());
+            }
+
+            return;
+        }
+
         if (_selectedPath != null && OnConfirm.HasDelegate)
         {
             OnConfirm.InvokeAsync(_selectedPath);
         }
+    }
+
+    private bool IsEntrySelected(FileSystemEntry entry)
+    {
+        if (IsMultiFile && !entry.IsDirectory)
+        {
+            return _selectedPaths.Contains(entry.FullPath);
+        }
+
+        return _selectedPath == entry.FullPath;
     }
 
     private static bool IsWindows() => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -232,7 +290,7 @@ public partial class FileSystemPicker : ComponentBase
             ".mp3" or ".flac" or ".ogg" => "bi-file-earmark-music",
             ".mp4" or ".mkv" or ".avi" => "bi-file-earmark-play",
             ".zip" or ".tar" or ".gz" => "bi-file-earmark-zip",
-            _ => "bi-file-earmark"
+            _ => "bi-file-earmark",
         };
 
     private static string FormatSize(long bytes) => bytes switch
@@ -240,7 +298,7 @@ public partial class FileSystemPicker : ComponentBase
         < 1024 => $"{bytes} B",
         < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
         < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
-        _ => $"{bytes / (1024.0 * 1024 * 1024):F1} GB"
+        _ => $"{bytes / (1024.0 * 1024 * 1024):F1} GB",
     };
 
     private static string TruncatePath(string path)

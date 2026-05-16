@@ -1,4 +1,5 @@
 using Microsoft.JSInterop;
+using Shelfwarden.Models;
 
 namespace Shelfwarden.Components.Pages;
 
@@ -14,8 +15,8 @@ public partial class ExtraContent : ComponentBase
     private IReadOnlyList<AuthorListItemDto>? authors;
     private IReadOnlyList<SeriesListItemDto>? seriesList;
 
-    private int authorFilter;
-    private int seriesFilter;
+    private int authorFilter = -1;
+    private int seriesFilter = -1;
 
     private int nextPageToLoad = 1;
     private int totalCount;
@@ -29,6 +30,9 @@ public partial class ExtraContent : ComponentBase
     private string? scanMessage;
     private string? actionMessage;
     private string? actionError;
+
+    private bool showAddContentPicker;
+    private bool addContentBusy;
 
     private bool bulkActionBusy;
     private bool bulkAssignOpen;
@@ -206,6 +210,56 @@ public partial class ExtraContent : ComponentBase
         finally
         {
             scanning = false;
+        }
+    }
+
+    private void OpenAddContentPicker()
+    {
+        actionError = null;
+        showAddContentPicker = true;
+    }
+
+    private void CancelAddContentPicker() => showAddContentPicker = false;
+
+    private async Task OnExternalFilesConfirmedAsync(IReadOnlyList<string> paths)
+    {
+        showAddContentPicker = false;
+        addContentBusy = true;
+        actionMessage = null;
+        actionError = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var result = await ContentService.RegisterExternalFilesAsync(paths);
+            if (result.IsSuccess)
+            {
+                RegisterExternalFilesResult r = result.Value;
+                if (r.Added == 0 && r.Skipped == 0)
+                {
+                    actionMessage = "No files were registered.";
+                }
+                else if (r.Added == 0)
+                {
+                    actionMessage =
+                        $"No new files added. {r.Skipped} path(s) skipped (missing, duplicate, or not a file).";
+                }
+                else
+                {
+                    actionMessage = r.Skipped > 0
+                        ? $"Added {r.Added} file(s). Skipped {r.Skipped} path(s) (already registered or invalid)."
+                        : $"Added {r.Added} file(s).";
+                }
+
+                await ResetAndLoadAsync();
+            }
+            else
+            {
+                actionError = result.Errors.FirstOrDefault() ?? "Could not register files.";
+            }
+        }
+        finally
+        {
+            addContentBusy = false;
         }
     }
 

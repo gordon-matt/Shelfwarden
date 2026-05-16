@@ -11,7 +11,19 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="mb-0">Extra Content</h1>
     <div class="d-flex gap-2">
-        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ScanExtrasAsync" disabled="@scanning">
+        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="OpenAddContentPicker"
+                disabled="@(scanning || addContentBusy)" title="Register files already on disk (paths are not moved)">
+            @if (addContentBusy)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+            }
+            else
+            {
+                <i class="bi bi-plus-lg me-1"></i>
+            }
+            Add content
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ScanExtrasAsync" disabled="@(scanning || addContentBusy)">
             @if (scanning)
             {
                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>
@@ -48,8 +60,8 @@
     <div class="col-md-4">
         <label class="form-label">Author</label>
         <select class="form-select" @bind="authorFilter" @bind:after="OnFiltersChangedAsync">
-            <option value="0">Any</option>
             <option value="-1">None (unassigned)</option>
+            <option value="0">Any</option>
             @if (authors is not null)
             {
                 @foreach (var a in authors)
@@ -62,8 +74,8 @@
     <div class="col-md-4">
         <label class="form-label">Series</label>
         <select class="form-select" @bind="seriesFilter" @bind:after="OnFiltersChangedAsync">
-            <option value="0">Any</option>
             <option value="-1">None (no series)</option>
+            <option value="0">Any</option>
             @if (seriesList is not null)
             {
                 @foreach (var s in seriesList)
@@ -105,7 +117,7 @@ else if (loadedItems.Count == 0)
     <div class="empty-state">
         <i class="bi bi-folder2 empty-icon"></i>
         <h3>No extra content</h3>
-        <p>Drop files into the <code>_extras</code> folder and click "Scan _extras folder".</p>
+        <p>Drop files into the <code>_extras</code> folder and click &quot;Scan _extras folder&quot;, or use <strong>Add content</strong> to register files elsewhere on disk.</p>
     </div>
 }
 else
@@ -152,6 +164,10 @@ else
                     <div class="content-admin-card-footer">
                         <div class="fw-semibold text-truncate small" title="@item.FileName">@item.FileName</div>
                         <div class="text-secondary small">
+                            @if (item.IsManuallyImported)
+                            {
+                                <span class="badge text-bg-info me-1" title="File path was registered as-is; not under _extras">External</span>
+                            }
                             @if (item.AuthorName is not null)
                             {
                                 <span><i class="bi bi-person me-1"></i>@item.AuthorName</span>
@@ -240,4 +256,13 @@ else
         </div>
     </div>
     <div class="modal-backdrop fade show"></div>
+}
+
+@if (showAddContentPicker)
+{
+    <FileSystemPicker Mode="FileSystemPicker.PickerMode.File"
+                      AllowMultiple="true"
+                      Title="Select files to register (paths are not moved or copied)"
+                      OnConfirmMultiple="OnExternalFilesConfirmedAsync"
+                      OnCancel="CancelAddContentPicker" />
 }

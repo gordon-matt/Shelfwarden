@@ -1,4 +1,5 @@
 using LinqKit;
+using Shelfwarden.Models;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
@@ -63,9 +64,9 @@ public class AdditionalContentService(
             added = newItems.Count;
         }
 
-        // Remove entries for files no longer on disk.
+        // Remove entries for files no longer on disk (extras scan only — never drop manually imported rows).
         var orphans = existingByPath
-            .Where(kvp => !seenPaths.Contains(kvp.Key))
+            .Where(kvp => !seenPaths.Contains(kvp.Key) && !kvp.Value.IsManuallyImported)
             .Select(kvp => kvp.Value)
             .ToList();
 
@@ -82,6 +83,91 @@ public class AdditionalContentService(
 
         logger.LogInformation("Extras scan complete — {Added} new, {Removed} removed", added, removedOrphans);
         return Result.Success(added);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<RegisterExternalFilesResult>> RegisterExternalFilesAsync(
+        IReadOnlyList<string> absoluteFilePaths,
+        CancellationToken cancellationToken = default)
+    {
+        if (absoluteFilePaths.Count == 0)
+        {
+            return Result.Invalid(new ValidationError("paths", "Select at least one file."));
+        }
+
+        var normalized = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string raw in absoluteFilePaths)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            try
+            {
+                normalized.Add(Path.GetFullPath(raw.Trim()));
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Skipping invalid path '{Path}'", raw);
+            }
+        }
+
+        if (normalized.Count == 0)
+        {
+            return Result.Invalid(new ValidationError("paths", "No valid file paths were provided."));
+        }
+
+        var pathList = normalized.ToList();
+        var existingItems = await contentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
+        {
+            Query = i => pathList.Contains(i.FilePath),
+            CancellationToken = cancellationToken,
+        });
+
+        var existingPaths = existingItems.Select(i => i.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var toInsert = new List<AdditionalContentItem>();
+        foreach (string fullPath in normalized)
+        {
+            if (existingPaths.Contains(fullPath))
+            {
+                continue;
+            }
+
+            if (!File.Exists(fullPath))
+            {
+                continue;
+            }
+
+            if ((File.GetAttributes(fullPath) & FileAttributes.Directory) != 0)
+            {
+                continue;
+            }
+
+            var info = new FileInfo(fullPath);
+            toInsert.Add(new AdditionalContentItem
+            {
+                FileName = info.Name,
+                FilePath = fullPath,
+                FileExtension = info.Extension.ToLowerInvariant(),
+                FileSizeBytes = info.Length,
+                CreatedAt = DateTime.UtcNow,
+                IsManuallyImported = true,
+            });
+        }
+
+        int skipped = normalized.Count - toInsert.Count;
+        if (toInsert.Count == 0)
+        {
+            return Result.Success(new RegisterExternalFilesResult(0, skipped));
+        }
+
+        await contentRepository.InsertAsync(
+            toInsert,
+            ContextOptions.ForCancellationToken(cancellationToken));
+
+        return Result.Success(new RegisterExternalFilesResult(toInsert.Count, skipped));
     }
 
     public async Task<Result<PagedList<AdditionalContentItemDto>>> ListPagedAsync(
@@ -262,22 +348,25 @@ public class AdditionalContentService(
                     ctx);
             }
 
-            // Admin "assign to author" always stores files in the author's root extras folder
-            // (never under a series subfolder — series may belong to another author or become stale).
-            string targetDir = authorDir;
-
             string oldFullPath = Path.GetFullPath(item.FilePath);
             string? oldContainingDir = Path.GetDirectoryName(oldFullPath);
-            string newPath = MoveFile(item.FilePath, targetDir);
-            string newFullPath = Path.GetFullPath(newPath);
 
-            if (!string.Equals(oldFullPath, newFullPath, StringComparison.OrdinalIgnoreCase)
-                && File.Exists(newFullPath))
+            if (!item.IsManuallyImported)
             {
-                TryPruneEmptyExtraDirectories(oldContainingDir, storage.ExtrasDirectory);
+                // Admin "assign to author" stores scanned extras under the author's root folder.
+                string targetDir = authorDir;
+                string newPath = MoveFile(item.FilePath, targetDir);
+                string newFullPath = Path.GetFullPath(newPath);
+
+                if (!string.Equals(oldFullPath, newFullPath, StringComparison.OrdinalIgnoreCase)
+                    && File.Exists(newFullPath))
+                {
+                    TryPruneEmptyExtraDirectories(oldContainingDir, storage.ExtrasDirectory);
+                }
+
+                item.FilePath = newPath;
             }
 
-            item.FilePath = newPath;
             item.AuthorId = author.Id;
 
             // One update per item so EF never tries to attach multiple graphs that share the same tracked Series.
@@ -368,8 +457,9 @@ public class AdditionalContentService(
                 ContextOptions.ForCancellationToken(cancellationToken));
         }
 
-        // Move file into the series subdirectory when the author is known and exactly one series.
-        if (item.Author is not null && request.Ids.Count == 1)
+        // Move file into the series subdirectory when the author is known and exactly one series
+        // (skipped for manually imported files — they stay at their original path).
+        if (!item.IsManuallyImported && item.Author is not null && request.Ids.Count == 1)
         {
             var series = await seriesRepository.FindOneAsync(new SearchOptions<Series>
             {
@@ -428,6 +518,12 @@ public class AdditionalContentService(
 
         foreach (var item in items)
         {
+            if (item.IsManuallyImported)
+            {
+                // Library entry only — do not delete the user's original file.
+                continue;
+            }
+
             try
             {
                 if (File.Exists(item.FilePath))
@@ -485,7 +581,7 @@ public class AdditionalContentService(
             };
         }
 
-        AdditionalContentItemDto dto = itemResult.Value;
+        var dto = itemResult.Value;
         string ext = dto.FileExtension.ToLowerInvariant();
         if (ext is not (".txt" or ".md" or ".html" or ".htm"))
         {
@@ -521,6 +617,7 @@ public class AdditionalContentService(
             item.CreatedAt,
             item.AuthorId,
             item.Author?.Name,
+            item.IsManuallyImported,
             item.BookAdditionalContents.Select(b => new AdditionalContentAssociationDto(b.Book.Id, b.Book.Title)).ToList(),
             item.SeriesAdditionalContents.Select(s => new AdditionalContentAssociationDto(s.Series.Id, s.Series.Name)).ToList());
 

@@ -1,3 +1,5 @@
+using Shelfwarden.Models;
+
 namespace Shelfwarden.Services;
 
 public interface IAdditionalContentService
@@ -8,6 +10,14 @@ public interface IAdditionalContentService
     /// </summary>
     /// <returns>The count of newly discovered files.</returns>
     Task<Result<int>> ScanExtrasAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Registers existing files at the given absolute paths as extra content without moving or
+    /// copying them. Paths already in the library are skipped.
+    /// </summary>
+    Task<Result<RegisterExternalFilesResult>> RegisterExternalFilesAsync(
+        IReadOnlyList<string> absoluteFilePaths,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Lists extra content with optional author/series filters and server-side paging.
