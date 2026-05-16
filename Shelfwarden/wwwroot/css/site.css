@@ -2012,6 +2012,25 @@ ol.reading-list {
     line-height: 1.6;
 }
 
+/* Extra Content admin filters — four equal columns; controls bottom-aligned in a row */
+.extra-content-filters > .col {
+    min-width: 0;
+}
+
+.extra-content-filters__tag-chips .chip-input {
+    min-width: 0;
+}
+
+/* Selected chips sit above the text field; keep the field on the same baseline as the Tag select */
+.extra-content-filters__tag-chips .chip-input-tags {
+    margin-bottom: 0.35rem;
+}
+
+/* Hide empty-state chips row so the text field lines up with the Tag select */
+.extra-content-filters__tag-chips .chip-input-tags:has(.fst-italic) {
+    display: none;
+}
+
 /* Admin grid on the Extra Content admin page — 8 columns on large viewports */
 .extra-content-admin-grid {
     display: grid;
