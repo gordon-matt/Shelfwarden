@@ -26,6 +26,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<InternalsVisibleTo Include="Shelfwarden.Tests" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<ProjectReference Include="..\Shelfwarden.Core\Shelfwarden.Core.csproj" />
 		<ProjectReference Include="..\Shelfwarden.Data\Shelfwarden.Data.csproj" />
 		<ProjectReference Include="..\Shelfwarden.Models\Shelfwarden.Models.csproj" />

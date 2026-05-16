@@ -13,9 +13,6 @@ public class AdditionalContentService(
     IRepository<Author> authorRepository,
     IRepository<Series> seriesRepository) : IAdditionalContentService
 {
-    private static readonly HashSet<string> EbookExtensions =
-        new(StringComparer.OrdinalIgnoreCase) { ".epub", ".pdf", ".mobi", ".azw", ".azw3", ".cbz", ".cbr" };
-
     public async Task<Result<int>> ScanExtrasAsync(CancellationToken cancellationToken = default)
     {
         string extrasDir = storage.ExtrasDirectory;
@@ -26,7 +23,7 @@ public class AdditionalContentService(
         }
 
         var files = Directory.EnumerateFiles(extrasDir, "*.*", SearchOption.AllDirectories)
-            .Where(f => !EbookExtensions.Contains(Path.GetExtension(f)));
+            .Where(ExtrasScanFileFilter.ShouldInclude);
 
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -141,6 +138,11 @@ public class AdditionalContentService(
             }
 
             if ((File.GetAttributes(fullPath) & FileAttributes.Directory) != 0)
+            {
+                continue;
+            }
+
+            if (!ExtrasScanFileFilter.ShouldInclude(fullPath))
             {
                 continue;
             }
