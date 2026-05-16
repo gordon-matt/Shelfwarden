@@ -133,7 +133,7 @@ public sealed class StoragePathProvider : IStoragePathProvider
                 File.Delete(filePath);
             }
 
-            string working = Path.Combine(AudiobooksDirectory, "_tmp", bookId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            string working = Path.Combine(AudiobooksDirectory, "_tmp", bookId.ToString(CultureInfo.InvariantCulture));
             if (Directory.Exists(working))
             {
                 Directory.Delete(working, recursive: true);

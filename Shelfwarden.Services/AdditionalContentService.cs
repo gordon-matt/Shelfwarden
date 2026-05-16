@@ -9,8 +9,7 @@ public class AdditionalContentService(
     IRepository<BookAdditionalContentItem> bookContentRepository,
     IRepository<SeriesAdditionalContentItem> seriesContentRepository,
     IRepository<Author> authorRepository,
-    IRepository<Series> seriesRepository,
-    IRepository<Book> bookRepository) : IAdditionalContentService
+    IRepository<Series> seriesRepository) : IAdditionalContentService
 {
     private static readonly HashSet<string> EbookExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".epub", ".pdf", ".mobi", ".azw", ".azw3", ".cbz", ".cbr" };
@@ -24,23 +23,15 @@ public class AdditionalContentService(
             return Result.Success(0);
         }
 
-        IEnumerable<string> files;
-        try
-        {
-            files = Directory.EnumerateFiles(extrasDir, "*.*", SearchOption.AllDirectories)
-                .Where(f => !EbookExtensions.Contains(Path.GetExtension(f)));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to enumerate extras directory '{Dir}'", extrasDir);
-            return Result.Error("Failed to enumerate extras directory.");
-        }
+        var files = Directory.EnumerateFiles(extrasDir, "*.*", SearchOption.AllDirectories)
+            .Where(f => !EbookExtensions.Contains(Path.GetExtension(f)));
 
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         var existingByPath = (await contentRepository.FindAsync(new SearchOptions<AdditionalContentItem>()))
             .ToDictionary(i => i.FilePath, StringComparer.OrdinalIgnoreCase);
 
-        int added = 0;
+        var newItems = new List<AdditionalContentItem>();
         foreach (string filePath in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -53,24 +44,22 @@ public class AdditionalContentService(
                 continue;
             }
 
-            try
+            var info = new FileInfo(canonical);
+            newItems.Add(new AdditionalContentItem
             {
-                var info = new FileInfo(canonical);
-                var item = new AdditionalContentItem
-                {
-                    FileName = info.Name,
-                    FilePath = canonical,
-                    FileExtension = info.Extension.ToLowerInvariant(),
-                    FileSizeBytes = info.Length,
-                    CreatedAt = DateTime.UtcNow,
-                };
-                await contentRepository.InsertAsync(item);
-                added++;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to add extra content item for '{Path}'", filePath);
-            }
+                FileName = info.Name,
+                FilePath = canonical,
+                FileExtension = info.Extension.ToLowerInvariant(),
+                FileSizeBytes = info.Length,
+                CreatedAt = DateTime.UtcNow,
+            });
+        }
+
+        int added = 0;
+        if (newItems.Count > 0)
+        {
+            await contentRepository.InsertAsync(newItems, ContextOptions.ForCancellationToken(cancellationToken));
+            added = newItems.Count;
         }
 
         // Remove entries for files no longer on disk.
@@ -79,24 +68,18 @@ public class AdditionalContentService(
             .Select(kvp => kvp.Value)
             .ToList();
 
-        foreach (var orphan in orphans)
-        {
-            try
-            {
-                await contentRepository.DeleteAsync(orphan);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to remove orphaned extra content item {Id}", orphan.Id);
-            }
-        }
-
+        int removedOrphans = 0;
         if (orphans.Count > 0)
         {
-            logger.LogInformation("Removed {Count} orphaned extra content entries", orphans.Count);
+            await contentRepository.DeleteAsync(
+                orphans,
+                ContextOptions.ForCancellationToken(cancellationToken));
+
+            removedOrphans = orphans.Count;
+            logger.LogInformation("Removed {Count} orphaned extra content entries", removedOrphans);
         }
 
-        logger.LogInformation("Extras scan complete — {Added} new, {Removed} removed", added, orphans.Count);
+        logger.LogInformation("Extras scan complete — {Added} new, {Removed} removed", added, removedOrphans);
         return Result.Success(added);
     }
 
@@ -225,6 +208,7 @@ public class AdditionalContentService(
         string authorDir = Path.Combine(storage.ExtrasDirectory, authorFolderName);
         Directory.CreateDirectory(authorDir);
 
+        var updatedItems = new List<AdditionalContentItem>();
         foreach (int itemId in request.ItemIds)
         {
             var item = await contentRepository.FindOneAsync(new SearchOptions<AdditionalContentItem>
@@ -253,7 +237,14 @@ public class AdditionalContentService(
             string newPath = MoveFile(item.FilePath, targetDir);
             item.FilePath = newPath;
             item.AuthorId = author.Id;
-            await contentRepository.UpdateAsync(item);
+            updatedItems.Add(item);
+        }
+
+        if (updatedItems.Count > 0)
+        {
+            await contentRepository.UpdateAsync(
+                updatedItems,
+                ContextOptions.ForCancellationToken(cancellationToken));
         }
 
         return Result.Success();
@@ -282,13 +273,20 @@ public class AdditionalContentService(
             CancellationToken = cancellationToken,
         })).Select(bc => bc.BookId).ToHashSet();
 
-        foreach (int bookId in request.Ids.Where(id => !existing.Contains(id)))
-        {
-            await bookContentRepository.InsertAsync(new BookAdditionalContentItem
+        var newLinks = request.Ids
+            .Where(id => !existing.Contains(id))
+            .Select(bookId => new BookAdditionalContentItem
             {
                 BookId = bookId,
                 AdditionalContentItemId = request.ItemId,
-            });
+            })
+            .ToList();
+
+        if (newLinks.Count > 0)
+        {
+            await bookContentRepository.InsertAsync(
+                newLinks,
+                ContextOptions.ForCancellationToken(cancellationToken));
         }
 
         return Result.Success();
@@ -317,13 +315,20 @@ public class AdditionalContentService(
             CancellationToken = cancellationToken,
         })).Select(sc => sc.SeriesId).ToHashSet();
 
-        foreach (int seriesId in request.Ids.Where(id => !existing.Contains(id)))
-        {
-            await seriesContentRepository.InsertAsync(new SeriesAdditionalContentItem
+        var newSeriesLinks = request.Ids
+            .Where(id => !existing.Contains(id))
+            .Select(seriesId => new SeriesAdditionalContentItem
             {
                 SeriesId = seriesId,
                 AdditionalContentItemId = request.ItemId,
-            });
+            })
+            .ToList();
+
+        if (newSeriesLinks.Count > 0)
+        {
+            await seriesContentRepository.InsertAsync(
+                newSeriesLinks,
+                ContextOptions.ForCancellationToken(cancellationToken));
         }
 
         // Move file into the series subdirectory when the author is known and exactly one series.
@@ -397,8 +402,13 @@ public class AdditionalContentService(
             {
                 logger.LogWarning(ex, "Could not delete extra content file '{Path}'", item.FilePath);
             }
+        }
 
-            await contentRepository.DeleteAsync(item);
+        if (items.Count > 0)
+        {
+            await contentRepository.DeleteAsync(
+                items,
+                ContextOptions.ForCancellationToken(cancellationToken));
         }
 
         return Result.Success();

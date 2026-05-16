@@ -99,7 +99,12 @@ services:
     volumes:
       # Mount your ebook libraries here. Anything inside /app/data/library is what Shelfwarden scans.
       - D:\_Apps\Shelfwarden\Library:/app/data/library
+      - D:\_Apps\Shelfwarden\Audiobooks:/app/data/audiobooks
+      - D:\_Apps\Shelfwarden\AuthorPhotos:/app/data/author-photos
+      - D:\_Apps\Shelfwarden\CardBanners:/app/data/card-banners
       - D:\_Apps\Shelfwarden\Covers:/app/data/covers
+      - D:\_Apps\Shelfwarden\Extras:/app/data/extras
+      - D:\_Apps\Shelfwarden\TtsCache:/app/data/tts-cache
       - D:\_Apps\Shelfwarden\Logs:/app/data/logs
     depends_on:
       db:
