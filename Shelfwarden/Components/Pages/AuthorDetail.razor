@@ -1,6 +1,8 @@
 @page "/authors/{Id:int}"
 @attribute [Authorize]
 @inject IAuthorService AuthorService
+@inject IAdditionalContentService ContentService
+@inject IUserContextService UserContext
 @inject NavigationManager NavigationManager
 
 @if (author is null && !loadFailed)
@@ -70,15 +72,45 @@ else
             <div class="book-grid">
                 @foreach (var s in author.SeriesGroups)
                 {
-                    <a class="series-tile" href="@($"books?series={s.SeriesId}")" title="@s.SeriesName">
-                        <SeriesCollage Covers="s.Covers" />
-                        <div class="series-tile-body">
-                            <div class="series-tile-name text-truncate">@s.SeriesName</div>
-                            <div class="series-tile-count text-secondary small">
-                                @s.BookCount book@(s.BookCount == 1 ? "" : "s")
+                    <div class="series-tile-shell">
+                        <a class="series-tile" href="@($"series/{s.SeriesId}")" title="@s.SeriesName">
+                            <div class="series-tile-cover">
+                                <SeriesCollage Covers="s.Covers" />
+                                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                    <Authorized>
+                                        <div class="series-tile-menu dropend">
+                                            <button type="button"
+                                                    class="btn btn-sm series-tile-menu-toggle"
+                                                    data-bs-toggle="dropdown"
+                                                    data-bs-config='{"popperConfig":{"strategy":"fixed"}}'
+                                                    aria-expanded="false"
+                                                    aria-label="Series actions"
+                                                    @onclick:stopPropagation="true"
+                                                    @onclick:preventDefault="true">
+                                                <i class="bi bi-three-dots-vertical"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <button type="button" class="dropdown-item"
+                                                            @onclick="() => OpenAssignContentSeries(s.SeriesId, s.SeriesName)"
+                                                            @onclick:stopPropagation="true"
+                                                            @onclick:preventDefault="true">
+                                                        <i class="bi bi-folder-plus me-1"></i> Assign Content
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </Authorized>
+                                </AuthorizeView>
                             </div>
-                        </div>
-                    </a>
+                            <div class="series-tile-body">
+                                <div class="series-tile-name text-truncate">@s.SeriesName</div>
+                                <div class="series-tile-count text-secondary small">
+                                    @s.BookCount book@(s.BookCount == 1 ? "" : "s")
+                                </div>
+                            </div>
+                        </a>
+                    </div>
                 }
             </div>
         </section>
@@ -131,7 +163,22 @@ else
                         <BookCard Book="b"
                                   SelectionMode="selectMode && selectedBookIds.Count > 0"
                                   IsSelected="selectedBookIds.Contains(b.Id)"
-                                  OnSelectionToggled="checkedNow => ToggleSelection(b.Id, checkedNow)" />
+                                  OnSelectionToggled="checkedNow => ToggleSelection(b.Id, checkedNow)">
+                            <ExtraMenuItems>
+                                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                    <Authorized>
+                                        <li>
+                                            <button type="button" class="dropdown-item"
+                                                    @onclick="() => OpenAssignContentBook(b.Id, b.Title)"
+                                                    @onclick:stopPropagation="true"
+                                                    @onclick:preventDefault="true">
+                                                <i class="bi bi-folder-plus me-1"></i> Assign Content
+                                            </button>
+                                        </li>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </ExtraMenuItems>
+                        </BookCard>
                     </div>
                 }
             </div>
@@ -145,7 +192,27 @@ else
             <p>Once a book by this author is scanned in, it will appear here.</p>
         </div>
     }
+
+    @* Extra content associated with this author *@
+    @if (extraContent is { Count: > 0 })
+    {
+        <section class="mt-5">
+            <h2 class="mb-3">Extra Content</h2>
+            <AdditionalContentGrid Items="extraContent"
+                                   OnItemDeleted="RefreshExtraContentAsync"
+                                   OnItemRenamed="OnContentItemRenamed" />
+        </section>
+    }
 }
+
+<AssignContentModal IsOpen="@isAssignContentModalOpen"
+                    AuthorId="@Id"
+                    EntityLabel="@assignEntityLabel"
+                    EntityName="@assignEntityName"
+                    EntityType="@assignEntityType"
+                    EntityId="@assignEntityId"
+                    OnClose="CloseAssignContent"
+                    OnAssociated="RefreshExtraContentAsync" />
 
 <AuthorProfileModal IsOpen="@isAuthorEditModalOpen"
                     AuthorId="@Id"

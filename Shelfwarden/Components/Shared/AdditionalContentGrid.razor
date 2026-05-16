@@ -1,0 +1,149 @@
+@inject IUserContextService UserContext
+@inject IJSRuntime JS
+@inject IAdditionalContentService ContentService
+
+@if (Items is { Count: > 0 })
+{
+    <div class="additional-content-grid">
+        @foreach (var item in Items)
+        {
+            <div class="content-item-card">
+                <div class="content-item-icon">
+                    <i class="bi @GetFileIcon(item.FileExtension)"></i>
+                </div>
+                <div class="content-item-body">
+                    <div class="content-item-name text-truncate" title="@item.FileName">@item.FileName</div>
+                    <div class="content-item-meta text-secondary small">
+                        @item.FileExtension.TrimStart('.').ToUpperInvariant()
+                        · @FormatBytes(item.FileSizeBytes)
+                        @if (item.Books.Count > 0)
+                        {
+                            <span> · @item.Books.Count book@(item.Books.Count == 1 ? "" : "s")</span>
+                        }
+                        @if (item.Series.Count > 0)
+                        {
+                            <span> · @item.Series.Count series</span>
+                        }
+                    </div>
+                </div>
+                <div class="content-item-actions">
+                    @if (IsViewable(item.FileExtension))
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                title="View" @onclick="() => OpenViewer(item)">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    }
+                    else if (IsPdf(item.FileExtension))
+                    {
+                        <a class="btn btn-sm btn-outline-secondary"
+                           href="extra-content/@item.Id" target="_blank" rel="noopener"
+                           title="Open PDF">
+                            <i class="bi bi-filetype-pdf"></i>
+                        </a>
+                    }
+                    <a class="btn btn-sm btn-outline-secondary"
+                       href="extra-content/@item.Id?download=true"
+                       title="Download">
+                        <i class="bi bi-download"></i>
+                    </a>
+                    <AuthorizeView Roles="@Constants.Roles.Administrator">
+                        <Authorized>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    title="Rename" @onclick="() => OpenRename(item)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    title="Delete" @onclick="() => ConfirmDeleteAsync(item)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </Authorized>
+                    </AuthorizeView>
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (ShowEmptyState)
+{
+    <div class="text-secondary small fst-italic py-2">No extra content associated.</div>
+}
+
+@* Content viewer modal (text / images) *@
+@if (viewerItem is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-truncate">@viewerItem.FileName</h5>
+                    <button type="button" class="btn-close" @onclick="CloseViewer" aria-label="Close"></button>
+                </div>
+                <div class="modal-body content-viewer-body">
+                    @if (viewerLoading)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border" role="status"></div>
+                        </div>
+                    }
+                    else if (IsImage(viewerItem.FileExtension))
+                    {
+                        <img src="extra-content/@viewerItem.Id" alt="@viewerItem.FileName" class="img-fluid mx-auto d-block" />
+                    }
+                    else if (viewerContent is not null)
+                    {
+                        @if (IsHtml(viewerItem.FileExtension))
+                        {
+                            <div class="content-viewer-html">@((MarkupString)viewerContent)</div>
+                        }
+                        else
+                        {
+                            <pre class="content-viewer-text">@viewerContent</pre>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <a class="btn btn-outline-secondary" href="extra-content/@viewerItem.Id?download=true">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseViewer">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@* Rename modal *@
+@if (renameItem is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Rename</h5>
+                    <button type="button" class="btn-close" @onclick="CloseRename" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (renameError is not null)
+                    {
+                        <div class="alert alert-danger py-2">@renameError</div>
+                    }
+                    <label class="form-label">Name</label>
+                    <input class="form-control" @bind="renameName" maxlength="512" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseRename">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveRenameAsync" disabled="@renameSaving">
+                        @if (renameSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}

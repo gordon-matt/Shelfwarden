@@ -68,6 +68,16 @@ public sealed class StoragePathProvider : IStoragePathProvider
         TtsCacheDirectory = Path.GetFullPath(ttsCacheBase);
         Directory.CreateDirectory(TtsCacheDirectory);
 
+        string? extrasConfigured = configuration["Storage:ExtrasPath"];
+        string extrasBase = string.IsNullOrWhiteSpace(extrasConfigured)
+            ? Path.Combine(Path.GetDirectoryName(CoversDirectory) ?? AppContext.BaseDirectory, "_extras")
+            : Path.IsPathRooted(extrasConfigured)
+                ? extrasConfigured
+                : Path.Combine(AppContext.BaseDirectory, extrasConfigured);
+
+        ExtrasDirectory = Path.GetFullPath(extrasBase);
+        Directory.CreateDirectory(ExtrasDirectory);
+
         string? bannersConfigured = configuration["Storage:CardBannersPath"];
         string bannersBase = string.IsNullOrWhiteSpace(bannersConfigured)
             ? Path.Combine(Path.GetDirectoryName(CoversDirectory) ?? AppContext.BaseDirectory, "card-banners")
@@ -80,6 +90,8 @@ public sealed class StoragePathProvider : IStoragePathProvider
     }
 
     public string CoversDirectory { get; }
+
+    public string ExtrasDirectory { get; }
 
     public string AuthorPhotosDirectory { get; }
 

@@ -43,7 +43,7 @@ else
         @foreach (var s in series)
         {
             <div class="series-tile-shell">
-                <a class="series-tile" href="@($"books?series={s.Id}")" title="@s.Name">
+                <a class="series-tile" href="@($"series/{s.Id}")" title="@s.Name">
                     @* Wrap the collage in a positioning container so the three-dot toggle can be
                        pinned to its bottom-right (matching BookCard) without having to know the
                        variable height of the title/count body underneath. *@

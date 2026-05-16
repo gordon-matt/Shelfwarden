@@ -10,6 +10,7 @@ public class AuthorService(
     IRepository<Book> bookRepository,
     IRepository<BookAuthor> bookAuthorRepository,
     IRepository<BookProgress> progressRepository,
+    IRepository<AdditionalContentItem> contentRepository,
     IUserContextService userContext,
     IHttpClientFactory httpClientFactory,
     IStoragePathProvider storagePathProvider) : IAuthorService
@@ -284,6 +285,9 @@ public class AuthorService(
             foreach (var entity in entities)
             {
                 TryDeleteAuthorPhotoFile(entity.Id);
+                // Leave content files in place (EF's SetNull keeps their FilePath valid);
+                // just try to clean up the now-empty author folder.
+                TryDeleteAuthorExtrasFolder(entity.Name, forceDelete: false);
             }
 
             await authorRepository.DeleteAsync(entities);
@@ -362,7 +366,55 @@ public class AuthorService(
                 await bookAuthorRepository.UpdateAsync(toRepoint);
             }
 
-            // Drop the merged authors (and their photo files) in one shot.
+            // Migrate additional content items from the merged authors to the primary.
+            var contentItems = (await contentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
+            {
+                Query = ci => others.Contains(ci.AuthorId!.Value),
+                CancellationToken = cancellationToken,
+            })).ToList();
+
+            if (contentItems.Count > 0)
+            {
+                string primaryFolderName = SanitizeFolderName(primary.Name);
+                string primaryExtrasDir = Path.Combine(storagePathProvider.ExtrasDirectory, primaryFolderName);
+                Directory.CreateDirectory(primaryExtrasDir);
+
+                foreach (var ci in contentItems)
+                {
+                    ci.AuthorId = primaryAuthorId;
+
+                    // Move the file into the primary author's folder (preserving any series subfolder).
+                    string relativeToCurrent = "";
+                    if (ci.AuthorId.HasValue)
+                    {
+                        // The file might be under _extras/{OtherAuthorName}/...
+                        // Compute the part after the author folder.
+                        string currentDir = Path.GetDirectoryName(ci.FilePath) ?? storagePathProvider.ExtrasDirectory;
+                        string extrasRoot = storagePathProvider.ExtrasDirectory;
+                        if (currentDir.StartsWith(extrasRoot, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string relative = currentDir[extrasRoot.Length..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                            string[] parts = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+                            // parts[0] is the old author folder — skip it; parts[1..] are sub-folders (e.g. series).
+                            if (parts.Length > 1)
+                            {
+                                relativeToCurrent = Path.Combine(parts[1..]);
+                            }
+                        }
+                    }
+
+                    string targetDir = string.IsNullOrEmpty(relativeToCurrent)
+                        ? primaryExtrasDir
+                        : Path.Combine(primaryExtrasDir, relativeToCurrent);
+                    Directory.CreateDirectory(targetDir);
+
+                    ci.FilePath = TryMoveFile(ci.FilePath, targetDir);
+                }
+
+                await contentRepository.UpdateAsync(contentItems);
+            }
+
+            // Drop the merged authors (and their photo files / extras folders) in one shot.
             var otherAuthors = (await authorRepository.FindAsync(new SearchOptions<Author>
             {
                 Query = a => others.Contains(a.Id),
@@ -372,6 +424,7 @@ public class AuthorService(
             foreach (var a in otherAuthors)
             {
                 TryDeleteAuthorPhotoFile(a.Id);
+                TryDeleteAuthorExtrasFolder(a.Name, forceDelete: true);
             }
 
             if (otherAuthors.Count > 0)
@@ -638,6 +691,81 @@ public class AuthorService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Could not delete on-disk photo for author {AuthorId}", authorId);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the author's subdirectory under <c>_extras</c> if it exists and is empty.
+    /// When <paramref name="forceDelete"/> is true the directory is removed even if non-empty
+    /// (used when deleting an author outright — files remain in DB with AuthorId null, but their
+    /// FilePath still points to the old location so nothing is lost).
+    /// </summary>
+    private void TryDeleteAuthorExtrasFolder(string authorName, bool forceDelete = false)
+    {
+        try
+        {
+            string folder = Path.Combine(storagePathProvider.ExtrasDirectory, SanitizeFolderName(authorName));
+            if (!Directory.Exists(folder))
+            {
+                return;
+            }
+
+            if (forceDelete || !Directory.EnumerateFileSystemEntries(folder).Any())
+            {
+                Directory.Delete(folder, recursive: true);
+                logger.LogInformation("Deleted empty extras folder '{Folder}'", folder);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not remove extras folder for author '{Name}'", authorName);
+        }
+    }
+
+    private static string SanitizeFolderName(string name)
+    {
+        char[] invalid = Path.GetInvalidFileNameChars();
+        string safe = new string(name.Where(c => !invalid.Contains(c)).ToArray()).Trim();
+        return string.IsNullOrEmpty(safe) ? "_unknown" : safe;
+    }
+
+    private string TryMoveFile(string sourcePath, string targetDir)
+    {
+        if (!File.Exists(sourcePath))
+        {
+            return sourcePath;
+        }
+
+        string fileName = Path.GetFileName(sourcePath);
+        string destPath = Path.Combine(targetDir, fileName);
+
+        if (string.Equals(Path.GetFullPath(sourcePath), Path.GetFullPath(destPath), StringComparison.OrdinalIgnoreCase))
+        {
+            return sourcePath;
+        }
+
+        if (File.Exists(destPath))
+        {
+            string nameNoExt = Path.GetFileNameWithoutExtension(fileName);
+            string ext = Path.GetExtension(fileName);
+            int i = 1;
+            do
+            {
+                destPath = Path.Combine(targetDir, $"{nameNoExt}_{i}{ext}");
+                i++;
+            }
+            while (File.Exists(destPath));
+        }
+
+        try
+        {
+            File.Move(sourcePath, destPath);
+            return destPath;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Could not move extra content file '{Src}' → '{Dst}'", sourcePath, destPath);
+            return sourcePath;
         }
     }
 

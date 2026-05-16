@@ -67,6 +67,8 @@ public class Book : BaseEntity<int>
     public virtual ICollection<CollectionBook> CollectionBooks { get; set; } = [];
 
     public virtual ICollection<ReadingListItem> ReadingListItems { get; set; } = [];
+
+    public virtual ICollection<BookAdditionalContentItem> BookAdditionalContent { get; set; } = [];
 }
 
 public class BookMap : IEntityTypeConfiguration<Book>

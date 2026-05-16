@@ -67,6 +67,13 @@ public interface IStoragePathProvider
     /// <summary>Delete the encoded audiobook + any working files for <paramref name="bookId"/>.</summary>
     void DeleteAudiobook(int bookId);
 
+    /// <summary>
+    /// Absolute path to the directory where extra (non-ebook) content files are stored.
+    /// Configurable via <c>Storage:ExtrasPath</c>; defaults to a sibling of the covers directory
+    /// named <c>_extras</c>.
+    /// </summary>
+    string ExtrasDirectory { get; }
+
     /// <summary>Directory for user-uploaded shelf / collection / reading list tile banners.</summary>
     string CardBannersDirectory { get; }
 

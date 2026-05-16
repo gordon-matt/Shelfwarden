@@ -6,28 +6,45 @@ public partial class AuthorDetail : ComponentBase
 
     private AuthorDetailDto? author;
     private bool loadFailed;
+    private IReadOnlyList<AdditionalContentItemDto>? extraContent;
 
     private bool selectMode;
     private readonly HashSet<int> selectedBookIds = [];
     private bool isAuthorEditModalOpen;
     private readonly Dictionary<int, long> authorPhotoVersions = [];
 
+    private bool isAssignContentModalOpen;
+    private string assignEntityLabel = "entity";
+    private string? assignEntityName;
+    private string assignEntityType = "book";
+    private int assignEntityId;
+
     protected override async Task OnParametersSetAsync()
     {
         author = null;
         loadFailed = false;
+        extraContent = null;
         selectMode = false;
         selectedBookIds.Clear();
         isAuthorEditModalOpen = false;
+        isAssignContentModalOpen = false;
 
-        var result = await AuthorService.GetDetailAsync(Id);
-        if (result.IsSuccess)
+        var detailTask = AuthorService.GetDetailAsync(Id);
+        var contentTask = ContentService.GetForAuthorAsync(Id);
+        await Task.WhenAll(detailTask, contentTask);
+
+        if (detailTask.Result.IsSuccess)
         {
-            author = result.Value;
+            author = detailTask.Result.Value;
         }
         else
         {
             loadFailed = true;
+        }
+
+        if (contentTask.Result.IsSuccess)
+        {
+            extraContent = contentTask.Result.Value;
         }
     }
 
@@ -76,6 +93,43 @@ public partial class AuthorDetail : ComponentBase
 
         string ids = string.Join(',', selectedBookIds);
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=authors/{Id}");
+    }
+
+    private void OpenAssignContentSeries(int seriesId, string seriesName)
+    {
+        assignEntityId = seriesId;
+        assignEntityType = "series";
+        assignEntityLabel = "series";
+        assignEntityName = seriesName;
+        isAssignContentModalOpen = true;
+    }
+
+    private void OpenAssignContentBook(int bookId, string bookTitle)
+    {
+        assignEntityId = bookId;
+        assignEntityType = "book";
+        assignEntityLabel = "book";
+        assignEntityName = bookTitle;
+        isAssignContentModalOpen = true;
+    }
+
+    private void CloseAssignContent() => isAssignContentModalOpen = false;
+
+    private async Task RefreshExtraContentAsync()
+    {
+        var result = await ContentService.GetForAuthorAsync(Id);
+        if (result.IsSuccess)
+        {
+            extraContent = result.Value;
+        }
+    }
+
+    private void OnContentItemRenamed(AdditionalContentItemDto renamed)
+    {
+        if (extraContent is null) return;
+        extraContent = extraContent
+            .Select(i => i.Id == renamed.Id ? renamed : i)
+            .ToList();
     }
 
     private void OpenAuthorEditModal() => isAuthorEditModalOpen = true;

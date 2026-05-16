@@ -1849,3 +1849,149 @@ ol.reading-list {
     outline: 2px solid var(--bs-primary);
     outline-offset: -2px;
 }
+
+
+/* ============================================================
+   Extra / Additional Content
+   ============================================================ */
+
+/* Reusable grid used on Author, Series, Book detail pages */
+.additional-content-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.content-item-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-body-bg);
+    transition: background 0.15s;
+}
+
+.content-item-card:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+.content-item-icon {
+    font-size: 1.4rem;
+    color: var(--bs-secondary-color);
+    flex-shrink: 0;
+    width: 2rem;
+    text-align: center;
+}
+
+.content-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.content-item-name {
+    font-weight: 500;
+}
+
+.content-item-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+/* Content viewer modal body */
+.content-viewer-body {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.content-viewer-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.875rem;
+    background: var(--bs-tertiary-bg);
+    border-radius: var(--bs-border-radius);
+    padding: 1rem;
+}
+
+.content-viewer-html {
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+/* Admin grid on the Extra Content admin page */
+.extra-content-admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.content-admin-card {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-body-bg);
+    transition: background 0.15s, border-color 0.15s;
+    position: relative;
+}
+
+.content-admin-card.selected {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+}
+
+.content-admin-check {
+    flex-shrink: 0;
+    padding-top: 0.125rem;
+}
+
+.content-admin-icon {
+    flex-shrink: 0;
+    color: var(--bs-secondary-color);
+}
+
+.content-admin-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.content-admin-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+/* Assign content modal list */
+.content-assign-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.content-assign-row {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: var(--bs-border-radius-sm);
+    transition: background 0.12s;
+    cursor: pointer;
+}
+
+.content-assign-row:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+/* Ensure the checkbox doesn't get squashed by its sibling label */
+.content-assign-row .form-check-input {
+    flex-shrink: 0;
+    width: 1em;
+    height: 1em;
+    cursor: pointer;
+}

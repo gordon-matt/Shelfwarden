@@ -1,0 +1,110 @@
+@inject IAdditionalContentService ContentService
+
+@if (IsOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 50vw; min-width: 400px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        Assign content to @EntityLabel
+                        @if (!string.IsNullOrWhiteSpace(EntityName))
+                        {
+                            <span class="fw-normal">: <em>@EntityName</em></span>
+                        }
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="Cancel" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (loading)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border" role="status"></div>
+                        </div>
+                    }
+                    else if (allItems is not null)
+                    {
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="filterUnassigned"
+                                       @bind="filterUnassigned" @bind:after="ApplyFilter" />
+                                <label class="form-check-label" for="filterUnassigned">
+                                    Only show unassigned
+                                </label>
+                            </div>
+                        </div>
+
+                        @if (filteredItems.Count == 0)
+                        {
+                            <p class="text-secondary fst-italic">
+                                @if (filterUnassigned)
+                                {
+                                    <text>No unassigned content items available.</text>
+                                }
+                                else
+                                {
+                                    <text>No content items found for this author.</text>
+                                }
+                            </p>
+                        }
+                        else
+                        {
+                            <div class="content-assign-list">
+                                @foreach (var item in filteredItems)
+                                {
+                                    <div class="content-assign-row">
+                                        <input class="form-check-input flex-shrink-0 mt-0" type="checkbox"
+                                               id="@($"assign-item-{item.Id}")"
+                                               checked="@selectedIds.Contains(item.Id)"
+                                               @onchange="e => ToggleItem(item.Id, (bool)(e.Value ?? false))" />
+                                        <label class="d-flex align-items-center gap-2 flex-grow-1 mb-0 user-select-none"
+                                               style="cursor:pointer"
+                                               for="@($"assign-item-{item.Id}")">
+                                            <i class="bi @GetFileIcon(item.FileExtension) text-secondary flex-shrink-0"></i>
+                                            <span class="flex-grow-1 text-truncate">@item.FileName</span>
+                                            @if (item.Books.Count > 0 || item.Series.Count > 0)
+                                            {
+                                                <span class="badge text-bg-secondary ms-auto text-nowrap">
+                                                    @if (item.Books.Count > 0)
+                                                    {
+                                                        <text>@item.Books.Count book@(item.Books.Count == 1 ? "" : "s")</text>
+                                                    }
+                                                    @if (item.Books.Count > 0 && item.Series.Count > 0)
+                                                    {
+                                                        <text>, </text>
+                                                    }
+                                                    @if (item.Series.Count > 0)
+                                                    {
+                                                        <text>@item.Series.Count series</text>
+                                                    }
+                                                </span>
+                                            }
+                                        </label>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+
+                    @if (error is not null)
+                    {
+                        <div class="alert alert-danger py-2 mt-3">@error</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="Cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary"
+                            disabled="@(saving || selectedIds.Count == 0)"
+                            @onclick="AssociateSelectedAsync">
+                        @if (saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        Associate selected (@selectedIds.Count)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}

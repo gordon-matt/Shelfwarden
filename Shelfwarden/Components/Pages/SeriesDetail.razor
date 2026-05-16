@@ -1,0 +1,100 @@
+@page "/series/{Id:int}"
+@attribute [Authorize]
+@inject ISeriesService SeriesService
+@inject IBookService BookService
+@inject IAdditionalContentService ContentService
+@inject IUserContextService UserContext
+@inject NavigationManager NavigationManager
+
+@if (loading)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading series…</div>
+    </div>
+}
+else if (series is null)
+{
+    <PageTitle>Series not found - Shelfwarden</PageTitle>
+    <div class="empty-state">
+        <i class="bi bi-collection empty-icon"></i>
+        <h3>Series not found</h3>
+        <p>The series you were looking for couldn't be loaded.</p>
+        <a class="btn btn-outline-primary" href="series"><i class="bi bi-arrow-left"></i> Back to series</a>
+    </div>
+}
+else
+{
+    <PageTitle>@series.Name - Shelfwarden</PageTitle>
+
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+        <div>
+            <h1 class="mb-1">@series.Name</h1>
+            <div class="text-secondary small">
+                @series.BookCount book@(series.BookCount == 1 ? "" : "s")
+            </div>
+            @if (!string.IsNullOrWhiteSpace(series.Description))
+            {
+                <p class="mt-2 mb-0">@series.Description</p>
+            }
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-sm btn-outline-secondary" href="@($"books?series={series.Id}")">
+                <i class="bi bi-funnel me-1"></i> Browse books
+            </a>
+        </div>
+    </div>
+
+    @if (books is { Count: > 0 })
+    {
+        <section class="mb-5">
+            <h2 class="mb-3">Books in this series</h2>
+            <div class="book-grid">
+                @foreach (var b in books)
+                {
+                    <BookCard Book="b">
+                        <ExtraMenuItems>
+                            <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                <Authorized>
+                                    <li>
+                                        <button type="button" class="dropdown-item"
+                                                @onclick="() => OpenAssignContentBook(b.Id, b.Title)"
+                                                @onclick:stopPropagation="true"
+                                                @onclick:preventDefault="true">
+                                            <i class="bi bi-folder-plus me-1"></i> Assign Content
+                                        </button>
+                                    </li>
+                                </Authorized>
+                            </AuthorizeView>
+                        </ExtraMenuItems>
+                    </BookCard>
+                }
+            </div>
+        </section>
+    }
+
+    @* Assign content modal — shows only items already linked to this series *@
+    <AssignContentModal IsOpen="assignModalOpen"
+                        SourceSeriesId="@Id"
+                        EntityType="book"
+                        EntityId="@assignTargetBookId"
+                        EntityLabel="book"
+                        EntityName="@assignTargetBookTitle"
+                        OnClose="@CloseAssignModal"
+                        OnAssociated="@OnContentAssociatedAsync" />
+
+    @* Extra content grid *@
+    @if (extraContent is { Count: > 0 })
+    {
+        <section class="mb-4">
+            <h2 class="mb-3">Extra Content</h2>
+            <AdditionalContentGrid Items="extraContent"
+                                   OnItemDeleted="RefreshExtraContentAsync"
+                                   OnItemRenamed="OnItemRenamed" />
+        </section>
+    }
+    else if (extraContent is not null)
+    {
+        @* Only show an empty state once loaded *@
+    }
+}

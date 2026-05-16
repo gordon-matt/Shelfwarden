@@ -93,8 +93,8 @@ public partial class Setup : ComponentBase
     private string NextLinkAfterWelcome() => status?.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Identity) ? "/setup?step=admin" : "/setup?step=shelf";
 
     private static string FolderPlaceholder() => OperatingSystem.IsWindows()
-            ? "D:\\Library\\Fiction\nD:\\Library\\NonFiction"
-            : "/app/data/library/Fiction\n/app/data/library/NonFiction";
+        ? "D:\\Library\\Fiction\nD:\\Library\\NonFiction"
+        : "/app/data/library/Fiction\n/app/data/library/NonFiction";
 
     protected override void OnParametersSet()
     {

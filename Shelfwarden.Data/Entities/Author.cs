@@ -10,6 +10,8 @@ public class Author : BaseEntity<int>
     public string? Biography { get; set; }
 
     public virtual ICollection<BookAuthor> BookAuthors { get; set; } = [];
+
+    public virtual ICollection<AdditionalContentItem> AdditionalContent { get; set; } = [];
 }
 
 public class AuthorMap : IEntityTypeConfiguration<Author>

@@ -1,0 +1,219 @@
+@page "/extra-content"
+@attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@inject IAdditionalContentService ContentService
+@inject IAuthorService AuthorService
+@inject ISeriesService SeriesService
+
+<PageTitle>Extra Content - Shelfwarden</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="mb-0">Extra Content</h1>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ScanExtrasAsync" disabled="@scanning">
+            @if (scanning)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <text>Scanning...</text>
+            }
+            else
+            {
+                <i class="bi bi-arrow-repeat me-1"></i>
+                <text>Scan _extras folder</text>
+            }
+        </button>
+    </div>
+</div>
+
+@if (scanMessage is not null)
+{
+    <div class="alert alert-info py-2 mb-3 d-flex align-items-center gap-2">
+        <i class="bi bi-info-circle"></i> @scanMessage
+    </div>
+}
+@if (actionMessage is not null)
+{
+    <div class="alert alert-success py-2 mb-3 d-flex align-items-center gap-2">
+        <i class="bi bi-check-circle"></i> @actionMessage
+    </div>
+}
+@if (actionError is not null)
+{
+    <div class="alert alert-danger py-2 mb-3">@actionError</div>
+}
+
+@* Filters *@
+<div class="row g-2 mb-3">
+    <div class="col-md-4">
+        <label class="form-label">Author</label>
+        <select class="form-select" @bind="authorFilter" @bind:after="ApplyFilter">
+            <option value="0">Any</option>
+            <option value="-1">None (unassigned)</option>
+            @if (authors is not null)
+            {
+                @foreach (var a in authors)
+                {
+                    <option value="@a.Id">@a.Name</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Series</label>
+        <select class="form-select" @bind="seriesFilter" @bind:after="ApplyFilter">
+            <option value="0">Any</option>
+            <option value="-1">None (no series)</option>
+            @if (seriesList is not null)
+            {
+                @foreach (var s in seriesList)
+                {
+                    <option value="@s.Id">@s.Name</option>
+                }
+            }
+        </select>
+    </div>
+</div>
+
+@* Bulk actions bar *@
+@if (selectedIds.Count > 0)
+{
+    <div class="d-flex align-items-center gap-2 mb-3 p-2 bg-body-secondary rounded">
+        <span class="small fw-semibold">@selectedIds.Count selected</span>
+        <button type="button" class="btn btn-sm btn-danger" @onclick="BulkDeleteAsync" disabled="@bulkActionBusy">
+            @if (bulkActionBusy)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+            }
+            <i class="bi bi-trash me-1"></i> Delete all
+        </button>
+        <button type="button" class="btn btn-sm btn-primary" @onclick="OpenBulkAssign" disabled="@bulkActionBusy">
+            <i class="bi bi-person-plus me-1"></i> Assign to Author
+        </button>
+    </div>
+}
+
+@if (items is null)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading...</div>
+    </div>
+}
+else if (filteredItems.Count == 0)
+{
+    <div class="empty-state">
+        <i class="bi bi-folder2 empty-icon"></i>
+        <h3>No extra content</h3>
+        <p>Drop files into the <code>_extras</code> folder and click "Scan _extras folder".</p>
+    </div>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-2">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="selectAll"
+                   @bind="allSelected"
+                   @bind:after="ToggleSelectAll" />
+            <label class="form-check-label" for="selectAll">Select all</label>
+        </div>
+        <span class="text-secondary small">@filteredItems.Count item@(filteredItems.Count == 1 ? "" : "s")</span>
+    </div>
+
+    <div class="extra-content-admin-grid">
+        @foreach (var item in filteredItems)
+        {
+            <div class="content-admin-card @(selectedIds.Contains(item.Id) ? "selected" : "")">
+                <div class="form-check content-admin-check">
+                    <input class="form-check-input" type="checkbox"
+                           checked="@selectedIds.Contains(item.Id)"
+                           @onchange="e => ToggleItem(item.Id, (bool)(e.Value ?? false))" />
+                </div>
+                <div class="content-admin-icon">
+                    <i class="bi @GetFileIcon(item.FileExtension) fs-3"></i>
+                </div>
+                <div class="content-admin-body">
+                    <div class="fw-semibold text-truncate" title="@item.FileName">@item.FileName</div>
+                    <div class="text-secondary small">
+                        @if (item.AuthorName is not null)
+                        {
+                            <span><i class="bi bi-person me-1"></i>@item.AuthorName</span>
+                        }
+                        else
+                        {
+                            <span class="fst-italic">Unassigned</span>
+                        }
+                    </div>
+                    @if (item.Books.Count > 0)
+                    {
+                        <div class="text-secondary small">
+                            <i class="bi bi-book me-1"></i>
+                            @string.Join(", ", item.Books.Select(b => b.Name))
+                        </div>
+                    }
+                    @if (item.Series.Count > 0)
+                    {
+                        <div class="text-secondary small">
+                            <i class="bi bi-collection-fill me-1"></i>
+                            @string.Join(", ", item.Series.Select(s => s.Name))
+                        </div>
+                    }
+                    <div class="text-secondary small">@FormatBytes(item.FileSizeBytes)</div>
+                </div>
+                <div class="content-admin-actions">
+                    <a class="btn btn-sm btn-outline-secondary" href="extra-content/@item.Id?download=true" title="Download">
+                        <i class="bi bi-download"></i>
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            title="Assign to author"
+                            @onclick="() => OpenSingleAssign(item)">
+                        <i class="bi bi-person-plus"></i>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* Bulk assign author modal *@
+@if (bulkAssignOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Assign to Author</h5>
+                    <button type="button" class="btn-close" @onclick="() => bulkAssignOpen = false" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (bulkAssignError is not null)
+                    {
+                        <div class="alert alert-danger py-2">@bulkAssignError</div>
+                    }
+                    <label class="form-label">Author</label>
+                    <select class="form-select" @bind="bulkAssignAuthorId">
+                        <option value="0">— Select author —</option>
+                        @if (authors is not null)
+                        {
+                            @foreach (var a in authors)
+                            {
+                                <option value="@a.Id">@a.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => bulkAssignOpen = false">Cancel</button>
+                    <button type="button" class="btn btn-primary"
+                            disabled="@(bulkActionBusy || bulkAssignAuthorId == 0)"
+                            @onclick="BulkAssignToAuthorAsync">
+                        @if (bulkActionBusy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        Assign
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}

@@ -136,6 +136,48 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.ToTable("UserTokens", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.AdditionalContentItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AuthorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .IsUnicode(true)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .IsUnicode(true)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("FilePath")
+                        .IsUnique();
+
+                    b.ToTable("AdditionalContent", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.ApplicationRole", b =>
                 {
                     b.Property<string>("Id")
@@ -418,6 +460,28 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.HasIndex("ShelfId", "FilePath");
 
                     b.ToTable("Books", "app");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.BookAdditionalContent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AdditionalContentItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BookId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdditionalContentItemId");
+
+                    b.HasIndex("BookId", "AdditionalContentItemId")
+                        .IsUnique();
+
+                    b.ToTable("BookAdditionalContent", "app");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.BookAuthor", b =>
@@ -760,6 +824,28 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.ToTable("Series", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.SeriesAdditionalContent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AdditionalContentItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdditionalContentItemId");
+
+                    b.HasIndex("SeriesId", "AdditionalContentItemId")
+                        .IsUnique();
+
+                    b.ToTable("SeriesAdditionalContent", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.ServerSetting", b =>
                 {
                     b.Property<int>("Id")
@@ -983,6 +1069,16 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.AdditionalContentItem", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Author", "Author")
+                        .WithMany("AdditionalContentItems")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Author");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Audiobook", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
@@ -1010,6 +1106,25 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.Navigation("Series");
 
                     b.Navigation("Shelf");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.BookAdditionalContent", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.AdditionalContentItem", "AdditionalContentItem")
+                        .WithMany("BookAdditionalContents")
+                        .HasForeignKey("AdditionalContentItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
+                        .WithMany("BookAdditionalContents")
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AdditionalContentItem");
+
+                    b.Navigation("Book");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.BookAuthor", b =>
@@ -1129,6 +1244,25 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.Navigation("ReadingList");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.SeriesAdditionalContent", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.AdditionalContentItem", "AdditionalContentItem")
+                        .WithMany("SeriesAdditionalContents")
+                        .HasForeignKey("AdditionalContentItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shelfwarden.Data.Entities.Series", "Series")
+                        .WithMany("SeriesAdditionalContents")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AdditionalContentItem");
+
+                    b.Navigation("Series");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.ShelfFolder", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Shelf", "Shelf")
@@ -1162,13 +1296,24 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.Navigation("Shelf");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.AdditionalContentItem", b =>
+                {
+                    b.Navigation("BookAdditionalContents");
+
+                    b.Navigation("SeriesAdditionalContents");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Author", b =>
                 {
+                    b.Navigation("AdditionalContentItems");
+
                     b.Navigation("BookAuthors");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>
                 {
+                    b.Navigation("BookAdditionalContents");
+
                     b.Navigation("BookAuthors");
 
                     b.Navigation("BookGenres");
@@ -1202,6 +1347,8 @@ namespace Shelfwarden.Data.Sqlite.Migrations
             modelBuilder.Entity("Shelfwarden.Data.Entities.Series", b =>
                 {
                     b.Navigation("Books");
+
+                    b.Navigation("SeriesAdditionalContents");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Shelf", b =>

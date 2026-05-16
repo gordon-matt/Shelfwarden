@@ -144,6 +144,50 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.ToTable("UserTokens", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.AdditionalContentItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AuthorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .IsUnicode(true)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .IsUnicode(true)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("FilePath")
+                        .IsUnique();
+
+                    b.ToTable("AdditionalContent", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.ApplicationRole", b =>
                 {
                     b.Property<string>("Id")
@@ -432,6 +476,30 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.HasIndex("ShelfId", "FilePath");
 
                     b.ToTable("Books", "app");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.BookAdditionalContent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AdditionalContentItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BookId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdditionalContentItemId");
+
+                    b.HasIndex("BookId", "AdditionalContentItemId")
+                        .IsUnique();
+
+                    b.ToTable("BookAdditionalContent", "app");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.BookAuthor", b =>
@@ -796,6 +864,30 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.ToTable("Series", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.SeriesAdditionalContent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AdditionalContentItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdditionalContentItemId");
+
+                    b.HasIndex("SeriesId", "AdditionalContentItemId")
+                        .IsUnique();
+
+                    b.ToTable("SeriesAdditionalContent", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.ServerSetting", b =>
                 {
                     b.Property<int>("Id")
@@ -1031,6 +1123,16 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.AdditionalContentItem", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Author", "Author")
+                        .WithMany("AdditionalContentItems")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Author");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Audiobook", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
@@ -1058,6 +1160,25 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("Series");
 
                     b.Navigation("Shelf");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.BookAdditionalContent", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.AdditionalContentItem", "AdditionalContentItem")
+                        .WithMany("BookAdditionalContents")
+                        .HasForeignKey("AdditionalContentItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
+                        .WithMany("BookAdditionalContents")
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AdditionalContentItem");
+
+                    b.Navigation("Book");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.BookAuthor", b =>
@@ -1177,6 +1298,25 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("ReadingList");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.SeriesAdditionalContent", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.AdditionalContentItem", "AdditionalContentItem")
+                        .WithMany("SeriesAdditionalContents")
+                        .HasForeignKey("AdditionalContentItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shelfwarden.Data.Entities.Series", "Series")
+                        .WithMany("SeriesAdditionalContents")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AdditionalContentItem");
+
+                    b.Navigation("Series");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.ShelfFolder", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Shelf", "Shelf")
@@ -1210,13 +1350,24 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("Shelf");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.AdditionalContentItem", b =>
+                {
+                    b.Navigation("BookAdditionalContents");
+
+                    b.Navigation("SeriesAdditionalContents");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Author", b =>
                 {
+                    b.Navigation("AdditionalContentItems");
+
                     b.Navigation("BookAuthors");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>
                 {
+                    b.Navigation("BookAdditionalContents");
+
                     b.Navigation("BookAuthors");
 
                     b.Navigation("BookGenres");
@@ -1250,6 +1401,8 @@ namespace Shelfwarden.Data.Npgsql.Migrations
             modelBuilder.Entity("Shelfwarden.Data.Entities.Series", b =>
                 {
                     b.Navigation("Books");
+
+                    b.Navigation("SeriesAdditionalContents");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Shelf", b =>

@@ -58,6 +58,12 @@ public abstract class ApplicationDbContextBase
 
     public DbSet<Audiobook> Audiobooks => Set<Audiobook>();
 
+    public DbSet<AdditionalContentItem> AdditionalContentItems => Set<AdditionalContentItem>();
+
+    public DbSet<BookAdditionalContentItem> BookAdditionalContents => Set<BookAdditionalContentItem>();
+
+    public DbSet<SeriesAdditionalContentItem> SeriesAdditionalContents => Set<SeriesAdditionalContentItem>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

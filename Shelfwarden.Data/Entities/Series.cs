@@ -9,6 +9,8 @@ public class Series : BaseEntity<int>
     public string? Description { get; set; }
 
     public virtual ICollection<Book> Books { get; set; } = [];
+
+    public virtual ICollection<SeriesAdditionalContentItem> SeriesAdditionalContent { get; set; } = [];
 }
 
 public class SeriesMap : IEntityTypeConfiguration<Series>

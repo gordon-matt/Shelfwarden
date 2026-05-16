@@ -8,6 +8,7 @@ public partial class BookDetail : ComponentBase
     private BookDto? book;
     private bool loading = true;
     private readonly List<BookmarkDto> bookmarks = [];
+    private IReadOnlyList<AdditionalContentItemDto>? bookExtraContent;
 
     private AudiobookDto? audiobook;
     private bool audiobookSupported;
@@ -31,6 +32,7 @@ public partial class BookDetail : ComponentBase
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
+        bookExtraContent = null;
         var result = await BookService.GetByIdAsync(Id);
         book = result.IsSuccess ? result.Value : null;
 
@@ -42,10 +44,18 @@ public partial class BookDetail : ComponentBase
 
         if (book is not null)
         {
-            var bmResult = await BookmarkService.ListAsync(Id);
-            if (bmResult.IsSuccess)
+            var bmTask = BookmarkService.ListAsync(Id);
+            var contentTask = ContentService.GetForBookAsync(Id);
+            await Task.WhenAll(bmTask, contentTask);
+
+            if (bmTask.Result.IsSuccess)
             {
-                bookmarks.AddRange(bmResult.Value);
+                bookmarks.AddRange(bmTask.Result.Value);
+            }
+
+            if (contentTask.Result.IsSuccess)
+            {
+                bookExtraContent = contentTask.Result.Value;
             }
 
             audiobookSupported = book.FileFormat is EbookFormat.Epub or EbookFormat.Pdf;
@@ -57,6 +67,23 @@ public partial class BookDetail : ComponentBase
         }
 
         loading = false;
+    }
+
+    private async Task RefreshExtraContentAsync()
+    {
+        var result = await ContentService.GetForBookAsync(Id);
+        if (result.IsSuccess)
+        {
+            bookExtraContent = result.Value;
+        }
+    }
+
+    private void OnContentItemRenamed(AdditionalContentItemDto renamed)
+    {
+        if (bookExtraContent is null) return;
+        bookExtraContent = bookExtraContent
+            .Select(i => i.Id == renamed.Id ? renamed : i)
+            .ToList();
     }
 
     private async Task RefreshAudiobookStatusAsync()

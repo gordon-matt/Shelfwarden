@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Humanizer;
-using Shelfwarden.Extensions;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services.Scanning;
