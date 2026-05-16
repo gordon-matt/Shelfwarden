@@ -7,6 +7,10 @@ public partial class AdditionalContentGrid : ComponentBase
     [Parameter] public EventCallback OnItemDeleted { get; set; }
     [Parameter] public EventCallback<AdditionalContentItemDto> OnItemRenamed { get; set; }
 
+    private IReadOnlyList<AdditionalContentItemDto> imageItems = [];
+    private IReadOnlyList<AdditionalContentItemDto> otherItems = [];
+    private string activeTab = "images";
+
     private AdditionalContentItemDto? viewerItem;
     private string? viewerContent;
     private bool viewerLoading;
@@ -15,6 +19,46 @@ public partial class AdditionalContentGrid : ComponentBase
     private string renameName = string.Empty;
     private bool renameSaving;
     private string? renameError;
+
+    private bool ShowTabs => imageItems.Count > 0 && otherItems.Count > 0;
+
+    private bool ShowImageGallery =>
+        imageItems.Count > 0 && (!ShowTabs || activeTab == "images");
+
+    private bool ShowOtherList =>
+        otherItems.Count > 0 && (!ShowTabs || activeTab == "other");
+
+    private string ImagesMasonryKey => string.Join(',', imageItems.Select(i => i.Id));
+
+    protected override void OnParametersSet()
+    {
+        imageItems = Items
+            .Where(i => IsImage(i.FileExtension))
+            .OrderBy(i => i.FileName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        otherItems = Items
+            .Where(i => !IsImage(i.FileExtension))
+            .OrderBy(i => i.FileName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (ShowTabs)
+        {
+            if (activeTab == "images" && imageItems.Count == 0)
+            {
+                activeTab = "other";
+            }
+            else if (activeTab == "other" && otherItems.Count == 0)
+            {
+                activeTab = "images";
+            }
+        }
+    }
+
+    private void ActivateTab(string tab)
+    {
+        activeTab = tab;
+    }
 
     private async Task OpenViewer(AdditionalContentItemDto item)
     {

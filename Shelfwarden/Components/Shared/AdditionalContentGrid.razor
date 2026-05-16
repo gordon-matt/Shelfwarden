@@ -1,66 +1,158 @@
-@inject IUserContextService UserContext
 @inject IJSRuntime JS
 @inject IAdditionalContentService ContentService
 
 @if (Items is { Count: > 0 })
 {
     <div class="additional-content-grid">
-        @foreach (var item in Items)
+        @if (ShowTabs)
         {
-            <div class="content-item-card">
-                <div class="content-item-icon">
-                    <i class="bi @GetFileIcon(item.FileExtension)"></i>
-                </div>
-                <div class="content-item-body">
-                    <div class="content-item-name text-truncate" title="@item.FileName">@item.FileName</div>
-                    <div class="content-item-meta text-secondary small">
-                        @item.FileExtension.TrimStart('.').ToUpperInvariant()
-                        · @FormatBytes(item.FileSizeBytes)
-                        @if (item.Books.Count > 0)
+            <ul class="nav nav-tabs mb-3 additional-content-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button type="button"
+                            class="nav-link @(activeTab == "images" ? "active" : null)"
+                            id="additional-content-tab-images"
+                            role="tab"
+                            aria-selected="@(activeTab == "images" ? "true" : "false")"
+                            @onclick='() => ActivateTab("images")'>
+                        Images
+                        <span class="badge text-bg-secondary ms-1">@imageItems.Count</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button"
+                            class="nav-link @(activeTab == "other" ? "active" : null)"
+                            id="additional-content-tab-other"
+                            role="tab"
+                            aria-selected="@(activeTab == "other" ? "true" : "false")"
+                            @onclick='() => ActivateTab("other")'>
+                        Other
+                        <span class="badge text-bg-secondary ms-1">@otherItems.Count</span>
+                    </button>
+                </li>
+            </ul>
+        }
+
+        @if (ShowImageGallery)
+        {
+            @* CSS multi-column gallery — avoids Blazor Server / JS Masonry init races (single-column stack). *@
+            <div @key="ImagesMasonryKey" class="additional-content-image-columns">
+                @foreach (var item in imageItems)
+                {
+                    <div class="content-masonry-column-item">
+                        <figure class="content-masonry-card">
+                            <button type="button"
+                                    class="content-masonry-thumb-btn"
+                                    title="View @item.FileName"
+                                    @onclick="() => OpenViewer(item)">
+                                <img src="extra-content/@item.Id"
+                                     class="content-masonry-img"
+                                     alt=""
+                                     loading="lazy"
+                                     decoding="async" />
+                            </button>
+                            <figcaption class="content-masonry-footer">
+                                <div class="content-masonry-title text-truncate small fw-medium" title="@item.FileName">@item.FileName</div>
+                                <div class="content-masonry-meta text-secondary small">
+                                    @item.FileExtension.TrimStart('.').ToUpperInvariant()
+                                    · @FormatBytes(item.FileSizeBytes)
+                                    @if (item.Books.Count > 0)
+                                    {
+                                        <span> · @item.Books.Count book@(item.Books.Count == 1 ? "" : "s")</span>
+                                    }
+                                    @if (item.Series.Count > 0)
+                                    {
+                                        <span> · @item.Series.Count series</span>
+                                    }
+                                </div>
+                                <div class="content-masonry-toolbar">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            title="View" @onclick="() => OpenViewer(item)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                       href="extra-content/@item.Id?download=true"
+                                       title="Download">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                        <Authorized>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                    title="Rename" @onclick="() => OpenRename(item)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    title="Delete" @onclick="() => ConfirmDeleteAsync(item)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </div>
+                            </figcaption>
+                        </figure>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (ShowOtherList)
+        {
+            @foreach (var item in otherItems)
+            {
+                <div class="content-item-card">
+                    <div class="content-item-icon">
+                        <i class="bi @GetFileIcon(item.FileExtension)"></i>
+                    </div>
+                    <div class="content-item-body">
+                        <div class="content-item-name text-truncate" title="@item.FileName">@item.FileName</div>
+                        <div class="content-item-meta text-secondary small">
+                            @item.FileExtension.TrimStart('.').ToUpperInvariant()
+                            · @FormatBytes(item.FileSizeBytes)
+                            @if (item.Books.Count > 0)
+                            {
+                                <span> · @item.Books.Count book@(item.Books.Count == 1 ? "" : "s")</span>
+                            }
+                            @if (item.Series.Count > 0)
+                            {
+                                <span> · @item.Series.Count series</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="content-item-actions">
+                        @if (IsViewable(item.FileExtension))
                         {
-                            <span> · @item.Books.Count book@(item.Books.Count == 1 ? "" : "s")</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    title="View" @onclick="() => OpenViewer(item)">
+                                <i class="bi bi-eye"></i>
+                            </button>
                         }
-                        @if (item.Series.Count > 0)
+                        else if (IsPdf(item.FileExtension))
                         {
-                            <span> · @item.Series.Count series</span>
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="extra-content/@item.Id" target="_blank" rel="noopener"
+                               title="Open PDF">
+                                <i class="bi bi-filetype-pdf"></i>
+                            </a>
                         }
+                        <a class="btn btn-sm btn-outline-secondary"
+                           href="extra-content/@item.Id?download=true"
+                           title="Download">
+                            <i class="bi bi-download"></i>
+                        </a>
+                        <AuthorizeView Roles="@Constants.Roles.Administrator">
+                            <Authorized>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        title="Rename" @onclick="() => OpenRename(item)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        title="Delete" @onclick="() => ConfirmDeleteAsync(item)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </Authorized>
+                        </AuthorizeView>
                     </div>
                 </div>
-                <div class="content-item-actions">
-                    @if (IsViewable(item.FileExtension))
-                    {
-                        <button type="button" class="btn btn-sm btn-outline-secondary"
-                                title="View" @onclick="() => OpenViewer(item)">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                    }
-                    else if (IsPdf(item.FileExtension))
-                    {
-                        <a class="btn btn-sm btn-outline-secondary"
-                           href="extra-content/@item.Id" target="_blank" rel="noopener"
-                           title="Open PDF">
-                            <i class="bi bi-filetype-pdf"></i>
-                        </a>
-                    }
-                    <a class="btn btn-sm btn-outline-secondary"
-                       href="extra-content/@item.Id?download=true"
-                       title="Download">
-                        <i class="bi bi-download"></i>
-                    </a>
-                    <AuthorizeView Roles="@Constants.Roles.Administrator">
-                        <Authorized>
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                    title="Rename" @onclick="() => OpenRename(item)">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                    title="Delete" @onclick="() => ConfirmDeleteAsync(item)">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </Authorized>
-                    </AuthorizeView>
-                </div>
-            </div>
+            }
         }
     </div>
 }
