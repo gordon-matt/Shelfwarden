@@ -70,7 +70,7 @@ public class ExtraContentController(
             return File(stream, contentType, enableRangeProcessing: true);
         }
 
-        return File(stream, contentType, safeFileName, enableRangeProcessing: true);
+        return File(stream, contentType, enableRangeProcessing: true);
     }
 
     private static string SanitizeFileName(string name)

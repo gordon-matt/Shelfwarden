@@ -140,12 +140,43 @@
                             </div>
                         }
                     </div>
-                    <ExtraContentItemContextMenu Item="item"
-                                                 MenuClass="extra-content-item-menu--inline"
-                                                 OnView="() => OpenViewer(item)"
-                                                 OnTags="() => OpenTagsModal(item)"
-                                                 OnRename="() => OpenRename(item)"
-                                                 OnDelete="() => ConfirmDeleteAsync(item)" />
+                    <div class="content-item-actions">
+                        @if (IsViewable(item.FileExtension))
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    title="View" @onclick="() => OpenViewer(item)">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        }
+                        else if (IsPdf(item.FileExtension))
+                        {
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="extra-content/@item.Id" target="_blank" rel="noopener"
+                               title="Open PDF">
+                                <i class="bi bi-filetype-pdf"></i>
+                            </a>
+                        }
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                title="Download" @onclick="() => DownloadItem(item.Id)">
+                            <i class="bi bi-download"></i>
+                        </button>
+                        <AuthorizeView Roles="@Constants.Roles.Administrator">
+                            <Authorized>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        title="Tags" @onclick="() => OpenTagsModal(item)">
+                                    <i class="bi bi-tags"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        title="Rename" @onclick="() => OpenRename(item)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        title="Delete" @onclick="() => ConfirmDeleteAsync(item)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </Authorized>
+                        </AuthorizeView>
+                    </div>
                 </div>
             }
         }
@@ -198,9 +229,10 @@ else if (ShowEmptyState)
                     }
                 </div>
                 <div class="modal-footer">
-                    <a class="btn btn-outline-secondary" href="extra-content/@viewerItem.Id?download=true">
+                    <button type="button" class="btn btn-outline-secondary"
+                            @onclick="() => DownloadItem(viewerItem.Id)">
                         <i class="bi bi-download"></i> Download
-                    </a>
+                    </button>
                     <button type="button" class="btn btn-secondary" @onclick="CloseViewer">Close</button>
                 </div>
             </div>

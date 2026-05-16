@@ -4,6 +4,8 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class AdditionalContentGrid : ComponentBase
 {
+    [Inject] private NavigationManager Navigation { get; set; } = null!;
+
     [Parameter, EditorRequired] public IReadOnlyList<AdditionalContentItemDto> Items { get; set; } = [];
     [Parameter] public bool ShowEmptyState { get; set; } = true;
     [Parameter] public EventCallback OnItemDeleted { get; set; }
@@ -264,4 +266,8 @@ public partial class AdditionalContentGrid : ComponentBase
         }
         return $"{value:0.##} {units[unit]}";
     }
+
+    /// <summary>Full-page request so Blazor does not treat the download URL as in-app navigation.</summary>
+    private void DownloadItem(int id) =>
+        Navigation.NavigateTo($"extra-content/{id}?download=true", forceLoad: true);
 }

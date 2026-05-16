@@ -32,10 +32,12 @@
             </li>
         }
         <li>
-            <a class="dropdown-item" href="extra-content/@Item.Id?download=true"
-               @onclick:stopPropagation="true">
+            <button type="button" class="dropdown-item"
+                    @onclick="DownloadAsync"
+                    @onclick:stopPropagation="true"
+                    @onclick:preventDefault="true">
                 <i class="bi bi-download me-1"></i> Download
-            </a>
+            </button>
         </li>
         @if (ShowAssign)
         {

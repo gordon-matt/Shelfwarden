@@ -4,6 +4,8 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class ExtraContentItemContextMenu : ComponentBase
 {
+    [Inject] private NavigationManager Navigation { get; set; } = null!;
+
     [Parameter, EditorRequired] public AdditionalContentItemDto Item { get; set; } = null!;
 
     /// <summary>Pin menu on cover/thumb (<c>extra-content-item-menu--cover</c>) or inline on a row.</summary>
@@ -29,6 +31,12 @@ public partial class ExtraContentItemContextMenu : ComponentBase
     private Task OnAssignClick() => OnAssign.InvokeAsync();
     private Task OnRenameClick() => OnRename.InvokeAsync();
     private Task OnDeleteClick() => OnDelete.InvokeAsync();
+
+    private Task DownloadAsync()
+    {
+        Navigation.NavigateTo($"extra-content/{Item.Id}?download=true", forceLoad: true);
+        return Task.CompletedTask;
+    }
 
     private static bool IsViewable(string ext) =>
         ext is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".bmp" or ".svg"
