@@ -1,7 +1,6 @@
 @page "/metadata"
 @attribute [Authorize(Roles = Constants.Roles.Administrator)]
 @inject IGenreService GenreService
-@inject ITagService TagService
 @inject IJSRuntime JSRuntime
 
 <PageTitle>Metadata - Shelfwarden</PageTitle>
@@ -9,7 +8,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
         <h1 class="mb-0">Metadata</h1>
-        <p class="text-secondary mb-0">Manage shared genres and tags used across your library.</p>
+        <p class="text-secondary mb-0">Manage shared genres, book tags, and extra content tags.</p>
     </div>
 </div>
 
@@ -30,10 +29,17 @@
         </button>
     </li>
     <li class="nav-item">
-        <button class="nav-link @(activeTab == MetadataTab.Tags ? "active" : null)"
+        <button class="nav-link @(activeTab == MetadataTab.BookTags ? "active" : null)"
                 type="button"
-                @onclick="@(() => SetTab(MetadataTab.Tags))">
-            Tags
+                @onclick="@(() => SetTab(MetadataTab.BookTags))">
+            Book Tags
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == MetadataTab.ExtraContentTags ? "active" : null)"
+                type="button"
+                @onclick="@(() => SetTab(MetadataTab.ExtraContentTags))">
+            Extra Content Tags
         </button>
     </li>
 </ul>
@@ -123,90 +129,17 @@
         </div>
     }
 }
+else if (activeTab == MetadataTab.BookTags)
+{
+    <MetadataTagManager @key="MetadataTab.BookTags"
+                       Kind="MetadataTagManager.TagKind.Book"
+                       ErrorChanged="OnTagManagerErrorAsync" />
+}
 else
 {
-    <div class="row g-2 mb-3 align-items-end">
-        <div class="col-md-8">
-            <label class="form-label small text-body-secondary mb-1">Search tags</label>
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input class="form-control" placeholder="Search tags..." @bind="tagQuery" @bind:event="oninput" @onkeyup="OnTagQueryKeyUp" />
-            </div>
-        </div>
-        <div class="col-md-4 d-flex justify-content-md-end gap-2">
-            <button class="btn btn-outline-secondary" @onclick="ClearTagSelection" disabled="@(selectedTagIds.Count == 0)">
-                <i class="bi bi-x-circle"></i> Clear
-            </button>
-            <button class="btn btn-outline-primary" @onclick="OpenTagCreateAsync">
-                <i class="bi bi-plus-circle"></i> Add tag
-            </button>
-        </div>
-    </div>
-
-    <div class="selection-toolbar mb-3 d-flex flex-wrap align-items-center gap-2">
-        <span class="text-secondary small">
-            <i class="bi bi-check2-square"></i> @selectedTagIds.Count selected
-        </span>
-        <button class="btn btn-sm btn-outline-primary" disabled="@(selectedTagIds.Count < 2)" @onclick="OpenTagMergeModal">
-            <i class="bi bi-intersect"></i> Merge selected
-        </button>
-        <button class="btn btn-sm btn-outline-danger" disabled="@(selectedTagIds.Count == 0)" @onclick="DeleteSelectedTagsAsync">
-            <i class="bi bi-trash"></i> Delete selected
-        </button>
-    </div>
-
-    @if (tags is null)
-    {
-        <div class="text-center text-secondary py-5">
-            <div class="spinner-border" role="status"></div>
-            <div class="mt-2">Loading tags…</div>
-        </div>
-    }
-    else if (tags.Count == 0)
-    {
-        <div class="empty-state">
-            <i class="bi bi-hash empty-icon"></i>
-            <h3>No tags found</h3>
-        </div>
-    }
-    else
-    {
-        <div class="card">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th style="width: 1%;"></th>
-                            <th>Name</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var t in tags)
-                        {
-                            <tr>
-                                <td>
-                                    <input class="form-check-input"
-                                           type="checkbox"
-                                           checked="@selectedTagIds.Contains(t.Id)"
-                                           @onchange="e => ToggleTagSelection(t.Id, (bool)(e.Value ?? false))" />
-                                </td>
-                                <td>@t.Name</td>
-                                <td class="text-end text-nowrap">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => OpenTagRenameAsync(t))">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteTagAsync(t))">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    }
+    <MetadataTagManager @key="MetadataTab.ExtraContentTags"
+                       Kind="MetadataTagManager.TagKind.ExtraContent"
+                       ErrorChanged="OnTagManagerErrorAsync" />
 }
 
 @if (genreMergeModalOpen && genreMergeCandidates.Count > 0)
@@ -242,35 +175,3 @@ else
     </div>
 }
 
-@if (tagMergeModalOpen && tagMergeCandidates.Count > 0)
-{
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,.5);" @onclick="CloseTagMergeModal">
-        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Merge tags</h5>
-                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseTagMergeModal"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="small text-secondary mb-3">
-                        Choose the tag to keep. The other selected tags will be merged into it and deleted.
-                    </p>
-                    @foreach (var c in tagMergeCandidates)
-                    {
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="radio" name="mergePrimaryTag"
-                                   id="@($"merge-primary-tag-{c.Id}")"
-                                   checked="@(tagMergeTargetId == c.Id)"
-                                   @onchange="@(() => tagMergeTargetId = c.Id)" />
-                            <label class="form-check-label" for="@($"merge-primary-tag-{c.Id}")">@c.Name</label>
-                        </div>
-                    }
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseTagMergeModal">Cancel</button>
-                    <button type="button" class="btn btn-primary" @onclick="ConfirmTagMergeAsync">Merge</button>
-                </div>
-            </div>
-        </div>
-    </div>
-}

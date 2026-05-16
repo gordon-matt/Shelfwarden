@@ -7,7 +7,8 @@ public partial class Metadata : ComponentBase
     private enum MetadataTab
     {
         Genres,
-        Tags,
+        BookTags,
+        ExtraContentTags,
     }
 
     private MetadataTab activeTab = MetadataTab.Genres;
@@ -21,15 +22,7 @@ public partial class Metadata : ComponentBase
     private int genreMergeTargetId;
     private List<GenreDto> genreMergeCandidates = [];
 
-    private IReadOnlyList<TagDto>? tags;
-    private string tagQuery = string.Empty;
-    private CancellationTokenSource? tagSearchCts;
-    private readonly HashSet<int> selectedTagIds = [];
-    private bool tagMergeModalOpen;
-    private int tagMergeTargetId;
-    private List<TagDto> tagMergeCandidates = [];
-
-    protected override async Task OnInitializedAsync() => await Task.WhenAll(LoadGenresAsync(), LoadTagsAsync());
+    protected override async Task OnInitializedAsync() => await LoadGenresAsync();
 
     private void SetTab(MetadataTab tab)
     {
@@ -37,20 +30,16 @@ public partial class Metadata : ComponentBase
         error = null;
     }
 
+    private Task OnTagManagerErrorAsync(string? message)
+    {
+        error = message;
+        return Task.CompletedTask;
+    }
+
     private async Task LoadGenresAsync()
     {
         var result = await GenreService.ListAsync(genreQuery);
         genres = result.IsSuccess ? result.Value : [];
-        if (!result.IsSuccess)
-        {
-            error = FormatResult(result);
-        }
-    }
-
-    private async Task LoadTagsAsync()
-    {
-        var result = await TagService.ListAsync(tagQuery);
-        tags = result.IsSuccess ? result.Value : [];
         if (!result.IsSuccess)
         {
             error = FormatResult(result);
@@ -81,30 +70,6 @@ public partial class Metadata : ComponentBase
         }
     }
 
-    private async Task OnTagQueryKeyUp(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await LoadTagsAsync();
-            return;
-        }
-
-        tagSearchCts?.Cancel();
-        tagSearchCts = new CancellationTokenSource();
-        var token = tagSearchCts.Token;
-        try
-        {
-            await Task.Delay(250, token);
-            if (!token.IsCancellationRequested)
-            {
-                await LoadTagsAsync();
-            }
-        }
-        catch (TaskCanceledException)
-        {
-        }
-    }
-
     private void ToggleGenreSelection(int genreId, bool include)
     {
         if (include)
@@ -117,21 +82,7 @@ public partial class Metadata : ComponentBase
         }
     }
 
-    private void ToggleTagSelection(int tagId, bool include)
-    {
-        if (include)
-        {
-            selectedTagIds.Add(tagId);
-        }
-        else
-        {
-            selectedTagIds.Remove(tagId);
-        }
-    }
-
     private void ClearGenreSelection() => selectedGenreIds.Clear();
-
-    private void ClearTagSelection() => selectedTagIds.Clear();
 
     private async Task OpenGenreCreateAsync()
     {
@@ -150,25 +101,6 @@ public partial class Metadata : ComponentBase
 
         error = null;
         await LoadGenresAsync();
-    }
-
-    private async Task OpenTagCreateAsync()
-    {
-        string? name = await JSRuntime.InvokeAsync<string?>("prompt", "New tag name:");
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return;
-        }
-
-        var result = await TagService.CreateAsync(name);
-        if (!result.IsSuccess)
-        {
-            error = FormatResult(result);
-            return;
-        }
-
-        error = null;
-        await LoadTagsAsync();
     }
 
     private async Task OpenGenreRenameAsync(GenreDto genre)
@@ -190,25 +122,6 @@ public partial class Metadata : ComponentBase
         await LoadGenresAsync();
     }
 
-    private async Task OpenTagRenameAsync(TagDto tag)
-    {
-        string? name = await JSRuntime.InvokeAsync<string?>("prompt", "Rename tag:", tag.Name);
-        if (string.IsNullOrWhiteSpace(name) || string.Equals(name.Trim(), tag.Name, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        var result = await TagService.UpdateAsync(tag.Id, name);
-        if (!result.IsSuccess)
-        {
-            error = FormatResult(result);
-            return;
-        }
-
-        error = null;
-        await LoadTagsAsync();
-    }
-
     private async Task DeleteGenreAsync(GenreDto genre)
     {
         if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Delete genre \"{genre.Name}\"? This cannot be undone."))
@@ -226,25 +139,6 @@ public partial class Metadata : ComponentBase
         selectedGenreIds.Remove(genre.Id);
         error = null;
         await LoadGenresAsync();
-    }
-
-    private async Task DeleteTagAsync(TagDto tag)
-    {
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Delete tag \"{tag.Name}\"? This cannot be undone."))
-        {
-            return;
-        }
-
-        var result = await TagService.DeleteAsync(tag.Id);
-        if (!result.IsSuccess)
-        {
-            error = FormatResult(result);
-            return;
-        }
-
-        selectedTagIds.Remove(tag.Id);
-        error = null;
-        await LoadTagsAsync();
     }
 
     private async Task DeleteSelectedGenresAsync()
@@ -271,30 +165,6 @@ public partial class Metadata : ComponentBase
         await LoadGenresAsync();
     }
 
-    private async Task DeleteSelectedTagsAsync()
-    {
-        if (selectedTagIds.Count == 0)
-        {
-            return;
-        }
-
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Delete {selectedTagIds.Count} selected tag(s)? This cannot be undone."))
-        {
-            return;
-        }
-
-        var result = await TagService.DeleteManyAsync(selectedTagIds.ToList());
-        if (!result.IsSuccess)
-        {
-            error = FormatResult(result);
-            return;
-        }
-
-        selectedTagIds.Clear();
-        error = null;
-        await LoadTagsAsync();
-    }
-
     private void OpenGenreMergeModal()
     {
         if (genres is null || selectedGenreIds.Count < 2)
@@ -317,38 +187,10 @@ public partial class Metadata : ComponentBase
         genreMergeModalOpen = true;
     }
 
-    private void OpenTagMergeModal()
-    {
-        if (tags is null || selectedTagIds.Count < 2)
-        {
-            return;
-        }
-
-        tagMergeCandidates = tags
-            .Where(t => selectedTagIds.Contains(t.Id))
-            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (tagMergeCandidates.Count < 2)
-        {
-            tagMergeCandidates = [];
-            return;
-        }
-
-        tagMergeTargetId = tagMergeCandidates[0].Id;
-        tagMergeModalOpen = true;
-    }
-
     private void CloseGenreMergeModal()
     {
         genreMergeModalOpen = false;
         genreMergeCandidates = [];
-    }
-
-    private void CloseTagMergeModal()
-    {
-        tagMergeModalOpen = false;
-        tagMergeCandidates = [];
     }
 
     private async Task ConfirmGenreMergeAsync()
@@ -379,36 +221,6 @@ public partial class Metadata : ComponentBase
         selectedGenreIds.Clear();
         error = null;
         await LoadGenresAsync();
-    }
-
-    private async Task ConfirmTagMergeAsync()
-    {
-        var sourceIds = tagMergeCandidates
-            .Where(c => c.Id != tagMergeTargetId)
-            .Select(c => c.Id)
-            .ToList();
-        if (sourceIds.Count == 0)
-        {
-            return;
-        }
-
-        string targetName = tagMergeCandidates.First(c => c.Id == tagMergeTargetId).Name;
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Merge into \"{targetName}\"? Other selected tags will be deleted."))
-        {
-            return;
-        }
-
-        var result = await TagService.MergeAsync(tagMergeTargetId, sourceIds);
-        if (!result.IsSuccess)
-        {
-            error = FormatResult(result);
-            return;
-        }
-
-        CloseTagMergeModal();
-        selectedTagIds.Clear();
-        error = null;
-        await LoadTagsAsync();
     }
 
     private static string FormatResult(Ardalis.Result.Result result) => result.ValidationErrors is not null && result.ValidationErrors.Any()
