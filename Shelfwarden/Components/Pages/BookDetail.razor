@@ -422,15 +422,26 @@ else
                                         <li class="list-group-item px-0">
                                             <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                                 <span class="fw-medium">@(chapter.Index + 1). @chapter.Title</span>
-                                                <span class="small text-body-secondary text-nowrap">
+                                                <span class="small text-body-secondary text-nowrap d-flex align-items-center gap-2">
                                                     @if (chapter.DurationSeconds > 0)
                                                     {
-                                                        <text>@FormatDuration(chapter.DurationSeconds) · </text>
+                                                        <text>@FormatDuration(chapter.DurationSeconds)</text>
                                                     }
                                                     <a href="@($"audiobooks/{book.Id}/chapters/{chapter.Index}")"
-                                                       download="@($"{chapter.Index + 1:D3} - {chapter.Title}.m4a")">
+                                                       download="@($"{chapter.Index + 1:D3} - {chapter.Title}.m4a")"
+                                                       title="Download this chapter">
                                                         <i class="bi bi-download"></i>
                                                     </a>
+                                                    @if (UserContext.IsAdministrator())
+                                                    {
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-danger border-0 py-0"
+                                                                title="Remove this chapter"
+                                                                disabled="@audiobookActionBusy"
+                                                                @onclick="() => DeleteChapterAsync(chapter.Index)">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    }
                                                 </span>
                                             </div>
                                             <audio controls preload="none" class="w-100 mt-1"

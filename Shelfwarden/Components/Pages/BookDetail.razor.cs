@@ -318,6 +318,47 @@ public partial class BookDetail : ComponentBase
         }
     }
 
+    private async Task DeleteChapterAsync(int chapterIndex)
+    {
+        if (audiobook?.State != AudiobookState.Completed || !audiobook.SplitByChapter)
+        {
+            return;
+        }
+
+        var chapter = audiobook.Chapters?.FirstOrDefault(c => c.Index == chapterIndex);
+        string label = chapter is not null ? chapter.Title : $"chapter {chapterIndex + 1}";
+        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog",
+                $"Remove \"{label}\" from disk? The other chapters will be kept."))
+        {
+            return;
+        }
+
+        audiobookActionBusy = true;
+        generateError = null;
+        try
+        {
+            var result = await AudiobookService.DeleteChapterAsync(Id, chapterIndex);
+            if (!result.IsSuccess)
+            {
+                generateError = result.Errors.FirstOrDefault() ?? "Could not delete chapter.";
+                return;
+            }
+
+            audiobook = result.Value;
+            if (audiobook.State == AudiobookState.None)
+            {
+                showPlayer = false;
+            }
+
+            await RefreshAudiobookStatusAsync();
+            EnsurePollingMatchesState();
+        }
+        finally
+        {
+            audiobookActionBusy = false;
+        }
+    }
+
     private static string FormatState(AudiobookState state) => state switch
     {
         AudiobookState.Pending => "Queued",

@@ -123,23 +123,53 @@ public class AudiobooksController(
             return NotFound();
         }
 
-        Response.ContentType = "application/zip";
-        Response.Headers.ContentDisposition = $"attachment; filename=\"{bookName}.zip\"";
-
-        using (var archive = new ZipArchive(Response.Body, ZipArchiveMode.Create, leaveOpen: true))
+        // ZipArchive finalises the central directory with synchronous writes on Dispose, which
+        // Kestrel/IIS reject when writing directly to Response.Body. Build on disk first.
+        string tempZip = Path.Combine(Path.GetTempPath(), $"shelfwarden-{bookId}-{Guid.NewGuid():N}.zip");
+        try
         {
-            foreach (var (path, entryName) in members)
+            await using (var zipStream = new FileStream(
+                tempZip, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+            using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: false))
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                foreach (var (path, entryName) in members)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                var entry = archive.CreateEntry(entryName, CompressionLevel.NoCompression);
-                await using var entryStream = entry.Open();
-                await using var fileStream = System.IO.File.OpenRead(path);
-                await fileStream.CopyToAsync(entryStream, cancellationToken);
+                    var entry = archive.CreateEntry(entryName, CompressionLevel.NoCompression);
+                    await using var entryStream = entry.Open();
+                    await using var fileStream = new FileStream(
+                        path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+                    await fileStream.CopyToAsync(entryStream, cancellationToken);
+                }
             }
-        }
 
-        return new EmptyResult();
+            var downloadStream = new FileStream(
+                tempZip,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                81920,
+                FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+
+            return File(downloadStream, "application/zip", $"{bookName}.zip");
+        }
+        catch
+        {
+            if (System.IO.File.Exists(tempZip))
+            {
+                try
+                {
+                    System.IO.File.Delete(tempZip);
+                }
+                catch
+                {
+                    // Best-effort cleanup if building or opening the download stream failed.
+                }
+            }
+
+            throw;
+        }
     }
 
     private List<(string Path, string EntryName)> ResolveZipMembers(Audiobook audiobook, int bookId, string bookName)

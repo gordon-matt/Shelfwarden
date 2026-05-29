@@ -46,6 +46,13 @@ public interface IAudiobookService
     Task<Result> DeleteAsync(int bookId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Remove one chapter file from a completed split audiobook (administrators only). Updates
+    /// <c>ChaptersJson</c> and aggregate size/duration. If no chapters remain, the audiobook row
+    /// is removed so the user can generate again.
+    /// </summary>
+    Task<Result<AudiobookDto>> DeleteChapterAsync(int bookId, int chapterIndex, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Stop a queued or in-progress generation, or clear a failed attempt (administrators only):
     /// deletes the audiobook row, working files, and attempts to dequeue the Hangfire job when still pending.
     /// </summary>

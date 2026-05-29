@@ -1,7 +1,4 @@
-using System.Net;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Text.RegularExpressions;
 using VersOne.Epub;
 using VersOne.Epub.Options;
 
@@ -219,7 +216,7 @@ public sealed partial class EpubSectionParser(ILogger<EpubSectionParser> logger)
                     continue;
                 }
 
-                foreach (string paragraph in ExtractParagraphs(html))
+                foreach (string paragraph in EpubHtmlTextExtractor.ExtractParagraphs(html))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     if (!string.IsNullOrWhiteSpace(paragraph))
@@ -250,65 +247,4 @@ public sealed partial class EpubSectionParser(ILogger<EpubSectionParser> logger)
         int hash = path.IndexOf('#', StringComparison.Ordinal);
         return hash >= 0 ? path[..hash] : path;
     }
-
-    /// <summary>
-    /// Crude but robust paragraph-level HTML to text. We deliberately avoid pulling in a full
-    /// HTML parser: the input is mostly XHTML, the output only feeds a TTS engine, and the
-    /// alternatives (HtmlAgilityPack, AngleSharp) would balloon the dependency surface.
-    /// </summary>
-    private static IEnumerable<string> ExtractParagraphs(string html)
-    {
-        if (string.IsNullOrWhiteSpace(html))
-        {
-            yield break;
-        }
-
-        string cleaned = ScriptOrStyleRegex().Replace(html, " ");
-        cleaned = BlockBoundaryRegex().Replace(cleaned, "\n\n");
-        cleaned = LineBreakRegex().Replace(cleaned, "\n");
-
-        string textOnly = TagRegex().Replace(cleaned, string.Empty);
-        textOnly = WebUtility.HtmlDecode(textOnly);
-
-        var sb = new StringBuilder();
-        foreach (string raw in textOnly.Split('\n'))
-        {
-            string trimmed = WhitespaceRegex().Replace(raw, " ").Trim();
-            if (trimmed.Length == 0)
-            {
-                if (sb.Length > 0)
-                {
-                    yield return sb.ToString();
-                    sb.Clear();
-                }
-                continue;
-            }
-
-            if (sb.Length > 0)
-            {
-                sb.Append(' ');
-            }
-            sb.Append(trimmed);
-        }
-
-        if (sb.Length > 0)
-        {
-            yield return sb.ToString();
-        }
-    }
-
-    [GeneratedRegex(@"<(script|style)[^>]*>.*?</\1>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
-    private static partial Regex ScriptOrStyleRegex();
-
-    [GeneratedRegex(@"</?(p|div|h[1-6]|li|tr|td|th|article|section|blockquote|pre)[^>]*>", RegexOptions.IgnoreCase)]
-    private static partial Regex BlockBoundaryRegex();
-
-    [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase)]
-    private static partial Regex LineBreakRegex();
-
-    [GeneratedRegex(@"<[^>]+>")]
-    private static partial Regex TagRegex();
-
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex WhitespaceRegex();
 }

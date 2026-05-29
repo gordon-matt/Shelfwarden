@@ -327,6 +327,95 @@ public class AudiobookService(
         return Result.Success();
     }
 
+    public async Task<Result<AudiobookDto>> DeleteChapterAsync(
+        int bookId,
+        int chapterIndex,
+        CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAuthenticated())
+        {
+            return Result.Unauthorized();
+        }
+
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var existing = await audiobookRepository.FindOneAsync(new SearchOptions<Audiobook>
+        {
+            Query = a => a.BookId == bookId,
+            CancellationToken = cancellationToken,
+        });
+        if (existing is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (existing.Status != AudiobookStatus.Completed || !existing.SplitByChapter)
+        {
+            return Result.Conflict("Only individual chapters of a completed split audiobook can be removed.");
+        }
+
+        var chapters = DeserializeChapters(existing.ChaptersJson) ?? [];
+        if (chapters.Count == 0 || chapters.All(c => c.Index != chapterIndex))
+        {
+            return Result.NotFound();
+        }
+
+        string chapterPath = storage.GetAudiobookChapterFilePath(bookId, chapterIndex);
+        try
+        {
+            if (File.Exists(chapterPath))
+            {
+                File.Delete(chapterPath);
+            }
+
+            string workingDir = storage.GetAudiobookChapterWorkingDirectory(bookId, chapterIndex);
+            if (Directory.Exists(workingDir))
+            {
+                Directory.Delete(workingDir, recursive: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to delete chapter file for book {BookId} chapter {Index}", bookId, chapterIndex);
+            return Result.Error("Could not delete the chapter file from disk.");
+        }
+
+        var remaining = chapters.Where(c => c.Index != chapterIndex).ToList();
+        if (remaining.Count == 0)
+        {
+            await audiobookRepository.DeleteAsync(existing);
+            storage.DeleteAudiobook(bookId);
+            progressTracker.Finish(bookId);
+
+            return Result.Success(new AudiobookDto(
+                bookId,
+                AudiobookState.None,
+                VoiceName: string.Empty,
+                TotalChunks: 0,
+                CompletedChunks: 0,
+                PercentComplete: null,
+                CurrentStage: null,
+                OutputSizeBytes: null,
+                DurationSeconds: null,
+                ErrorMessage: null,
+                CreatedAt: default,
+                StartedAt: null,
+                CompletedAt: null,
+                SplitByChapter: false,
+                Chapters: null));
+        }
+
+        existing.ChaptersJson = JsonSerializer.Serialize(remaining, JsonOptions);
+        existing.OutputSizeBytes = remaining.Sum(c => c.SizeBytes);
+        existing.DurationSeconds = remaining.Sum(c => c.DurationSeconds);
+        existing = await audiobookRepository.UpdateAsync(existing);
+
+        return Result.Success(MergeWithLiveProgress(existing));
+    }
+
     public async Task<Result> CancelAsync(int bookId, CancellationToken cancellationToken = default)
     {
         if (!userContext.IsAuthenticated())
