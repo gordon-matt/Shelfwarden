@@ -111,6 +111,22 @@ public sealed class StoragePathProvider : IStoragePathProvider
     public string GetAudiobookFilePath(int bookId)
         => Path.Combine(AudiobooksDirectory, $"{bookId}.m4a");
 
+    public string GetAudiobookChapterFilePath(int bookId, int chapterIndex)
+    {
+        string dir = Path.Combine(AudiobooksDirectory, bookId.ToString(CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, $"{chapterIndex:D4}.m4a");
+    }
+
+    public string GetAudiobookChapterWorkingDirectory(int bookId, int chapterIndex)
+    {
+        string path = Path.Combine(
+            GetAudiobookWorkingDirectory(bookId),
+            $"ch{chapterIndex:D4}");
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
     public string GetVoiceSamplePath(string voiceName)
     {
         // Voice names are short ASCII tokens (e.g. "af_heart") so this is safe to use
@@ -131,6 +147,13 @@ public sealed class StoragePathProvider : IStoragePathProvider
             if (File.Exists(filePath))
             {
                 File.Delete(filePath);
+            }
+
+            // Per-chapter output directory for split audiobooks.
+            string chapterDir = Path.Combine(AudiobooksDirectory, bookId.ToString(CultureInfo.InvariantCulture));
+            if (Directory.Exists(chapterDir))
+            {
+                Directory.Delete(chapterDir, recursive: true);
             }
 
             string working = Path.Combine(AudiobooksDirectory, "_tmp", bookId.ToString(CultureInfo.InvariantCulture));

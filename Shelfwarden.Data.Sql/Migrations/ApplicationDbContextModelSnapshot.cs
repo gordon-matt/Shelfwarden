@@ -348,6 +348,9 @@ namespace Shelfwarden.Data.Sql.Migrations
                     b.Property<int>("BookId")
                         .HasColumnType("int");
 
+                    b.Property<string>("ChaptersJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("datetime2");
 
@@ -380,6 +383,12 @@ namespace Shelfwarden.Data.Sql.Migrations
                         .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("SectionPlanJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("SplitByChapter")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("StartedAt")
                         .HasColumnType("datetime2");

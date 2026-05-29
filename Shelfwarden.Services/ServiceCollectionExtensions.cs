@@ -54,9 +54,9 @@ public static class ServiceCollectionExtensions
             // (TtsJobService) is scoped because it speaks to EF Core via repositories.
             services.AddSingleton<IKokoroEngineProvider, KokoroEngineProvider>();
             services.AddSingleton<IFFmpegProvider, FFmpegProvider>();
-            services.AddSingleton<IBookTextExtractor, EpubTextExtractor>();
-            services.AddSingleton<IBookTextExtractor, PdfTextExtractor>();
-            services.AddSingleton<IBookTextExtractorFactory, BookTextExtractorFactory>();
+            services.AddSingleton<IEbookSectionParser, EpubSectionParser>();
+            services.AddSingleton<IEbookSectionParser, PdfSectionParser>();
+            services.AddSingleton<IEbookSectionParserFactory, EbookSectionParserFactory>();
             services.AddSingleton<IAudiobookProgressTracker, AudiobookProgressTracker>();
             services.AddSingleton<AudioStitcher>();
             services.AddScoped<ITtsJobService, TtsJobService>();

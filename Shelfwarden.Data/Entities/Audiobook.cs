@@ -20,6 +20,24 @@ public class Audiobook : BaseEntity<int>
     /// </summary>
     public string? OutputFileName { get; set; }
 
+    /// <summary>
+    /// When true the book is rendered to one file per chapter (see <see cref="ChaptersJson"/>);
+    /// otherwise a single <see cref="OutputFileName"/> is produced.
+    /// </summary>
+    public bool SplitByChapter { get; set; }
+
+    /// <summary>
+    /// JSON-serialised list of the included <c>BookSection</c>s the background job replays
+    /// (skip front matter, chapter boundaries, page/spine ranges). Null means "whole book".
+    /// </summary>
+    public string? SectionPlanJson { get; set; }
+
+    /// <summary>
+    /// JSON-serialised list of the produced chapter files (index/title/size/duration) once a
+    /// split generation succeeds. Null for a single-file audiobook.
+    /// </summary>
+    public string? ChaptersJson { get; set; }
+
     /// <summary>Total chunks the source text was broken into. 0 until chunking finishes.</summary>
     public int TotalChunks { get; set; }
 

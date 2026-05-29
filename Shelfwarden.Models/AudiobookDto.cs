@@ -23,7 +23,21 @@ public sealed record AudiobookDto(
     string? ErrorMessage,
     DateTime CreatedAt,
     DateTime? StartedAt,
-    DateTime? CompletedAt);
+    DateTime? CompletedAt,
+    /// <summary>True when the audiobook is split into one file per chapter rather than a single file.</summary>
+    bool SplitByChapter = false,
+    /// <summary>
+    /// The generated chapter files, in playback order. Empty for a single-file audiobook or while
+    /// generation is still in progress.
+    /// </summary>
+    IReadOnlyList<AudiobookChapterDto>? Chapters = null);
+
+/// <summary>One generated chapter file of a split audiobook.</summary>
+public sealed record AudiobookChapterDto(
+    int Index,
+    string Title,
+    long SizeBytes,
+    double DurationSeconds);
 
 /// <summary>
 /// Mirrors <c>Shelfwarden.Data.Entities.AudiobookStatus</c>; we redeclare it on the model side
@@ -47,10 +61,19 @@ public sealed record KokoroVoiceDto(
     string Language,
     string Gender);
 
-/// <summary>Voice the user picked for an audiobook generation request.</summary>
+/// <summary>Options the user picked for an audiobook generation request.</summary>
 public sealed record GenerateAudiobookRequest
 {
     [Required]
     [StringLength(64)]
     public required string VoiceName { get; init; }
+
+    /// <summary>When true, generate one audio file per chapter (driven by section boundaries).</summary>
+    public bool SplitByChapter { get; init; }
+
+    /// <summary>
+    /// The reviewed sections to synthesise (only <see cref="BookSection.IsIncluded"/> ones are
+    /// read). Null means "the whole book" — used for backward-compatible whole-book generation.
+    /// </summary>
+    public IReadOnlyList<BookSection>? Sections { get; init; }
 }

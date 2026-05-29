@@ -24,6 +24,12 @@ public interface IAudiobookService
     /// </summary>
     Task<Result<AudiobookDto>> GenerateAsync(int bookId, GenerateAudiobookRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Parse <paramref name="bookId"/> into reviewable sections (chapters + auto-detected front /
+    /// back matter) so the user can choose what to skip and where to split (administrators only).
+    /// </summary>
+    Task<Result<SectionDetectionResult>> GetSectionsAsync(int bookId, CancellationToken cancellationToken = default);
+
     /// <summary>List Kokoro voices (administrators only).</summary>
     Task<Result<IReadOnlyList<KokoroVoiceDto>>> GetVoicesAsync(CancellationToken cancellationToken = default);
 

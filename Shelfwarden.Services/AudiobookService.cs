@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Hangfire;
 using KokoroSharp.Core;
 using Shelfwarden.Services.Storage;
@@ -18,10 +19,13 @@ public class AudiobookService(
     IRepository<Book> bookRepository,
     IRepository<Audiobook> audiobookRepository,
     IKokoroEngineProvider kokoroProvider,
+    IEbookSectionParserFactory sectionParserFactory,
     IAudiobookProgressTracker progressTracker,
     IStoragePathProvider storage) : IAudiobookService
 {
     private const string SampleSentence = "The quick brown fox jumps over the lazy dog.";
+
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<Result<AudiobookDto>> GetStatusAsync(int bookId, CancellationToken cancellationToken = default)
     {
@@ -50,7 +54,9 @@ public class AudiobookService(
                 ErrorMessage: null,
                 CreatedAt: default,
                 StartedAt: null,
-                CompletedAt: null))
+                CompletedAt: null,
+                SplitByChapter: false,
+                Chapters: null))
             : Result.Success(MergeWithLiveProgress(existing));
     }
 
@@ -100,12 +106,23 @@ public class AudiobookService(
             return Result.Conflict("An audiobook is already being generated for this book.");
         }
 
-        // If the user picked a different voice we treat the previous output as stale and
-        // clear the partial work — chunks made with voice A would sound jarring spliced into
-        // a finished file made with voice B.
-        bool voiceChanged = existing is not null
-            && !string.Equals(existing.VoiceName, request.VoiceName, StringComparison.OrdinalIgnoreCase);
-        if (voiceChanged)
+        string? sectionPlanJson = request.Sections is { Count: > 0 }
+            ? JsonSerializer.Serialize(request.Sections, JsonOptions)
+            : null;
+
+        if (request.Sections is { Count: > 0 } && request.Sections.All(s => !s.IsIncluded))
+        {
+            return Result.Invalid(new ValidationError(nameof(request.Sections),
+                "Select at least one section to include in the audiobook."));
+        }
+
+        // Any change to the voice OR the chapter plan invalidates the partial work on disk —
+        // chunks made under the old settings can't be spliced into the new output.
+        bool planChanged = existing is not null
+            && (!string.Equals(existing.VoiceName, request.VoiceName, StringComparison.OrdinalIgnoreCase)
+                || existing.SplitByChapter != request.SplitByChapter
+                || !string.Equals(existing.SectionPlanJson, sectionPlanJson, StringComparison.Ordinal));
+        if (planChanged)
         {
             storage.DeleteAudiobook(bookId);
         }
@@ -118,6 +135,8 @@ public class AudiobookService(
                 BookId = bookId,
                 Status = AudiobookStatus.Pending,
                 VoiceName = request.VoiceName,
+                SplitByChapter = request.SplitByChapter,
+                SectionPlanJson = sectionPlanJson,
                 RequestedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
             });
@@ -126,15 +145,18 @@ public class AudiobookService(
         {
             existing.Status = AudiobookStatus.Pending;
             existing.VoiceName = request.VoiceName;
+            existing.SplitByChapter = request.SplitByChapter;
+            existing.SectionPlanJson = sectionPlanJson;
             existing.RequestedByUserId = userId;
             existing.ErrorMessage = null;
-            existing.OutputFileName = voiceChanged ? null : existing.OutputFileName;
-            existing.OutputSizeBytes = voiceChanged ? null : existing.OutputSizeBytes;
-            existing.DurationSeconds = voiceChanged ? null : existing.DurationSeconds;
+            existing.OutputFileName = planChanged ? null : existing.OutputFileName;
+            existing.OutputSizeBytes = planChanged ? null : existing.OutputSizeBytes;
+            existing.DurationSeconds = planChanged ? null : existing.DurationSeconds;
+            existing.ChaptersJson = planChanged ? null : existing.ChaptersJson;
             existing.CompletedAt = null;
             existing.StartedAt = null;
-            existing.TotalChunks = voiceChanged ? 0 : existing.TotalChunks;
-            existing.CompletedChunks = voiceChanged ? 0 : existing.CompletedChunks;
+            existing.TotalChunks = planChanged ? 0 : existing.TotalChunks;
+            existing.CompletedChunks = planChanged ? 0 : existing.CompletedChunks;
             audiobook = await audiobookRepository.UpdateAsync(existing);
         }
 
@@ -150,6 +172,58 @@ public class AudiobookService(
         }
 
         return Result.Success(MergeWithLiveProgress(audiobook));
+    }
+
+    public async Task<Result<SectionDetectionResult>> GetSectionsAsync(int bookId, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAuthenticated())
+        {
+            return Result.Unauthorized();
+        }
+
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
+        {
+            Query = b => b.Id == bookId,
+            CancellationToken = cancellationToken,
+        });
+        if (book is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (book.FileFormat is not EbookFormat.Epub and not EbookFormat.Pdf)
+        {
+            return Result.Invalid(new ValidationError(nameof(book.FileFormat),
+                "Only EPUB and PDF books support text-to-speech."));
+        }
+
+        if (!File.Exists(book.FilePath))
+        {
+            return Result.Error("The book file is missing on disk.");
+        }
+
+        var parser = sectionParserFactory.GetFor(book.FilePath);
+        if (parser is null)
+        {
+            return Result.Invalid(new ValidationError(nameof(book.FileFormat),
+                "Only EPUB and PDF books support text-to-speech."));
+        }
+
+        try
+        {
+            var result = await parser.ParseSectionsAsync(book.FilePath, cancellationToken);
+            return Result.Success(result);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Failed to parse sections for book {BookId}", bookId);
+            return Result.Error("Could not analyse this book's chapters.");
+        }
     }
 
     public Task<Result<IReadOnlyList<KokoroVoiceDto>>> GetVoicesAsync(CancellationToken cancellationToken = default)
@@ -328,7 +402,26 @@ public class AudiobookService(
             a.ErrorMessage,
             a.CreatedAt,
             a.StartedAt,
-            a.CompletedAt);
+            a.CompletedAt,
+            a.SplitByChapter,
+            DeserializeChapters(a.ChaptersJson));
+    }
+
+    private static IReadOnlyList<AudiobookChapterDto>? DeserializeChapters(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<AudiobookChapterDto>>(json, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static KokoroVoiceDto MapVoice(KokoroVoice voice)

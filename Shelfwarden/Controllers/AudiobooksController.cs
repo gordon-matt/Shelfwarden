@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Shelfwarden.Services.Storage;
 using RouteAttribute = Microsoft.AspNetCore.Mvc.RouteAttribute;
@@ -13,10 +15,13 @@ namespace Shelfwarden.Controllers;
 [Route("audiobooks")]
 public class AudiobooksController(
     IRepository<Audiobook> audiobookRepository,
+    IRepository<Book> bookRepository,
     IAudiobookService audiobookService,
     IShelfAccessService shelfAccessService,
     IStoragePathProvider storage) : ControllerBase
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     [HttpGet("{bookId:int}")]
     public async Task<IActionResult> GetAudiobook(int bookId, CancellationToken cancellationToken)
     {
@@ -48,6 +53,146 @@ public class AudiobooksController(
         // first — important since audiobooks easily run into the hundreds of megabytes.
         var stream = System.IO.File.OpenRead(fullPath);
         return File(stream, "audio/mp4", enableRangeProcessing: true);
+    }
+
+    [HttpGet("{bookId:int}/chapters/{index:int}")]
+    public async Task<IActionResult> GetChapter(int bookId, int index, CancellationToken cancellationToken)
+    {
+        var audiobook = await audiobookRepository.FindOneAsync(new SearchOptions<Audiobook>
+        {
+            Query = a => a.BookId == bookId,
+            CancellationToken = cancellationToken,
+        });
+
+        if (audiobook is null
+            || audiobook.Status != AudiobookStatus.Completed
+            || !audiobook.SplitByChapter)
+        {
+            return NotFound();
+        }
+
+        if (!await shelfAccessService.CanAccessBookAsync(bookId, cancellationToken))
+        {
+            return Forbid();
+        }
+
+        string fullPath = storage.GetAudiobookChapterFilePath(bookId, index);
+        if (!System.IO.File.Exists(fullPath))
+        {
+            return NotFound();
+        }
+
+        var stream = System.IO.File.OpenRead(fullPath);
+        return File(stream, "audio/mp4", enableRangeProcessing: true);
+    }
+
+    /// <summary>
+    /// Streams every produced file for a book as a single ZIP. Works for both a single-file
+    /// audiobook and a split (per-chapter) one. Members are stored uncompressed because AAC is
+    /// already compressed — re-deflating would burn CPU for almost no size gain.
+    /// </summary>
+    [HttpGet("{bookId:int}/zip")]
+    public async Task<IActionResult> GetZip(int bookId, CancellationToken cancellationToken)
+    {
+        var audiobook = await audiobookRepository.FindOneAsync(new SearchOptions<Audiobook>
+        {
+            Query = a => a.BookId == bookId,
+            CancellationToken = cancellationToken,
+        });
+
+        if (audiobook is null || audiobook.Status != AudiobookStatus.Completed)
+        {
+            return NotFound();
+        }
+
+        if (!await shelfAccessService.CanAccessBookAsync(bookId, cancellationToken))
+        {
+            return Forbid();
+        }
+
+        var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
+        {
+            Query = b => b.Id == bookId,
+            CancellationToken = cancellationToken,
+        });
+        string bookName = SanitizeFileName(book?.Title ?? $"audiobook-{bookId}");
+
+        var members = ResolveZipMembers(audiobook, bookId, bookName);
+        if (members.Count == 0)
+        {
+            return NotFound();
+        }
+
+        Response.ContentType = "application/zip";
+        Response.Headers.ContentDisposition = $"attachment; filename=\"{bookName}.zip\"";
+
+        using (var archive = new ZipArchive(Response.Body, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (path, entryName) in members)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var entry = archive.CreateEntry(entryName, CompressionLevel.NoCompression);
+                await using var entryStream = entry.Open();
+                await using var fileStream = System.IO.File.OpenRead(path);
+                await fileStream.CopyToAsync(entryStream, cancellationToken);
+            }
+        }
+
+        return new EmptyResult();
+    }
+
+    private List<(string Path, string EntryName)> ResolveZipMembers(Audiobook audiobook, int bookId, string bookName)
+    {
+        var members = new List<(string, string)>();
+
+        if (audiobook.SplitByChapter && !string.IsNullOrWhiteSpace(audiobook.ChaptersJson))
+        {
+            List<AudiobookChapterDto>? chapters = null;
+            try
+            {
+                chapters = JsonSerializer.Deserialize<List<AudiobookChapterDto>>(audiobook.ChaptersJson, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                // Fall through to whatever files exist on disk below.
+            }
+
+            if (chapters is { Count: > 0 })
+            {
+                foreach (var chapter in chapters)
+                {
+                    string path = storage.GetAudiobookChapterFilePath(bookId, chapter.Index);
+                    if (System.IO.File.Exists(path))
+                    {
+                        string title = SanitizeFileName(chapter.Title);
+                        members.Add((path, $"{chapter.Index + 1:D3} - {title}.m4a"));
+                    }
+                }
+
+                return members;
+            }
+        }
+
+        string single = storage.GetAudiobookFilePath(bookId);
+        if (System.IO.File.Exists(single))
+        {
+            members.Add((single, $"{bookName}.m4a"));
+        }
+
+        return members;
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        char[] invalid = Path.GetInvalidFileNameChars();
+        string clean = new(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
+        clean = clean.Trim().TrimEnd('.');
+        if (clean.Length > 120)
+        {
+            clean = clean[..120].Trim();
+        }
+        return clean.Length == 0 ? "audiobook" : clean;
     }
 
     [HttpGet("voices/{voiceName}/preview")]

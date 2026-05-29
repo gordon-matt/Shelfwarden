@@ -21,6 +21,13 @@ public partial class BookDetail : ComponentBase
     private bool audiobookActionBusy;
     private System.Threading.Timer? pollTimer;
 
+    private bool sectionEditorOpen;
+    private bool sectionsBusy;
+    private List<BookSection>? detectedSections;
+    private SectionDetectionQuality detectionQuality;
+    private string? detectionWarning;
+    private bool splitByChapter;
+
     private IReadOnlyList<CollectionDto>? collections;
     private IReadOnlyList<ReadingListDto>? readingLists;
     private bool addToLoaded;
@@ -137,13 +144,50 @@ public partial class BookDetail : ComponentBase
         pollTimer = null;
     }
 
-    private void OpenVoicePicker()
+    /// <summary>
+    /// Entry point for both "Generate Audio" and "Regenerate": parse the book into reviewable
+    /// sections and open the section editor. Voice selection follows once the user has chosen
+    /// what to read and whether to split into chapters.
+    /// </summary>
+    private async Task StartGenerateFlowAsync()
     {
         if (!UserContext.IsAdministrator())
         {
             return;
         }
 
+        generateError = null;
+        detectedSections = null;
+        detectionWarning = null;
+        detectionQuality = SectionDetectionQuality.Structured;
+        splitByChapter = audiobook?.SplitByChapter ?? false;
+        sectionEditorOpen = true;
+        sectionsBusy = true;
+        StateHasChanged();
+
+        var result = await AudiobookService.GetSectionsAsync(Id);
+        if (result.IsSuccess)
+        {
+            detectedSections = result.Value.Sections.ToList();
+            detectionQuality = result.Value.Quality;
+            detectionWarning = result.Value.Warning;
+        }
+        else
+        {
+            generateError = result.Errors.FirstOrDefault() ?? "Could not analyse this book's chapters.";
+            sectionEditorOpen = false;
+        }
+
+        sectionsBusy = false;
+    }
+
+    private void CloseSectionEditor() => sectionEditorOpen = false;
+
+    private void OnSplitByChapterChanged(bool value) => splitByChapter = value;
+
+    private void OnSectionsContinue()
+    {
+        sectionEditorOpen = false;
         generateError = null;
         voicePickerOpen = true;
     }
@@ -177,6 +221,8 @@ public partial class BookDetail : ComponentBase
             var result = await AudiobookService.GenerateAsync(Id, new GenerateAudiobookRequest
             {
                 VoiceName = pendingVoiceConfirmation,
+                SplitByChapter = splitByChapter,
+                Sections = detectedSections,
             });
 
             if (!result.IsSuccess)

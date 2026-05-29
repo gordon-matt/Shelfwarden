@@ -61,10 +61,23 @@ public interface IStoragePathProvider
     /// </summary>
     string TtsCacheDirectory { get; }
 
-    /// <summary>Absolute path to the encoded audiobook file for <paramref name="bookId"/>, regardless of whether it exists.</summary>
+    /// <summary>Absolute path to the encoded single-file audiobook for <paramref name="bookId"/>, regardless of whether it exists.</summary>
     string GetAudiobookFilePath(int bookId);
 
-    /// <summary>Delete the encoded audiobook + any working files for <paramref name="bookId"/>.</summary>
+    /// <summary>
+    /// Absolute path to the encoded per-chapter audiobook file (<c>{bookId}/{index}.m4a</c>) for a
+    /// split audiobook. Chapter files live in a per-book sub-directory so a whole split generation
+    /// can be removed in one shot.
+    /// </summary>
+    string GetAudiobookChapterFilePath(int bookId, int chapterIndex);
+
+    /// <summary>
+    /// Per-chapter working directory for raw PCM chunk files while a split generation runs.
+    /// Created on demand; sits under the book's working directory so it's cleaned with it.
+    /// </summary>
+    string GetAudiobookChapterWorkingDirectory(int bookId, int chapterIndex);
+
+    /// <summary>Delete the encoded audiobook (single file + chapter directory) and any working files for <paramref name="bookId"/>.</summary>
     void DeleteAudiobook(int bookId);
 
     /// <summary>

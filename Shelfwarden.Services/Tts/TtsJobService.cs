@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using KokoroSharp;
 using KokoroSharp.Core;
 using KokoroSharp.Processing;
@@ -8,21 +9,24 @@ namespace Shelfwarden.Services.Tts;
 
 /// <summary>
 /// The Hangfire-driven audiobook synthesiser. Runs end-to-end on a TTS worker thread:
-/// loads the book, extracts text, chunks it, synthesises chunk-by-chunk through Kokoro
-/// (resuming from already-completed PCM files on disk), and finally encodes the merged
-/// stream to .m4a via FFmpeg. Failures persist as <see cref="AudiobookStatus.Failed"/> on
-/// the row so the UI can surface them.
+/// loads the book, resolves the chapter plan (skip front matter / split per chapter),
+/// extracts + chunks each render unit, synthesises chunk-by-chunk through Kokoro (resuming
+/// from already-completed PCM files on disk), and finally encodes each unit to .m4a via
+/// FFmpeg. A whole-book plan produces a single file; a split plan produces one file per
+/// chapter. Failures persist as <see cref="AudiobookStatus.Failed"/> on the row.
 /// </summary>
 public sealed class TtsJobService(
     ILogger<TtsJobService> logger,
     IRepository<Book> bookRepository,
     IRepository<Audiobook> audiobookRepository,
-    IBookTextExtractorFactory textExtractorFactory,
+    IEbookSectionParserFactory sectionParserFactory,
     IKokoroEngineProvider kokoroProvider,
     IAudiobookProgressTracker progressTracker,
     AudioStitcher audioStitcher,
     IStoragePathProvider storage) : ITtsJobService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task GenerateAsync(int bookId, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
@@ -80,6 +84,10 @@ public sealed class TtsJobService(
             return;
         }
 
+        // Read before the reset below so we can recover durations of chapters that already
+        // exist on disk when resuming a partially-completed split generation.
+        var priorChapters = DeserializeChapters(audiobook.ChaptersJson);
+
         progressTracker.Start(book.Id, audiobook.VoiceName);
         progressTracker.Update(book.Id, p => p.CurrentStage = "Preparing");
 
@@ -92,31 +100,42 @@ public sealed class TtsJobService(
         audiobook.CompletedAt = null;
         await audiobookRepository.UpdateAsync(audiobook);
 
-        var extractor = textExtractorFactory.GetFor(book.FilePath)
+        var parser = sectionParserFactory.GetFor(book.FilePath)
             ?? throw new InvalidOperationException(
-                $"No text extractor available for '{book.FilePath}'. Only EPUB and PDF are supported.");
+                $"No section parser available for '{book.FilePath}'. Only EPUB and PDF are supported.");
 
         if (!File.Exists(book.FilePath))
         {
             throw new FileNotFoundException($"Book file '{book.FilePath}' is missing on disk.");
         }
 
-        // Materialise chunks up front. Even a 100k-word book is well under 1 MB of plain
-        // text, so the memory cost is fine — and we need the total count to drive the
-        // progress bar deterministically.
+        var units = ResolveRenderUnits(audiobook, book.Title);
+        bool split = audiobook.SplitByChapter && units.Count > 0;
+
+        // Materialise chunks per unit up front so the progress bar total is deterministic. Even a
+        // 100k-word book is well under 1 MB of plain text, so the memory cost is negligible.
         progressTracker.Update(book.Id, p => p.CurrentStage = "Extracting text");
-        var chunks = await BuildChunksAsync(extractor, book.FilePath, cancellationToken);
-        if (chunks.Count == 0)
+        var unitChunks = new List<List<string>>(units.Count);
+        int totalChunks = 0;
+        foreach (var unit in units)
         {
-            throw new InvalidOperationException("The book contains no readable text.");
+            cancellationToken.ThrowIfCancellationRequested();
+            var chunks = await BuildChunksAsync(parser, book.FilePath, unit.Sections, cancellationToken);
+            unitChunks.Add(chunks);
+            totalChunks += chunks.Count;
         }
 
-        audiobook.TotalChunks = chunks.Count;
+        if (totalChunks == 0)
+        {
+            throw new InvalidOperationException("The selected sections contain no readable text.");
+        }
+
+        audiobook.TotalChunks = totalChunks;
         audiobook.CompletedChunks = 0;
         await audiobookRepository.UpdateAsync(audiobook);
         progressTracker.Update(book.Id, p =>
         {
-            p.TotalChunks = chunks.Count;
+            p.TotalChunks = totalChunks;
             p.CompletedChunks = 0;
             p.CurrentStage = "Loading TTS model";
         });
@@ -124,107 +143,178 @@ public sealed class TtsJobService(
         var voice = kokoroProvider.FindVoice(audiobook.VoiceName)
             ?? throw new InvalidOperationException($"Voice '{audiobook.VoiceName}' is not loaded.");
         var engine = await kokoroProvider.GetEngineAsync(cancellationToken);
-
-        string workingDir = storage.GetAudiobookWorkingDirectory(book.Id);
         string langCode = voice.GetLangCode();
 
         progressTracker.Update(book.Id, p => p.CurrentStage = "Synthesising audio");
 
-        // Generate chunks sequentially. Kokoro's engine internally serialises jobs on a
-        // single worker thread anyway, and stepping through one chunk at a time keeps the
-        // resume story dead simple — every PCM file on disk is a completed unit of work.
-        var pcmFiles = new List<string>(chunks.Count);
-        int alreadyDone = 0;
-        for (int i = 0; i < chunks.Count; i++)
+        var results = new List<ChapterResult>(units.Count);
+        int globalCompleted = 0;
+
+        for (int u = 0; u < units.Count; u++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (await WasCanceledByUserAsync(book.Id, cancellationToken))
+            {
+                return;
+            }
+
+            var chunks = unitChunks[u];
+            string outputPath = split
+                ? storage.GetAudiobookChapterFilePath(book.Id, u)
+                : storage.GetAudiobookFilePath(book.Id);
+
+            // Chapter-level resume: an encoded file on disk means this unit is already done
+            // (its PCM chunks were deleted after encoding), so skip straight past it.
+            if (File.Exists(outputPath) && new FileInfo(outputPath).Length > 0)
+            {
+                globalCompleted += chunks.Count;
+                ReportProgress(book.Id, audiobook, globalCompleted, totalChunks);
+                double priorDuration = priorChapters.FirstOrDefault(c => c.Index == u)?.DurationSeconds ?? 0d;
+                results.Add(new ChapterResult(u, units[u].Title, new FileInfo(outputPath).Length, priorDuration));
+                continue;
+            }
+
+            string workingDir = split
+                ? storage.GetAudiobookChapterWorkingDirectory(book.Id, u)
+                : storage.GetAudiobookWorkingDirectory(book.Id);
+
+            var pcmFiles = new List<string>(chunks.Count);
+            for (int i = 0; i < chunks.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (await WasCanceledByUserAsync(book.Id, cancellationToken))
+                {
+                    return;
+                }
+
+                string pcmPath = Path.Combine(workingDir, $"chunk_{i:D6}.pcm");
+                pcmFiles.Add(pcmPath);
+
+                if (File.Exists(pcmPath) && new FileInfo(pcmPath).Length > 0)
+                {
+                    globalCompleted++;
+                    ReportProgress(book.Id, audiobook, globalCompleted, totalChunks);
+                    continue;
+                }
+
+                float[] samples = await SynthesiseChunkAsync(engine, chunks[i], voice, langCode, cancellationToken);
+                await AudioStitcher.WritePcmChunkAsync(samples, pcmPath, cancellationToken);
+
+                globalCompleted++;
+                ReportProgress(book.Id, audiobook, globalCompleted, totalChunks);
+            }
 
             if (await WasCanceledByUserAsync(book.Id, cancellationToken))
             {
                 return;
             }
 
-            string pcmPath = Path.Combine(
-                workingDir,
-                $"chunk_{i:D6}.pcm");
-            pcmFiles.Add(pcmPath);
+            int unitNumber = u + 1;
+            progressTracker.Update(book.Id, p => p.CurrentStage = split
+                ? $"Stitching and encoding (chapter {unitNumber}/{units.Count})"
+                : "Stitching and encoding");
 
-            if (File.Exists(pcmPath) && new FileInfo(pcmPath).Length > 0)
+            var encoded = await audioStitcher.EncodeAsync(pcmFiles, outputPath, cancellationToken);
+
+            foreach (string pcm in pcmFiles)
             {
-                alreadyDone++;
-                ReportProgress(book.Id, audiobook, i + 1, chunks.Count);
-                continue;
+                TryDelete(pcm);
             }
 
-            float[] samples = await SynthesiseChunkAsync(engine, chunks[i], voice, langCode, cancellationToken);
-            await AudioStitcher.WritePcmChunkAsync(samples, pcmPath, cancellationToken);
+            results.Add(new ChapterResult(u, units[u].Title, encoded.FileSizeBytes, encoded.DurationSeconds));
 
-            ReportProgress(book.Id, audiobook, i + 1, chunks.Count);
-        }
-
-        if (alreadyDone > 0)
-        {
-            logger.LogInformation(
-                "Resumed {Done}/{Total} previously-generated chunks for book {BookId}",
-                alreadyDone, chunks.Count, book.Id);
-        }
-
-        if (await WasCanceledByUserAsync(book.Id, cancellationToken))
-        {
-            return;
-        }
-
-        progressTracker.Update(book.Id, p =>
-            // User-visible — surfaced in BookDetail while FFmpeg merges PCM + encodes AAC.
-            p.CurrentStage = "Stitching and encoding");
-
-        string outputPath = storage.GetAudiobookFilePath(book.Id);
-        var encoded = await audioStitcher.EncodeAsync(pcmFiles, outputPath, cancellationToken);
-
-        // Encoding succeeded — clean up the per-chunk PCM files. We leave the working dir
-        // itself in place because StoragePathProvider re-creates it deterministically.
-        foreach (string pcm in pcmFiles)
-        {
-            try
+            // Persist chapter metadata as we go so a crash mid-book doesn't lose finished chapters.
+            if (split)
             {
-                if (File.Exists(pcm))
-                {
-                    File.Delete(pcm);
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Failed to delete chunk file {Path}", pcm);
+                audiobook.ChaptersJson = SerializeChapters(results);
+                await audiobookRepository.UpdateAsync(audiobook);
             }
         }
 
         sw.Stop();
 
         audiobook.Status = AudiobookStatus.Completed;
-        audiobook.OutputFileName = Path.GetFileName(encoded.FilePath);
-        audiobook.OutputSizeBytes = encoded.FileSizeBytes;
-        audiobook.DurationSeconds = encoded.DurationSeconds > 0
-            ? encoded.DurationSeconds
-            : sw.Elapsed.TotalSeconds;
+        audiobook.CompletedChunks = totalChunks;
         audiobook.CompletedAt = DateTime.UtcNow;
-        audiobook.CompletedChunks = chunks.Count;
+
+        if (split)
+        {
+            audiobook.OutputFileName = null;
+            audiobook.ChaptersJson = SerializeChapters(results);
+            audiobook.OutputSizeBytes = results.Sum(r => r.SizeBytes);
+            double durationSum = results.Sum(r => r.DurationSeconds);
+            audiobook.DurationSeconds = durationSum > 0 ? durationSum : sw.Elapsed.TotalSeconds;
+        }
+        else
+        {
+            var single = results[0];
+            audiobook.OutputFileName = Path.GetFileName(storage.GetAudiobookFilePath(book.Id));
+            audiobook.ChaptersJson = null;
+            audiobook.OutputSizeBytes = single.SizeBytes;
+            audiobook.DurationSeconds = single.DurationSeconds > 0 ? single.DurationSeconds : sw.Elapsed.TotalSeconds;
+        }
+
         await audiobookRepository.UpdateAsync(audiobook);
 
         if (logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation(
-                "Generated audiobook for book {BookId} ({Title}) in {Duration:c} -> {Path} ({Size} bytes)",
-                book.Id, book.Title, sw.Elapsed, encoded.FilePath, encoded.FileSizeBytes);
+                "Generated audiobook for book {BookId} ({Title}) in {Duration:c} — {Units} file(s), {Size} bytes",
+                book.Id, book.Title, sw.Elapsed, results.Count, audiobook.OutputSizeBytes);
         }
     }
 
+    /// <summary>
+    /// Turn the persisted section plan into the ordered list of render units (each becomes one
+    /// audio file). A null/empty plan means "the whole book" (a single unit). When chapter
+    /// splitting is on, included sections are grouped on their chapter-boundary flag.
+    /// </summary>
+    private List<RenderUnit> ResolveRenderUnits(Audiobook audiobook, string bookTitle)
+    {
+        var plan = DeserializePlan(audiobook.SectionPlanJson);
+        if (plan is null || plan.Count == 0)
+        {
+            return [new RenderUnit(bookTitle, null)];
+        }
+
+        var included = plan.Where(s => s.IsIncluded).ToList();
+        if (included.Count == 0)
+        {
+            // The UI prevents this, but never synthesise nothing — fall back to the whole plan.
+            included = plan;
+        }
+
+        if (!audiobook.SplitByChapter)
+        {
+            return [new RenderUnit(bookTitle, included)];
+        }
+
+        var units = new List<RenderUnit>();
+        List<BookSection>? current = null;
+        foreach (var section in included)
+        {
+            if (current is null || section.IsChapterBoundary)
+            {
+                current = [];
+                units.Add(new RenderUnit(
+                    string.IsNullOrWhiteSpace(section.Title) ? $"Chapter {units.Count + 1}" : section.Title.Trim(),
+                    current));
+            }
+
+            current.Add(section);
+        }
+
+        return units;
+    }
+
     private static async Task<List<string>> BuildChunksAsync(
-        IBookTextExtractor extractor,
+        IEbookSectionParser parser,
         string filePath,
+        IReadOnlyList<BookSection>? sections,
         CancellationToken cancellationToken)
     {
         var paragraphs = new List<string>();
-        await foreach (string paragraph in extractor.ExtractAsync(filePath, cancellationToken))
+        await foreach (string paragraph in parser.ExtractAsync(filePath, sections, cancellationToken))
         {
             paragraphs.Add(paragraph);
         }
@@ -271,8 +361,6 @@ public sealed class TtsJobService(
         });
 
         // Persist every ~10 chunks so a process crash doesn't lose all visible progress.
-        // The in-memory tracker drives the UI in normal operation; the DB row is the
-        // recovery surface.
         if (completed == total || completed % 10 == 0)
         {
             audiobook.CompletedChunks = completed;
@@ -282,7 +370,6 @@ public sealed class TtsJobService(
             }
             catch (Exception ex)
             {
-                // Row may have been deleted mid-job (user canceled).
                 logger.LogDebug(ex, "Could not persist chunk progress for book {BookId}", bookId);
             }
         }
@@ -305,6 +392,60 @@ public sealed class TtsJobService(
         }
     }
 
+    private void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to delete chunk file {Path}", path);
+        }
+    }
+
+    private static List<BookSection>? DeserializePlan(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<BookSection>>(json, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static List<AudiobookChapterDto> DeserializeChapters(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<AudiobookChapterDto>>(json, JsonOptions) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static string SerializeChapters(IEnumerable<ChapterResult> results)
+        => JsonSerializer.Serialize(
+            results.Select(r => new AudiobookChapterDto(r.Index, r.Title, r.SizeBytes, r.DurationSeconds)).ToList(),
+            JsonOptions);
+
     /// <summary>
     /// Tokenize the text, dispatch a single-step Kokoro inference job, and await the audio
     /// samples. We deliberately bypass <c>tts.Speak</c> so no playback is wired up — this
@@ -320,14 +461,9 @@ public sealed class TtsJobService(
         int[] tokens = Tokenizer.Tokenize(chunkText.Trim(), langCode, preprocess: true);
         if (tokens.Length == 0)
         {
-            // Tokeniser dropped everything (e.g. a chunk consisting of only punctuation).
-            // Emit a brief silence rather than skipping the chunk so the chunk count still
-            // matches what the rest of the pipeline saw.
             return new float[(int)(AudioStitcher.SampleRateHz * 0.2)];
         }
 
-        // Kokoro's per-step token ceiling is 510 — anything longer would be silently
-        // truncated. Keep TextChunker's default well under that, but defend in depth here.
         if (tokens.Length > 500)
         {
             tokens = tokens[..500];
@@ -347,4 +483,10 @@ public sealed class TtsJobService(
             return await tcs.Task;
         }
     }
+
+    /// <summary>One audio file to render: a title plus the sections it covers (null = whole book).</summary>
+    private sealed record RenderUnit(string Title, IReadOnlyList<BookSection>? Sections);
+
+    /// <summary>The outcome of encoding a single render unit.</summary>
+    private sealed record ChapterResult(int Index, string Title, long SizeBytes, double DurationSeconds);
 }

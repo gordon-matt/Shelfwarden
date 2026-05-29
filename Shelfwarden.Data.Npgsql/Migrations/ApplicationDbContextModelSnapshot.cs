@@ -346,6 +346,9 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Property<int>("BookId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ChaptersJson")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -378,6 +381,12 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
+
+                    b.Property<string>("SectionPlanJson")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("SplitByChapter")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime?>("StartedAt")
                         .HasColumnType("timestamp with time zone");

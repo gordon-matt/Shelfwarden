@@ -182,7 +182,7 @@ else
                     {
                         @if (UserContext.IsAdministrator())
                         {
-                            <button class="btn btn-outline-primary" type="button" @onclick="OpenVoicePicker">
+                            <button class="btn btn-outline-primary" type="button" @onclick="StartGenerateFlowAsync">
                                 <i class="bi bi-headphones"></i> Generate Audio
                             </button>
                         }
@@ -195,8 +195,8 @@ else
                         </button>
                         @if (UserContext.IsAdministrator())
                         {
-                            <button class="btn btn-outline-secondary" type="button" @onclick="OpenVoicePicker"
-                                    title="Regenerate with a different voice">
+                            <button class="btn btn-outline-secondary" type="button" @onclick="StartGenerateFlowAsync"
+                                    title="Regenerate with different sections, chapters or voice">
                                 <i class="bi bi-arrow-repeat"></i> Regenerate
                             </button>
                         }
@@ -310,6 +310,10 @@ else
                                 </h3>
                                 <div class="small text-body-secondary">
                                     Voice: <code>@audiobook.VoiceName</code>
+                                    @if (audiobook.SplitByChapter && audiobook.Chapters is { Count: > 0 } chapters)
+                                    {
+                                        <text> · @chapters.Count chapters</text>
+                                    }
                                     @if (audiobook.State == AudiobookState.Completed && audiobook.OutputSizeBytes is long sz)
                                     {
                                         <text> · @FormatBytes(sz)</text>
@@ -410,12 +414,45 @@ else
                         }
                         else if (audiobook.State == AudiobookState.Completed && showPlayer)
                         {
-                            <audio controls preload="metadata" class="w-100 mt-3" src="@($"audiobooks/{book.Id}")"></audio>
-                            <p class="small text-body-secondary mt-2 mb-0">
-                                <a href="@($"audiobooks/{book.Id}")" download="@($"{book.Title}.m4a")">
-                                    <i class="bi bi-download"></i> Download .m4a
-                                </a>
-                            </p>
+                            @if (audiobook.SplitByChapter && audiobook.Chapters is { Count: > 0 })
+                            {
+                                <ul class="list-group list-group-flush mt-3 audiobook-chapter-list">
+                                    @foreach (var chapter in audiobook.Chapters)
+                                    {
+                                        <li class="list-group-item px-0">
+                                            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                                <span class="fw-medium">@(chapter.Index + 1). @chapter.Title</span>
+                                                <span class="small text-body-secondary text-nowrap">
+                                                    @if (chapter.DurationSeconds > 0)
+                                                    {
+                                                        <text>@FormatDuration(chapter.DurationSeconds) · </text>
+                                                    }
+                                                    <a href="@($"audiobooks/{book.Id}/chapters/{chapter.Index}")"
+                                                       download="@($"{chapter.Index + 1:D3} - {chapter.Title}.m4a")">
+                                                        <i class="bi bi-download"></i>
+                                                    </a>
+                                                </span>
+                                            </div>
+                                            <audio controls preload="none" class="w-100 mt-1"
+                                                   src="@($"audiobooks/{book.Id}/chapters/{chapter.Index}")"></audio>
+                                        </li>
+                                    }
+                                </ul>
+                                <p class="small text-body-secondary mt-2 mb-0">
+                                    <a href="@($"audiobooks/{book.Id}/zip")" download="@($"{book.Title}.zip")">
+                                        <i class="bi bi-file-zip"></i> Download all chapters (.zip)
+                                    </a>
+                                </p>
+                            }
+                            else
+                            {
+                                <audio controls preload="metadata" class="w-100 mt-3" src="@($"audiobooks/{book.Id}")"></audio>
+                                <p class="small text-body-secondary mt-2 mb-0">
+                                    <a href="@($"audiobooks/{book.Id}")" download="@($"{book.Title}.m4a")">
+                                        <i class="bi bi-download"></i> Download .m4a
+                                    </a>
+                                </p>
+                            }
                         }
                     </div>
                 </div>
@@ -469,6 +506,16 @@ else
                                    OnItemsChanged="RefreshExtraContentAsync" />
         </div>
     }
+
+    <SectionEditor IsOpen="sectionEditorOpen"
+                   Busy="sectionsBusy"
+                   Sections="detectedSections"
+                   Quality="detectionQuality"
+                   Warning="detectionWarning"
+                   SplitByChapter="splitByChapter"
+                   SplitByChapterChanged="OnSplitByChapterChanged"
+                   OnClose="CloseSectionEditor"
+                   OnContinue="OnSectionsContinue" />
 
     <VoicePickerModal IsOpen="voicePickerOpen"
                       InitialVoiceName="@(audiobook?.VoiceName ?? "af_heart")"

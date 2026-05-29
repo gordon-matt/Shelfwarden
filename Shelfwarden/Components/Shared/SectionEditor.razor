@@ -1,0 +1,108 @@
+@* Review which parts of a book to read aloud and whether to split into per-chapter files. *@
+
+@if (IsOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-list-columns-reverse"></i> Choose what to read
+                    </h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="OnClose"></button>
+                </div>
+                <div class="modal-body">
+                    @if (Busy)
+                    {
+                        <div class="text-center text-secondary py-4">
+                            <div class="spinner-border" role="status"></div>
+                            <div class="mt-2 small">Analysing chapters…</div>
+                        </div>
+                    }
+                    else if (Sections is null || Sections.Count == 0)
+                    {
+                        <div class="alert alert-warning mb-0">
+                            We couldn't find any readable sections in this book.
+                        </div>
+                    }
+                    else
+                    {
+                        @if (!string.IsNullOrWhiteSpace(Warning))
+                        {
+                            <div class="alert @(Quality == SectionDetectionQuality.None ? "alert-warning" : "alert-info") py-2 small">
+                                <i class="bi bi-info-circle"></i> @Warning
+                            </div>
+                        }
+
+                        <p class="small text-body-secondary">
+                            Front matter (copyright, table of contents, dedications…) and back matter
+                            (index, about the author…) are unticked by default. Tick the parts you want read aloud.
+                        </p>
+
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">Select all</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="DeselectAll">Deselect all</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="SelectChaptersOnly">Chapters only</button>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" role="switch" id="split-toggle"
+                                   checked="@SplitByChapter" @onchange="OnSplitToggled" />
+                            <label class="form-check-label" for="split-toggle">
+                                Split into one audio file per chapter
+                            </label>
+                        </div>
+
+                        <ul class="list-group section-editor-list">
+                            @foreach (var sec in Sections)
+                            {
+                                <li class="list-group-item d-flex align-items-center gap-2 @(sec.IsIncluded ? "" : "opacity-50")">
+                                    <input class="form-check-input mt-0" type="checkbox"
+                                           checked="@sec.IsIncluded"
+                                           @onchange="e => SetIncluded(sec, e)" />
+                                    <div class="flex-grow-1">
+                                        <span class="fw-medium">@sec.Title</span>
+                                        @if (sec.Kind != SectionKind.Chapter)
+                                        {
+                                            <span class="badge text-bg-light border ms-1">@KindLabel(sec.Kind)</span>
+                                        }
+                                    </div>
+                                    @if (SplitByChapter && sec.IsIncluded)
+                                    {
+                                        <div class="form-check form-switch mb-0" title="Start a new audio file at this section">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                   checked="@sec.IsChapterBoundary"
+                                                   @onchange="e => SetBoundary(sec, e)" />
+                                            <label class="form-check-label small text-body-secondary">New file</label>
+                                        </div>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <span class="small text-body-secondary">
+                        @if (Sections is { Count: > 0 })
+                        {
+                            <text>@IncludedCount of @Sections.Count selected</text>
+                            @if (SplitByChapter && IncludedCount > 0)
+                            {
+                                <text> · @FileCount file(s)</text>
+                            }
+                        }
+                    </span>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="OnClose">Cancel</button>
+                        <button type="button" class="btn btn-primary"
+                                disabled="@(Busy || IncludedCount == 0)"
+                                @onclick="OnContinue">
+                            <i class="bi bi-arrow-right"></i> Next: pick voice
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
