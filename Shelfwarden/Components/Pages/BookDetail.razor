@@ -525,6 +525,9 @@ else
                    Warning="detectionWarning"
                    SplitByChapter="splitByChapter"
                    SplitByChapterChanged="OnSplitByChapterChanged"
+                   IsPdf="@(book?.FileFormat == EbookFormat.Pdf)"
+                   BookId="Id"
+                   SectionsChanged="OnSectionsRebuilt"
                    OnClose="CloseSectionEditor"
                    OnContinue="OnSectionsContinue" />
 

@@ -185,6 +185,14 @@ public partial class BookDetail : ComponentBase
 
     private void OnSplitByChapterChanged(bool value) => splitByChapter = value;
 
+    /// <summary>The section editor rebuilt the plan from manually-placed PDF chapter markers.</summary>
+    private void OnSectionsRebuilt(List<BookSection> sections)
+    {
+        detectedSections = sections;
+        detectionQuality = SectionDetectionQuality.Structured;
+        detectionWarning = null;
+    }
+
     private void OnSectionsContinue()
     {
         sectionEditorOpen = false;

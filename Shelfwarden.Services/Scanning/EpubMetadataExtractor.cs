@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO.Compression;
 using System.Text.RegularExpressions;
 using SixLabors.ImageSharp;
 using VersOne.Epub;
@@ -14,17 +15,30 @@ namespace Shelfwarden.Services.Scanning;
 /// </summary>
 public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor> logger) : IEbookMetadataExtractor
 {
-    private static readonly EpubReaderOptions ReaderOptions = new()
+    private static readonly EpubReaderOptions ReaderOptions = CreateReaderOptions();
+
+    private static EpubReaderOptions CreateReaderOptions() => new(EpubReaderOptionsPreset.RELAXED)
     {
-        PackageReaderOptions = new PackageReaderOptions
+        XmlReaderOptions = new XmlReaderOptions(EpubReaderOptionsPreset.RELAXED) { SkipXmlHeaders = true },
+        PackageReaderOptions =
         {
             IgnoreMissingToc = true,
             SkipInvalidManifestItems = true,
+            // Some publisher OPF files still declare version="1.0"; treat as EPUB 2 for parsing.
+            FallbackEpubVersion = EpubVersion.EPUB_2,
         },
-        XmlReaderOptions = new XmlReaderOptions { SkipXmlHeaders = true },
+        BookCoverReaderOptions =
+        {
+            // Malformed <meta name="cover"> (wrong manifest id or path) must not abort the whole read.
+            Epub2MetadataIgnoreMissingManifestItem = true,
+            Epub2MetadataIgnoreMissingContentFile = true,
+            // cover-image items VersOne cannot load (e.g. BMP) must not abort the whole read.
+            Epub3IgnoreMissingContentFile = true,
+        },
         // NCX often references spine paths removed during conversion (e.g. calibre); VersOne throws
         // "content source ... not found in EPUB manifest" unless we skip those navigation entries.
         NavigationReaderOptions = new NavigationReaderOptions(EpubReaderOptionsPreset.RELAXED),
+        SpineReaderOptions = { IgnoreMissingManifestItems = true },
     };
 
     public EbookFormat Format => EbookFormat.Epub;
@@ -80,7 +94,8 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
                 // *image* map only. Many books use guide href to XHTML/SVG (cover flow) with the
                 // bitmap referenced inside (img src, SVG image xlink:href). Those never populate
                 // CoverImage; parse the wrapper page(s) and load the first local image.
-                cover = TryExtractCoverFromXhtmlFallback(book);
+                cover = TryExtractCoverFromManifestHints(book)
+                    ?? TryExtractCoverFromXhtmlFallback(book);
             }
 
             int? pageCount = book.ReadingOrder?.Count;
@@ -169,16 +184,94 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
         return null;
     }
 
-    private static string GuessImageExtension(byte[] bytes)
+    private static string GuessImageExtension(byte[] bytes, string? hrefHint = null)
     {
         try
         {
             var info = Image.Identify(bytes);
-            return info?.Metadata.DecodedImageFormat?.FileExtensions.FirstOrDefault()?.ToLowerInvariant() ?? "jpg";
+            string? ext = info?.Metadata.DecodedImageFormat?.FileExtensions.FirstOrDefault()?.ToLowerInvariant();
+            if (!string.IsNullOrEmpty(ext))
+            {
+                return ext;
+            }
         }
         catch
         {
-            return "jpg";
+            // Fall back to manifest / zip entry extension below.
+        }
+
+        if (!string.IsNullOrWhiteSpace(hrefHint))
+        {
+            string fromPath = Path.GetExtension(hrefHint).TrimStart('.').ToLowerInvariant();
+            if (fromPath.Length > 0)
+            {
+                return fromPath;
+            }
+        }
+
+        return "jpg";
+    }
+
+    private static EbookCoverImage? TryExtractCoverFromManifestHints(EpubBook book)
+    {
+        foreach (string imageKey in EnumerateCoverManifestImageKeys(book))
+        {
+            EbookCoverImage? cover = TryLoadCoverImageBytes(book, imageKey);
+            if (cover is not null)
+            {
+                return cover;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> EnumerateCoverManifestImageKeys(EpubBook book)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var manifest = book.Schema.Package.Manifest;
+        if (manifest?.Items is not { Count: > 0 } items)
+        {
+            yield break;
+        }
+
+        foreach (var item in items)
+        {
+            if (item.Properties?.Contains(EpubManifestProperty.COVER_IMAGE) != true)
+            {
+                continue;
+            }
+
+            string key = StripFragmentAndNormalize(item.Href);
+            if (key.Length > 0 && seen.Add(key))
+            {
+                yield return key;
+            }
+        }
+
+        string? metaCoverRef = book.Schema.Package.Metadata.MetaItems?
+            .FirstOrDefault(m => string.Equals(m.Name, "cover", StringComparison.OrdinalIgnoreCase))
+            ?.Content;
+        if (string.IsNullOrWhiteSpace(metaCoverRef))
+        {
+            yield break;
+        }
+
+        metaCoverRef = metaCoverRef.Trim();
+        EpubManifestItem? manifestItem = items.FirstOrDefault(i => string.Equals(i.Id, metaCoverRef, StringComparison.OrdinalIgnoreCase))
+            ?? items.FirstOrDefault(i => string.Equals(i.Href, metaCoverRef, StringComparison.OrdinalIgnoreCase))
+            ?? items.FirstOrDefault(i => metaCoverRef.EndsWith('/' + i.Href, StringComparison.OrdinalIgnoreCase))
+            ?? items.FirstOrDefault(i => metaCoverRef.EndsWith(i.Href, StringComparison.OrdinalIgnoreCase));
+
+        if (manifestItem?.Href is not { Length: > 0 } href)
+        {
+            yield break;
+        }
+
+        string metaKey = StripFragmentAndNormalize(href);
+        if (metaKey.Length > 0 && seen.Add(metaKey))
+        {
+            yield return metaKey;
         }
     }
 
@@ -202,13 +295,111 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
                 continue;
             }
 
-            if (TryGetImageFileByKey(book, imageKey) is { Content: { Length: > 0 } bytes })
+            EbookCoverImage? cover = TryLoadCoverImageBytes(book, imageKey, htmlKey);
+            if (cover is not null)
             {
-                return new EbookCoverImage(bytes, GuessImageExtension(bytes));
+                return cover;
             }
         }
 
         return null;
+    }
+
+    private static EbookCoverImage? TryLoadCoverImageBytes(EpubBook book, string imageKey, string? htmlManifestKey = null)
+    {
+        if (TryGetImageFileByKey(book, imageKey) is { Content: { Length: > 0 } bytes })
+        {
+            return new EbookCoverImage(bytes, GuessImageExtension(bytes, imageKey));
+        }
+
+        if (TryReadImageBytesFromEpubZip(book, imageKey, htmlManifestKey) is { Length: > 0 } zipBytes)
+        {
+            return new EbookCoverImage(zipBytes, GuessImageExtension(zipBytes, imageKey));
+        }
+
+        return null;
+    }
+
+    private static byte[]? TryReadImageBytesFromEpubZip(EpubBook book, string imageManifestKey, string? htmlManifestKey = null)
+    {
+        string? epubPath = book.FilePath;
+        if (string.IsNullOrEmpty(epubPath) || !File.Exists(epubPath))
+        {
+            return null;
+        }
+
+        string? contentRoot = GetEpubContentRootPrefix(book, htmlManifestKey);
+        if (contentRoot is null)
+        {
+            return null;
+        }
+
+        string zipEntryPath = contentRoot + imageManifestKey.Replace('\\', '/');
+        try
+        {
+            using var archive = ZipFile.OpenRead(epubPath);
+            ZipArchiveEntry? entry = archive.Entries.FirstOrDefault(e =>
+                e.FullName.Replace('\\', '/').Equals(zipEntryPath, StringComparison.OrdinalIgnoreCase));
+            if (entry is null)
+            {
+                return null;
+            }
+
+            using var stream = entry.Open();
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
+            return buffer.ToArray();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? GetEpubContentRootPrefix(EpubBook book, string? referenceManifestKey)
+    {
+        if (!string.IsNullOrEmpty(referenceManifestKey)
+            && TryGetHtmlFileByKey(book, referenceManifestKey, out var html)
+            && html is not null)
+        {
+            string? prefix = GetPrefixFromFilePathAndKey(html.FilePath, html.Key);
+            if (prefix is not null)
+            {
+                return prefix;
+            }
+        }
+
+        foreach (var localHtml in book.Content.Html.Local)
+        {
+            string? prefix = GetPrefixFromFilePathAndKey(localHtml.FilePath, localHtml.Key);
+            if (prefix is not null)
+            {
+                return prefix;
+            }
+        }
+
+        foreach (var localImage in book.Content.Images.Local)
+        {
+            string? prefix = GetPrefixFromFilePathAndKey(localImage.FilePath, localImage.Key);
+            if (prefix is not null)
+            {
+                return prefix;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetPrefixFromFilePathAndKey(string? filePath, string? manifestKey)
+    {
+        if (string.IsNullOrEmpty(filePath) || string.IsNullOrEmpty(manifestKey))
+        {
+            return null;
+        }
+
+        return filePath.EndsWith(manifestKey, StringComparison.OrdinalIgnoreCase)
+            ? filePath[..^manifestKey.Length]
+            : null;
     }
 
     private static IEnumerable<string> EnumerateCoverHtmlManifestKeys(EpubBook book)

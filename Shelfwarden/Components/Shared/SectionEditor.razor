@@ -3,7 +3,7 @@
 @if (IsOpen)
 {
     <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-dialog @(PageMarkerMode ? "modal-xl" : "modal-lg") modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">
@@ -27,58 +27,92 @@
                     }
                     else
                     {
-                        @if (!string.IsNullOrWhiteSpace(Warning))
+                        @if (IsPdf)
                         {
-                            <div class="alert @(Quality == SectionDetectionQuality.None ? "alert-warning" : "alert-info") py-2 small">
-                                <i class="bi bi-info-circle"></i> @Warning
-                            </div>
+                            <ul class="nav nav-tabs mb-3">
+                                <li class="nav-item">
+                                    <button type="button" class="nav-link @(PageMarkerMode ? "" : "active")"
+                                            @onclick="ShowListMode">
+                                        <i class="bi bi-list-ul"></i> Section list
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button type="button" class="nav-link @(PageMarkerMode ? "active" : "")"
+                                            @onclick="ShowPageMarkerMode">
+                                        <i class="bi bi-bookmarks"></i> Mark chapters on pages
+                                    </button>
+                                </li>
+                            </ul>
                         }
 
-                        <p class="small text-body-secondary">
-                            Front matter (copyright, table of contents, dedications…) and back matter
-                            (index, about the author…) are unticked by default. Tick the parts you want read aloud.
-                        </p>
-
-                        <div class="d-flex flex-wrap gap-2 mb-3">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">Select all</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="DeselectAll">Deselect all</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="SelectChaptersOnly">Chapters only</button>
-                        </div>
-
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" role="switch" id="split-toggle"
-                                   checked="@SplitByChapter" @onchange="OnSplitToggled" />
-                            <label class="form-check-label" for="split-toggle">
-                                Split into one audio file per chapter
-                            </label>
-                        </div>
-
-                        <ul class="list-group section-editor-list">
-                            @foreach (var sec in Sections)
+                        @if (PageMarkerMode)
+                        {
+                            <p class="small text-body-secondary">
+                                Click the dashed line between two pages to mark where a chapter begins. Everything
+                                before your first marker is treated as front matter and skipped — you can re-include
+                                it from the <strong>Section list</strong> tab.
+                            </p>
+                            <div id="@pickerContainerId" class="pdf-chapter-picker"></div>
+                        }
+                        else
+                        {
+                            @if (!string.IsNullOrWhiteSpace(Warning))
                             {
-                                <li class="list-group-item d-flex align-items-center gap-2 @(sec.IsIncluded ? "" : "opacity-50")">
-                                    <input class="form-check-input mt-0" type="checkbox"
-                                           checked="@sec.IsIncluded"
-                                           @onchange="e => SetIncluded(sec, e)" />
-                                    <div class="flex-grow-1">
-                                        <span class="fw-medium">@sec.Title</span>
-                                        @if (sec.Kind != SectionKind.Chapter)
-                                        {
-                                            <span class="badge text-bg-light border ms-1">@KindLabel(sec.Kind)</span>
-                                        }
-                                    </div>
-                                    @if (SplitByChapter && sec.IsIncluded)
-                                    {
-                                        <div class="form-check form-switch mb-0" title="Start a new audio file at this section">
-                                            <input class="form-check-input" type="checkbox" role="switch"
-                                                   checked="@sec.IsChapterBoundary"
-                                                   @onchange="e => SetBoundary(sec, e)" />
-                                            <label class="form-check-label small text-body-secondary">New file</label>
-                                        </div>
-                                    }
-                                </li>
+                                <div class="alert @(Quality == SectionDetectionQuality.None ? "alert-warning" : "alert-info") py-2 small">
+                                    <i class="bi bi-info-circle"></i> @Warning
+                                </div>
                             }
-                        </ul>
+
+                            <p class="small text-body-secondary">
+                                Front matter (copyright, table of contents, dedications…) and back matter
+                                (index, about the author…) are unticked by default. Tick the parts you want read aloud.
+                            </p>
+
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">Select all</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="DeselectAll">Deselect all</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="SelectChaptersOnly">Chapters only</button>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" role="switch" id="split-toggle"
+                                       checked="@SplitByChapter" @onchange="OnSplitToggled" />
+                                <label class="form-check-label" for="split-toggle">
+                                    Split into one audio file per chapter
+                                </label>
+                            </div>
+
+                            <ul class="list-group section-editor-list">
+                                @foreach (var sec in Sections)
+                                {
+                                    <li class="list-group-item d-flex align-items-center gap-2 @(sec.IsIncluded ? "" : "opacity-50")">
+                                        <input class="form-check-input mt-0" type="checkbox"
+                                               checked="@sec.IsIncluded"
+                                               @onchange="e => SetIncluded(sec, e)" />
+                                        <div class="flex-grow-1">
+                                            <span class="fw-medium">@sec.Title</span>
+                                            @if (sec.Kind != SectionKind.Chapter)
+                                            {
+                                                <span class="badge text-bg-light border ms-1">@KindLabel(sec.Kind)</span>
+                                            }
+                                            @if (sec is { StartPage: { } sp, EndPage: { } ep })
+                                            {
+                                                <span class="small text-body-secondary ms-1">(p. @sp–@ep)</span>
+                                            }
+                                        </div>
+                                        @if (SplitByChapter && sec.IsIncluded)
+                                        {
+                                            <div class="form-check form-switch mb-0" title="Start a new audio file at this section">
+                                                <input class="form-check-input" type="checkbox" role="switch"
+                                                       checked="@sec.IsChapterBoundary"
+                                                       @onchange="e => SetBoundary(sec, e)" />
+                                                <label class="form-check-label small text-body-secondary">New file</label>
+                                            </div>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
                     }
                 </div>
                 <div class="modal-footer justify-content-between">

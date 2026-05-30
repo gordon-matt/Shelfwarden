@@ -1860,6 +1860,104 @@ ol.reading-list {
     overflow-y: auto;
 }
 
+/* PDF chapter picker — single scrollable column of page thumbnails with clickable
+   chapter-break dividers between pages (used in the audiobook section editor). */
+.pdf-chapter-picker {
+    height: 62vh;
+    overflow-y: auto;
+    background: var(--bs-tertiary-bg, #f1f3f5);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem 1.25rem;
+}
+
+.pdf-chapter-picker .cp-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.pdf-chapter-picker .cp-canvas {
+    line-height: 0;
+}
+
+.pdf-chapter-picker .cp-canvas canvas {
+    max-width: 100%;
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    background: #fff;
+}
+
+.pdf-chapter-picker .cp-canvas-placeholder {
+    width: 100%;
+    max-width: 480px;
+    aspect-ratio: 1 / 1.3;
+    background: var(--bs-secondary-bg, #e9ecef);
+    border: 1px dashed var(--bs-border-color);
+    border-radius: 0.25rem;
+}
+
+.pdf-chapter-picker .cp-page-num {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    margin: 0.35rem 0 0.75rem;
+}
+
+/* Clickable divider between pages. */
+.pdf-chapter-picker .cp-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 0.5rem 0;
+    margin: 0.25rem 0;
+    cursor: pointer;
+    position: relative;
+}
+
+.pdf-chapter-picker .cp-marker::before,
+.pdf-chapter-picker .cp-marker::after {
+    content: "";
+    flex: 1;
+    height: 0;
+    border-top: 2px dashed var(--bs-border-color);
+    margin: 0 0.5rem;
+}
+
+.pdf-chapter-picker .cp-marker .cp-marker-label {
+    white-space: nowrap;
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+    padding: 0.15rem 0.6rem;
+    border-radius: 1rem;
+    border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+}
+
+.pdf-chapter-picker button.cp-marker:hover .cp-marker-label {
+    border-color: var(--bs-primary);
+    color: var(--bs-primary);
+}
+
+.pdf-chapter-picker .cp-marker.active::before,
+.pdf-chapter-picker .cp-marker.active::after {
+    border-top-color: var(--bs-primary);
+    border-top-style: solid;
+}
+
+.pdf-chapter-picker .cp-marker.active .cp-marker-label {
+    background: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: #fff;
+    font-weight: 600;
+}
+
+.pdf-chapter-picker .cp-marker-start {
+    cursor: default;
+}
+
 
 /* ============================================================
    Extra / Additional Content
