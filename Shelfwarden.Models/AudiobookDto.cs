@@ -40,6 +40,27 @@ public sealed record AudiobookChapterDto(
     double DurationSeconds);
 
 /// <summary>
+/// Row in the admin "all audiobooks" view: an audiobook plus the book it belongs to. Used to
+/// list every generation across the library so an administrator can play, cancel or delete them.
+/// </summary>
+public sealed record AudiobookSummaryDto(
+    int BookId,
+    string BookTitle,
+    string? AuthorNames,
+    AudiobookState State,
+    string VoiceName,
+    double? PercentComplete,
+    string? CurrentStage,
+    long? OutputSizeBytes,
+    double? DurationSeconds,
+    string? ErrorMessage,
+    DateTime CreatedAt,
+    DateTime? StartedAt,
+    DateTime? CompletedAt,
+    bool SplitByChapter,
+    int ChapterCount);
+
+/// <summary>
 /// Mirrors <c>Shelfwarden.Data.Entities.AudiobookStatus</c>; we redeclare it on the model side
 /// so the Models project never needs to take a dependency on the Data project.
 /// </summary>

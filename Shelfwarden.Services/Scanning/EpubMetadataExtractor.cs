@@ -38,6 +38,18 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
         // NCX often references spine paths removed during conversion (e.g. calibre); VersOne throws
         // "content source ... not found in EPUB manifest" unless we skip those navigation entries.
         NavigationReaderOptions = new NavigationReaderOptions(EpubReaderOptionsPreset.RELAXED),
+        // Sigil/calibre sometimes emit a stub EPUB2 NCX — a single navPoint with an empty
+        // <text/> label and no <content> element. The RELAXED preset still aborts on these, so
+        // VersOne throws Epub2NcxException and the whole read (incl. the cover) fails. This
+        // extractor never uses the NCX (only metadata + cover), so ignore its structural defects.
+        Epub2NcxReaderOptions =
+        {
+            IgnoreMissingContentForNavigationPoints = true,
+            AllowNavigationPointsWithoutLabels = true,
+            SkipNavigationPointsWithMissingIds = true,
+            SkipInvalidNavigationLabels = true,
+            SkipInvalidNavigationContent = true,
+        },
         SpineReaderOptions = { IgnoreMissingManifestItems = true },
     };
 

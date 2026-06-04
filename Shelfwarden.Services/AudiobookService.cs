@@ -60,6 +60,41 @@ public class AudiobookService(
             : Result.Success(MergeWithLiveProgress(existing));
     }
 
+    public async Task<Result<IReadOnlyList<AudiobookSummaryDto>>> ListAllAsync(CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAuthenticated())
+        {
+            return Result.Unauthorized();
+        }
+
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var rows = await audiobookRepository.FindAsync(new SearchOptions<Audiobook>
+        {
+            Include = q => q.Include(a => a.Book).ThenInclude(b => b.BookAuthors).ThenInclude(ba => ba.Author),
+            SplitQuery = true,
+            CancellationToken = cancellationToken,
+        });
+
+        IReadOnlyList<AudiobookSummaryDto> list = rows
+            .Select(MapSummary)
+            // Active work (running, then queued) first; finished/failed sorted by most recent.
+            .OrderBy(s => s.State switch
+            {
+                AudiobookState.Running => 0,
+                AudiobookState.Pending => 1,
+                AudiobookState.Failed => 2,
+                _ => 3,
+            })
+            .ThenByDescending(s => s.CreatedAt)
+            .ToList();
+
+        return Result.Success(list);
+    }
+
     public async Task<Result<AudiobookDto>> GenerateAsync(int bookId, GenerateAudiobookRequest request, CancellationToken cancellationToken = default)
     {
         string? userId = userContext.GetCurrentUserId();
@@ -466,6 +501,40 @@ public class AudiobookService(
         await audiobookRepository.DeleteAsync(existing);
 
         return Result.Success();
+    }
+
+    private AudiobookSummaryDto MapSummary(Audiobook a)
+    {
+        var live = progressTracker.GetSnapshot(a.BookId);
+
+        int total = live?.TotalChunks ?? a.TotalChunks;
+        int done = live?.CompletedChunks ?? a.CompletedChunks;
+        double? percent = total > 0
+            ? Math.Min(100d, Math.Round(100d * done / total, 1))
+            : a.Status == AudiobookStatus.Completed ? 100d : null;
+
+        string? authorNames = a.Book?.BookAuthors is { Count: > 0 } authors
+            ? string.Join(", ", authors
+                .Select(ba => ba.Author?.Name)
+                .Where(n => !string.IsNullOrWhiteSpace(n)))
+            : null;
+
+        return new AudiobookSummaryDto(
+            a.BookId,
+            a.Book?.Title ?? $"Book #{a.BookId}",
+            string.IsNullOrWhiteSpace(authorNames) ? null : authorNames,
+            (AudiobookState)(int)a.Status,
+            a.VoiceName,
+            percent,
+            live?.CurrentStage,
+            a.OutputSizeBytes,
+            a.DurationSeconds,
+            a.ErrorMessage,
+            a.CreatedAt,
+            a.StartedAt,
+            a.CompletedAt,
+            a.SplitByChapter,
+            DeserializeChapters(a.ChaptersJson)?.Count ?? 0);
     }
 
     private AudiobookDto MergeWithLiveProgress(Audiobook a)

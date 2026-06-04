@@ -37,13 +37,27 @@ public partial class BatchEdit : ComponentBase
     private readonly List<AuthorDto> bulkAuthors = [];
     private readonly List<GenreDto> bulkGenres = [];
     private readonly List<string> bulkTags = [];
-    private string? bulkTagInput;
+
+    /// <summary>All existing tag names, loaded once so the tag picker can suggest them.</summary>
+    private List<string> tagDirectory = [];
 
     protected override async Task OnParametersSetAsync()
     {
         if (!string.IsNullOrWhiteSpace(ReturnFromQuery))
         {
             returnUrl = ReturnFromQuery;
+        }
+
+        if (tagDirectory.Count == 0)
+        {
+            var tagsResult = await TagService.ListAsync();
+            tagDirectory = tagsResult.IsSuccess
+                ? tagsResult.Value
+                    .Select(t => t.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+                : [];
         }
 
         var ids = ParseIds(IdsFromQuery);
@@ -193,21 +207,29 @@ public partial class BatchEdit : ComponentBase
         }
     }
 
-    private void OnBulkTagKeyDown(KeyboardEventArgs e)
+    private Task<IReadOnlyList<string>> SearchTagsAsync(string query)
     {
-        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(bulkTagInput))
+        string needle = query.Trim().ToLowerInvariant();
+        IEnumerable<string> q = tagDirectory;
+        if (!string.IsNullOrEmpty(needle))
         {
-            string trimmed = bulkTagInput.Trim().TrimStart('#');
-            if (!string.IsNullOrEmpty(trimmed) &&
-                !bulkTags.Any(t => string.Equals(t, trimmed, StringComparison.OrdinalIgnoreCase)))
-            {
-                bulkTags.Add(trimmed);
-            }
-            bulkTagInput = string.Empty;
+            q = q.Where(t => t.ToLowerInvariant().Contains(needle));
         }
+
+        return Task.FromResult<IReadOnlyList<string>>(q.Take(50).ToList());
     }
 
-    private void RemoveBulkTag(string tag) => bulkTags.Remove(tag);
+    private Task AddTagAsync(string name)
+    {
+        string trimmed = name.Trim().TrimStart('#');
+        if (!string.IsNullOrEmpty(trimmed) &&
+            !bulkTags.Any(t => string.Equals(t, trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            bulkTags.Add(trimmed);
+        }
+
+        return Task.CompletedTask;
+    }
 
     private void OnAfterAutoUpdateSortTitleChanged()
     {

@@ -4,6 +4,7 @@
 @using Shelfwarden.Infrastructure
 @inject IShelfService ShelfService
 @inject IUserInfoService UserInfoService
+@inject Shelfwarden.Services.Auth.IAuthProviderService AuthProvider
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 @inject ILogger<ShelfEdit> ShelfEditLogger
@@ -74,7 +75,19 @@
                 }
                 else if (catalogUsers.Count == 0)
                 {
-                    <p class="text-secondary small mb-0">No users returned — cannot assign individuals.</p>
+                    @if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Keycloak)
+                    {
+                        <p class="text-secondary small mb-0">
+                            No users returned from Keycloak. Listing realm users requires a confidential client
+                            (set <code>Authentication:Keycloak:ClientSecret</code>, or a dedicated
+                            <code>AdminClientId</code>/<code>AdminClientSecret</code>) whose service account holds the
+                            <code>realm-management → view-users</code> role. See the server logs for the exact error.
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="text-secondary small mb-0">No users returned — cannot assign individuals.</p>
+                    }
                 }
                 else
                 {

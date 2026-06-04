@@ -17,6 +17,13 @@ public interface IAudiobookService
     Task<Result<AudiobookDto>> GetStatusAsync(int bookId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// List every audiobook across the library with its current state and the book it belongs to
+    /// (administrators only). Ordered with active generations first, then most recently created.
+    /// Powers the admin audiobooks management page.
+    /// </summary>
+    Task<Result<IReadOnlyList<AudiobookSummaryDto>>> ListAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Enqueue a Hangfire TTS job for <paramref name="bookId"/> (administrators only). Creates an
     /// <c>Audiobook</c> row in <see cref="AudiobookState.Pending"/> if needed, and reuses
     /// the existing one (resuming previously-completed chunks) when a partial generation

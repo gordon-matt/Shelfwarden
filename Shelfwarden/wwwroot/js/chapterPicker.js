@@ -19,6 +19,10 @@
         observer: null,
         renderQueue: Promise.resolve(),
         scriptLoaded: false,
+        /** When true, pages render at reduced resolution so scrolling stays fast. */
+        lowRes: false,
+        /** Max display width (CSS px) of each page thumbnail. */
+        maxWidth: 440,
     };
 
     function loadScript(src) {
@@ -100,10 +104,12 @@
             if (!entry || !state.container) return;
             try {
                 var page = await state.doc.getPage(pageNum);
-                var dpr = Math.min(window.devicePixelRatio || 1, 2);
+                // Low-res mode renders well below device density: the marker view only needs
+                // enough detail to spot chapter starts, and fewer pixels means faster scrolling.
+                var dpr = state.lowRes ? 0.6 : Math.min(window.devicePixelRatio || 1, 2);
                 var available = Math.max(120, state.container.clientWidth - 48);
                 // Cap thumbnail width so very wide viewports don't render huge canvases.
-                available = Math.min(available, 720);
+                available = Math.min(available, state.maxWidth);
                 var unscaled = page.getViewport({ scale: 1 });
                 var fitScale = available / unscaled.width;
                 var viewport = page.getViewport({ scale: fitScale * dpr });
@@ -197,9 +203,10 @@
          * @param {string} url — PDF byte stream URL (range-enabled).
          * @param {object} dotnetRef — receives OnBoundariesChanged(int[]).
          * @param {number[]} initialBoundaries — page numbers to pre-mark as chapter starts.
+         * @param {{lowRes?:boolean, maxWidth?:number}} [options] — render tuning.
          * @returns {Promise<{pageCount:number}>}
          */
-        mount: async function (containerId, url, dotnetRef, initialBoundaries) {
+        mount: async function (containerId, url, dotnetRef, initialBoundaries, options) {
             await ensurePdfJsLoaded();
             this.dispose();
 
@@ -208,6 +215,10 @@
                 console.warn('chapterPicker.mount: container not found', containerId);
                 return { pageCount: 0 };
             }
+
+            options = options || {};
+            state.lowRes = !!options.lowRes;
+            state.maxWidth = options.maxWidth && options.maxWidth > 0 ? options.maxWidth : 440;
 
             state.container = container;
             state.dotnetRef = dotnetRef;
@@ -237,6 +248,26 @@
 
         getBoundaries: function () {
             return Array.from(state.boundaries).sort(function (a, b) { return a - b; });
+        },
+
+        /**
+         * Toggle low-resolution rendering on the fly and redraw already-rendered pages so the
+         * change is visible without reloading the PDF.
+         * @param {boolean} lowRes
+         */
+        setLowRes: function (lowRes) {
+            state.lowRes = !!lowRes;
+            if (!state.doc) return;
+
+            var toRedraw = Array.from(state.rendered);
+            state.rendered.clear();
+            state.pageElements.forEach(function (entry) {
+                var holder = entry.wrapper.querySelector('.cp-canvas');
+                if (holder) {
+                    holder.innerHTML = '<div class="cp-canvas-placeholder"></div>';
+                }
+            });
+            toRedraw.forEach(function (p) { renderPage(p); });
         },
 
         dispose: function () {

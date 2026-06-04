@@ -42,6 +42,9 @@ public partial class SectionEditor : ComponentBase, IAsyncDisposable
     private bool pickerMounted;
     private int pdfPageCount;
 
+    /// <summary>When true, the page marker renders pages at reduced resolution for faster scrolling.</summary>
+    private bool lowResMode = true;
+
     private bool PageMarkerMode => IsPdf && pageMarkerMode;
 
     private int IncludedCount => Sections?.Count(s => s.IsIncluded) ?? 0;
@@ -188,9 +191,27 @@ public partial class SectionEditor : ComponentBase, IAsyncDisposable
         try
         {
             var result = await Js.InvokeAsync<PickerMountResult>(
-                "shelfwardenChapterPicker.mount", pickerContainerId, $"/files/{BookId}", selfRef, initial);
+                "shelfwardenChapterPicker.mount", pickerContainerId, $"/files/{BookId}", selfRef, initial,
+                new { lowRes = lowResMode });
             pdfPageCount = result.PageCount;
             pickerMounted = true;
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task OnLowResToggled(ChangeEventArgs e)
+    {
+        lowResMode = e.Value is true;
+        if (!pickerMounted)
+        {
+            return;
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync("shelfwardenChapterPicker.setLowRes", lowResMode);
         }
         catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException)
         {

@@ -6,6 +6,7 @@
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService
 @inject IGenreService GenreService
+@inject ITagService TagService
 @inject NavigationManager NavigationManager
 @inject ILogger<BatchEdit> Logger
 
@@ -157,28 +158,13 @@ else
                         <BatchChipMode @bind-Mode="bulk.TagsMode" />
                         @if (bulk.TagsMode != ChipApplyMode.Remove)
                         {
-                            <div class="d-flex flex-wrap gap-1 mb-2">
-                                @if (bulkTags.Count == 0)
-                                {
-                                    <span class="text-secondary small fst-italic">No tags yet.</span>
-                                }
-                                else
-                                {
-                                    @foreach (var tag in bulkTags)
-                                    {
-                                        <span class="chip chip-tag">
-                                            #@tag
-                                            <button type="button" class="btn-close btn-close-sm ms-1"
-                                                    aria-label="Remove" @onclick="() => RemoveBulkTag(tag)"></button>
-                                        </span>
-                                    }
-                                }
-                            </div>
-                            <input class="form-control form-control-sm" type="text"
-                                   placeholder="Type a tag and press Enter…"
-                                   value="@bulkTagInput"
-                                   @oninput="e => bulkTagInput = e.Value?.ToString() ?? string.Empty"
-                                   @onkeydown="OnBulkTagKeyDown" />
+                            <ChipInput TItem="string"
+                                       Label="Tags"
+                                       Selected="bulkTags"
+                                       ChipCssSuffix="chip-tag"
+                                       NameOf="@(t => t)"
+                                       SearchAsync="SearchTagsAsync"
+                                       OnAddAsync="AddTagAsync" />
                         }
                     </BatchSectionSwitch>
                 </div>

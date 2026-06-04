@@ -139,7 +139,14 @@ public class KeycloakUserInfoService(
             return null;
         }
 
-        string baseUrl = ExtractBaseUrl(authority);
+        // Server-to-server admin calls must use the same internal hostname the OIDC backchannel
+        // uses (see KeycloakBackchannelHandler). In Docker / reverse-proxy deployments the public
+        // Authority URL is often unreachable from inside the app container, so deriving the admin
+        // base URL from Authority alone makes ListUserAsync fail and the user list comes back empty.
+        string? backchannelBase = configuration["Authentication:Keycloak:BackchannelBaseUrl"];
+        string baseUrl = !string.IsNullOrWhiteSpace(backchannelBase)
+            ? ExtractBaseUrl(backchannelBase)
+            : ExtractBaseUrl(authority);
         string realm = ExtractRealm(authority);
         if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(realm))
         {

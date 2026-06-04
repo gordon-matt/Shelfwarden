@@ -1890,7 +1890,8 @@ ol.reading-list {
 
 .pdf-chapter-picker .cp-canvas-placeholder {
     width: 100%;
-    max-width: 480px;
+    /* Keep in step with chapterPicker.js state.maxWidth so the layout doesn't jump on render. */
+    max-width: 440px;
     aspect-ratio: 1 / 1.3;
     background: var(--bs-secondary-bg, #e9ecef);
     border: 1px dashed var(--bs-border-color);

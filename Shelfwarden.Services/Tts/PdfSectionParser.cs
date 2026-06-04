@@ -307,6 +307,10 @@ public sealed class PdfSectionParser(ILogger<PdfSectionParser> logger) : IEbookS
                         text = page.Text ?? string.Empty;
                     }
 
+                    // Re-flow line-wrapped text so words split across visual lines (e.g. the
+                    // hyphenated "clus-/tered") are spoken as one word rather than two fragments.
+                    text = PdfTextNormalizer.Normalize(text);
+
                     if (!string.IsNullOrWhiteSpace(text))
                     {
                         yield return text;
