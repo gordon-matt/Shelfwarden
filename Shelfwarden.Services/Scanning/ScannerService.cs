@@ -289,18 +289,12 @@ public sealed class ScannerService(
             : await TryLoadImportOverlayAsync(importJsonPath, cancellationToken);
         bool hasImportOverlay = importOverlay is not null;
 
-        var authorNames = ShelfwardenImportMerger.MergeList(metadata.AuthorNames, importOverlay?.Author);
-        var genreNames = ShelfwardenImportMerger.MergeList(metadata.Genres, importOverlay?.Genres);
-        var tagNames = ShelfwardenImportMerger.MergeList(metadata.Tags, importOverlay?.Tags);
-        string? seriesName = ShelfwardenImportMerger.MergeSeries(metadata.SeriesName, importOverlay?.Series);
-        string? collectionName = ShelfwardenImportMerger.MergeCollection(importOverlay?.Collection);
-        bool useFileNameForTitle = ShelfwardenImportMerger.UseFileNameForTitle(importOverlay?.UseFileNameForTitle);
-
-        // Shelf-level options win over both file metadata and the sidecar overlay.
-        if (shelf.AlwaysUseFileNameForTitle)
-        {
-            useFileNameForTitle = true;
-        }
+        // Shelf options are defaults; shelfwarden_import.json sidecars override them.
+        var authorNames = metadata.AuthorNames;
+        var genreNames = metadata.Genres;
+        var tagNames = metadata.Tags;
+        string? seriesName = metadata.SeriesName;
+        bool useFileNameForTitle = shelf.AlwaysUseFileNameForTitle;
 
         if (shelf.AlwaysIgnoreAuthor)
         {
@@ -317,13 +311,28 @@ public sealed class ScannerService(
             tagNames = [];
         }
 
-        // "Assign new books to collection" only fires for books we're seeing for the first time.
-        // An explicit sidecar collection still takes precedence over the shelf default.
-        if (collectionName is null && !exists && shelf.AssignNewBooksToCollection)
+        string? collectionName = null;
+        if (!exists && shelf.AssignNewBooksToCollection)
         {
             collectionName = string.IsNullOrWhiteSpace(shelf.NewBooksCollectionName)
                 ? Constants.DefaultNewBooksCollectionName
                 : shelf.NewBooksCollectionName.Trim();
+        }
+
+        if (importOverlay is not null)
+        {
+            authorNames = ShelfwardenImportMerger.MergeList(authorNames, importOverlay.Author);
+            genreNames = ShelfwardenImportMerger.MergeList(genreNames, importOverlay.Genres);
+            tagNames = ShelfwardenImportMerger.MergeList(tagNames, importOverlay.Tags);
+            seriesName = ShelfwardenImportMerger.MergeSeries(seriesName, importOverlay.Series);
+            useFileNameForTitle = ShelfwardenImportMerger.ResolveUseFileNameForTitle(
+                useFileNameForTitle, importOverlay.UseFileNameForTitle);
+
+            string? sidecarCollection = ShelfwardenImportMerger.MergeCollection(importOverlay.Collection);
+            if (sidecarCollection is not null)
+            {
+                collectionName = sidecarCollection;
+            }
         }
 
         string resolvedTitle = ResolveImportedTitle(filePath, metadata.Title, useFileNameForTitle);

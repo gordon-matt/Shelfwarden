@@ -57,6 +57,13 @@ internal static class ShelfwardenImportMerger
 {
     public static bool UseFileNameForTitle(bool? value) => value is true;
 
+    /// <summary>
+    /// When the sidecar sets <paramref name="sidecarValue"/>, that wins over the shelf default;
+    /// otherwise the shelf default applies.
+    /// </summary>
+    public static bool ResolveUseFileNameForTitle(bool shelfDefault, bool? sidecarValue)
+        => sidecarValue ?? shelfDefault;
+
     public static string? MergeCollection(string? collectionName)
         => string.IsNullOrWhiteSpace(collectionName) ? null : collectionName.Trim();
 
