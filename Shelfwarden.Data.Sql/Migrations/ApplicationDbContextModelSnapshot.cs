@@ -998,6 +998,9 @@ namespace Shelfwarden.Data.Sql.Migrations
                     b.Property<bool>("AssignNewBooksToCollection")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("AutoFetchOnlineMetadata")
+                        .HasColumnType("bit");
+
                     b.Property<string>("CardBannerBookIdsJson")
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");

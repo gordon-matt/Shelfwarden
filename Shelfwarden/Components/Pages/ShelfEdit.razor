@@ -80,6 +80,13 @@
             <InputCheckbox class="form-check-input" id="opt-assign-collection" @bind-Value="model.AssignNewBooksToCollection" />
             <label class="form-check-label" for="opt-assign-collection">Add newly-imported books to a collection</label>
         </div>
+        <div class="form-check">
+            <InputCheckbox class="form-check-input" id="opt-auto-metadata" @bind-Value="model.AutoFetchOnlineMetadata" />
+            <label class="form-check-label" for="opt-auto-metadata">
+                Auto-fetch missing metadata online
+                <span class="text-body-secondary small">(queries Google Books &amp; Open Library during import to fill empty fields)</span>
+            </label>
+        </div>
 
         @if (model.AssignNewBooksToCollection)
         {

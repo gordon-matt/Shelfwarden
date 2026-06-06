@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Humanizer;
+using Shelfwarden.Models.Metadata;
+using Shelfwarden.Services.Metadata;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services.Scanning;
@@ -21,6 +23,7 @@ public sealed class ScannerService(
     ILogger<ScannerService> logger,
     IEbookMetadataExtractorFactory extractorFactory,
     ICalibreOpfReader calibreOpfReader,
+    IBookMetadataService onlineMetadataService,
     IStoragePathProvider storage,
     IScanProgressTracker progressTracker,
     IRepository<Shelf> shelfRepository,
@@ -337,6 +340,14 @@ public sealed class ScannerService(
 
         string resolvedTitle = ResolveImportedTitle(filePath, metadata.Title, useFileNameForTitle);
 
+        // Optionally back-fill anything still missing from online sources (Google Books / Open
+        // Library). Best-effort: a failed lookup never fails the scan, and we only fill gaps.
+        if (shelf.AutoFetchOnlineMetadata)
+        {
+            (metadata, authorNames, genreNames, tagNames, seriesName) = await EnrichFromOnlineAsync(
+                shelf, resolvedTitle, metadata, authorNames, genreNames, tagNames, seriesName, cancellationToken);
+        }
+
         if (book is null)
         {
             book = new Book
@@ -494,6 +505,87 @@ public sealed class ScannerService(
             logger.LogWarning(ex, "Invalid or unreadable shelf import sidecar {Path}", importPath);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Queries online metadata sources and folds any returned values into the still-empty fields of
+    /// the local metadata + relation lists. Scalar fields use <c>??=</c> semantics (only fill nulls);
+    /// author/genre/tag lists are only populated when currently empty and not suppressed by the
+    /// shelf's "always ignore" flags. Title is never overwritten — it's already resolved locally.
+    /// </summary>
+    private async Task<(EbookMetadata Metadata, IReadOnlyList<string> Authors, IReadOnlyList<string> Genres, IReadOnlyList<string> Tags, string? SeriesName)> EnrichFromOnlineAsync(
+        Shelf shelf,
+        string resolvedTitle,
+        EbookMetadata metadata,
+        IReadOnlyList<string> authorNames,
+        IReadOnlyList<string> genreNames,
+        IReadOnlyList<string> tagNames,
+        string? seriesName,
+        CancellationToken cancellationToken)
+    {
+        var query = new BookMetadataQuery
+        {
+            Title = string.IsNullOrWhiteSpace(metadata.Title) ? resolvedTitle : metadata.Title,
+            Author = authorNames.FirstOrDefault(),
+            Isbn = metadata.Isbn,
+            Limit = 5,
+        };
+
+        if (query.IsEmpty)
+        {
+            return (metadata, authorNames, genreNames, tagNames, seriesName);
+        }
+
+        ExternalBookMetadataDto? match;
+        try
+        {
+            match = await onlineMetadataService.FindBestMatchAsync(query, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Online metadata enrichment failed for '{Title}' on shelf {ShelfId}", query.Title, shelf.Id);
+            return (metadata, authorNames, genreNames, tagNames, seriesName);
+        }
+
+        if (match is null)
+        {
+            return (metadata, authorNames, genreNames, tagNames, seriesName);
+        }
+
+        var enriched = metadata with
+        {
+            Subtitle = metadata.Subtitle ?? match.Subtitle,
+            Description = metadata.Description ?? match.Description,
+            Language = metadata.Language ?? match.Language,
+            Publisher = metadata.Publisher ?? match.Publisher,
+            Isbn = metadata.Isbn ?? match.Isbn,
+            PublishedOn = metadata.PublishedOn ?? match.PublishedOn,
+            PageCount = metadata.PageCount ?? match.PageCount,
+            NumberInSeries = metadata.NumberInSeries ?? match.NumberInSeries,
+        };
+
+        if (authorNames.Count == 0 && !shelf.AlwaysIgnoreAuthor && match.Authors.Count > 0)
+        {
+            authorNames = match.Authors;
+        }
+
+        if (genreNames.Count == 0 && !shelf.AlwaysIgnoreGenres && match.Genres.Count > 0)
+        {
+            genreNames = match.Genres;
+        }
+
+        if (tagNames.Count == 0 && !shelf.AlwaysIgnoreTags && match.Tags.Count > 0)
+        {
+            tagNames = match.Tags;
+        }
+
+        if (string.IsNullOrWhiteSpace(seriesName) && !string.IsNullOrWhiteSpace(match.SeriesName))
+        {
+            seriesName = match.SeriesName;
+        }
+
+        logger.LogDebug("Enriched '{Title}' from {Provider} during scan of shelf {ShelfId}", resolvedTitle, match.Provider, shelf.Id);
+        return (enriched, authorNames, genreNames, tagNames, seriesName);
     }
 
     private static void ApplyMetadata(Book book, EbookMetadata metadata)

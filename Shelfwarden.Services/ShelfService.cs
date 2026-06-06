@@ -147,6 +147,7 @@ public class ShelfService(
             AlwaysIgnoreGenres = request.AlwaysIgnoreGenres,
             AssignNewBooksToCollection = request.AssignNewBooksToCollection,
             NewBooksCollectionName = NormalizeCollectionName(request.AssignNewBooksToCollection, request.NewBooksCollectionName),
+            AutoFetchOnlineMetadata = request.AutoFetchOnlineMetadata,
         });
 
         var folders = folderPaths
@@ -202,6 +203,7 @@ public class ShelfService(
         shelf.AlwaysIgnoreGenres = request.AlwaysIgnoreGenres;
         shelf.AssignNewBooksToCollection = request.AssignNewBooksToCollection;
         shelf.NewBooksCollectionName = NormalizeCollectionName(request.AssignNewBooksToCollection, request.NewBooksCollectionName);
+        shelf.AutoFetchOnlineMetadata = request.AutoFetchOnlineMetadata;
         await shelfRepository.UpdateAsync(shelf);
 
         var desiredFolders = NormalizeFolders(request.Folders);
@@ -499,6 +501,7 @@ public class ShelfService(
             shelf.AlwaysIgnoreGenres,
             shelf.AssignNewBooksToCollection,
             shelf.NewBooksCollectionName,
+            shelf.AutoFetchOnlineMetadata,
             preview,
             BannerSettings);
     }

@@ -41,6 +41,9 @@ else
                 <h1 class="mb-0 mt-1">Edit book</h1>
             </div>
             <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-primary" @onclick="OpenMetadataModal">
+                    <i class="bi bi-cloud-download me-1"></i> Fetch metadata
+                </button>
                 <a class="btn btn-outline-secondary" href="@($"books/{book.Id}")">Cancel</a>
                 <button type="submit" class="btn btn-primary" disabled="@saving">
                     @if (saving)
@@ -207,4 +210,11 @@ else
             </div>
         </div>
     </EditForm>
+
+    <BookMetadataModal IsOpen="showMetadataModal"
+                       InitialTitle="@form.Title"
+                       InitialAuthor="@selectedAuthors.FirstOrDefault()?.Name"
+                       InitialIsbn="@form.Isbn"
+                       OnClose="CloseMetadataModal"
+                       OnApply="ApplyExternalMetadataAsync" />
 }

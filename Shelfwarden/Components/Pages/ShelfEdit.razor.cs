@@ -43,6 +43,7 @@ public partial class ShelfEdit : ComponentBase
                 model.AlwaysIgnoreGenres = dto.AlwaysIgnoreGenres;
                 model.AssignNewBooksToCollection = dto.AssignNewBooksToCollection;
                 model.NewBooksCollectionName = dto.NewBooksCollectionName;
+                model.AutoFetchOnlineMetadata = dto.AutoFetchOnlineMetadata;
                 folders = dto.Folders.Select(f => f.Path).DefaultIfEmpty(string.Empty).ToList();
                 selectedUserIds.Clear();
                 foreach (string uid in dto.AllowedUserIds)
@@ -243,6 +244,7 @@ public partial class ShelfEdit : ComponentBase
                     AlwaysIgnoreGenres = model.AlwaysIgnoreGenres,
                     AssignNewBooksToCollection = model.AssignNewBooksToCollection,
                     NewBooksCollectionName = model.NewBooksCollectionName,
+                    AutoFetchOnlineMetadata = model.AutoFetchOnlineMetadata,
                 });
                 if (result.IsSuccess)
                 {
@@ -271,6 +273,7 @@ public partial class ShelfEdit : ComponentBase
                     AlwaysIgnoreGenres = model.AlwaysIgnoreGenres,
                     AssignNewBooksToCollection = model.AssignNewBooksToCollection,
                     NewBooksCollectionName = model.NewBooksCollectionName,
+                    AutoFetchOnlineMetadata = model.AutoFetchOnlineMetadata,
                 });
                 if (result.IsSuccess)
                 {
@@ -340,5 +343,7 @@ public partial class ShelfEdit : ComponentBase
 
         [StringLength(256)]
         public string? NewBooksCollectionName { get; set; }
+
+        public bool AutoFetchOnlineMetadata { get; set; }
     }
 }

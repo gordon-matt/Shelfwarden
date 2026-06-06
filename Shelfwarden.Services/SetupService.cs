@@ -144,6 +144,7 @@ public class SetupService(
             AlwaysIgnoreGenres: shelf.AlwaysIgnoreGenres,
             AssignNewBooksToCollection: shelf.AssignNewBooksToCollection,
             NewBooksCollectionName: shelf.NewBooksCollectionName,
+            AutoFetchOnlineMetadata: shelf.AutoFetchOnlineMetadata,
             Banner: bannerPreview,
             BannerSettings: null));
     }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components.Web;
+using Shelfwarden.Models.Metadata;
 
 namespace Shelfwarden.Components.Pages;
 
@@ -29,6 +30,8 @@ public partial class BookEdit : ComponentBase
     private string? seriesInput;
     private IReadOnlyList<SeriesDto> seriesSuggestions = [];
     private bool showSeriesSuggestions;
+
+    private bool showMetadataModal;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -193,6 +196,75 @@ public partial class BookEdit : ComponentBase
 
         return Task.CompletedTask;
     }
+
+    private void OpenMetadataModal() => showMetadataModal = true;
+
+    private void CloseMetadataModal() => showMetadataModal = false;
+
+    /// <summary>
+    /// Populates the edit form from a chosen online candidate. Scalar fields are overwritten only
+    /// when the candidate supplies a value; author/genre/tag lists are merged (existing entries are
+    /// kept). Nothing is persisted — the user still has to hit Save.
+    /// </summary>
+    private async Task ApplyExternalMetadataAsync(ExternalBookMetadataDto match)
+    {
+        if (form is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(match.Title))
+        {
+            form.Title = match.Title.Trim();
+        }
+
+        form.Subtitle = Prefer(match.Subtitle, form.Subtitle);
+        form.Description = Prefer(match.Description, form.Description);
+        form.Language = Prefer(match.Language, form.Language);
+        form.Publisher = Prefer(match.Publisher, form.Publisher);
+        form.Isbn = Prefer(match.Isbn, form.Isbn);
+        if (match.PublishedOn is { } published)
+        {
+            form.PublishedOn = published;
+        }
+
+        if (!string.IsNullOrWhiteSpace(match.SeriesName))
+        {
+            await SelectSeriesAsync(match.SeriesName.Trim());
+            if (match.NumberInSeries is { } number)
+            {
+                form.NumberInSeries = number;
+            }
+        }
+
+        foreach (string author in match.Authors)
+        {
+            if (!string.IsNullOrWhiteSpace(author) &&
+                !selectedAuthors.Any(a => string.Equals(a.Name, author.Trim(), StringComparison.OrdinalIgnoreCase)))
+            {
+                await AddAuthorAsync(author.Trim());
+            }
+        }
+
+        foreach (string genre in match.Genres)
+        {
+            if (!string.IsNullOrWhiteSpace(genre) &&
+                !selectedGenres.Any(g => string.Equals(g.Name, genre.Trim(), StringComparison.OrdinalIgnoreCase)))
+            {
+                await AddGenreAsync(genre.Trim());
+            }
+        }
+
+        foreach (string tag in match.Tags)
+        {
+            await AddTagAsync(tag);
+        }
+
+        showMetadataModal = false;
+    }
+
+    private static string? Prefer(string? incoming, string? current)
+        => string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
 
     private async Task SaveAsync()
     {

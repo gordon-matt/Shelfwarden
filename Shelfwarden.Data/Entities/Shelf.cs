@@ -32,6 +32,12 @@ public class Shelf : BaseEntity<int>, ICardBannerOwner
     /// <summary>Name of the (global) collection that new books are filed into when <see cref="AssignNewBooksToCollection"/> is true.</summary>
     public string? NewBooksCollectionName { get; set; }
 
+    /// <summary>
+    /// When true, the scanner queries online metadata sources (Google Books, Open Library) during
+    /// import and back-fills any fields the local file/sidecar metadata left empty.
+    /// </summary>
+    public bool AutoFetchOnlineMetadata { get; set; }
+
     public CardHeaderBannerMode CardBannerMode { get; set; }
 
     public string? CardBannerImageFileName { get; set; }

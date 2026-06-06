@@ -996,6 +996,9 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Property<bool>("AssignNewBooksToCollection")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("AutoFetchOnlineMetadata")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("CardBannerBookIdsJson")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");

@@ -17,6 +17,7 @@ public record ShelfDto(
     bool AlwaysIgnoreGenres,
     bool AssignNewBooksToCollection,
     string? NewBooksCollectionName,
+    bool AutoFetchOnlineMetadata,
     CardBannerPreview Banner,
     CardBannerSettingsDto? BannerSettings = null);
 
@@ -54,6 +55,8 @@ public record CreateShelfRequest
 
     [StringLength(256)]
     public string? NewBooksCollectionName { get; init; }
+
+    public bool AutoFetchOnlineMetadata { get; init; }
 }
 
 public record UpdateShelfRequest
@@ -88,4 +91,6 @@ public record UpdateShelfRequest
 
     [StringLength(256)]
     public string? NewBooksCollectionName { get; init; }
+
+    public bool AutoFetchOnlineMetadata { get; init; }
 }

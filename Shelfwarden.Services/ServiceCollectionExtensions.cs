@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shelfwarden.Services.Jobs;
+using Shelfwarden.Services.Metadata;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
 using Shelfwarden.Services.Tts;
@@ -47,6 +48,13 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IScanProgressTracker, ScanProgressTracker>();
             services.AddScoped<IScannerService, ScannerService>();
             services.AddScoped<IScanStatusService, ScanStatusService>();
+
+            // Online metadata sources (Google Books, Open Library, …). Providers are stateless
+            // singletons that talk to public HTTP APIs via IHttpClientFactory; the aggregating
+            // IBookMetadataService is scoped because its admin gate needs IUserContextService.
+            services.AddSingleton<IBookMetadataProvider, GoogleBooksMetadataProvider>();
+            services.AddSingleton<IBookMetadataProvider, OpenLibraryMetadataProvider>();
+            services.AddScoped<IBookMetadataService, BookMetadataService>();
 
             // Text-to-speech. The Kokoro engine and FFmpeg binaries are big; both providers
             // are singletons and lazy-initialise themselves on first job. Per-format text
