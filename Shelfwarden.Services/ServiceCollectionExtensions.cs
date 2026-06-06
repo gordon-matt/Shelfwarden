@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IEbookMetadataExtractor, EpubMetadataExtractor>();
             services.AddSingleton<IEbookMetadataExtractor, PdfMetadataExtractor>();
             services.AddSingleton<IEbookMetadataExtractorFactory, EbookMetadataExtractorFactory>();
+            services.AddSingleton<ICalibreOpfReader, CalibreOpfReader>();
             services.AddSingleton<IScanProgressTracker, ScanProgressTracker>();
             services.AddScoped<IScannerService, ScannerService>();
             services.AddScoped<IScanStatusService, ScanStatusService>();

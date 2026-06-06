@@ -35,6 +35,62 @@
         <ValidationMessage For="@(() => model.Description)" />
     </div>
 
+    <fieldset class="mb-3 border rounded p-3">
+        <legend class="form-label fs-6 mb-2">Import &amp; scanning options</legend>
+
+        <div class="mb-3">
+            <label class="form-label">Folder structure</label>
+            @if (IsCreate)
+            {
+                <InputSelect class="form-select" @bind-Value="model.DirectoryStructure">
+                    <option value="@DirectoryStructure.Unstructured">Unstructured (any layout)</option>
+                    <option value="@DirectoryStructure.Calibre">Calibre library</option>
+                </InputSelect>
+                <p class="form-text mb-0">
+                    Choose <strong>Calibre</strong> when these folders are a Calibre library so we read its
+                    <code>metadata.opf</code> sidecars. <strong>This can't be changed after the shelf is created.</strong>
+                </p>
+            }
+            else
+            {
+                <input class="form-control" value="@DirectoryStructureLabel(model.DirectoryStructure)" disabled />
+                <p class="form-text mb-0">The folder structure is fixed once a shelf is created.</p>
+            }
+        </div>
+
+        <div class="form-check">
+            <InputCheckbox class="form-check-input" id="opt-filename-title" @bind-Value="model.AlwaysUseFileNameForTitle" />
+            <label class="form-check-label" for="opt-filename-title">
+                Always use the file name as the title <span class="text-body-secondary small">(ignore metadata titles)</span>
+            </label>
+        </div>
+        <div class="form-check">
+            <InputCheckbox class="form-check-input" id="opt-ignore-author" @bind-Value="model.AlwaysIgnoreAuthor" />
+            <label class="form-check-label" for="opt-ignore-author">Always ignore author metadata</label>
+        </div>
+        <div class="form-check">
+            <InputCheckbox class="form-check-input" id="opt-ignore-tags" @bind-Value="model.AlwaysIgnoreTags" />
+            <label class="form-check-label" for="opt-ignore-tags">Always ignore tag metadata</label>
+        </div>
+        <div class="form-check">
+            <InputCheckbox class="form-check-input" id="opt-ignore-genres" @bind-Value="model.AlwaysIgnoreGenres" />
+            <label class="form-check-label" for="opt-ignore-genres">Always ignore genre metadata</label>
+        </div>
+        <div class="form-check">
+            <InputCheckbox class="form-check-input" id="opt-assign-collection" @bind-Value="model.AssignNewBooksToCollection" />
+            <label class="form-check-label" for="opt-assign-collection">Add newly-imported books to a collection</label>
+        </div>
+
+        @if (model.AssignNewBooksToCollection)
+        {
+            <div class="mt-2 ms-4">
+                <label class="form-label">Collection name</label>
+                <InputText class="form-control" @bind-Value="model.NewBooksCollectionName" placeholder="@Constants.DefaultNewBooksCollectionName" />
+                <ValidationMessage For="@(() => model.NewBooksCollectionName)" />
+            </div>
+        }
+    </fieldset>
+
     @if (Id is int && shelfBannerSettings is not null)
     {
         <div class="mb-3">

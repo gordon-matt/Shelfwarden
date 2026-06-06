@@ -10,6 +10,13 @@ public record ShelfDto(
     IReadOnlyList<ShelfFolderDto> Folders,
     IReadOnlyList<string> AllowedUserIds,
     IReadOnlyList<string> AllowedRoleNames,
+    DirectoryStructure DirectoryStructure,
+    bool AlwaysUseFileNameForTitle,
+    bool AlwaysIgnoreAuthor,
+    bool AlwaysIgnoreTags,
+    bool AlwaysIgnoreGenres,
+    bool AssignNewBooksToCollection,
+    string? NewBooksCollectionName,
     CardBannerPreview Banner,
     CardBannerSettingsDto? BannerSettings = null);
 
@@ -31,6 +38,22 @@ public record CreateShelfRequest
 
     /// <summary>Role names (e.g. User, Administrator) that may view this shelf when access is restricted.</summary>
     public IReadOnlyList<string> AllowedRoleNames { get; init; } = [];
+
+    /// <summary>Folder layout convention. Chosen at creation and immutable afterwards.</summary>
+    public DirectoryStructure DirectoryStructure { get; init; } = DirectoryStructure.Unstructured;
+
+    public bool AlwaysUseFileNameForTitle { get; init; }
+
+    public bool AlwaysIgnoreAuthor { get; init; }
+
+    public bool AlwaysIgnoreTags { get; init; }
+
+    public bool AlwaysIgnoreGenres { get; init; }
+
+    public bool AssignNewBooksToCollection { get; init; }
+
+    [StringLength(256)]
+    public string? NewBooksCollectionName { get; init; }
 }
 
 public record UpdateShelfRequest
@@ -50,4 +73,19 @@ public record UpdateShelfRequest
     public CardHeaderBannerMode CardBannerMode { get; init; } = CardHeaderBannerMode.RandomCovers;
 
     public IReadOnlyList<int> CardBannerSelectedBookIds { get; init; } = [];
+
+    // DirectoryStructure is intentionally absent: it can only be chosen when the shelf is created.
+
+    public bool AlwaysUseFileNameForTitle { get; init; }
+
+    public bool AlwaysIgnoreAuthor { get; init; }
+
+    public bool AlwaysIgnoreTags { get; init; }
+
+    public bool AlwaysIgnoreGenres { get; init; }
+
+    public bool AssignNewBooksToCollection { get; init; }
+
+    [StringLength(256)]
+    public string? NewBooksCollectionName { get; init; }
 }

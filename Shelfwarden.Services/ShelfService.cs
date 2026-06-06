@@ -140,6 +140,13 @@ public class ShelfService(
         {
             Name = request.Name.Trim(),
             Description = request.Description?.Trim(),
+            DirectoryStructure = request.DirectoryStructure,
+            AlwaysUseFileNameForTitle = request.AlwaysUseFileNameForTitle,
+            AlwaysIgnoreAuthor = request.AlwaysIgnoreAuthor,
+            AlwaysIgnoreTags = request.AlwaysIgnoreTags,
+            AlwaysIgnoreGenres = request.AlwaysIgnoreGenres,
+            AssignNewBooksToCollection = request.AssignNewBooksToCollection,
+            NewBooksCollectionName = NormalizeCollectionName(request.AssignNewBooksToCollection, request.NewBooksCollectionName),
         });
 
         var folders = folderPaths
@@ -188,6 +195,13 @@ public class ShelfService(
 
         shelf.Name = request.Name.Trim();
         shelf.Description = request.Description?.Trim();
+        // DirectoryStructure is deliberately not updated — it is fixed at creation time.
+        shelf.AlwaysUseFileNameForTitle = request.AlwaysUseFileNameForTitle;
+        shelf.AlwaysIgnoreAuthor = request.AlwaysIgnoreAuthor;
+        shelf.AlwaysIgnoreTags = request.AlwaysIgnoreTags;
+        shelf.AlwaysIgnoreGenres = request.AlwaysIgnoreGenres;
+        shelf.AssignNewBooksToCollection = request.AssignNewBooksToCollection;
+        shelf.NewBooksCollectionName = NormalizeCollectionName(request.AssignNewBooksToCollection, request.NewBooksCollectionName);
         await shelfRepository.UpdateAsync(shelf);
 
         var desiredFolders = NormalizeFolders(request.Folders);
@@ -478,8 +492,31 @@ public class ShelfService(
                 .ToList(),
             allowedUsers,
             allowedRoles,
+            shelf.DirectoryStructure,
+            shelf.AlwaysUseFileNameForTitle,
+            shelf.AlwaysIgnoreAuthor,
+            shelf.AlwaysIgnoreTags,
+            shelf.AlwaysIgnoreGenres,
+            shelf.AssignNewBooksToCollection,
+            shelf.NewBooksCollectionName,
             preview,
             BannerSettings);
+    }
+
+    /// <summary>
+    /// Returns a trimmed collection name when the shelf files new books into a collection, falling
+    /// back to <see cref="Constants.DefaultNewBooksCollectionName"/> when none was supplied. Returns
+    /// null when the feature is off so we don't persist a stale name.
+    /// </summary>
+    private static string? NormalizeCollectionName(bool assignNewBooksToCollection, string? name)
+    {
+        if (!assignNewBooksToCollection)
+        {
+            return null;
+        }
+
+        string trimmed = name?.Trim() ?? string.Empty;
+        return trimmed.Length == 0 ? Constants.DefaultNewBooksCollectionName : trimmed;
     }
 
     private async Task<Dictionary<int, List<CardBannerSupport.BookCoverSource>>> LoadShelfBannerSourcesAsync(

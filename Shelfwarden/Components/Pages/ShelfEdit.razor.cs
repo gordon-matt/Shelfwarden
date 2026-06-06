@@ -36,6 +36,13 @@ public partial class ShelfEdit : ComponentBase
                 var dto = result.Value;
                 model.Name = dto.Name;
                 model.Description = dto.Description;
+                model.DirectoryStructure = dto.DirectoryStructure;
+                model.AlwaysUseFileNameForTitle = dto.AlwaysUseFileNameForTitle;
+                model.AlwaysIgnoreAuthor = dto.AlwaysIgnoreAuthor;
+                model.AlwaysIgnoreTags = dto.AlwaysIgnoreTags;
+                model.AlwaysIgnoreGenres = dto.AlwaysIgnoreGenres;
+                model.AssignNewBooksToCollection = dto.AssignNewBooksToCollection;
+                model.NewBooksCollectionName = dto.NewBooksCollectionName;
                 folders = dto.Folders.Select(f => f.Path).DefaultIfEmpty(string.Empty).ToList();
                 selectedUserIds.Clear();
                 foreach (string uid in dto.AllowedUserIds)
@@ -230,6 +237,12 @@ public partial class ShelfEdit : ComponentBase
                     AllowedRoleNames = roleNames,
                     CardBannerMode = bannerMode,
                     CardBannerSelectedBookIds = bannerSelectedBooks.Select(b => b.Id).ToList(),
+                    AlwaysUseFileNameForTitle = model.AlwaysUseFileNameForTitle,
+                    AlwaysIgnoreAuthor = model.AlwaysIgnoreAuthor,
+                    AlwaysIgnoreTags = model.AlwaysIgnoreTags,
+                    AlwaysIgnoreGenres = model.AlwaysIgnoreGenres,
+                    AssignNewBooksToCollection = model.AssignNewBooksToCollection,
+                    NewBooksCollectionName = model.NewBooksCollectionName,
                 });
                 if (result.IsSuccess)
                 {
@@ -251,6 +264,13 @@ public partial class ShelfEdit : ComponentBase
                     Folders = nonEmpty,
                     AllowedUserIds = userIds,
                     AllowedRoleNames = roleNames,
+                    DirectoryStructure = model.DirectoryStructure,
+                    AlwaysUseFileNameForTitle = model.AlwaysUseFileNameForTitle,
+                    AlwaysIgnoreAuthor = model.AlwaysIgnoreAuthor,
+                    AlwaysIgnoreTags = model.AlwaysIgnoreTags,
+                    AlwaysIgnoreGenres = model.AlwaysIgnoreGenres,
+                    AssignNewBooksToCollection = model.AssignNewBooksToCollection,
+                    NewBooksCollectionName = model.NewBooksCollectionName,
                 });
                 if (result.IsSuccess)
                 {
@@ -292,6 +312,12 @@ public partial class ShelfEdit : ComponentBase
         }
     }
 
+    private static string DirectoryStructureLabel(DirectoryStructure structure) => structure switch
+    {
+        DirectoryStructure.Calibre => "Calibre library",
+        _ => "Unstructured (any layout)",
+    };
+
     private sealed class ShelfFormModel
     {
         [Required, StringLength(256)]
@@ -299,5 +325,20 @@ public partial class ShelfEdit : ComponentBase
 
         [StringLength(2048)]
         public string? Description { get; set; }
+
+        public DirectoryStructure DirectoryStructure { get; set; } = DirectoryStructure.Unstructured;
+
+        public bool AlwaysUseFileNameForTitle { get; set; }
+
+        public bool AlwaysIgnoreAuthor { get; set; }
+
+        public bool AlwaysIgnoreTags { get; set; }
+
+        public bool AlwaysIgnoreGenres { get; set; }
+
+        public bool AssignNewBooksToCollection { get; set; }
+
+        [StringLength(256)]
+        public string? NewBooksCollectionName { get; set; }
     }
 }

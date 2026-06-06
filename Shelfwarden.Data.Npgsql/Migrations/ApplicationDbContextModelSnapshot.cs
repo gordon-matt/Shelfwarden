@@ -981,6 +981,21 @@ namespace Shelfwarden.Data.Npgsql.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("AlwaysIgnoreAuthor")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AlwaysIgnoreGenres")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AlwaysIgnoreTags")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AlwaysUseFileNameForTitle")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AssignNewBooksToCollection")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("CardBannerBookIdsJson")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
@@ -1000,11 +1015,19 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .IsUnicode(true)
                         .HasColumnType("character varying(2048)");
 
+                    b.Property<int>("DirectoryStructure")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("LastScannedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasMaxLength(256)
+                        .IsUnicode(true)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("NewBooksCollectionName")
                         .HasMaxLength(256)
                         .IsUnicode(true)
                         .HasColumnType("character varying(256)");

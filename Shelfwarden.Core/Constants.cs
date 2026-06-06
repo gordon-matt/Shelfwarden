@@ -30,6 +30,12 @@ public static class Constants
 
     public static readonly IReadOnlyList<string> Letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".Select(c => c.ToString()).ToList();
 
+    /// <summary>
+    /// Default collection name used when a shelf is configured to file newly-imported books
+    /// into a collection but the administrator hasn't supplied a custom name.
+    /// </summary>
+    public const string DefaultNewBooksCollectionName = "To Review";
+
     public static class AuthProviders
     {
         public const string Identity = "Identity";

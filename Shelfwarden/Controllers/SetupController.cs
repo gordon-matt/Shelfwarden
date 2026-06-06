@@ -122,6 +122,7 @@ public class SetupController(
         [FromForm] string name,
         [FromForm] string folders,
         [FromForm] string? description,
+        [FromForm] DirectoryStructure directoryStructure,
         CancellationToken cancellationToken)
     {
         logger.LogInformation(
@@ -155,6 +156,7 @@ public class SetupController(
             Name = name.Trim(),
             Description = description?.Trim(),
             Folders = folderList,
+            DirectoryStructure = directoryStructure,
         }, cancellationToken);
 
         if (result.IsSuccess)

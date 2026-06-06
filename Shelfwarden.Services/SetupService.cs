@@ -79,6 +79,17 @@ public class SetupService(
             {
                 Name = request.Name.Trim(),
                 Description = request.Description?.Trim(),
+                DirectoryStructure = request.DirectoryStructure,
+                AlwaysUseFileNameForTitle = request.AlwaysUseFileNameForTitle,
+                AlwaysIgnoreAuthor = request.AlwaysIgnoreAuthor,
+                AlwaysIgnoreTags = request.AlwaysIgnoreTags,
+                AlwaysIgnoreGenres = request.AlwaysIgnoreGenres,
+                AssignNewBooksToCollection = request.AssignNewBooksToCollection,
+                NewBooksCollectionName = request.AssignNewBooksToCollection
+                    ? (string.IsNullOrWhiteSpace(request.NewBooksCollectionName)
+                        ? Constants.DefaultNewBooksCollectionName
+                        : request.NewBooksCollectionName.Trim())
+                    : null,
             });
         }
         catch (Exception ex)
@@ -126,6 +137,13 @@ public class SetupService(
             Folders: folders.Select(f => new ShelfFolderDto(f.Id, f.Path)).ToList(),
             AllowedUserIds: [],
             AllowedRoleNames: [],
+            DirectoryStructure: shelf.DirectoryStructure,
+            AlwaysUseFileNameForTitle: shelf.AlwaysUseFileNameForTitle,
+            AlwaysIgnoreAuthor: shelf.AlwaysIgnoreAuthor,
+            AlwaysIgnoreTags: shelf.AlwaysIgnoreTags,
+            AlwaysIgnoreGenres: shelf.AlwaysIgnoreGenres,
+            AssignNewBooksToCollection: shelf.AssignNewBooksToCollection,
+            NewBooksCollectionName: shelf.NewBooksCollectionName,
             Banner: bannerPreview,
             BannerSettings: null));
     }

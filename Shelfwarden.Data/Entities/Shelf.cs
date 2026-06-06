@@ -11,6 +11,27 @@ public class Shelf : BaseEntity<int>, ICardBannerOwner
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>How this shelf's folders are laid out on disk. Set at creation, immutable afterwards.</summary>
+    public DirectoryStructure DirectoryStructure { get; set; } = DirectoryStructure.Unstructured;
+
+    /// <summary>When true, the scanner uses each file's name (without extension) as the book title, ignoring metadata titles.</summary>
+    public bool AlwaysUseFileNameForTitle { get; set; }
+
+    /// <summary>When true, author metadata is dropped during scanning.</summary>
+    public bool AlwaysIgnoreAuthor { get; set; }
+
+    /// <summary>When true, tag metadata is dropped during scanning.</summary>
+    public bool AlwaysIgnoreTags { get; set; }
+
+    /// <summary>When true, genre metadata is dropped during scanning.</summary>
+    public bool AlwaysIgnoreGenres { get; set; }
+
+    /// <summary>When true, newly-discovered books are added to the <see cref="NewBooksCollectionName"/> collection.</summary>
+    public bool AssignNewBooksToCollection { get; set; }
+
+    /// <summary>Name of the (global) collection that new books are filed into when <see cref="AssignNewBooksToCollection"/> is true.</summary>
+    public string? NewBooksCollectionName { get; set; }
+
     public CardHeaderBannerMode CardBannerMode { get; set; }
 
     public string? CardBannerImageFileName { get; set; }
@@ -37,6 +58,7 @@ public class ShelfMap : IEntityTypeConfiguration<Shelf>
         builder.Property(m => m.Description).HasMaxLength(2048).IsUnicode(true);
         builder.Property(m => m.CardBannerImageFileName).HasMaxLength(256);
         builder.Property(m => m.CardBannerBookIdsJson).HasMaxLength(512);
+        builder.Property(m => m.NewBooksCollectionName).HasMaxLength(256).IsUnicode(true);
 
         builder.HasIndex(m => m.Name).IsUnique();
     }

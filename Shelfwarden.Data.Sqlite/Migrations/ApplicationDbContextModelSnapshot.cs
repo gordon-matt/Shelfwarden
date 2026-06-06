@@ -933,6 +933,21 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("AlwaysIgnoreAuthor")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AlwaysIgnoreGenres")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AlwaysIgnoreTags")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AlwaysUseFileNameForTitle")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AssignNewBooksToCollection")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("CardBannerBookIdsJson")
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
@@ -952,11 +967,19 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .IsUnicode(true)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("DirectoryStructure")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("LastScannedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasMaxLength(256)
+                        .IsUnicode(true)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NewBooksCollectionName")
                         .HasMaxLength(256)
                         .IsUnicode(true)
                         .HasColumnType("TEXT");

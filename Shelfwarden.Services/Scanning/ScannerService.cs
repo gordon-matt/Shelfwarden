@@ -20,6 +20,7 @@ namespace Shelfwarden.Services.Scanning;
 public sealed class ScannerService(
     ILogger<ScannerService> logger,
     IEbookMetadataExtractorFactory extractorFactory,
+    ICalibreOpfReader calibreOpfReader,
     IStoragePathProvider storage,
     IScanProgressTracker progressTracker,
     IRepository<Shelf> shelfRepository,
@@ -118,6 +119,11 @@ public sealed class ScannerService(
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                if (!ShelfScanFileFilter.ShouldInclude(filePath))
+                {
+                    continue;
+                }
+
                 if (!supportedExtensions.Contains(Path.GetExtension(filePath)))
                 {
                     continue;
@@ -130,7 +136,7 @@ public sealed class ScannerService(
                 try
                 {
                     var (added, updated) = await ProcessFileAsync(
-                        shelfId,
+                        shelf,
                         canonicalFilePath,
                         folder.Path,
                         existingByPath,
@@ -209,7 +215,7 @@ public sealed class ScannerService(
     }
 
     private async Task<(bool Added, bool Updated)> ProcessFileAsync(
-        int shelfId,
+        Shelf shelf,
         string filePath,
         string shelfFolderRoot,
         Dictionary<string, Book> existingByPath,
@@ -220,6 +226,8 @@ public sealed class ScannerService(
         Dictionary<string, Collection> collectionCache,
         CancellationToken cancellationToken)
     {
+        int shelfId = shelf.Id;
+        bool isCalibre = shelf.DirectoryStructure == DirectoryStructure.Calibre;
         var fileInfo = new FileInfo(filePath);
         var extractor = extractorFactory.GetFor(filePath);
         if (extractor is null)
@@ -229,7 +237,8 @@ public sealed class ScannerService(
 
         bool exists = existingByPath.TryGetValue(filePath, out var book);
         bool importNewer = exists && book is not null
-            && ShouldForceRescanDueToImport(filePath, shelfFolderRoot, book);
+            && (ShouldForceRescanDueToImport(filePath, shelfFolderRoot, book)
+                || (isCalibre && ShouldForceRescanDueToCalibreOpf(filePath, book)));
 
         if (exists && book is not null
             && book.FileSizeBytes == fileInfo.Length
@@ -263,6 +272,17 @@ public sealed class ScannerService(
 
         var metadata = await extractor.ExtractAsync(filePath, cancellationToken);
 
+        // For Calibre shelves the sibling metadata.opf is the authoritative metadata source; fold
+        // it over whatever we extracted from the file itself before the sidecar overlay applies.
+        if (isCalibre)
+        {
+            var opf = await calibreOpfReader.TryReadAsync(filePath, cancellationToken);
+            if (opf is not null)
+            {
+                metadata = MergeCalibreMetadata(metadata, opf);
+            }
+        }
+
         string? importJsonPath = ShelfwardenImportPath.FindNearestImportJsonPath(filePath, shelfFolderRoot);
         var importOverlay = importJsonPath is null
             ? null
@@ -275,6 +295,37 @@ public sealed class ScannerService(
         string? seriesName = ShelfwardenImportMerger.MergeSeries(metadata.SeriesName, importOverlay?.Series);
         string? collectionName = ShelfwardenImportMerger.MergeCollection(importOverlay?.Collection);
         bool useFileNameForTitle = ShelfwardenImportMerger.UseFileNameForTitle(importOverlay?.UseFileNameForTitle);
+
+        // Shelf-level options win over both file metadata and the sidecar overlay.
+        if (shelf.AlwaysUseFileNameForTitle)
+        {
+            useFileNameForTitle = true;
+        }
+
+        if (shelf.AlwaysIgnoreAuthor)
+        {
+            authorNames = [];
+        }
+
+        if (shelf.AlwaysIgnoreGenres)
+        {
+            genreNames = [];
+        }
+
+        if (shelf.AlwaysIgnoreTags)
+        {
+            tagNames = [];
+        }
+
+        // "Assign new books to collection" only fires for books we're seeing for the first time.
+        // An explicit sidecar collection still takes precedence over the shelf default.
+        if (collectionName is null && !exists && shelf.AssignNewBooksToCollection)
+        {
+            collectionName = string.IsNullOrWhiteSpace(shelf.NewBooksCollectionName)
+                ? Constants.DefaultNewBooksCollectionName
+                : shelf.NewBooksCollectionName.Trim();
+        }
+
         string resolvedTitle = ResolveImportedTitle(filePath, metadata.Title, useFileNameForTitle);
 
         if (book is null)
@@ -340,6 +391,50 @@ public sealed class ScannerService(
             await SaveCoverAsync(book, metadata.Cover, cancellationToken);
 
             return (false, true);
+        }
+    }
+
+    /// <summary>
+    /// Folds Calibre <c>metadata.opf</c> values over the metadata extracted from the file. OPF values
+    /// win whenever present; the file's values (notably page count and any embedded cover) fill the gaps.
+    /// Calibre stores user tags in <c>&lt;dc:subject&gt;</c>, so those map onto <see cref="EbookMetadata.Tags"/>.
+    /// </summary>
+    private static EbookMetadata MergeCalibreMetadata(EbookMetadata fromFile, CalibreOpfMetadata opf) => fromFile with
+    {
+        Title = string.IsNullOrWhiteSpace(opf.Title) ? fromFile.Title : opf.Title.Trim(),
+        Description = string.IsNullOrWhiteSpace(opf.Description) ? fromFile.Description : opf.Description,
+        Language = string.IsNullOrWhiteSpace(opf.Language) ? fromFile.Language : opf.Language,
+        Publisher = string.IsNullOrWhiteSpace(opf.Publisher) ? fromFile.Publisher : opf.Publisher,
+        Isbn = string.IsNullOrWhiteSpace(opf.Isbn) ? fromFile.Isbn : opf.Isbn,
+        PublishedOn = opf.PublishedOn ?? fromFile.PublishedOn,
+        AuthorNames = opf.AuthorNames.Count > 0 ? opf.AuthorNames : fromFile.AuthorNames,
+        Tags = opf.Tags.Count > 0 ? opf.Tags : fromFile.Tags,
+        // Calibre has no genre concept (its "tags" map onto dc:subject above); drop any genres the
+        // embedded file declared so a Calibre book isn't tagged and genre-d with the same strings.
+        Genres = [],
+        SeriesName = string.IsNullOrWhiteSpace(opf.SeriesName) ? fromFile.SeriesName : opf.SeriesName,
+        NumberInSeries = opf.NumberInSeries ?? fromFile.NumberInSeries,
+        Cover = opf.Cover ?? fromFile.Cover,
+    };
+
+    private bool ShouldForceRescanDueToCalibreOpf(string filePath, Book book)
+    {
+        string? opfPath = calibreOpfReader.FindOpfPath(filePath);
+        if (opfPath is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var opfTime = new FileInfo(opfPath).LastWriteTimeUtc;
+            var bookStamp = book.LastScannedAt ?? book.CreatedAt;
+            return opfTime > bookStamp;
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Could not read Calibre metadata.opf timestamp next to {Path}", filePath);
+            return false;
         }
     }
 

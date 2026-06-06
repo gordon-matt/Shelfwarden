@@ -151,6 +151,17 @@ else
                         <div class="form-text">Absolute paths. We'll create them later if they don't exist.</div>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label" for="setup-lib-structure">Folder structure</label>
+                        <select id="setup-lib-structure" name="directoryStructure" class="form-select">
+                            <option value="@nameof(DirectoryStructure.Unstructured)" selected>Unstructured (any layout)</option>
+                            <option value="@nameof(DirectoryStructure.Calibre)">Calibre library</option>
+                        </select>
+                        <div class="form-text">
+                            Pick <strong>Calibre</strong> if these folders are a Calibre library so we read its
+                            <code>metadata.opf</code> sidecars. This can't be changed after the shelf is created.
+                        </div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label" for="setup-lib-desc">Description (optional)</label>
                         <input id="setup-lib-desc" name="description" type="text" class="form-control"
                                maxlength="2048" />
