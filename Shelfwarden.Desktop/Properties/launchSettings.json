@@ -2,11 +2,11 @@
   "profiles": {
     "Shelfwarden.Desktop": {
       "commandName": "Project",
-      "launchBrowser": true,
+      "launchBrowser": false,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "https://localhost:61982;http://localhost:61983"
+      "applicationUrl": "http://localhost:8001"
     }
   }
 }

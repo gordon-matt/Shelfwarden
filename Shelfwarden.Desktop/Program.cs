@@ -131,6 +131,7 @@ static async Task OnElectronAppReadyAsync()
         Width = 1400,
         Height = 900,
         Title = "Shelfwarden",
+        IsRunningBlazor = true,
     };
 
     if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
