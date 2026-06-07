@@ -1,16 +1,16 @@
 @page "/books"
 @attribute [Authorize]
 @implements IAsyncDisposable
-@inject IBookService BookService
-@inject IShelfService ShelfService
 @inject IAuthorService AuthorService
-@inject ISeriesService SeriesService
-@inject IGenreService GenreService
+@inject IBookService BookService
 @inject ICollectionService CollectionService
+@inject IConfiguration Configuration
+@inject IGenreService GenreService
+@inject IJSRuntime JSRuntime
+@inject ISeriesService SeriesService
+@inject IShelfService ShelfService
 @inject ITagService TagService
 @inject NavigationManager NavigationManager
-@inject IJSRuntime JSRuntime
-@inject IConfiguration Configuration
 
 <PageTitle>Books - Shelfwarden</PageTitle>
 

@@ -4,7 +4,12 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class Authors : ComponentBase
 {
+    private enum AuthorSortBy
+    { Name, BookCount }
+
     private IReadOnlyList<AuthorListItemDto>? authors;
+    private List<AuthorListItemDto> authorResults = [];
+    private AuthorSortBy authorSortBy = AuthorSortBy.Name;
     private int unknownBookCount;
     private IReadOnlyList<ShelfDto> shelves = [];
     private string shelfId = "";
@@ -68,8 +73,29 @@ public partial class Authors : ComponentBase
 
         var lr = await listTask;
         var ur = await unknownTask;
-        authors = lr.IsSuccess ? lr.Value : [];
+        authorResults = lr.IsSuccess ? lr.Value.ToList() : [];
+        ApplySort();
         unknownBookCount = ur.IsSuccess ? ur.Value : 0;
+    }
+
+    private void ApplySort()
+    {
+        authors = authorSortBy switch
+        {
+            AuthorSortBy.BookCount => authorResults
+                .OrderByDescending(a => a.BookCount)
+                .ThenBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            _ => authorResults
+                .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+        };
+    }
+
+    private Task OnSortChangedAsync()
+    {
+        ApplySort();
+        return Task.CompletedTask;
     }
 
     private async Task OnQueryKeyUp(KeyboardEventArgs e)
