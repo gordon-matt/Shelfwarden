@@ -202,6 +202,12 @@ public partial class BookDetail : ComponentBase
 
     private void CloseVoicePicker() => voicePickerOpen = false;
 
+    private void OnVoiceBack()
+    {
+        voicePickerOpen = false;
+        sectionEditorOpen = true;
+    }
+
     private void OnVoiceSelected(string voiceName)
     {
         voicePickerOpen = false;

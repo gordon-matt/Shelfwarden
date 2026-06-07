@@ -216,6 +216,38 @@ else if (ShowEmptyState)
                     {
                         <img src="extra-content/@viewerItem.Id" alt="@viewerItem.FileName" class="img-fluid mx-auto d-block" />
                     }
+                    else if (IsVideo(viewerItem.FileExtension))
+                    {
+                        <video controls preload="metadata" class="w-100 content-viewer-video">
+                            <source src="extra-content/@viewerItem.Id" type="@GetVideoMimeType(viewerItem.FileExtension)" />
+                        </video>
+                    }
+                    else if (viewerCsvRows is { Length: > 0 })
+                    {
+                        <div class="content-viewer-table-wrap">
+                            <table class="table table-sm table-striped table-bordered content-viewer-table mb-0">
+                                <thead>
+                                    <tr>
+                                        @foreach (var cell in viewerCsvRows[0])
+                                        {
+                                            <th scope="col">@cell</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in viewerCsvRows.Skip(1))
+                                    {
+                                        <tr>
+                                            @foreach (var cell in row)
+                                            {
+                                                <td>@cell</td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                     else if (viewerContent is not null)
                     {
                         @if (IsHtml(viewerItem.FileExtension))

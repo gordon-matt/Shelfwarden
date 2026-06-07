@@ -46,6 +46,7 @@ public sealed record AudiobookChapterDto(
 public sealed record AudiobookSummaryDto(
     int BookId,
     string BookTitle,
+    string? CoverImagePath,
     string? AuthorNames,
     AudiobookState State,
     string VoiceName,

@@ -106,13 +106,25 @@
                         }
                     }
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseAsync">Cancel</button>
-                    <button type="button" class="btn btn-primary"
-                            disabled="@(string.IsNullOrEmpty(selectedVoiceName))"
-                            @onclick="ConfirmAsync">
-                        <i class="bi bi-check-lg"></i> Use this voice
-                    </button>
+                <div class="modal-footer justify-content-between">
+                    @if (OnBack.HasDelegate)
+                    {
+                        <button type="button" class="btn btn-outline-secondary" @onclick="BackAsync">
+                            <i class="bi bi-arrow-left"></i> Back
+                        </button>
+                    }
+                    else
+                    {
+                        <span></span>
+                    }
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseAsync">Cancel</button>
+                        <button type="button" class="btn btn-primary"
+                                disabled="@(string.IsNullOrEmpty(selectedVoiceName))"
+                                @onclick="ConfirmAsync">
+                            <i class="bi bi-check-lg"></i> Use this voice
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

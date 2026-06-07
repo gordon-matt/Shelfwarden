@@ -674,7 +674,7 @@ public class AdditionalContentService(
 
         var dto = itemResult.Value;
         string ext = dto.FileExtension.ToLowerInvariant();
-        if (ext is not (".txt" or ".md" or ".html" or ".htm"))
+        if (ext is not (".txt" or ".md" or ".html" or ".htm" or ".csv"))
         {
             return Result.Invalid(new ValidationError(nameof(id), "This file type is not opened as text in the viewer."));
         }

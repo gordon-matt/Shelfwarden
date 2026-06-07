@@ -279,9 +279,7 @@ else
                 <a class="btn btn-outline-secondary" href="@($"files/{book.Id}?download=true")">
                     <i class="bi bi-download"></i> Download
                 </a>
-                <a class="btn btn-outline-secondary" href="@($"covers/{book.Id}")" target="_blank" rel="noopener">
-                    <i class="bi bi-image"></i> View cover
-                </a>
+
                 <AuthorizeView Roles="@Constants.Roles.Administrator">
                     <Authorized>
                         <a class="btn btn-outline-secondary" href="@($"books/{book.Id}/edit")">
@@ -534,6 +532,7 @@ else
     <VoicePickerModal IsOpen="voicePickerOpen"
                       InitialVoiceName="@(audiobook?.VoiceName ?? "af_heart")"
                       OnClose="CloseVoicePicker"
+                      OnBack="OnVoiceBack"
                       OnSelected="OnVoiceSelected" />
 
     @if (pendingVoiceConfirmation is not null && book is not null)

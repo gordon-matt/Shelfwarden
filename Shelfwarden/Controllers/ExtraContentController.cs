@@ -24,6 +24,7 @@ public class ExtraContentController(
         { ".md", "text/markdown; charset=utf-8" },
         { ".html", "text/html; charset=utf-8" },
         { ".htm", "text/html; charset=utf-8" },
+        { ".csv", "text/csv; charset=utf-8" },
         // Images
         { ".jpg", "image/jpeg" },
         { ".jpeg", "image/jpeg" },

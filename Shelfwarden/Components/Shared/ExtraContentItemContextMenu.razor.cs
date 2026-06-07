@@ -40,5 +40,6 @@ public partial class ExtraContentItemContextMenu : ComponentBase
 
     private static bool IsViewable(string ext) =>
         ext is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".bmp" or ".svg"
-            or ".txt" or ".md" or ".html" or ".htm";
+            or ".txt" or ".md" or ".html" or ".htm" or ".csv"
+            or ".mp4" or ".mkv";
 }

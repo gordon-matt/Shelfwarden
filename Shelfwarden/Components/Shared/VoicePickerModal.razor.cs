@@ -7,6 +7,7 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public string? InitialVoiceName { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public EventCallback<string> OnSelected { get; set; }
 
     [Inject] private IJSRuntime Js { get; set; } = default!;
@@ -243,6 +244,17 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
     {
         await StopPreviewAsync();
         await OnClose.InvokeAsync();
+    }
+
+    private async Task BackAsync()
+    {
+        if (!OnBack.HasDelegate)
+        {
+            return;
+        }
+
+        await StopPreviewAsync();
+        await OnBack.InvokeAsync();
     }
 
     private async Task StopPreviewAsync()

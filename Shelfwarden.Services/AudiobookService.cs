@@ -522,6 +522,7 @@ public class AudiobookService(
         return new AudiobookSummaryDto(
             a.BookId,
             a.Book?.Title ?? $"Book #{a.BookId}",
+            a.Book?.CoverImagePath,
             string.IsNullOrWhiteSpace(authorNames) ? null : authorNames,
             (AudiobookState)(int)a.Status,
             a.VoiceName,

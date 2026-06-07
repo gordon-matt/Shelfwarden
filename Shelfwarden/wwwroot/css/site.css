@@ -2131,6 +2131,44 @@ ol.reading-list {
     line-height: 1.6;
 }
 
+.content-viewer-table-wrap {
+    max-height: 65vh;
+    overflow: auto;
+}
+
+.content-viewer-table {
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+.content-viewer-video {
+    max-height: 65vh;
+    background-color: #000;
+}
+
+.audiobook-table-cover {
+    width: 40px;
+    height: 56px;
+    flex: 0 0 auto;
+    background-color: var(--bs-tertiary-bg);
+    border-radius: var(--bs-border-radius-sm);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-secondary-color);
+}
+
+    .audiobook-table-cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .audiobook-table-cover .placeholder-icon {
+        font-size: 1.25rem;
+    }
+
 /* Extra Content admin filters — four equal columns; controls bottom-aligned in a row */
 .extra-content-filters > .col {
     min-width: 0;

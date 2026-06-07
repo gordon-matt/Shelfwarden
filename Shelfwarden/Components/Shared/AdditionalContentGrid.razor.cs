@@ -1,3 +1,4 @@
+using System.Text;
 using Shelfwarden.Models;
 
 namespace Shelfwarden.Components.Shared;
@@ -32,6 +33,7 @@ public partial class AdditionalContentGrid : ComponentBase
 
     private AdditionalContentItemDto? viewerItem;
     private string? viewerContent;
+    private string[][]? viewerCsvRows;
     private bool viewerLoading;
 
     private AdditionalContentItemDto? renameItem;
@@ -141,8 +143,9 @@ public partial class AdditionalContentGrid : ComponentBase
     {
         viewerItem = item;
         viewerContent = null;
+        viewerCsvRows = null;
 
-        if (IsImage(item.FileExtension))
+        if (IsImage(item.FileExtension) || IsVideo(item.FileExtension))
         {
             return;
         }
@@ -153,9 +156,18 @@ public partial class AdditionalContentGrid : ComponentBase
         try
         {
             var result = await ContentService.GetViewableTextAsync(item.Id);
-            viewerContent = result.IsSuccess
-                ? result.Value
-                : (result.Errors.FirstOrDefault() ?? "(Unable to load content)");
+            if (result.IsSuccess)
+            {
+                viewerContent = result.Value;
+                if (IsCsv(item.FileExtension))
+                {
+                    viewerCsvRows = ParseCsv(viewerContent);
+                }
+            }
+            else
+            {
+                viewerContent = result.Errors.FirstOrDefault() ?? "(Unable to load content)";
+            }
         }
         finally
         {
@@ -167,6 +179,7 @@ public partial class AdditionalContentGrid : ComponentBase
     {
         viewerItem = null;
         viewerContent = null;
+        viewerCsvRows = null;
     }
 
     private void OpenRename(AdditionalContentItemDto item)
@@ -239,7 +252,12 @@ public partial class AdditionalContentGrid : ComponentBase
 
     private static bool IsText(string ext) => ext is ".txt" or ".md";
 
-    private static bool IsViewable(string ext) => IsImage(ext) || IsText(ext) || IsHtml(ext);
+    private static bool IsCsv(string ext) => ext == ".csv";
+
+    private static bool IsVideo(string ext) => ext is ".mp4" or ".mkv";
+
+    private static bool IsViewable(string ext) =>
+        IsImage(ext) || IsText(ext) || IsHtml(ext) || IsCsv(ext) || IsVideo(ext);
 
     private static string GetFileIcon(string ext) => ext switch
     {
@@ -247,12 +265,78 @@ public partial class AdditionalContentGrid : ComponentBase
         ".txt" => "bi-filetype-txt",
         ".md" => "bi-markdown",
         ".html" or ".htm" => "bi-filetype-html",
+        ".csv" => "bi-filetype-csv",
         ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".bmp" or ".svg" => "bi-image",
         ".zip" => "bi-file-zip",
         ".mp3" => "bi-music-note",
         ".mp4" or ".mkv" => "bi-camera-video",
         _ => "bi-file-earmark",
     };
+
+    private static string[][]? ParseCsv(string content)
+    {
+        var rows = new List<string[]>();
+        using var reader = new StringReader(content);
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            rows.Add(ParseCsvLine(line));
+        }
+
+        return rows.Count == 0 ? null : rows.ToArray();
+    }
+
+    private static string[] ParseCsvLine(string line)
+    {
+        var fields = new List<string>();
+        var current = new StringBuilder();
+        bool inQuotes = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        current.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            else if (c == '"')
+            {
+                inQuotes = true;
+            }
+            else if (c == ',')
+            {
+                fields.Add(current.ToString());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+
+        fields.Add(current.ToString());
+        return fields.ToArray();
+    }
 
     private static string FormatBytes(long bytes)
     {
@@ -266,6 +350,12 @@ public partial class AdditionalContentGrid : ComponentBase
         }
         return $"{value:0.##} {units[unit]}";
     }
+
+    private static string GetVideoMimeType(string ext) => ext switch
+    {
+        ".mkv" => "video/x-matroska",
+        _ => "video/mp4",
+    };
 
     /// <summary>Full-page request so Blazor does not treat the download URL as in-app navigation.</summary>
     private void DownloadItem(int id) =>
