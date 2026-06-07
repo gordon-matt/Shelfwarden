@@ -9,7 +9,7 @@ public class TagService(
     {
         var options = new SearchOptions<Tag>
         {
-            OrderBy = q => q.OrderBy(t => t.NormalizedName),
+            OrderBy = query => query.OrderBy(t => t.NormalizedName),
             CancellationToken = cancellationToken,
         };
 

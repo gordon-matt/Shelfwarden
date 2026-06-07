@@ -74,7 +74,7 @@ public class DashboardService(
                 Query = p => p.UserId == userId
                     && p.Percentage < Constants.FinishedThresholdPercent
                     && (p.Percentage > 0 || (p.Location != null && p.Location != "")),
-                OrderBy = q => q.OrderByDescending(p => p.LastReadAt),
+                OrderBy = query => query.OrderByDescending(p => p.LastReadAt),
                 PageNumber = 1,
                 PageSize = ContinueReadingSize,
             });
@@ -85,7 +85,7 @@ public class DashboardService(
                 var books = await bookRepository.FindAsync(new SearchOptions<Book>
                 {
                     Query = b => bookIds.Contains(b.Id),
-                    Include = q => q
+                    Include = query => query
                         .Include(b => b.Series)
                         .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
                     SplitQuery = true,

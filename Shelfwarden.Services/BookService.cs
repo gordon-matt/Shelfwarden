@@ -22,7 +22,7 @@ public class BookService(
         {
             PageNumber = page,
             PageSize = pageSize,
-            Include = q => q
+            Include = query => query
                 .Include(b => b.Series)
                 .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
             SplitQuery = true,
@@ -264,7 +264,7 @@ public class BookService(
             Query = accessibleShelves is null
                 ? b => distinctIds.Contains(b.Id)
                 : b => distinctIds.Contains(b.Id) && accessibleShelves.Contains(b.ShelfId),
-            Include = q => q
+            Include = query => query
                 .Include(b => b.Series)
                 .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
             SplitQuery = true,
@@ -292,7 +292,7 @@ public class BookService(
         var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
         {
             Query = b => b.Id == id,
-            Include = q => q
+            Include = query => query
                 .Include(b => b.Shelf)
                     .ThenInclude(s => s.UserAccessEntries)
                 .Include(b => b.Shelf)
@@ -322,7 +322,7 @@ public class BookService(
         var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
         {
             Query = b => b.Id == id,
-            Include = q => q
+            Include = query => query
                 .Include(b => b.BookAuthors)
                 .Include(b => b.BookGenres)
                 .Include(b => b.BookTags),

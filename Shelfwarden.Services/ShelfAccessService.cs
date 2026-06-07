@@ -14,10 +14,10 @@ public class ShelfAccessService(
 
         var shelves = await shelfRepository.FindAsync(new SearchOptions<Shelf>
         {
-            Include = q => q
+            Include = query => query
                 .Include(s => s.UserAccessEntries)
                 .Include(s => s.RoleAccessEntries),
-            OrderBy = q => q.OrderBy(s => s.Id),
+            OrderBy = query => query.OrderBy(s => s.Id),
             CancellationToken = cancellationToken,
         });
 
@@ -43,7 +43,7 @@ public class ShelfAccessService(
         var shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
         {
             Query = x => x.Id == shelfId,
-            Include = q => q
+            Include = query => query
                 .Include(s => s.UserAccessEntries)
                 .Include(s => s.RoleAccessEntries),
             CancellationToken = cancellationToken,

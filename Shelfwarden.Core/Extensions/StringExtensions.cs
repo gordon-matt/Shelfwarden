@@ -28,5 +28,28 @@ public static class StringExtensions
 
             return trimmed;
         }
+
+        /// <summary>
+        /// Reverses "Last, First" author names to natural order (e.g. "Smith, John" → "John Smith").
+        /// Names without a comma are returned trimmed and unchanged.
+        /// </summary>
+        public string NormalizeAuthorName()
+        {
+            string trimmed = value.Trim();
+            if (trimmed.Length == 0)
+            {
+                return trimmed;
+            }
+
+            int commaIndex = trimmed.IndexOf(',');
+            if (commaIndex < 0)
+            {
+                return trimmed;
+            }
+
+            string family = trimmed[..commaIndex].Trim();
+            string given = trimmed[(commaIndex + 1)..].Trim();
+            return given.Length == 0 ? trimmed : $"{given} {family}";
+        }
     }
 }

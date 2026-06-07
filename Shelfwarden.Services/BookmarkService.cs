@@ -16,7 +16,7 @@ public class BookmarkService(
         var rows = await bookmarkRepository.FindAsync(new SearchOptions<Bookmark>
         {
             Query = b => b.BookId == bookId && b.UserId == userId,
-            OrderBy = q => q.OrderBy(b => b.CreatedAt),
+            OrderBy = query => query.OrderBy(b => b.CreatedAt),
             CancellationToken = cancellationToken,
         });
 

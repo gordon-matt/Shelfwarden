@@ -91,9 +91,9 @@ public partial class Books : ComponentBase
         // Load filter options + first page in parallel — they're independent queries.
         var shelvesTask = ShelfService.GetAllAsync();
         var collectionsTask = CollectionService.ListAsync();
-        var authorsTask = AuthorService.SearchAsync(null, limit: 200);
-        var seriesTask = SeriesService.SearchAsync(null, limit: 200);
-        var genresTask = GenreService.SearchAsync(null, limit: 200);
+        var authorsTask = AuthorService.SearchAsync(null, limit: 500);
+        var seriesTask = SeriesService.SearchAsync(null, limit: 500);
+        var genresTask = GenreService.ListAsync();
         var tagsTask = TagService.ListAsync();
 
         await Task.WhenAll(shelvesTask, collectionsTask, authorsTask, seriesTask, genresTask, tagsTask);

@@ -74,7 +74,7 @@ public class AudiobookService(
 
         var rows = await audiobookRepository.FindAsync(new SearchOptions<Audiobook>
         {
-            Include = q => q.Include(a => a.Book).ThenInclude(b => b.BookAuthors).ThenInclude(ba => ba.Author),
+            Include = query => query.Include(a => a.Book).ThenInclude(b => b.BookAuthors).ThenInclude(ba => ba.Author),
             SplitQuery = true,
             CancellationToken = cancellationToken,
         });

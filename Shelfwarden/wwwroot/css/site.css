@@ -733,6 +733,16 @@ html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
         margin: 0;
     }
 
+a.stat-card-link {
+    color: inherit;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+    a.stat-card-link:hover {
+        border-color: var(--bs-primary);
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
 /* ──────────────────────────────────────────────────────────────────────────
    Empty state placeholder
    ────────────────────────────────────────────────────────────────────────── */

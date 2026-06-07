@@ -62,7 +62,7 @@ public class CollectionService(
         var rows = (await collectionRepository.FindAsync(new SearchOptions<Collection>
         {
             Query = c => c.OwnerUserId == userId || c.OwnerUserId == Constants.GlobalUserId,
-            OrderBy = q => q.OrderByDescending(c => c.OwnerUserId == Constants.GlobalUserId).ThenBy(c => c.Name),
+            OrderBy = query => query.OrderByDescending(c => c.OwnerUserId == Constants.GlobalUserId).ThenBy(c => c.Name),
             CancellationToken = cancellationToken,
         })).ToList();
 
@@ -130,8 +130,8 @@ public class CollectionService(
             : (await bookRepository.FindAsync(new SearchOptions<Book>
             {
                 Query = b => bookIds.Contains(b.Id),
-                Include = q => q.Include(b => b.Series).Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
-                OrderBy = q => q.OrderBy(b => b.SortTitle ?? b.Title),
+                Include = query => query.Include(b => b.Series).Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
+                OrderBy = query => query.OrderBy(b => b.SortTitle ?? b.Title),
                 SplitQuery = true,
                 CancellationToken = cancellationToken,
             })).ToList();

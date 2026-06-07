@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Humanizer;
+using Shelfwarden.Extensions;
 using Shelfwarden.Models.Metadata;
 using Shelfwarden.Services.Metadata;
 using Shelfwarden.Services.Storage;
@@ -48,7 +49,7 @@ public sealed class ScannerService(
         var shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
         {
             Query = s => s.Id == shelfId,
-            Include = q => q.Include(s => s.Folders),
+            Include = query => query.Include(s => s.Folders),
         });
 
         if (shelf is null)
@@ -638,7 +639,7 @@ public sealed class ScannerService(
         var resolved = new List<Author>(authorNames.Count);
         foreach (string raw in authorNames)
         {
-            string name = raw.Trim();
+            string name = raw.NormalizeAuthorName();
             if (name.Length == 0)
             {
                 continue;

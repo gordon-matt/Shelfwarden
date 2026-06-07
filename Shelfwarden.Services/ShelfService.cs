@@ -19,11 +19,11 @@ public class ShelfService(
     {
         var shelves = await shelfRepository.FindAsync(new SearchOptions<Shelf>
         {
-            Include = q => q
+            Include = query => query
                 .Include(x => x.Folders)
                 .Include(x => x.UserAccessEntries)
                 .Include(x => x.RoleAccessEntries),
-            OrderBy = q => q.OrderBy(x => x.Name),
+            OrderBy = query => query.OrderBy(x => x.Name),
             CancellationToken = cancellationToken,
         });
 
@@ -67,7 +67,7 @@ public class ShelfService(
         var shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
         {
             Query = x => x.Id == id,
-            Include = q => q
+            Include = query => query
                 .Include(x => x.Folders)
                 .Include(x => x.UserAccessEntries)
                 .Include(x => x.RoleAccessEntries),
@@ -176,7 +176,7 @@ public class ShelfService(
         var shelf = await shelfRepository.FindOneAsync(new SearchOptions<Shelf>
         {
             Query = x => x.Id == id,
-            Include = q => q.Include(x => x.Folders),
+            Include = query => query.Include(x => x.Folders),
             CancellationToken = cancellationToken,
         });
         if (shelf is null)
@@ -442,7 +442,7 @@ public class ShelfService(
         var rows = await folderRepository.FindAsync(new SearchOptions<ShelfFolder>
         {
             Query = excludeShelfId is int sid ? f => f.ShelfId != sid : f => true,
-            Include = q => q.Include(f => f.Shelf),
+            Include = query => query.Include(f => f.Shelf),
             CancellationToken = cancellationToken,
         });
 

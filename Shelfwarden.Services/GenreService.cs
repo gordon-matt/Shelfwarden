@@ -9,7 +9,7 @@ public class GenreService(
     {
         var options = new SearchOptions<Genre>
         {
-            OrderBy = q => q.OrderBy(g => g.NormalizedName),
+            OrderBy = query => query.OrderBy(g => g.NormalizedName),
             CancellationToken = cancellationToken,
         };
 
@@ -30,7 +30,7 @@ public class GenreService(
         {
             PageNumber = 1,
             PageSize = Math.Clamp(limit, 1, 200),
-            OrderBy = q => q.OrderBy(g => g.NormalizedName),
+            OrderBy = query => query.OrderBy(g => g.NormalizedName),
         };
 
         if (!string.IsNullOrWhiteSpace(query))

@@ -11,7 +11,7 @@ public class SeriesService(
         {
             PageNumber = 1,
             PageSize = Math.Clamp(limit, 1, 200),
-            OrderBy = q => q.OrderBy(s => s.NormalizedName),
+            OrderBy = query => query.OrderBy(s => s.NormalizedName),
         };
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -88,7 +88,7 @@ public class SeriesService(
     {
         var options = new SearchOptions<Series>
         {
-            OrderBy = q => q.OrderBy(s => s.NormalizedName),
+            OrderBy = query => query.OrderBy(s => s.NormalizedName),
             CancellationToken = cancellationToken,
         };
 
@@ -107,7 +107,7 @@ public class SeriesService(
                 new SearchOptions<Book>
                 {
                     Query = b => b.SeriesId != null && ids.Contains(b.SeriesId.Value),
-                    OrderBy = q => q.OrderBy(b => b.NumberInSeries).ThenBy(b => b.SortTitle ?? b.Title),
+                    OrderBy = query => query.OrderBy(b => b.NumberInSeries).ThenBy(b => b.SortTitle ?? b.Title),
                     CancellationToken = cancellationToken,
                 },
                 b => new { b.Id, b.SeriesId, b.CoverImagePath }))

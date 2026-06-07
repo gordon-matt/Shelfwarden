@@ -237,8 +237,8 @@ public class AdditionalContentService(
             Query = predicate,
             PageNumber = page,
             PageSize = pageSize,
-            Include = q => IncludeItemDetails(q),
-            OrderBy = q => q.OrderBy(i => i.FileName),
+            Include = query => IncludeItemDetails(query),
+            OrderBy = query => query.OrderBy(i => i.FileName),
             SplitQuery = true,
             CancellationToken = cancellationToken,
         };
@@ -254,7 +254,7 @@ public class AdditionalContentService(
     {
         var options = new SearchOptions<AdditionalContentTag>
         {
-            OrderBy = q => q.OrderBy(t => t.NormalizedName),
+            OrderBy = query => query.OrderBy(t => t.NormalizedName),
             CancellationToken = cancellationToken,
         };
 
@@ -286,7 +286,7 @@ public class AdditionalContentService(
         var rows = (await additionalContentTagRepository.FindAsync(new SearchOptions<AdditionalContentTag>
         {
             Query = predicate,
-            OrderBy = q => q.OrderBy(t => t.NormalizedName),
+            OrderBy = query => query.OrderBy(t => t.NormalizedName),
             CancellationToken = cancellationToken,
         })).ToList();
 
@@ -331,8 +331,8 @@ public class AdditionalContentService(
         var items = await contentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = i => i.AuthorId == authorId,
-            Include = q => IncludeItemDetails(q),
-            OrderBy = q => q.OrderBy(i => i.FileName),
+            Include = query => IncludeItemDetails(query),
+            OrderBy = query => query.OrderBy(i => i.FileName),
             CancellationToken = cancellationToken,
         });
 
@@ -347,7 +347,7 @@ public class AdditionalContentService(
         var directlyLinked = (await contentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = i => i.SeriesAdditionalContents.Any(s => s.SeriesId == seriesId),
-            Include = q => IncludeItemDetails(q),
+            Include = query => IncludeItemDetails(query),
             CancellationToken = cancellationToken,
         })).ToList();
 
@@ -355,7 +355,7 @@ public class AdditionalContentService(
         var viaBooks = (await contentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = i => i.BookAdditionalContents.Any(b => b.Book.SeriesId == seriesId),
-            Include = q => IncludeItemDetails(q),
+            Include = query => IncludeItemDetails(query),
             CancellationToken = cancellationToken,
         })).ToList();
 
@@ -376,8 +376,8 @@ public class AdditionalContentService(
         var items = await contentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = i => i.BookAdditionalContents.Any(b => b.BookId == bookId),
-            Include = q => IncludeItemDetails(q),
-            OrderBy = q => q.OrderBy(i => i.FileName),
+            Include = query => IncludeItemDetails(query),
+            OrderBy = query => query.OrderBy(i => i.FileName),
             CancellationToken = cancellationToken,
         });
 
@@ -519,7 +519,7 @@ public class AdditionalContentService(
         var item = await contentRepository.FindOneAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = i => i.Id == request.ItemId,
-            Include = q => q.Include(i => i.Author),
+            Include = query => query.Include(i => i.Author),
             CancellationToken = cancellationToken,
         });
 
@@ -646,7 +646,7 @@ public class AdditionalContentService(
         var item = await contentRepository.FindOneAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = i => i.Id == id,
-            Include = q => IncludeItemDetails(q),
+            Include = query => IncludeItemDetails(query),
             CancellationToken = cancellationToken,
         });
 

@@ -58,7 +58,7 @@ public class ReadingListService(
         var rows = (await listRepository.FindAsync(new SearchOptions<ReadingList>
         {
             Query = l => l.OwnerUserId == userId,
-            OrderBy = q => q.OrderBy(l => l.Name),
+            OrderBy = query => query.OrderBy(l => l.Name),
             CancellationToken = cancellationToken,
         })).ToList();
 
@@ -124,7 +124,7 @@ public class ReadingListService(
         var items = (await itemRepository.FindAsync(new SearchOptions<ReadingListItem>
         {
             Query = i => i.ReadingListId == id,
-            OrderBy = q => q.OrderBy(i => i.Position),
+            OrderBy = query => query.OrderBy(i => i.Position),
             CancellationToken = cancellationToken,
         })).ToList();
 
@@ -134,7 +134,7 @@ public class ReadingListService(
             : (await bookRepository.FindAsync(new SearchOptions<Book>
             {
                 Query = b => bookIds.Contains(b.Id),
-                Include = q => q.Include(b => b.Series).Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
+                Include = query => query.Include(b => b.Series).Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
                 SplitQuery = true,
                 CancellationToken = cancellationToken,
             })).ToList();
@@ -596,7 +596,7 @@ public class ReadingListService(
         var items = (await itemRepository.FindAsync(new SearchOptions<ReadingListItem>
         {
             Query = i => i.ReadingListId == readingListId,
-            OrderBy = q => q.OrderBy(i => i.Position),
+            OrderBy = query => query.OrderBy(i => i.Position),
             CancellationToken = cancellationToken,
         })).ToList();
 

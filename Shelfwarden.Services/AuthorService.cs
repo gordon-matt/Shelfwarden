@@ -21,7 +21,7 @@ public class AuthorService(
         {
             PageNumber = 1,
             PageSize = Math.Clamp(limit, 1, 200),
-            OrderBy = q => q.OrderBy(a => a.NormalizedName),
+            OrderBy = query => query.OrderBy(a => a.NormalizedName),
         };
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -77,7 +77,7 @@ public class AuthorService(
     {
         var options = new SearchOptions<Author>
         {
-            OrderBy = q => q.OrderBy(a => a.NormalizedName),
+            OrderBy = query => query.OrderBy(a => a.NormalizedName),
             CancellationToken = cancellationToken,
         };
 
@@ -142,10 +142,10 @@ public class AuthorService(
         var books = (await bookRepository.FindAsync(new SearchOptions<Book>
         {
             Query = b => b.BookAuthors.Any(ba => ba.AuthorId == id),
-            Include = q => q
+            Include = query => query
                 .Include(b => b.Series)
                 .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
-            OrderBy = q => q
+            OrderBy = query => query
                 .OrderBy(b => b.SeriesId == null ? 1 : 0)
                 .ThenBy(b => b.NumberInSeries)
                 .ThenBy(b => b.SortTitle ?? b.Title),
@@ -184,10 +184,10 @@ public class AuthorService(
             var books = (await bookRepository.FindAsync(new SearchOptions<Book>
             {
                 Query = b => !b.BookAuthors.Any(),
-                Include = q => q
+                Include = query => query
                     .Include(b => b.Series)
                     .Include(b => b.BookAuthors).ThenInclude(ba => ba.Author),
-                OrderBy = q => q
+                OrderBy = query => query
                     .OrderBy(b => b.SeriesId == null ? 1 : 0)
                     .ThenBy(b => b.NumberInSeries)
                     .ThenBy(b => b.SortTitle ?? b.Title),

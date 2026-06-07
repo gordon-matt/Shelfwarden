@@ -11,7 +11,7 @@ public class AdditionalContentTagService(
     {
         var options = new SearchOptions<AdditionalContentTag>
         {
-            OrderBy = q => q.OrderBy(t => t.NormalizedName),
+            OrderBy = query => query.OrderBy(t => t.NormalizedName),
             CancellationToken = cancellationToken,
         };
 
