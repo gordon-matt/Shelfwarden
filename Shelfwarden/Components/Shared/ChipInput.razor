@@ -35,7 +35,8 @@
                onkeydown="if(event.key==='Enter'){event.preventDefault();}"
                @onkeyup="OnKeyUpAsync"
                @onkeyup:stopPropagation="true"
-               @onfocus="OnFocusAsync" />
+               @onfocus="OnFocusAsync"
+               @onblur="OnBlurAsync" />
 
         @if (showSuggestions && (suggestions.Count > 0 || !string.IsNullOrWhiteSpace(input)))
         {
@@ -43,7 +44,9 @@
                 @foreach (var s in suggestions)
                 {
                     <li>
-                        <button type="button" class="dropdown-item" @onclick="() => CommitAsync(NameOf(s))">
+                        <button type="button" class="dropdown-item"
+                                @onmousedown="() => CommitAsync(NameOf(s))"
+                                @onmousedown:preventDefault="true">
                             @NameOf(s)
                         </button>
                     </li>
@@ -52,7 +55,9 @@
                 {
                     <li><hr class="dropdown-divider" /></li>
                     <li>
-                        <button type="button" class="dropdown-item" @onclick="() => CommitAsync(input!.Trim())">
+                        <button type="button" class="dropdown-item"
+                                @onmousedown="() => CommitAsync(input!.Trim())"
+                                @onmousedown:preventDefault="true">
                             <i class="bi bi-plus-lg"></i> Create "<strong>@input.Trim()</strong>"
                         </button>
                     </li>

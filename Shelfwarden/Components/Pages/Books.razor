@@ -137,119 +137,128 @@
             </div>
         </div>
 
-        <hr class="my-3" />
-
-        <div class="row g-3 align-items-end">
-            <div class="col-sm-6 col-lg-3">
-                <label class="form-label small text-body-secondary mb-1">Shelf</label>
-                <select class="form-select form-select-sm"
-                        @bind="shelfId"
-                        @bind:after="OnFilterChangedAsync">
-                    <option value="">All shelves</option>
-                    @foreach (var lib in shelves)
-                    {
-                        <option value="@lib.Id">@lib.Name</option>
-                    }
-                </select>
-            </div>
-            <div class="col-sm-6 col-lg-3">
-                <label class="form-label small text-body-secondary mb-1">Collection</label>
-                <select class="form-select form-select-sm"
-                        @bind="collectionId"
-                        @bind:after="OnFilterChangedAsync">
-                    <option value="">Any collection</option>
-                    <option value="-1">None</option>
-                    @foreach (var c in collections)
-                    {
-                        <option value="@c.Id">@(c.IsGlobal ? $"[Global] {c.Name}" : c.Name)</option>
-                    }
-                </select>
-            </div>
-            <div class="col-sm-6 col-lg-3">
-                <label class="form-label small text-body-secondary mb-1">Author</label>
-                <select class="form-select form-select-sm"
-                        @bind="authorId"
-                        @bind:after="OnFilterChangedAsync">
-                    <option value="">Any author</option>
-                    <option value="-1">None</option>
-                    @foreach (var a in authors)
-                    {
-                        <option value="@a.Id">@a.Name</option>
-                    }
-                </select>
-            </div>
-            <div class="col-sm-6 col-lg-3">
-                <label class="form-label small text-body-secondary mb-1">Series</label>
-                <select class="form-select form-select-sm"
-                        @bind="seriesId"
-                        @bind:after="OnFilterChangedAsync">
-                    <option value="">Any series</option>
-                    <option value="-1">None</option>
-                    @foreach (var s in series)
-                    {
-                        <option value="@s.Id">@s.Name</option>
-                    }
-                </select>
-            </div>
-            <div class="col-sm-6 col-lg-3">
-                <label class="form-label small text-body-secondary mb-1">Read status</label>
-                <select class="form-select form-select-sm"
-                        @bind="readStatus"
-                        @bind:after="OnFilterChangedAsync">
-                    <option value="@BookReadStatusFilter.Any">Any</option>
-                    <option value="@BookReadStatusFilter.Read">Read</option>
-                    <option value="@BookReadStatusFilter.Unread">Unread</option>
-                </select>
-            </div>
-            <div class="col-sm-6 col-lg-3">
-                <label class="form-label small text-body-secondary mb-1">Genre</label>
-                <select class="form-select form-select-sm"
-                        @bind="genreId"
-                        @bind:after="OnFilterChangedAsync">
-                    <option value="">Any genre</option>
-                    <option value="-1">None</option>
-                    @foreach (var g in genres)
-                    {
-                        <option value="@g.Id">@g.Name</option>
-                    }
-                </select>
-            </div>
-            <div class="col-sm-6 col-lg-3">
-                <label class="form-label small text-body-secondary mb-1">Tag</label>
-                <select class="form-select form-select-sm"
-                        @bind="tagFilterMode"
-                        @bind:after="OnTagModeChangedAsync">
-                    <option value="@TagFilterMode.Any">Any</option>
-                    <option value="@TagFilterMode.None">None</option>
-                    <option value="@TagFilterMode.Selected">Selected</option>
-                </select>
-            </div>
-            @if (tagFilterMode == TagFilterMode.Selected)
-            {
-                <div class="col-sm-6 col-lg-3">
-                    <label class="form-label small text-body-secondary mb-1">Selected tags (must match all)</label>
-                    <ChipInput TItem="TagDto"
-                               Label="Tags"
-                               Selected="selectedTagFilters"
-                               ChipCssSuffix="chip-tag"
-                               NameOf="(t => t.Name)"
-                               SearchAsync="SearchTagFilterOptionsAsync"
-                               OnAddAsync="AddTagFilterAsync"
-                               AllowCreate="false"
-                               OnChanged="OnFilterChangedAsync" />
-                </div>
-            }
-            <div class="col-12">
-                <div class="form-check form-switch">
-                    <input class="form-check-input"
-                           type="checkbox"
-                           id="awaitingReview"
-                           @bind="awaitingReview"
-                           @bind:after="OnFilterChangedAsync" />
-                    <label class="form-check-label" for="awaitingReview">Awaiting Review</label>
-                </div>
-            </div>
+        <div class="mt-1">
+            <button type="button" class="btn btn-link btn-sm px-0" @onclick="ToggleAdvancedFilters">
+                @(showAdvancedFilters ? "Hide Advanced Filters" : "Show Advanced Filters")
+            </button>
         </div>
+
+        @if (showAdvancedFilters)
+        {
+            <hr class="my-3" />
+
+            <div class="row g-3 align-items-end">
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small text-body-secondary mb-1">Shelf</label>
+                    <select class="form-select form-select-sm"
+                            @bind="shelfId"
+                            @bind:after="OnFilterChangedAsync">
+                        <option value="">All shelves</option>
+                        @foreach (var lib in shelves)
+                        {
+                            <option value="@lib.Id">@lib.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small text-body-secondary mb-1">Collection</label>
+                    <select class="form-select form-select-sm"
+                            @bind="collectionId"
+                            @bind:after="OnFilterChangedAsync">
+                        <option value="">Any collection</option>
+                        <option value="-1">None</option>
+                        @foreach (var c in collections)
+                        {
+                            <option value="@c.Id">@(c.IsGlobal ? $"[Global] {c.Name}" : c.Name)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small text-body-secondary mb-1">Author</label>
+                    <select class="form-select form-select-sm"
+                            @bind="authorId"
+                            @bind:after="OnFilterChangedAsync">
+                        <option value="">Any author</option>
+                        <option value="-1">None</option>
+                        @foreach (var a in authors)
+                        {
+                            <option value="@a.Id">@a.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small text-body-secondary mb-1">Series</label>
+                    <select class="form-select form-select-sm"
+                            @bind="seriesId"
+                            @bind:after="OnFilterChangedAsync">
+                        <option value="">Any series</option>
+                        <option value="-1">None</option>
+                        @foreach (var s in series)
+                        {
+                            <option value="@s.Id">@s.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small text-body-secondary mb-1">Read status</label>
+                    <select class="form-select form-select-sm"
+                            @bind="readStatus"
+                            @bind:after="OnFilterChangedAsync">
+                        <option value="@BookReadStatusFilter.Any">Any</option>
+                        <option value="@BookReadStatusFilter.Read">Read</option>
+                        <option value="@BookReadStatusFilter.Unread">Unread</option>
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small text-body-secondary mb-1">Genre</label>
+                    <select class="form-select form-select-sm"
+                            @bind="genreId"
+                            @bind:after="OnFilterChangedAsync">
+                        <option value="">Any genre</option>
+                        <option value="-1">None</option>
+                        @foreach (var g in genres)
+                        {
+                            <option value="@g.Id">@g.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small text-body-secondary mb-1">Tag</label>
+                    <select class="form-select form-select-sm"
+                            @bind="tagFilterMode"
+                            @bind:after="OnTagModeChangedAsync">
+                        <option value="@TagFilterMode.Any">Any</option>
+                        <option value="@TagFilterMode.None">None</option>
+                        <option value="@TagFilterMode.Selected">Selected</option>
+                    </select>
+                </div>
+                @if (tagFilterMode == TagFilterMode.Selected)
+                {
+                    <div class="col-sm-6 col-lg-3">
+                        <label class="form-label small text-body-secondary mb-1">Selected tags (must match all)</label>
+                        <ChipInput TItem="TagDto"
+                                   Label="Tags"
+                                   Selected="selectedTagFilters"
+                                   ChipCssSuffix="chip-tag"
+                                   NameOf="(t => t.Name)"
+                                   SearchAsync="SearchTagFilterOptionsAsync"
+                                   OnAddAsync="AddTagFilterAsync"
+                                   AllowCreate="false"
+                                   OnChanged="OnFilterChangedAsync" />
+                    </div>
+                }
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="awaitingReview"
+                               @bind="awaitingReview"
+                               @bind:after="OnFilterChangedAsync" />
+                        <label class="form-check-label" for="awaitingReview">Awaiting Review</label>
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 </div>
 

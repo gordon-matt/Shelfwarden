@@ -60,6 +60,7 @@ public partial class Books : ComponentBase
 
     private bool selectMode;
     private bool selectAllMatchingBusy;
+    private bool showAdvancedFilters;
     private readonly HashSet<int> selectedBookIds = [];
 
     private IReadOnlyList<ShelfDto> shelves = [];
@@ -69,7 +70,7 @@ public partial class Books : ComponentBase
     private IReadOnlyList<GenreDto> genres = [];
     private IReadOnlyList<TagDto> tags = [];
 
-    private bool HasActiveFilters =>
+    private bool HasActiveAdvancedFilters =>
         !string.IsNullOrEmpty(shelfId)
         || !string.IsNullOrEmpty(collectionId)
         || !string.IsNullOrEmpty(authorId)
@@ -78,7 +79,10 @@ public partial class Books : ComponentBase
         || tagFilterMode == TagFilterMode.None
         || (tagFilterMode == TagFilterMode.Selected && selectedTagFilters.Count > 0)
         || awaitingReview
-        || readStatus != BookReadStatusFilter.Any
+        || readStatus != BookReadStatusFilter.Any;
+
+    private bool HasActiveFilters =>
+        HasActiveAdvancedFilters
         || !string.IsNullOrWhiteSpace(startsWithFilter)
         || !string.IsNullOrWhiteSpace(query);
 
@@ -169,6 +173,12 @@ public partial class Books : ComponentBase
                 }
             }
         }
+
+        if (HasActiveAdvancedFilters)
+        {
+            showAdvancedFilters = true;
+        }
+
         dotNetRef ??= DotNetObjectReference.Create(this);
         await ResetAndLoadAsync();
     }
@@ -363,6 +373,8 @@ public partial class Books : ComponentBase
         startsWithFilter = null;
         await ResetAndLoadAsync();
     }
+
+    private void ToggleAdvancedFilters() => showAdvancedFilters = !showAdvancedFilters;
 
     private void ToggleSelectMode()
     {

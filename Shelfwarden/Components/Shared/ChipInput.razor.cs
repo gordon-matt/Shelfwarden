@@ -36,11 +36,28 @@ public partial class ChipInput<TItem> : ComponentBase
     private bool showSuggestions;
     private IReadOnlyList<TItem> suggestions = [];
     private CancellationTokenSource? searchCts;
+    private CancellationTokenSource? blurCts;
 
     private async Task OnFocusAsync()
     {
+        blurCts?.Cancel();
         showSuggestions = true;
         await RefreshSuggestionsAsync();
+    }
+
+    private async Task OnBlurAsync()
+    {
+        blurCts?.Cancel();
+        blurCts = new CancellationTokenSource();
+        var token = blurCts.Token;
+        try
+        {
+            // Brief delay so mousedown on a suggestion still registers before the menu hides.
+            await Task.Delay(150, token);
+            showSuggestions = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException) { }
     }
 
     private async Task OnInputChangedAsync()
@@ -103,6 +120,7 @@ public partial class ChipInput<TItem> : ComponentBase
         await OnAddAsync(name);
         input = string.Empty;
         suggestions = [];
+        showSuggestions = false;
         if (OnChanged.HasDelegate)
         {
             await OnChanged.InvokeAsync();
