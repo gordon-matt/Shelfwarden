@@ -24,6 +24,13 @@ public interface IReadingListService
     /// <returns>Number of brand-new entries appended.</returns>
     Task<Result<int>> AddBooksAsync(int readingListId, IReadOnlyCollection<int> bookIds, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Appends every book in the series to the end of the list, ordered by <see cref="Book.NumberInSeries"/>
+    /// ascending. Books already in the list are skipped silently.
+    /// </summary>
+    /// <returns>Number of brand-new entries appended.</returns>
+    Task<Result<int>> AddSeriesAsync(int readingListId, int seriesId, CancellationToken cancellationToken = default);
+
     Task<Result> RemoveBookAsync(int readingListId, int bookId, CancellationToken cancellationToken = default);
 
     /// <summary>

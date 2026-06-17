@@ -172,20 +172,22 @@ else
                         <a class="series-tile" href="@($"series/{s.SeriesId}")" title="@s.SeriesName">
                             <div class="series-tile-cover">
                                 <SeriesCollage Covers="s.Covers" />
-                                <AuthorizeView Roles="@Constants.Roles.Administrator">
-                                    <Authorized>
-                                        <div class="series-tile-menu dropend">
-                                            <button type="button"
-                                                    class="btn btn-sm series-tile-menu-toggle"
-                                                    data-bs-toggle="dropdown"
-                                                    data-bs-config='{"popperConfig":{"strategy":"fixed"}}'
-                                                    aria-expanded="false"
-                                                    aria-label="Series actions"
-                                                    @onclick:stopPropagation="true"
-                                                    @onclick:preventDefault="true">
-                                                <i class="bi bi-three-dots-vertical"></i>
-                                            </button>
-                                            <ul class="dropdown-menu">
+                                <div class="series-tile-menu dropend">
+                                    <button type="button"
+                                            class="btn btn-sm series-tile-menu-toggle"
+                                            data-bs-toggle="dropdown"
+                                            data-bs-config='{"popperConfig":{"strategy":"fixed"}}'
+                                            aria-expanded="false"
+                                            aria-label="Series actions"
+                                            @onclick:stopPropagation="true"
+                                            @onclick:preventDefault="true">
+                                        <i class="bi bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <AddToReadingListAction SeriesId="s.SeriesId" />
+                                        <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                            <Authorized>
+                                                <li><hr class="dropdown-divider" /></li>
                                                 <li>
                                                     <button type="button" class="dropdown-item"
                                                             @onclick="() => OpenAssignContentSeries(s.SeriesId, s.SeriesName)"
@@ -194,10 +196,10 @@ else
                                                         <i class="bi bi-folder-plus me-1"></i> Assign Content
                                                     </button>
                                                 </li>
-                                            </ul>
-                                        </div>
-                                    </Authorized>
-                                </AuthorizeView>
+                                            </Authorized>
+                                        </AuthorizeView>
+                                    </ul>
+                                </div>
                             </div>
                             <div class="series-tile-body">
                                 <div class="series-tile-name text-truncate">@s.SeriesName</div>

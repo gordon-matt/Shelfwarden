@@ -45,8 +45,8 @@ public partial class Books : ComponentBase
     private readonly List<TagDto> selectedTagFilters = [];
     private bool awaitingReview;
     private BookReadStatusFilter readStatus = BookReadStatusFilter.Any;
-    private BookSortBy sortBy = BookSortBy.Title;
-    private bool sortDescending;
+    private BookSortBy sortBy = BookSortBy.AddedAt;
+    private bool sortDescending = true;
     private int nextPageToLoad = 1;
     private ViewMode viewMode = ViewMode.Grid;
     private int pageSize = 24;

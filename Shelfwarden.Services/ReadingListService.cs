@@ -494,6 +494,44 @@ public class ReadingListService(
         return Result.Success(toInsert.Count);
     }
 
+    public async Task<Result<int>> AddSeriesAsync(int readingListId, int seriesId, CancellationToken cancellationToken = default)
+    {
+        string? userId = userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Result.Unauthorized();
+        }
+
+        var list = await listRepository.FindOneAsync(new SearchOptions<ReadingList>
+        {
+            Query = l => l.Id == readingListId,
+            CancellationToken = cancellationToken,
+        });
+        if (list is null)
+        {
+            return Result.NotFound("Reading list not found.");
+        }
+
+        if (list.OwnerUserId != userId)
+        {
+            return Result.Forbidden();
+        }
+
+        var bookIds = (await bookRepository.FindAsync(new SearchOptions<Book>
+        {
+            Query = b => b.SeriesId == seriesId,
+            OrderBy = q => q.OrderBy(b => b.NumberInSeries).ThenBy(b => b.SortTitle ?? b.Title),
+            CancellationToken = cancellationToken,
+        }, b => b.Id)).ToList();
+
+        if (bookIds.Count == 0)
+        {
+            return Result.Success(0);
+        }
+
+        return await AddBooksAsync(readingListId, bookIds, cancellationToken);
+    }
+
     public async Task<Result> RemoveBookAsync(int readingListId, int bookId, CancellationToken cancellationToken = default)
     {
         string? userId = userContext.GetCurrentUserId();

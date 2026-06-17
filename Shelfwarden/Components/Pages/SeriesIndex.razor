@@ -49,25 +49,22 @@ else
                        variable height of the title/count body underneath. *@
                     <div class="series-tile-cover">
                         <SeriesCollage Covers="s.Covers" />
-                        <AuthorizeView Roles="@Constants.Roles.Administrator">
-                            <Authorized>
-                                @* Three-dot context menu mirroring BookCard. `data-bs-config`
-                                   pushes `strategy: "fixed"` into Popper so the menu can escape
-                                   `.series-tile`'s `overflow: hidden`. Each interactive child
-                                   uses stop+preventDefault so the click never falls through to
-                                   the parent anchor's navigation. *@
-                                <div class="series-tile-menu dropend">
-                                    <button type="button"
-                                            class="btn btn-sm series-tile-menu-toggle"
-                                            data-bs-toggle="dropdown"
-                                            data-bs-config='{"popperConfig":{"strategy":"fixed"}}'
-                                            aria-expanded="false"
-                                            aria-label="Series actions"
-                                            @onclick:stopPropagation="true"
-                                            @onclick:preventDefault="true">
-                                        <i class="bi bi-three-dots-vertical"></i>
-                                    </button>
-                                    <ul class="dropdown-menu">
+                        <div class="series-tile-menu dropend">
+                            <button type="button"
+                                    class="btn btn-sm series-tile-menu-toggle"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-config='{"popperConfig":{"strategy":"fixed"}}'
+                                    aria-expanded="false"
+                                    aria-label="Series actions"
+                                    @onclick:stopPropagation="true"
+                                    @onclick:preventDefault="true">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <AddToReadingListAction SeriesId="s.Id" />
+                                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                    <Authorized>
+                                        <li><hr class="dropdown-divider" /></li>
                                         <li>
                                             <button type="button" class="dropdown-item"
                                                     @onclick="() => OpenRenameModal(s)"
@@ -84,10 +81,10 @@ else
                                                 <i class="bi bi-trash me-1"></i> Delete
                                             </button>
                                         </li>
-                                    </ul>
-                                </div>
-                            </Authorized>
-                        </AuthorizeView>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </ul>
+                        </div>
                     </div>
                     <div class="series-tile-body">
                         <div class="series-tile-name text-truncate">@s.Name</div>
