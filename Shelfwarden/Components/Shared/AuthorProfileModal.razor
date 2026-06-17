@@ -83,7 +83,17 @@
                                             class="btn text-start border @(isSelected ? "btn-primary" : "btn-outline-secondary")"
                                             @onclick="() => SelectMatch(match)">
                                         <div class="d-flex justify-content-between align-items-start gap-2">
-                                            <div>
+                                            <div class="d-flex align-items-start gap-2">
+                                                @if (!string.IsNullOrWhiteSpace(match.PhotoUrl))
+                                                {
+                                                    <div class="author-match-photo flex-shrink-0">
+                                                        <img src="@match.PhotoUrl" alt="Photo of @match.Name"
+                                                             loading="lazy" referrerpolicy="no-referrer"
+                                                             onerror="this.classList.add('d-none');this.parentElement.classList.add('no-photo')" />
+                                                        <i class="bi bi-person placeholder-icon"></i>
+                                                    </div>
+                                                }
+                                                <div>
                                                 <div class="fw-semibold">@match.Name</div>
                                                 <div class="small opacity-75">
                                                     <span>@match.OpenLibraryId</span>
@@ -98,6 +108,7 @@
                                                 {
                                                     <div class="small mt-1">@match.BioPreview</div>
                                                 }
+                                                </div>
                                             </div>
                                             <span class="badge @(isSelected ? "bg-primary-subtle text-primary-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
                                                 @(isSelected ? "Selected" : "Select")

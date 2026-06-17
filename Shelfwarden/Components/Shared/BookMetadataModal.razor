@@ -63,10 +63,25 @@
                                 int idx = i;
                                 var match = results[idx];
                                 bool isSelected = selectedIndex == idx;
-                                <button type="button"
-                                        class="btn text-start border @(isSelected ? "btn-primary" : "btn-outline-secondary")"
-                                        @onclick="() => selectedIndex = idx">
-                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div role="button" tabindex="0"
+                                     class="border rounded p-2 metadata-candidate @(isSelected ? "border-primary bg-primary-subtle" : "border-secondary-subtle")"
+                                     @onclick="() => selectedIndex = idx">
+                                    <div class="d-flex align-items-start gap-2">
+                                        <div class="metadata-candidate-cover flex-shrink-0">
+                                            @if (!string.IsNullOrWhiteSpace(match.CoverUrl))
+                                            {
+                                                <img src="@match.CoverUrl" alt="Cover for @match.Title"
+                                                     loading="lazy" referrerpolicy="no-referrer"
+                                                     onerror="this.classList.add('d-none');this.parentElement.classList.add('no-cover')" />
+                                                <i class="bi bi-book placeholder-icon"></i>
+                                            }
+                                            else
+                                            {
+                                                <div class="no-cover w-100 h-100 d-flex align-items-center justify-content-center">
+                                                    <i class="bi bi-book placeholder-icon"></i>
+                                                </div>
+                                            }
+                                        </div>
                                         <div class="flex-grow-1">
                                             <div class="fw-semibold">
                                                 @match.Title
@@ -98,12 +113,20 @@
                                             {
                                                 <div class="small mt-1 text-body-secondary">@Preview(match.Description)</div>
                                             }
+                                            @if (!string.IsNullOrWhiteSpace(match.CoverUrl))
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-secondary mt-2"
+                                                        @onclick="() => UseCoverOnlyAsync(match)"
+                                                        @onclick:stopPropagation="true">
+                                                    <i class="bi bi-image me-1"></i> Use this cover only
+                                                </button>
+                                            }
                                         </div>
-                                        <span class="badge @(isSelected ? "bg-primary-subtle text-primary-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
+                                        <span class="badge align-self-start @(isSelected ? "bg-primary-subtle text-primary-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
                                             @(isSelected ? "Selected" : "Select")
                                         </span>
                                     </div>
-                                </button>
+                                </div>
                             }
                         </div>
                     }

@@ -70,4 +70,17 @@ public interface IAuthorService
     /// Administrator only.
     /// </summary>
     Task<Result> MergeAuthorsAsync(int primaryAuthorId, IReadOnlyList<int> otherAuthorIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Links <paramref name="pseudonymAuthorId"/> as a pseudonym of <paramref name="primaryAuthorId"/>
+    /// (sets the pseudonym's <c>PrimaryAuthorId</c>). Both authors keep their own books; this is purely
+    /// a "writes as" relationship. Administrator only. Rejects self-links, cycles, and multi-level chains.
+    /// </summary>
+    Task<Result> LinkPseudonymAsync(int primaryAuthorId, int pseudonymAuthorId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Clears the pseudonym relationship for <paramref name="pseudonymAuthorId"/> (sets its
+    /// <c>PrimaryAuthorId</c> back to null). Administrator only.
+    /// </summary>
+    Task<Result> UnlinkPseudonymAsync(int pseudonymAuthorId, CancellationToken cancellationToken = default);
 }

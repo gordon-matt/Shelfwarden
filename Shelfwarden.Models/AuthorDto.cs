@@ -2,6 +2,9 @@ namespace Shelfwarden.Models;
 
 public record AuthorDto(int Id, string Name, string? Biography);
 
+/// <summary>Minimal author reference (id + name) used for pseudonym links on the detail page.</summary>
+public record AuthorRefDto(int Id, string Name);
+
 /// <summary>List-view projection used on the authors listing page.</summary>
 public record AuthorListItemDto(
     int Id,
@@ -17,7 +20,8 @@ public record OpenLibraryAuthorMatchDto(
     string? DeathDate,
     bool HasBio,
     bool HasPhoto,
-    string? BioPreview);
+    string? BioPreview,
+    string? PhotoUrl);
 
 /// <summary>Outcome of importing OpenLibrary author metadata into Shelfwarden.</summary>
 public record AuthorOpenLibraryImportResultDto(
@@ -46,7 +50,9 @@ public record AuthorDetailDto(
     string? Biography,
     int BookCount,
     IReadOnlyList<AuthorSeriesGroupDto> SeriesGroups,
-    IReadOnlyList<BookListItemDto> StandaloneBooks);
+    IReadOnlyList<BookListItemDto> StandaloneBooks,
+    AuthorRefDto? PrimaryAuthor,
+    IReadOnlyList<AuthorRefDto> Pseudonyms);
 
 /// <summary>
 /// One series an author has books in, together with the covers used by the collage and a

@@ -104,6 +104,7 @@ public class BookMetadataServiceTests
             Authors: [],
             Genres: [],
             Tags: [],
+            CoverUrl: null,
             InfoUrl: null);
 
     private sealed class FakeProvider(string name, int priority, IReadOnlyList<ExternalBookMetadataDto> results) : IBookMetadataProvider

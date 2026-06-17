@@ -214,6 +214,7 @@ public sealed class BookMetadataService(
             Authors = FirstNonEmpty(c => c.Authors, top.Authors),
             Genres = FirstNonEmpty(c => c.Genres, top.Genres),
             Tags = FirstNonEmpty(c => c.Tags, top.Tags),
+            CoverUrl = FirstNonBlank(c => c.CoverUrl, top.CoverUrl),
         };
     }
 

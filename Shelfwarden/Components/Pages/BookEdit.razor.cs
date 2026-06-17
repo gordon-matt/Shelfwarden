@@ -33,6 +33,12 @@ public partial class BookEdit : ComponentBase
 
     private bool showMetadataModal;
 
+    // Cover changes are applied on Save (covers live as files, not on UpdateBookRequest). Staging a
+    // URL queues an online cover; revertCoverToFile queues re-extraction of the embedded cover. Only
+    // one can be active at a time.
+    private string? pendingCoverUrl;
+    private bool revertCoverToFile;
+
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
@@ -75,6 +81,9 @@ public partial class BookEdit : ComponentBase
         selectedTags.AddRange(book.Tags.Select(t => t.Name));
         selectedSeries = book.Series;
         seriesInput = book.Series?.Name;
+
+        pendingCoverUrl = null;
+        revertCoverToFile = false;
 
         loading = false;
     }
@@ -260,7 +269,39 @@ public partial class BookEdit : ComponentBase
             await AddTagAsync(tag);
         }
 
+        // Picking an edition also stages its cover (when it has one). The user can undo this in the
+        // Cover card if they only wanted the textual metadata.
+        if (!string.IsNullOrWhiteSpace(match.CoverUrl))
+        {
+            StageCoverFromUrl(match.CoverUrl);
+        }
+
         showMetadataModal = false;
+    }
+
+    /// <summary>Queues an online cover to apply on save (e.g. the modal's "Use this cover only").</summary>
+    private void StageCoverFromUrl(string coverUrl)
+    {
+        if (string.IsNullOrWhiteSpace(coverUrl))
+        {
+            return;
+        }
+
+        pendingCoverUrl = coverUrl.Trim();
+        revertCoverToFile = false;
+    }
+
+    /// <summary>Queues a revert to the file's embedded cover on save.</summary>
+    private void StageRevertCover()
+    {
+        revertCoverToFile = true;
+        pendingCoverUrl = null;
+    }
+
+    private void UndoCoverChange()
+    {
+        pendingCoverUrl = null;
+        revertCoverToFile = false;
     }
 
     private static string? Prefer(string? incoming, string? current)
@@ -311,16 +352,36 @@ public partial class BookEdit : ComponentBase
             };
 
             var result = await BookService.UpdateAsync(Id, request);
-            if (result.IsSuccess)
-            {
-                NavigationManager.NavigateTo($"books/{Id}");
-            }
-            else
+            if (!result.IsSuccess)
             {
                 errorMessage = result.Errors.FirstOrDefault()
                     ?? string.Join("; ", result.ValidationErrors.Select(v => v.ErrorMessage))
                     ?? "Could not save the book.";
+                return;
             }
+
+            // Metadata is saved; now apply any staged cover change. These touch the filesystem, so a
+            // failure here is surfaced (the metadata is already persisted) rather than rolled back.
+            if (revertCoverToFile)
+            {
+                var coverResult = await BookCoverService.RevertCoverToEmbeddedAsync(Id);
+                if (!coverResult.IsSuccess)
+                {
+                    errorMessage = coverResult.Errors.FirstOrDefault() ?? "Saved, but the cover could not be reverted.";
+                    return;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(pendingCoverUrl))
+            {
+                var coverResult = await BookCoverService.SetCoverFromUrlAsync(Id, pendingCoverUrl);
+                if (!coverResult.IsSuccess)
+                {
+                    errorMessage = coverResult.Errors.FirstOrDefault() ?? "Saved, but the new cover could not be applied.";
+                    return;
+                }
+            }
+
+            NavigationManager.NavigateTo($"books/{Id}");
         }
         catch (Exception ex)
         {

@@ -1,6 +1,7 @@
 @page "/books/{Id:int}/edit"
 @attribute [Authorize(Roles = Constants.Roles.Administrator)]
 @inject IBookService BookService
+@inject IBookCoverService BookCoverService
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService
 @inject IGenreService GenreService
@@ -125,6 +126,48 @@ else
 
             <div class="col-lg-4">
                 <div class="card mb-4">
+                    <div class="card-header"><strong>Cover</strong></div>
+                    <div class="card-body">
+                        <div class="book-edit-cover mb-2">
+                            @if (revertCoverToFile)
+                            {
+                                <div class="alert alert-secondary py-2 mb-0 small">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                    The file's embedded cover will be restored when you save.
+                                </div>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(pendingCoverUrl))
+                            {
+                                <img src="@pendingCoverUrl" class="img-fluid rounded border" alt="New cover" referrerpolicy="no-referrer" />
+                                <div class="text-secondary small mt-1">
+                                    <i class="bi bi-check-lg me-1"></i> New cover — applied when you save.
+                                </div>
+                            }
+                            else
+                            {
+                                <img src="@($"covers/{book.Id}")" class="img-fluid rounded border" alt="@book.Title"
+                                     onerror="this.classList.add('d-none');this.nextElementSibling.classList.remove('d-none')" />
+                                <div class="text-secondary small d-none"><i class="bi bi-image me-1"></i> No cover on file.</div>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(pendingCoverUrl) || revertCoverToFile)
+                        {
+                            <button type="button" class="btn btn-sm btn-link p-0 mb-2" @onclick="UndoCoverChange">
+                                Undo cover change
+                            </button>
+                        }
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="OpenMetadataModal">
+                                <i class="bi bi-images me-1"></i> Choose online…
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="StageRevertCover">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i> Revert to file cover
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
                     <div class="card-header"><strong>Series</strong></div>
                     <div class="card-body">
                         <label class="form-label">Series</label>
@@ -216,5 +259,6 @@ else
                        InitialAuthor="@selectedAuthors.FirstOrDefault()?.Name"
                        InitialIsbn="@form.Isbn"
                        OnClose="CloseMetadataModal"
-                       OnApply="ApplyExternalMetadataAsync" />
+                       OnApply="ApplyExternalMetadataAsync"
+                       OnUseCover="StageCoverFromUrl" />
 }

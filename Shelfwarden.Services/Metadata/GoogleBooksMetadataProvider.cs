@@ -136,7 +136,36 @@ public sealed class GoogleBooksMetadataProvider(
             Authors: info.Authors ?? [],
             Genres: genres,
             Tags: [],
+            CoverUrl: PickCoverUrl(info.ImageLinks),
             InfoUrl: info.CanonicalVolumeLink ?? info.InfoLink);
+    }
+
+    /// <summary>
+    /// Picks the largest cover Google offers and normalises it: forces https, drops the page-curl
+    /// overlay, and bumps the zoom so the modal shows a crisp thumbnail rather than the tiny default.
+    /// </summary>
+    private static string? PickCoverUrl(GoogleImageLinks? links)
+    {
+        if (links is null)
+        {
+            return null;
+        }
+
+        string? raw = links.ExtraLarge
+            ?? links.Large
+            ?? links.Medium
+            ?? links.Small
+            ?? links.Thumbnail
+            ?? links.SmallThumbnail;
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        string url = raw.Replace("http://", "https://", StringComparison.OrdinalIgnoreCase)
+            .Replace("&edge=curl", string.Empty, StringComparison.OrdinalIgnoreCase);
+        return url;
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -182,6 +211,23 @@ public sealed class GoogleBooksMetadataProvider(
         public string? InfoLink { get; set; }
 
         public string? CanonicalVolumeLink { get; set; }
+
+        public GoogleImageLinks? ImageLinks { get; set; }
+    }
+
+    private sealed class GoogleImageLinks
+    {
+        public string? SmallThumbnail { get; set; }
+
+        public string? Thumbnail { get; set; }
+
+        public string? Small { get; set; }
+
+        public string? Medium { get; set; }
+
+        public string? Large { get; set; }
+
+        public string? ExtraLarge { get; set; }
     }
 
     private sealed class GoogleIndustryIdentifier

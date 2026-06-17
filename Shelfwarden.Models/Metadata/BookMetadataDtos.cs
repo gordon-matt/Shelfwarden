@@ -37,4 +37,5 @@ public record ExternalBookMetadataDto(
     IReadOnlyList<string> Authors,
     IReadOnlyList<string> Genres,
     IReadOnlyList<string> Tags,
+    string? CoverUrl,
     string? InfoUrl);

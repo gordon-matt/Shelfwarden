@@ -418,10 +418,15 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .IsUnicode(true)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("PrimaryAuthorId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedName")
                         .IsUnique();
+
+                    b.HasIndex("PrimaryAuthorId");
 
                     b.ToTable("Authors", "app");
                 });
@@ -1193,6 +1198,16 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.Navigation("Book");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Author", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Author", "PrimaryAuthor")
+                        .WithMany("Pseudonyms")
+                        .HasForeignKey("PrimaryAuthorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PrimaryAuthor");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Series", "Series")
@@ -1418,6 +1433,8 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                     b.Navigation("AdditionalContent");
 
                     b.Navigation("BookAuthors");
+
+                    b.Navigation("Pseudonyms");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>

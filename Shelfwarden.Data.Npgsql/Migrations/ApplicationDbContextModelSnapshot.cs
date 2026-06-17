@@ -434,10 +434,15 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .IsUnicode(true)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<int?>("PrimaryAuthorId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedName")
                         .IsUnique();
+
+                    b.HasIndex("PrimaryAuthorId");
 
                     b.ToTable("Authors", "app");
                 });
@@ -1249,6 +1254,16 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("Book");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Author", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Author", "PrimaryAuthor")
+                        .WithMany("Pseudonyms")
+                        .HasForeignKey("PrimaryAuthorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PrimaryAuthor");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Series", "Series")
@@ -1474,6 +1489,8 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("AdditionalContent");
 
                     b.Navigation("BookAuthors");
+
+                    b.Navigation("Pseudonyms");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>

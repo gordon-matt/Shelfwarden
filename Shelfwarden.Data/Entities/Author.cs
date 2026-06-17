@@ -9,6 +9,12 @@ public class Author : BaseEntity<int>
 
     public string? Biography { get; set; }
 
+    public int? PrimaryAuthorId { get; set; }
+
+    public virtual Author? PrimaryAuthor { get; set; } = null;
+
+    public virtual ICollection<Author> Pseudonyms { get; set; } = [];
+
     public virtual ICollection<BookAuthor> BookAuthors { get; set; } = [];
 
     public virtual ICollection<AdditionalContentItem> AdditionalContent { get; set; } = [];
@@ -25,5 +31,11 @@ public class AuthorMap : IEntityTypeConfiguration<Author>
         builder.Property(m => m.Biography).IsUnicode(true);
 
         builder.HasIndex(m => m.NormalizedName).IsUnique();
+
+        builder.HasOne(a => a.PrimaryAuthor)
+           .WithMany(a => a.Pseudonyms)
+           .HasForeignKey(a => a.PrimaryAuthorId)
+           .IsRequired(false)
+           .OnDelete(DeleteBehavior.Restrict); // prevent cascade delete of pseudonyms
     }
 }

@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
 
             services.AddScoped<IShelfService, ShelfService>();
             services.AddScoped<IBookService, BookService>();
+            services.AddScoped<IBookCoverService, BookCoverService>();
             services.AddScoped<IAuthorService, AuthorService>();
             services.AddScoped<ISeriesService, SeriesService>();
             services.AddScoped<IGenreService, GenreService>();
@@ -54,6 +55,10 @@ public static class ServiceCollectionExtensions
             // IBookMetadataService is scoped because its admin gate needs IUserContextService.
             services.AddSingleton<IBookMetadataProvider, GoogleBooksMetadataProvider>();
             services.AddSingleton<IBookMetadataProvider, OpenLibraryMetadataProvider>();
+            // Amazon + Goodreads scrape public pages (no API); kept lower priority than the API
+            // sources because scraped pages are more fragile and rate-limited.
+            services.AddSingleton<IBookMetadataProvider, AmazonMetadataProvider>();
+            services.AddSingleton<IBookMetadataProvider, GoodreadsMetadataProvider>();
             services.AddScoped<IBookMetadataService, BookMetadataService>();
 
             // Text-to-speech. The Kokoro engine and FFmpeg binaries are big; both providers

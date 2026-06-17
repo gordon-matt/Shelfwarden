@@ -129,12 +129,24 @@ public class AuthorService(
         var author = await authorRepository.FindOneAsync(new SearchOptions<Author>
         {
             Query = a => a.Id == id,
+            Include = q => q
+                .Include(a => a.PrimaryAuthor)
+                .Include(a => a.Pseudonyms),
             CancellationToken = cancellationToken,
         });
         if (author is null)
         {
             return Result.NotFound($"Author {id} not found.");
         }
+
+        AuthorRefDto? primaryAuthor = author.PrimaryAuthor is { } primary
+            ? new AuthorRefDto(primary.Id, primary.Name)
+            : null;
+
+        var pseudonyms = author.Pseudonyms
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(p => new AuthorRefDto(p.Id, p.Name))
+            .ToList();
 
         // Load every book for the author with everything we need to build BookListItemDto
         // entries. The author can have at most a few hundred books in any realistic scenario,
@@ -158,7 +170,9 @@ public class AuthorService(
             author.Name,
             author.Biography,
             books,
-            cancellationToken));
+            cancellationToken,
+            primaryAuthor,
+            pseudonyms));
     }
 
     public async Task<Result<int>> GetBooksWithoutAuthorsCountAsync(int? shelfId = null, CancellationToken cancellationToken = default)
@@ -214,7 +228,9 @@ public class AuthorService(
         string displayName,
         string? biography,
         List<Book> books,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AuthorRefDto? primaryAuthor = null,
+        IReadOnlyList<AuthorRefDto>? pseudonyms = null)
     {
         string? userId = userContext.GetCurrentUserId();
         var progressByBook = await BookProjections.LoadProgressPercentagesAsync(
@@ -247,7 +263,9 @@ public class AuthorService(
             biography,
             books.Count,
             seriesGroups,
-            standalone);
+            standalone,
+            primaryAuthor,
+            pseudonyms ?? []);
     }
 
     public async Task<Result<int>> DeleteAuthorsAsync(IReadOnlyList<int> authorIds, CancellationToken cancellationToken = default)
@@ -446,6 +464,101 @@ public class AuthorService(
         }
     }
 
+    public async Task<Result> LinkPseudonymAsync(int primaryAuthorId, int pseudonymAuthorId, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        if (primaryAuthorId == pseudonymAuthorId)
+        {
+            return Result.Invalid(new ValidationError(nameof(pseudonymAuthorId), "An author cannot be a pseudonym of itself."));
+        }
+
+        var authors = (await authorRepository.FindAsync(new SearchOptions<Author>
+        {
+            Query = a => a.Id == primaryAuthorId || a.Id == pseudonymAuthorId,
+            Include = q => q.Include(a => a.Pseudonyms),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        var primary = authors.FirstOrDefault(a => a.Id == primaryAuthorId);
+        var pseudonym = authors.FirstOrDefault(a => a.Id == pseudonymAuthorId);
+        if (primary is null || pseudonym is null)
+        {
+            return Result.NotFound("One of the selected authors no longer exists.");
+        }
+
+        // Keep the relationship a single level deep: the chosen primary can't itself be a pseudonym,
+        // and the pseudonym can't already be the primary of other authors.
+        if (primary.PrimaryAuthorId is not null)
+        {
+            return Result.Invalid(new ValidationError(nameof(primaryAuthorId), "The primary author is itself a pseudonym. Link to the real author instead."));
+        }
+
+        if (pseudonym.Pseudonyms.Count > 0)
+        {
+            return Result.Invalid(new ValidationError(nameof(pseudonymAuthorId), "This author already has its own pseudonyms, so it can't become one."));
+        }
+
+        if (pseudonym.PrimaryAuthorId == primaryAuthorId)
+        {
+            return Result.Success();
+        }
+
+        try
+        {
+            pseudonym.PrimaryAuthorId = primaryAuthorId;
+            await authorRepository.UpdateAsync(pseudonym);
+
+            logger.LogInformation("Linked author {PseudonymId} as a pseudonym of {PrimaryId}.", pseudonymAuthorId, primaryAuthorId);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to link pseudonym {PseudonymId} to {PrimaryId}", pseudonymAuthorId, primaryAuthorId);
+            return Result.Error("Could not link the pseudonym.");
+        }
+    }
+
+    public async Task<Result> UnlinkPseudonymAsync(int pseudonymAuthorId, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var pseudonym = await authorRepository.FindOneAsync(new SearchOptions<Author>
+        {
+            Query = a => a.Id == pseudonymAuthorId,
+            CancellationToken = cancellationToken,
+        });
+        if (pseudonym is null)
+        {
+            return Result.NotFound($"Author {pseudonymAuthorId} not found.");
+        }
+
+        if (pseudonym.PrimaryAuthorId is null)
+        {
+            return Result.Success();
+        }
+
+        try
+        {
+            pseudonym.PrimaryAuthorId = null;
+            await authorRepository.UpdateAsync(pseudonym);
+
+            logger.LogInformation("Unlinked pseudonym {PseudonymId}.", pseudonymAuthorId);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to unlink pseudonym {PseudonymId}", pseudonymAuthorId);
+            return Result.Error("Could not unlink the pseudonym.");
+        }
+    }
+
     public async Task<Result<IReadOnlyList<OpenLibraryAuthorMatchDto>>> SearchOpenLibraryAuthorsAsync(string query, int limit = 8, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -490,10 +603,12 @@ public class AuthorService(
                         null,
                         HasBio: false,
                         HasPhoto: false,
-                        BioPreview: null));
+                        BioPreview: null,
+                        PhotoUrl: null));
                     continue;
                 }
 
+                int photoId = detail.PhotosIDs.FirstOrDefault();
                 matches.Add(new OpenLibraryAuthorMatchDto(
                     NormalizeOpenLibraryAuthorId(detail.ID),
                     string.IsNullOrWhiteSpace(detail.Name) ? candidate.Name : detail.Name.Trim(),
@@ -501,7 +616,8 @@ public class AuthorService(
                     string.IsNullOrWhiteSpace(detail.DeathDate) ? null : detail.DeathDate.Trim(),
                     !string.IsNullOrWhiteSpace(detail.Bio),
                     detail.PhotosIDs.Count > 0,
-                    BuildBioPreview(detail.Bio)));
+                    BuildBioPreview(detail.Bio),
+                    photoId > 0 ? $"https://covers.openlibrary.org/a/id/{photoId}-M.jpg" : null));
             }
 
             IReadOnlyList<OpenLibraryAuthorMatchDto> result = matches;

@@ -19,6 +19,12 @@ public partial class BookMetadataModal : ComponentBase
     /// <summary>Raised with the chosen candidate. The parent populates its edit form; nothing is persisted here.</summary>
     [Parameter] public EventCallback<ExternalBookMetadataDto> OnApply { get; set; }
 
+    /// <summary>
+    /// Raised with just a cover URL when the user clicks "Use this cover only" — lets them pick a
+    /// cover from a different edition than the one whose metadata they apply.
+    /// </summary>
+    [Parameter] public EventCallback<string> OnUseCover { get; set; }
+
     private string? searchTitle;
     private string? searchAuthor;
     private string? searchIsbn;
@@ -125,6 +131,17 @@ public partial class BookMetadataModal : ComponentBase
         }
 
         await OnApply.InvokeAsync(results[selectedIndex]);
+        await CloseAsync();
+    }
+
+    private async Task UseCoverOnlyAsync(ExternalBookMetadataDto match)
+    {
+        if (string.IsNullOrWhiteSpace(match.CoverUrl))
+        {
+            return;
+        }
+
+        await OnUseCover.InvokeAsync(match.CoverUrl);
         await CloseAsync();
     }
 

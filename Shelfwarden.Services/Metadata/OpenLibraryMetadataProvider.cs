@@ -59,7 +59,7 @@ public sealed class OpenLibraryMetadataProvider(
     private static string? BuildSearchUrl(BookMetadataQuery query)
     {
         int limit = Math.Clamp(query.Limit, 1, 20);
-        const string fields = "key,title,subtitle,author_name,first_publish_year,publisher,isbn,number_of_pages_median,language,subject";
+        const string fields = "key,title,subtitle,author_name,first_publish_year,publisher,isbn,number_of_pages_median,language,subject,cover_i";
 
         if (query.HasIsbn)
         {
@@ -124,7 +124,23 @@ public sealed class OpenLibraryMetadataProvider(
             Authors: doc.AuthorName ?? [],
             Genres: [],
             Tags: tags,
+            CoverUrl: BuildCoverUrl(doc.CoverId, isbn),
             InfoUrl: infoUrl);
+    }
+
+    /// <summary>
+    /// Builds an Open Library cover URL — preferring the cover id (stable) and falling back to the
+    /// ISBN. Returns the large (<c>-L</c>) size for the picker. Null when neither is available.
+    /// </summary>
+    private static string? BuildCoverUrl(int? coverId, string? isbn)
+    {
+        if (coverId is > 0)
+        {
+            return $"https://covers.openlibrary.org/b/id/{coverId}-L.jpg";
+        }
+
+        string? normalizedIsbn = MetadataNormalization.NullIfBlank(isbn);
+        return normalizedIsbn is null ? null : $"https://covers.openlibrary.org/b/isbn/{normalizedIsbn}-L.jpg";
     }
 
     private async Task<string?> TryGetWorkDescriptionAsync(HttpClient client, string? workKey, CancellationToken cancellationToken)
@@ -227,6 +243,9 @@ public sealed class OpenLibraryMetadataProvider(
         public List<string>? Language { get; set; }
 
         public List<string>? Subject { get; set; }
+
+        [JsonPropertyName("cover_i")]
+        public int? CoverId { get; set; }
     }
 
     private sealed class OpenLibraryWork

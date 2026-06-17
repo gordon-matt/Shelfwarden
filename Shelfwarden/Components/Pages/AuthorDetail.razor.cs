@@ -19,6 +19,11 @@ public partial class AuthorDetail : ComponentBase
     private string assignEntityType = "book";
     private int assignEntityId;
 
+    private string pseudonymQuery = string.Empty;
+    private List<AuthorDto> pseudonymSuggestions = [];
+    private bool showPseudonymSuggestions;
+    private string? pseudonymError;
+
     protected override async Task OnParametersSetAsync()
     {
         author = null;
@@ -28,6 +33,10 @@ public partial class AuthorDetail : ComponentBase
         selectedBookIds.Clear();
         isAuthorEditModalOpen = false;
         isAssignContentModalOpen = false;
+        pseudonymQuery = string.Empty;
+        pseudonymSuggestions = [];
+        showPseudonymSuggestions = false;
+        pseudonymError = null;
 
         var detailTask = AuthorService.GetDetailAsync(Id);
         var contentTask = ContentService.GetForAuthorAsync(Id);
@@ -154,5 +163,83 @@ public partial class AuthorDetail : ComponentBase
     {
         long version = authorPhotoVersions.GetValueOrDefault(authorId, 0);
         return $"author-photos/{authorId}?v={version}";
+    }
+
+    private async Task OnPseudonymInput(ChangeEventArgs e)
+    {
+        pseudonymQuery = e.Value?.ToString() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(pseudonymQuery))
+        {
+            pseudonymSuggestions = [];
+            showPseudonymSuggestions = false;
+            return;
+        }
+
+        var result = await AuthorService.SearchAsync(pseudonymQuery, limit: 10);
+
+        // Exclude the author itself, any already-linked pseudonyms, and this author's primary.
+        var excluded = new HashSet<int>(author?.Pseudonyms.Select(p => p.Id) ?? []) { Id };
+        if (author?.PrimaryAuthor is { } primary)
+        {
+            excluded.Add(primary.Id);
+        }
+
+        pseudonymSuggestions = result.IsSuccess
+            ? result.Value.Where(a => !excluded.Contains(a.Id)).ToList()
+            : [];
+        showPseudonymSuggestions = pseudonymSuggestions.Count > 0;
+    }
+
+    private async Task AddPseudonymAsync(int pseudonymId)
+    {
+        pseudonymError = null;
+        var result = await AuthorService.LinkPseudonymAsync(Id, pseudonymId);
+        if (!result.IsSuccess)
+        {
+            pseudonymError = result.Errors.FirstOrDefault()
+                ?? result.ValidationErrors.Select(v => v.ErrorMessage).FirstOrDefault()
+                ?? "Could not link the pseudonym.";
+            return;
+        }
+
+        pseudonymQuery = string.Empty;
+        pseudonymSuggestions = [];
+        showPseudonymSuggestions = false;
+        await ReloadDetailAsync();
+    }
+
+    private async Task UnlinkPseudonymAsync(int pseudonymId)
+    {
+        pseudonymError = null;
+        var result = await AuthorService.UnlinkPseudonymAsync(pseudonymId);
+        if (!result.IsSuccess)
+        {
+            pseudonymError = result.Errors.FirstOrDefault() ?? "Could not unlink the pseudonym.";
+            return;
+        }
+
+        await ReloadDetailAsync();
+    }
+
+    private async Task UnlinkSelfAsync()
+    {
+        pseudonymError = null;
+        var result = await AuthorService.UnlinkPseudonymAsync(Id);
+        if (!result.IsSuccess)
+        {
+            pseudonymError = result.Errors.FirstOrDefault() ?? "Could not unlink from the primary author.";
+            return;
+        }
+
+        await ReloadDetailAsync();
+    }
+
+    private async Task ReloadDetailAsync()
+    {
+        var result = await AuthorService.GetDetailAsync(Id);
+        if (result.IsSuccess)
+        {
+            author = result.Value;
+        }
     }
 }
