@@ -23,6 +23,13 @@ public partial class AuthorDetail : ComponentBase
     private List<AuthorDto> pseudonymSuggestions = [];
     private bool showPseudonymSuggestions;
     private string? pseudonymError;
+    private bool isPseudonymModalOpen;
+
+    private bool canManagePseudonyms => UserContext.IsAdministrator();
+
+    private bool ShowPseudonymsPanel =>
+        author is { PrimaryAuthor: null } current
+        && (current.Pseudonyms.Count > 0 || canManagePseudonyms);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -37,6 +44,7 @@ public partial class AuthorDetail : ComponentBase
         pseudonymSuggestions = [];
         showPseudonymSuggestions = false;
         pseudonymError = null;
+        isPseudonymModalOpen = false;
 
         var detailTask = AuthorService.GetDetailAsync(Id);
         var contentTask = ContentService.GetForAuthorAsync(Id);
@@ -165,6 +173,23 @@ public partial class AuthorDetail : ComponentBase
         return $"author-photos/{authorId}?v={version}";
     }
 
+    private void OpenPseudonymModal()
+    {
+        pseudonymError = null;
+        pseudonymQuery = string.Empty;
+        pseudonymSuggestions = [];
+        showPseudonymSuggestions = false;
+        isPseudonymModalOpen = true;
+    }
+
+    private void ClosePseudonymModal()
+    {
+        isPseudonymModalOpen = false;
+        pseudonymQuery = string.Empty;
+        pseudonymSuggestions = [];
+        showPseudonymSuggestions = false;
+    }
+
     private async Task OnPseudonymInput(ChangeEventArgs e)
     {
         pseudonymQuery = e.Value?.ToString() ?? string.Empty;
@@ -205,6 +230,7 @@ public partial class AuthorDetail : ComponentBase
         pseudonymQuery = string.Empty;
         pseudonymSuggestions = [];
         showPseudonymSuggestions = false;
+        isPseudonymModalOpen = false;
         await ReloadDetailAsync();
     }
 

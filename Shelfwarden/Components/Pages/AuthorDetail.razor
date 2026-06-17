@@ -34,6 +34,41 @@ else
             <i class="bi bi-person placeholder-icon"></i>
         </div>
         <div class="author-header-body">
+            @if (ShowPseudonymsPanel)
+            {
+                <div class="author-pseudonyms">
+                    <div class="author-pseudonyms-header">
+                        <span class="author-pseudonyms-title">Pseudonyms</span>
+                        @if (canManagePseudonyms)
+                        {
+                            <button type="button" class="btn btn-sm btn-link author-pseudonyms-add p-0"
+                                    title="Link pseudonym" aria-label="Link pseudonym"
+                                    @onclick="OpenPseudonymModal">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        }
+                    </div>
+                    @if (author.Pseudonyms.Count > 0)
+                    {
+                        <ul class="author-pseudonyms-list list-unstyled mb-0">
+                            @foreach (var p in author.Pseudonyms)
+                            {
+                                <li class="author-pseudonym-row">
+                                    <a href="@($"authors/{p.Id}")" class="text-truncate">@p.Name</a>
+                                    @if (canManagePseudonyms)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-link text-danger author-pseudonym-unlink p-0"
+                                                title="Unlink pseudonym" aria-label="Unlink @p.Name"
+                                                @onclick="() => UnlinkPseudonymAsync(p.Id)">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            }
             <h1 class="mb-2">
                 @author.Name
                 @if (author.PrimaryAuthor is not null)
@@ -45,18 +80,19 @@ else
             {
                 <div class="text-secondary small mb-2">
                     Pseudonym of <a href="@($"authors/{primary.Id}")">@primary.Name</a>
-                </div>
-            }
-            @if (author.Pseudonyms.Count > 0)
-            {
-                <div class="text-secondary small mb-2">
-                    Also writes as:
-                    @for (int i = 0; i < author.Pseudonyms.Count; i++)
+                    @if (canManagePseudonyms)
                     {
-                        var p = author.Pseudonyms[i];
-                        <a href="@($"authors/{p.Id}")">@p.Name</a>@(i < author.Pseudonyms.Count - 1 ? ", " : "")
+                        <button type="button" class="btn btn-sm btn-link text-danger author-pseudonym-unlink p-0 ms-1"
+                                title="Unlink from primary" aria-label="Unlink from primary"
+                                @onclick="UnlinkSelfAsync">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
                     }
                 </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(pseudonymError) && !isPseudonymModalOpen)
+            {
+                <div class="alert alert-danger py-2 small mb-2">@pseudonymError</div>
             }
             <div class="text-secondary small mb-3">
                 @author.BookCount book@(author.BookCount == 1 ? "" : "s")
@@ -84,73 +120,6 @@ else
             }
         </div>
     </div>
-
-    @if (author.Id > 0)
-    {
-        <AuthorizeView Roles="@Constants.Roles.Administrator">
-            <Authorized>
-                <div class="card mb-4">
-                    <div class="card-header"><strong>Pseudonyms</strong></div>
-                    <div class="card-body">
-                        @if (pseudonymError is not null)
-                        {
-                            <div class="alert alert-danger py-2">@pseudonymError</div>
-                        }
-                        @if (author.PrimaryAuthor is { } primary)
-                        {
-                            <p class="small mb-2">
-                                This author is a pseudonym of <a href="@($"authors/{primary.Id}")">@primary.Name</a>.
-                            </p>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="UnlinkSelfAsync">
-                                <i class="bi bi-x-lg me-1"></i> Unlink from primary
-                            </button>
-                        }
-                        else
-                        {
-                            @if (author.Pseudonyms.Count == 0)
-                            {
-                                <p class="text-secondary small mb-2">
-                                    No pseudonyms linked yet. Link other author records that are alternate names for @author.Name.
-                                </p>
-                            }
-                            else
-                            {
-                                <ul class="list-unstyled mb-3">
-                                    @foreach (var p in author.Pseudonyms)
-                                    {
-                                        <li class="d-flex align-items-center justify-content-between border-bottom py-1">
-                                            <a href="@($"authors/{p.Id}")">@p.Name</a>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => UnlinkPseudonymAsync(p.Id)">
-                                                <i class="bi bi-x-lg"></i> Unlink
-                                            </button>
-                                        </li>
-                                    }
-                                </ul>
-                            }
-                            <label class="form-label small mb-1">Add a pseudonym</label>
-                            <div class="position-relative">
-                                <input class="form-control" placeholder="Search authors…"
-                                       value="@pseudonymQuery" @oninput="OnPseudonymInput" />
-                                @if (showPseudonymSuggestions && pseudonymSuggestions.Count > 0)
-                                {
-                                    <ul class="dropdown-menu d-block w-100 mt-1 shadow-sm" style="position: absolute; max-height: 220px; overflow-y: auto; z-index: 50;">
-                                        @foreach (var s in pseudonymSuggestions)
-                                        {
-                                            <li>
-                                                <button type="button" class="dropdown-item" @onclick="() => AddPseudonymAsync(s.Id)">
-                                                    @s.Name
-                                                </button>
-                                            </li>
-                                        }
-                                    </ul>
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
-            </Authorized>
-        </AuthorizeView>
-    }
 
     @if (author.SeriesGroups.Count > 0)
     {
@@ -312,3 +281,48 @@ else
                     CurrentBiography="@author?.Biography"
                     OnClose="CloseAuthorEditModalAsync"
                     OnSaved="OnAuthorSavedAsync" />
+
+@if (isPseudonymModalOpen && author is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" @onclick="ClosePseudonymModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Link pseudonym</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="ClosePseudonymModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(pseudonymError))
+                    {
+                        <div class="alert alert-danger py-2">@pseudonymError</div>
+                    }
+                    <p class="small text-secondary mb-3">
+                        Search for an author record to link as a pseudonym of <strong>@author.Name</strong>.
+                    </p>
+                    <label class="form-label">Author</label>
+                    <div class="position-relative">
+                        <input class="form-control" placeholder="Search authors…"
+                               value="@pseudonymQuery" @oninput="OnPseudonymInput" />
+                        @if (showPseudonymSuggestions && pseudonymSuggestions.Count > 0)
+                        {
+                            <ul class="dropdown-menu d-block w-100 mt-1 shadow-sm author-pseudonym-suggestions">
+                                @foreach (var s in pseudonymSuggestions)
+                                {
+                                    <li>
+                                        <button type="button" class="dropdown-item" @onclick="() => AddPseudonymAsync(s.Id)">
+                                            @s.Name
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ClosePseudonymModal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}

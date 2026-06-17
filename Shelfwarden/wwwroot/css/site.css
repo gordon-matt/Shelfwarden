@@ -1262,6 +1262,65 @@ ol.reading-list {
     min-width: 0;
 }
 
+.author-pseudonyms {
+    float: right;
+    margin: 0 0 0.75rem 1.25rem;
+    max-width: min(240px, 45%);
+    font-size: 0.875rem;
+}
+
+.author-pseudonyms-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.author-pseudonyms-title {
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+}
+
+.author-pseudonyms-add {
+    color: var(--bs-secondary-color);
+    line-height: 1;
+}
+
+    .author-pseudonyms-add:hover {
+        color: var(--bs-primary);
+    }
+
+.author-pseudonyms-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.author-pseudonym-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+    .author-pseudonym-row a {
+        min-width: 0;
+    }
+
+.author-pseudonym-unlink {
+    flex: 0 0 auto;
+    line-height: 1;
+}
+
+.author-pseudonym-suggestions {
+    position: absolute;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 1050;
+}
+
 .author-bio {
     white-space: pre-wrap;
     color: var(--bs-secondary-color);
@@ -1280,6 +1339,13 @@ ol.reading-list {
         flex: 0 0 120px;
         width: 120px;
         height: 120px;
+    }
+
+    .author-pseudonyms {
+        float: none;
+        max-width: 100%;
+        margin: 0 0 1rem;
+        width: 100%;
     }
 }
 
