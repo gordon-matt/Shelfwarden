@@ -83,4 +83,10 @@ public interface IAuthorService
     /// <c>PrimaryAuthorId</c> back to null). Administrator only.
     /// </summary>
     Task<Result> UnlinkPseudonymAsync(int pseudonymAuthorId, CancellationToken cancellationToken = default);
+
+    /// <summary>Adds an external link to an author. Administrator only.</summary>
+    Task<Result<AuthorLinkDto>> AddAuthorLinkAsync(int authorId, string? name, string url, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes an external link from an author. Administrator only.</summary>
+    Task<Result> RemoveAuthorLinkAsync(int authorId, int linkId, CancellationToken cancellationToken = default);
 }

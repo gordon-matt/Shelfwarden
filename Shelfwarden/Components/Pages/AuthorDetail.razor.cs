@@ -25,11 +25,20 @@ public partial class AuthorDetail : ComponentBase
     private string? pseudonymError;
     private bool isPseudonymModalOpen;
 
-    private bool canManagePseudonyms => UserContext.IsAdministrator();
+    private string linkName = string.Empty;
+    private string linkUrl = string.Empty;
+    private string? linkError;
+    private bool isAuthorLinkModalOpen;
+
+    private bool isAdministrator => UserContext.IsAdministrator();
 
     private bool ShowPseudonymsPanel =>
         author is { PrimaryAuthor: null } current
-        && (current.Pseudonyms.Count > 0 || canManagePseudonyms);
+        && (current.Pseudonyms.Count > 0 || isAdministrator);
+
+    private bool ShowLinksRow =>
+        author is { Id: > 0 } current
+        && (current.Links.Count > 0 || isAdministrator);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -45,6 +54,10 @@ public partial class AuthorDetail : ComponentBase
         showPseudonymSuggestions = false;
         pseudonymError = null;
         isPseudonymModalOpen = false;
+        linkName = string.Empty;
+        linkUrl = string.Empty;
+        linkError = null;
+        isAuthorLinkModalOpen = false;
 
         var detailTask = AuthorService.GetDetailAsync(Id);
         var contentTask = ContentService.GetForAuthorAsync(Id);
@@ -267,5 +280,63 @@ public partial class AuthorDetail : ComponentBase
         {
             author = result.Value;
         }
+    }
+
+    private static string GetLinkDisplayName(AuthorLinkDto link)
+    {
+        if (!string.IsNullOrWhiteSpace(link.Name))
+        {
+            return link.Name;
+        }
+
+        return Uri.TryCreate(link.Url, UriKind.Absolute, out Uri? uri)
+            ? uri.Host
+            : link.Url;
+    }
+
+    private void OpenAuthorLinkModal()
+    {
+        linkError = null;
+        linkName = string.Empty;
+        linkUrl = string.Empty;
+        isAuthorLinkModalOpen = true;
+    }
+
+    private void CloseAuthorLinkModal()
+    {
+        isAuthorLinkModalOpen = false;
+        linkName = string.Empty;
+        linkUrl = string.Empty;
+    }
+
+    private async Task SaveAuthorLinkAsync()
+    {
+        linkError = null;
+        var result = await AuthorService.AddAuthorLinkAsync(Id, linkName, linkUrl);
+        if (!result.IsSuccess)
+        {
+            linkError = result.Errors.FirstOrDefault()
+                ?? result.ValidationErrors.Select(v => v.ErrorMessage).FirstOrDefault()
+                ?? "Could not add the link.";
+            return;
+        }
+
+        isAuthorLinkModalOpen = false;
+        linkName = string.Empty;
+        linkUrl = string.Empty;
+        await ReloadDetailAsync();
+    }
+
+    private async Task RemoveAuthorLinkAsync(int linkId)
+    {
+        linkError = null;
+        var result = await AuthorService.RemoveAuthorLinkAsync(Id, linkId);
+        if (!result.IsSuccess)
+        {
+            linkError = result.Errors.FirstOrDefault() ?? "Could not remove the link.";
+            return;
+        }
+
+        await ReloadDetailAsync();
     }
 }

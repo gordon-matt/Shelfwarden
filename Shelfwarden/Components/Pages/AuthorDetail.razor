@@ -39,7 +39,7 @@ else
                 <div class="author-pseudonyms">
                     <div class="author-pseudonyms-header">
                         <span class="author-pseudonyms-title">Pseudonyms</span>
-                        @if (canManagePseudonyms)
+                        @if (isAdministrator)
                         {
                             <button type="button" class="btn btn-sm btn-link author-pseudonyms-add p-0"
                                     title="Link pseudonym" aria-label="Link pseudonym"
@@ -55,7 +55,7 @@ else
                             {
                                 <li class="author-pseudonym-row">
                                     <a href="@($"authors/{p.Id}")" class="text-truncate">@p.Name</a>
-                                    @if (canManagePseudonyms)
+                                    @if (isAdministrator)
                                     {
                                         <button type="button" class="btn btn-sm btn-link text-danger author-pseudonym-unlink p-0"
                                                 title="Unlink pseudonym" aria-label="Unlink @p.Name"
@@ -80,7 +80,7 @@ else
             {
                 <div class="text-secondary small mb-2">
                     Pseudonym of <a href="@($"authors/{primary.Id}")">@primary.Name</a>
-                    @if (canManagePseudonyms)
+                    @if (isAdministrator)
                     {
                         <button type="button" class="btn btn-sm btn-link text-danger author-pseudonym-unlink p-0 ms-1"
                                 title="Unlink from primary" aria-label="Unlink from primary"
@@ -117,6 +117,43 @@ else
             else
             {
                 <p class="text-secondary mb-0 fst-italic">No biography on file.</p>
+            }
+            @if (ShowLinksRow)
+            {
+                <div class="author-links small mt-2 mb-0">
+                    <span class="text-secondary">Links:&nbsp;</span>
+                    @for (int i = 0; i < author.Links.Count; i++)
+                    {
+                        var link = author.Links[i];
+                        if (i > 0)
+                        {
+                            <span class="text-secondary">,&nbsp;</span>
+                        }
+                        <span class="author-link-item">
+                            <a href="@link.Url" target="_blank" rel="noopener noreferrer">@GetLinkDisplayName(link)</a>
+                            @if (isAdministrator)
+                            {
+                                <button type="button" class="btn btn-sm btn-link text-danger author-link-unlink p-0"
+                                        title="Remove link" aria-label="Remove @GetLinkDisplayName(link)"
+                                        @onclick="() => RemoveAuthorLinkAsync(link.Id)">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            }
+                        </span>
+                    }
+                    @if (isAdministrator)
+                    {
+                        <button type="button" class="btn btn-sm btn-link author-links-add p-0 ms-1"
+                                title="Add link" aria-label="Add link"
+                                @onclick="OpenAuthorLinkModal">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    }
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(linkError) && !isAuthorLinkModalOpen)
+            {
+                <div class="alert alert-danger py-2 small mt-2 mb-0">@linkError</div>
             }
         </div>
     </div>
@@ -320,6 +357,42 @@ else
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" @onclick="ClosePseudonymModal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@if (isAuthorLinkModalOpen && author is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" @onclick="CloseAuthorLinkModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add author link</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseAuthorLinkModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(linkError))
+                    {
+                        <div class="alert alert-danger py-2">@linkError</div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label" for="author-link-label">Label</label>
+                        <input id="author-link-label" class="form-control" placeholder="e.g. Wikipedia"
+                               maxlength="256" @bind="linkName" />
+                        <div class="form-text">Optional. Shown as the link text.</div>
+                    </div>
+                    <div>
+                        <label class="form-label" for="author-link-url">URL</label>
+                        <input id="author-link-url" class="form-control" placeholder="https://…"
+                               maxlength="2048" @bind="linkUrl" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseAuthorLinkModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveAuthorLinkAsync">Add link</button>
                 </div>
             </div>
         </div>

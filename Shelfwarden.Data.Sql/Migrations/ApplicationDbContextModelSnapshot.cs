@@ -449,6 +449,33 @@ namespace Shelfwarden.Data.Sql.Migrations
                     b.ToTable("Authors", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.AuthorLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.ToTable("AuthorLinks", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>
                 {
                     b.Property<int>("Id")
@@ -1266,6 +1293,17 @@ namespace Shelfwarden.Data.Sql.Migrations
                     b.Navigation("PrimaryAuthor");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.AuthorLink", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Author", "Author")
+                        .WithMany("Links")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Book", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Series", "Series")
@@ -1491,6 +1529,8 @@ namespace Shelfwarden.Data.Sql.Migrations
                     b.Navigation("AdditionalContent");
 
                     b.Navigation("BookAuthors");
+
+                    b.Navigation("Links");
 
                     b.Navigation("Pseudonyms");
                 });

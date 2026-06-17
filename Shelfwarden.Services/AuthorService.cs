@@ -7,6 +7,7 @@ namespace Shelfwarden.Services;
 public class AuthorService(
     ILogger<AuthorService> logger,
     IRepository<Author> authorRepository,
+    IRepository<AuthorLink> authorLinkRepository,
     IRepository<Book> bookRepository,
     IRepository<BookAuthor> bookAuthorRepository,
     IRepository<BookProgress> progressRepository,
@@ -131,7 +132,8 @@ public class AuthorService(
             Query = a => a.Id == id,
             Include = q => q
                 .Include(a => a.PrimaryAuthor)
-                .Include(a => a.Pseudonyms),
+                .Include(a => a.Pseudonyms)
+                .Include(a => a.Links),
             CancellationToken = cancellationToken,
         });
         if (author is null)
@@ -146,6 +148,11 @@ public class AuthorService(
         var pseudonyms = author.Pseudonyms
             .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AuthorRefDto(p.Id, p.Name))
+            .ToList();
+
+        var links = author.Links
+            .OrderBy(l => l.Name ?? l.Url, StringComparer.OrdinalIgnoreCase)
+            .Select(l => new AuthorLinkDto(l.Id, l.Name, l.Url))
             .ToList();
 
         // Load every book for the author with everything we need to build BookListItemDto
@@ -172,7 +179,8 @@ public class AuthorService(
             books,
             cancellationToken,
             primaryAuthor,
-            pseudonyms));
+            pseudonyms,
+            links));
     }
 
     public async Task<Result<int>> GetBooksWithoutAuthorsCountAsync(int? shelfId = null, CancellationToken cancellationToken = default)
@@ -230,7 +238,8 @@ public class AuthorService(
         List<Book> books,
         CancellationToken cancellationToken,
         AuthorRefDto? primaryAuthor = null,
-        IReadOnlyList<AuthorRefDto>? pseudonyms = null)
+        IReadOnlyList<AuthorRefDto>? pseudonyms = null,
+        IReadOnlyList<AuthorLinkDto>? links = null)
     {
         string? userId = userContext.GetCurrentUserId();
         var progressByBook = await BookProjections.LoadProgressPercentagesAsync(
@@ -265,7 +274,8 @@ public class AuthorService(
             seriesGroups,
             standalone,
             primaryAuthor,
-            pseudonyms ?? []);
+            pseudonyms ?? [],
+            links ?? []);
     }
 
     public async Task<Result<int>> DeleteAuthorsAsync(IReadOnlyList<int> authorIds, CancellationToken cancellationToken = default)
@@ -557,6 +567,109 @@ public class AuthorService(
             logger.LogError(ex, "Failed to unlink pseudonym {PseudonymId}", pseudonymAuthorId);
             return Result.Error("Could not unlink the pseudonym.");
         }
+    }
+
+    public async Task<Result<AuthorLinkDto>> AddAuthorLinkAsync(int authorId, string? name, string url, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        if (authorId <= 0)
+        {
+            return Result.Invalid(new ValidationError(nameof(authorId), "A valid author is required."));
+        }
+
+        string? normalizedUrl = NormalizeAuthorLinkUrl(url);
+        if (normalizedUrl is null)
+        {
+            return Result.Invalid(new ValidationError(nameof(url), "Enter a valid http or https URL."));
+        }
+
+        string? trimmedName = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+        if (trimmedName?.Length > 256)
+        {
+            return Result.Invalid(new ValidationError(nameof(name), "Link label must be 256 characters or fewer."));
+        }
+
+        var author = await authorRepository.FindOneAsync(new SearchOptions<Author>
+        {
+            Query = a => a.Id == authorId,
+            CancellationToken = cancellationToken,
+        });
+        if (author is null)
+        {
+            return Result.NotFound($"Author {authorId} not found.");
+        }
+
+        try
+        {
+            var link = new AuthorLink
+            {
+                AuthorId = authorId,
+                Name = trimmedName,
+                Url = normalizedUrl,
+            };
+            await authorLinkRepository.InsertAsync(link);
+
+            logger.LogInformation("Added link {LinkId} to author {AuthorId}.", link.Id, authorId);
+            return Result.Success(new AuthorLinkDto(link.Id, link.Name, link.Url));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to add link to author {AuthorId}", authorId);
+            return Result.Error("Could not add the author link.");
+        }
+    }
+
+    public async Task<Result> RemoveAuthorLinkAsync(int authorId, int linkId, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var link = await authorLinkRepository.FindOneAsync(new SearchOptions<AuthorLink>
+        {
+            Query = l => l.Id == linkId && l.AuthorId == authorId,
+            CancellationToken = cancellationToken,
+        });
+        if (link is null)
+        {
+            return Result.NotFound("Author link not found.");
+        }
+
+        try
+        {
+            await authorLinkRepository.DeleteAsync(link);
+            logger.LogInformation("Removed link {LinkId} from author {AuthorId}.", linkId, authorId);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to remove link {LinkId} from author {AuthorId}", linkId, authorId);
+            return Result.Error("Could not remove the author link.");
+        }
+    }
+
+    private static string? NormalizeAuthorLinkUrl(string url)
+    {
+        string trimmed = url.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+
+        if (!trimmed.Contains("://", StringComparison.Ordinal))
+        {
+            trimmed = "https://" + trimmed;
+        }
+
+        return Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            ? uri.ToString()
+            : null;
     }
 
     public async Task<Result<IReadOnlyList<OpenLibraryAuthorMatchDto>>> SearchOpenLibraryAuthorsAsync(string query, int limit = 8, CancellationToken cancellationToken = default)

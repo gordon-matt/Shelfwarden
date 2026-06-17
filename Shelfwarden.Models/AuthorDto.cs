@@ -5,6 +5,9 @@ public record AuthorDto(int Id, string Name, string? Biography);
 /// <summary>Minimal author reference (id + name) used for pseudonym links on the detail page.</summary>
 public record AuthorRefDto(int Id, string Name);
 
+/// <summary>External link shown on the author detail page (Wikipedia, homepage, etc.).</summary>
+public record AuthorLinkDto(int Id, string? Name, string Url);
+
 /// <summary>List-view projection used on the authors listing page.</summary>
 public record AuthorListItemDto(
     int Id,
@@ -52,7 +55,8 @@ public record AuthorDetailDto(
     IReadOnlyList<AuthorSeriesGroupDto> SeriesGroups,
     IReadOnlyList<BookListItemDto> StandaloneBooks,
     AuthorRefDto? PrimaryAuthor,
-    IReadOnlyList<AuthorRefDto> Pseudonyms);
+    IReadOnlyList<AuthorRefDto> Pseudonyms,
+    IReadOnlyList<AuthorLinkDto> Links);
 
 /// <summary>
 /// One series an author has books in, together with the covers used by the collage and a

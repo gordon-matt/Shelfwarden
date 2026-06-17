@@ -18,6 +18,8 @@ public class Author : BaseEntity<int>
     public virtual ICollection<BookAuthor> BookAuthors { get; set; } = [];
 
     public virtual ICollection<AdditionalContentItem> AdditionalContent { get; set; } = [];
+
+    public virtual ICollection<AuthorLink> Links { get; set; } = [];
 }
 
 public class AuthorMap : IEntityTypeConfiguration<Author>

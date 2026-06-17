@@ -1321,6 +1321,28 @@ ol.reading-list {
     z-index: 1050;
 }
 
+.author-links {
+    line-height: 1.5;
+}
+
+.author-link-item {
+    white-space: nowrap;
+}
+
+.author-link-unlink,
+.author-links-add {
+    line-height: 1;
+    vertical-align: baseline;
+}
+
+.author-links-add {
+    color: var(--bs-secondary-color);
+}
+
+    .author-links-add:hover {
+        color: var(--bs-primary);
+    }
+
 .author-bio {
     white-space: pre-wrap;
     color: var(--bs-secondary-color);
