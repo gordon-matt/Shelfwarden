@@ -74,6 +74,9 @@
         <button class="btn btn-sm btn-outline-danger" disabled="@(selectedGenreIds.Count == 0)" @onclick="DeleteSelectedGenresAsync">
             <i class="bi bi-trash"></i> Delete selected
         </button>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="RemoveUnusedGenresAsync">
+            <i class="bi bi-eraser"></i> Remove unused
+        </button>
     </div>
 
     @if (genres is null)

@@ -12,5 +12,9 @@ public interface IAdditionalContentTagService
 
     Task<Result<int>> DeleteManyAsync(IReadOnlyCollection<int> ids, CancellationToken cancellationToken = default);
 
+    /// <summary>Deletes tags that are not assigned to any extra content item.</summary>
+    /// <returns>Number of tags actually removed.</returns>
+    Task<Result<int>> DeleteUnusedAsync(CancellationToken cancellationToken = default);
+
     Task<Result> MergeAsync(int targetTagId, IReadOnlyCollection<int> sourceTagIds, CancellationToken cancellationToken = default);
 }

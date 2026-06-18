@@ -20,5 +20,9 @@ public interface IGenreService
     /// <returns>Number of genres actually removed.</returns>
     Task<Result<int>> DeleteManyAsync(IReadOnlyCollection<int> ids, CancellationToken cancellationToken = default);
 
+    /// <summary>Deletes genres that are not assigned to any book.</summary>
+    /// <returns>Number of genres actually removed.</returns>
+    Task<Result<int>> DeleteUnusedAsync(CancellationToken cancellationToken = default);
+
     Task<Result> MergeAsync(int targetGenreId, IReadOnlyCollection<int> sourceGenreIds, CancellationToken cancellationToken = default);
 }

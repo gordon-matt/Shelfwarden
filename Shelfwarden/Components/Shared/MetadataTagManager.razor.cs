@@ -245,6 +245,41 @@ public partial class MetadataTagManager : ComponentBase
         await LoadTagsAsync();
     }
 
+    private async Task RemoveUnusedTagsAsync()
+    {
+        string message = Kind == TagKind.Book
+            ? "Remove all tags not assigned to any book? This cannot be undone."
+            : "Remove all extra content tags not assigned to any item? This cannot be undone.";
+
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", message))
+        {
+            return;
+        }
+
+        if (Kind == TagKind.Book)
+        {
+            var result = await BookTagService.DeleteUnusedAsync();
+            if (!result.IsSuccess)
+            {
+                await ReportErrorAsync(result);
+                return;
+            }
+        }
+        else
+        {
+            var result = await ExtraContentTagService.DeleteUnusedAsync();
+            if (!result.IsSuccess)
+            {
+                await ReportErrorAsync(result);
+                return;
+            }
+        }
+
+        selectedTagIds.Clear();
+        await ClearErrorAsync();
+        await LoadTagsAsync();
+    }
+
     private void OpenTagMergeModal()
     {
         if (tags is null || selectedTagIds.Count < 2)

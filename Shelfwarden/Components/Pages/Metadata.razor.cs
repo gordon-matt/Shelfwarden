@@ -165,6 +165,26 @@ public partial class Metadata : ComponentBase
         await LoadGenresAsync();
     }
 
+    private async Task RemoveUnusedGenresAsync()
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
+                "Remove all genres not assigned to any book? This cannot be undone."))
+        {
+            return;
+        }
+
+        var result = await GenreService.DeleteUnusedAsync();
+        if (!result.IsSuccess)
+        {
+            error = FormatResult(result);
+            return;
+        }
+
+        selectedGenreIds.Clear();
+        error = null;
+        await LoadGenresAsync();
+    }
+
     private void OpenGenreMergeModal()
     {
         if (genres is null || selectedGenreIds.Count < 2)

@@ -244,4 +244,26 @@ public class TagService(
 
         return Result.Success(entities.Count);
     }
+
+    public async Task<Result<int>> DeleteUnusedAsync(CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var unused = (await tagRepository.FindAsync(new SearchOptions<Tag>
+        {
+            Query = t => !t.BookTags.Any(),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        if (unused.Count == 0)
+        {
+            return Result.Success(0);
+        }
+
+        await tagRepository.DeleteAsync(unused);
+        return Result.Success(unused.Count);
+    }
 }
