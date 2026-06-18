@@ -717,10 +717,12 @@ public class AuthorService(
                         HasBio: false,
                         HasPhoto: false,
                         BioPreview: null,
-                        PhotoUrl: null));
+                        PhotoUrl: null,
+                        TopBooks: null));
                     continue;
                 }
 
+                string? topBooks = await GetTopBooksAsync(client, candidate.Id);
                 int photoId = detail.PhotosIDs.FirstOrDefault();
                 matches.Add(new OpenLibraryAuthorMatchDto(
                     NormalizeOpenLibraryAuthorId(detail.ID),
@@ -730,7 +732,8 @@ public class AuthorService(
                     !string.IsNullOrWhiteSpace(detail.Bio),
                     detail.PhotosIDs.Count > 0,
                     BuildBioPreview(detail.Bio),
-                    photoId > 0 ? $"https://covers.openlibrary.org/a/id/{photoId}-M.jpg" : null));
+                    photoId > 0 ? $"https://covers.openlibrary.org/a/id/{photoId}-M.jpg" : null,
+                    topBooks));
             }
 
             IReadOnlyList<OpenLibraryAuthorMatchDto> result = matches;
@@ -1063,6 +1066,34 @@ public class AuthorService(
         string trimmed = bio.Trim();
         const int max = 180;
         return trimmed.Length <= max ? trimmed : $"{trimmed[..max]}...";
+    }
+
+    private async Task<string?> GetTopBooksAsync(HttpClient client, string olid, int count = 3)
+    {
+        try
+        {
+            var works = await OLAuthorLoader.GetWorksAsync(
+                client,
+                olid,
+                new KeyValuePair<string, string>("limit", count.ToString()));
+
+            if (works is null || works.Length == 0)
+            {
+                return null;
+            }
+
+            var titles = works
+                .Where(w => !string.IsNullOrWhiteSpace(w.Title))
+                .Take(count)
+                .Select(w => w.Title.Trim());
+
+            return string.Join(", ", titles);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to fetch works for OpenLibrary author '{OLId}'", olid);
+            return null;
+        }
     }
 
     private static string NormalizeImageExtension(string? extension)

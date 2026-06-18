@@ -24,7 +24,8 @@ public record OpenLibraryAuthorMatchDto(
     bool HasBio,
     bool HasPhoto,
     string? BioPreview,
-    string? PhotoUrl);
+    string? PhotoUrl,
+    string? TopBooks);
 
 /// <summary>Outcome of importing OpenLibrary author metadata into Shelfwarden.</summary>
 public record AuthorOpenLibraryImportResultDto(

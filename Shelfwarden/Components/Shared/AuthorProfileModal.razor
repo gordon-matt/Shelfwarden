@@ -104,6 +104,10 @@
                                                     <span> · Bio: @(match.HasBio ? "yes" : "no")</span>
                                                     <span> · Photo: @(match.HasPhoto ? "yes" : "no")</span>
                                                 </div>
+                                                @if (!string.IsNullOrWhiteSpace(match.TopBooks))
+                                                {
+                                                    <div class="small mt-1 fst-italic opacity-75">@match.TopBooks</div>
+                                                }
                                                 @if (!string.IsNullOrWhiteSpace(match.BioPreview))
                                                 {
                                                     <div class="small mt-1">@match.BioPreview</div>
