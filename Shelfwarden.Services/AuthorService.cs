@@ -709,16 +709,13 @@ public class AuthorService(
                 var detail = await OLAuthorLoader.GetDataAsync(client, candidate.Id);
                 if (detail is null)
                 {
-                    matches.Add(new OpenLibraryAuthorMatchDto(
-                        candidate.Id,
-                        candidate.Name,
-                        null,
-                        null,
-                        HasBio: false,
-                        HasPhoto: false,
-                        BioPreview: null,
-                        PhotoUrl: null,
-                        TopBooks: null));
+                    continue;
+                }
+
+                bool hasBio = !string.IsNullOrWhiteSpace(detail.Bio);
+                bool hasPhoto = detail.PhotosIDs.Count > 0;
+                if (!hasBio && !hasPhoto)
+                {
                     continue;
                 }
 
@@ -729,8 +726,8 @@ public class AuthorService(
                     string.IsNullOrWhiteSpace(detail.Name) ? candidate.Name : detail.Name.Trim(),
                     string.IsNullOrWhiteSpace(detail.BirthDate) ? null : detail.BirthDate.Trim(),
                     string.IsNullOrWhiteSpace(detail.DeathDate) ? null : detail.DeathDate.Trim(),
-                    !string.IsNullOrWhiteSpace(detail.Bio),
-                    detail.PhotosIDs.Count > 0,
+                    hasBio,
+                    hasPhoto,
                     BuildBioPreview(detail.Bio),
                     photoId > 0 ? $"https://covers.openlibrary.org/a/id/{photoId}-M.jpg" : null,
                     topBooks));
