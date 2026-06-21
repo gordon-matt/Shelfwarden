@@ -214,21 +214,21 @@ public class BookService(
         options.OrderBy = request.SortBy switch
         {
             BookSortBy.Title => request.SortDescending
-                ? q => q.OrderByDescending(b => b.SortTitle ?? b.Title)
-                : q => q.OrderBy(b => b.SortTitle ?? b.Title),
+                ? q => q.OrderByDescending(b => b.SortTitle ?? b.Title).ThenByDescending(b => b.Id)
+                : q => q.OrderBy(b => b.SortTitle ?? b.Title).ThenBy(b => b.Id),
             BookSortBy.AddedAt => request.SortDescending
-                ? q => q.OrderByDescending(b => b.CreatedAt)
-                : q => q.OrderBy(b => b.CreatedAt),
+                ? q => q.OrderByDescending(b => b.CreatedAt).ThenByDescending(b => b.Id)
+                : q => q.OrderBy(b => b.CreatedAt).ThenBy(b => b.Id),
             BookSortBy.PublishedOn => request.SortDescending
-                ? q => q.OrderByDescending(b => b.PublishedOn)
-                : q => q.OrderBy(b => b.PublishedOn),
+                ? q => q.OrderByDescending(b => b.PublishedOn).ThenByDescending(b => b.Id)
+                : q => q.OrderBy(b => b.PublishedOn).ThenBy(b => b.Id),
             BookSortBy.NumberInSeries => request.SortDescending
-                ? q => q.OrderByDescending(b => b.SeriesId).ThenByDescending(b => b.NumberInSeries)
-                : q => q.OrderBy(b => b.SeriesId).ThenBy(b => b.NumberInSeries),
+                ? q => q.OrderByDescending(b => b.SeriesId).ThenByDescending(b => b.NumberInSeries).ThenByDescending(b => b.Id)
+                : q => q.OrderBy(b => b.SeriesId).ThenBy(b => b.NumberInSeries).ThenBy(b => b.Id),
             BookSortBy.UpdatedAt => request.SortDescending
-                ? q => q.OrderByDescending(b => b.UpdatedAt)
-                : q => q.OrderBy(b => b.UpdatedAt),
-            _ => q => q.OrderBy(b => b.SortTitle ?? b.Title),
+                ? q => q.OrderByDescending(b => b.UpdatedAt).ThenByDescending(b => b.Id)
+                : q => q.OrderBy(b => b.UpdatedAt).ThenBy(b => b.Id),
+            _ => q => q.OrderBy(b => b.SortTitle ?? b.Title).ThenBy(b => b.Id),
         };
 
         var page_ = await bookRepository.FindAsync(options);
