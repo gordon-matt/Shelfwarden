@@ -19,6 +19,8 @@ public partial class Reader : ComponentBase
     private bool showBookmarks;
     private string? bookmarkError;
     private string? lastSavedCfi;
+    private bool readerDarkMode;
+    private bool readerDarkModeLoaded;
 
     /// <summary>Tracks which <see cref="Id"/> we last loaded — client navigation between <c>/read/1</c> and <c>/read/2</c> reuses this component.</summary>
     private int lastHandledBookId = -1;
@@ -102,6 +104,19 @@ public partial class Reader : ComponentBase
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!readerDarkModeLoaded)
+        {
+            try
+            {
+                readerDarkMode = await JS.InvokeAsync<bool>("shelfwardenReader.getDarkMode");
+                readerDarkModeLoaded = true;
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex) when (IsBenignJsInteropFailure(ex))
+            {
+            }
+        }
+
         if (book is null || jsMounted)
         {
             return;
@@ -216,6 +231,12 @@ public partial class Reader : ComponentBase
     private Task ZoomOutAsync() => InvokeReaderAsync("zoomOut");
 
     private Task ResetZoomAsync() => InvokeReaderAsync("resetZoom");
+
+    private async Task ToggleReaderDarkModeAsync()
+    {
+        readerDarkMode = !readerDarkMode;
+        await InvokeReaderAsync("setDarkMode", readerDarkMode);
+    }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {

@@ -932,6 +932,47 @@ a.stat-card-link {
     touch-action: manipulation;
 }
 
+/* Reader-only dark mode (independent of the app Bootswatch theme). */
+.reader-shell.reader-dark {
+    --reader-chrome-bg: #1c1c1e;
+    --reader-chrome-border: #3a3a3c;
+    --reader-viewport-bg: #0d0d0d;
+    background-color: var(--reader-viewport-bg);
+    color: #e5e5ea;
+}
+
+    .reader-shell.reader-dark .reader-topbar,
+    .reader-shell.reader-dark .reader-bottombar {
+        background-color: var(--reader-chrome-bg);
+        border-color: var(--reader-chrome-border);
+        color: #e5e5ea;
+    }
+
+    .reader-shell.reader-dark .reader-sidebar {
+        background-color: var(--reader-chrome-bg);
+        border-color: var(--reader-chrome-border);
+        color: #e5e5ea;
+    }
+
+    .reader-shell.reader-dark .reader-document-viewport,
+    .reader-shell.reader-dark #pdf-viewer {
+        background-color: var(--reader-viewport-bg);
+    }
+
+    .reader-shell.reader-dark .reader-title .text-secondary {
+        color: #aeaeb2 !important;
+    }
+
+    .reader-shell.reader-dark .btn-outline-secondary {
+        --bs-btn-color: #e5e5ea;
+        --bs-btn-border-color: #48484a;
+        --bs-btn-hover-color: #fff;
+        --bs-btn-hover-bg: #48484a;
+        --bs-btn-hover-border-color: #636366;
+        --bs-btn-active-bg: #636366;
+        --bs-btn-active-border-color: #636366;
+    }
+
 /* Reading list — horizontal rows so the queue order is unmistakable, with cover + meta +
    per-row actions. We deliberately don't use a book grid here: the *order* is the point. */
 ol.reading-list {

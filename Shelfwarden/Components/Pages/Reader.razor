@@ -12,7 +12,7 @@
 @* Full-viewport shell: fixed chrome (toolbar + bottom bar) + flex main row (optional bookmarks
    sidebar + document viewport). Zoom/transform never applies to chrome — only pdf.js canvas scale
    or epub.js typography inside `.reader-document-content`. *@
-<div class="reader-shell" @key="Id">
+<div class="reader-shell @(readerDarkMode ? "reader-dark" : null)" @key="Id">
     <header class="reader-topbar reader-toolbar">
         <a class="btn btn-sm btn-outline-secondary border-0" href="@($"books/{Id}")" title="Back">
             <i class="bi bi-arrow-left"></i>
@@ -48,23 +48,31 @@
                 <i class="bi bi-chevron-right"></i>
             </button>
         }
-        @if (book is not null && (book.FileFormat == EbookFormat.Epub || book.FileFormat == EbookFormat.Pdf))
-        {
-            <div class="btn-group btn-group-sm reader-zoom-group" role="group" aria-label="Zoom"
-                 @onclick:stopPropagation="true" @onpointerdown:stopPropagation="true">
-                <button type="button" class="btn btn-outline-secondary" @onclick="ZoomOutAsync" @onclick:preventDefault="true" title="Zoom out (smaller text / page)">
-                    <i class="bi bi-zoom-out"></i>
-                </button>
-                <button type="button" class="btn btn-outline-secondary" @onclick="ResetZoomAsync" @onclick:preventDefault="true" title="Reset zoom">
-                    <i class="bi bi-arrow-counterclockwise"></i>
-                </button>
-                <button type="button" class="btn btn-outline-secondary" @onclick="ZoomInAsync" @onclick:preventDefault="true" title="Zoom in (larger text / page)">
-                    <i class="bi bi-zoom-in"></i>
-                </button>
-            </div>
-        }
         @if (book is not null)
         {
+            @if (book.FileFormat != EbookFormat.Unknown)
+            {
+                <div class="btn-group btn-group-sm reader-zoom-group" role="group" aria-label="Zoom"
+                     @onclick:stopPropagation="true" @onpointerdown:stopPropagation="true">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ZoomOutAsync" @onclick:preventDefault="true" title="Zoom out (smaller text / page)">
+                        <i class="bi bi-zoom-out"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ResetZoomAsync" @onclick:preventDefault="true" title="Reset zoom">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ZoomInAsync" @onclick:preventDefault="true" title="Zoom in (larger text / page)">
+                        <i class="bi bi-zoom-in"></i>
+                    </button>
+                </div>
+
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary @(readerDarkMode ? "active" : null)"
+                        @onclick="ToggleReaderDarkModeAsync"
+                        title="@(readerDarkMode ? "Switch to light mode" : "Switch to dark mode")">
+                    <i class="bi @(readerDarkMode ? "bi-sun" : "bi-moon-stars")"></i>
+                </button>
+            }
+
             <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="AddBookmarkAsync" title="Bookmark this spot">
                 <i class="bi bi-bookmark-plus"></i>
             </button>

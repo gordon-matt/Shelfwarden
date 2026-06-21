@@ -115,7 +115,9 @@
                                            checked="@selectedGenreIds.Contains(g.Id)"
                                            @onchange="e => ToggleGenreSelection(g.Id, (bool)(e.Value ?? false))" />
                                 </td>
-                                <td>@g.Name</td>
+                                <td>
+                                    <a href="@($"books?genreId={g.Id}")">@g.Name</a>
+                                </td>
                                 <td class="text-end text-nowrap">
                                     <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => OpenGenreRenameAsync(g))">
                                         <i class="bi bi-pencil"></i>

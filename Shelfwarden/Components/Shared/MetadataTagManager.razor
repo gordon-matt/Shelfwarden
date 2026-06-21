@@ -67,7 +67,16 @@ else
                                        checked="@selectedTagIds.Contains(t.Id)"
                                        @onchange="e => ToggleTagSelection(t.Id, (bool)(e.Value ?? false))" />
                             </td>
-                            <td>@t.Name</td>
+                            <td>
+                                @if (Kind == MetadataTagManager.TagKind.Book)
+                                {
+                                    <a href="@($"books?tagId={t.Id}")">@t.Name</a>
+                                }
+                                else
+                                {
+                                    @t.Name
+                                }
+                            </td>
                             <td class="text-end text-nowrap">
                                 <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => OpenTagRenameAsync(t))">
                                     <i class="bi bi-pencil"></i>

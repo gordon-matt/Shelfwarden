@@ -5,6 +5,9 @@ public static class Constants
     /// <summary>Browser <c>localStorage</c> key for the per-user Bootswatch theme (client-only).</summary>
     public const string ClientThemeLocalStorageKey = "shelfwarden.theme";
 
+    /// <summary>Browser <c>localStorage</c> key for the ebook reader dark-mode preference (client-only).</summary>
+    public const string ReaderDarkModeLocalStorageKey = "shelfwarden.reader.darkMode";
+
     /// <summary>
     /// Synthetic user id used by the "None" authentication mode (desktop / kiosk scenarios).
     /// </summary>

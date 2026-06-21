@@ -14,6 +14,7 @@
     var EPUB_FONT_MAX = 2.25;
     var EPUB_FONT_STEP = 0.1;
     var EPUB_LOCATION_PROBE_FRAMES = 16;
+    var READER_DARK_KEY = 'shelfwarden.reader.darkMode';
 
     /**
      * Mobile two-finger pinch-to-zoom on the reader document. Disabled for now: it still
@@ -76,6 +77,9 @@
         pdfScrollListener: null,
         /** @type {HTMLDivElement|null} Inner wrapper used for CSS-transform pinch preview. */
         pdfPagesWrapper: null,
+        /** Tracks reader dark preference for the content hook (epub iframe). */
+        epubReaderDarkMode: false,
+        epubReaderThemeHookInstalled: false,
     };
     state.epubMountGate.resolve();
 
@@ -86,6 +90,95 @@
 
     function clamp(n, lo, hi) {
         return Math.min(hi, Math.max(lo, n));
+    }
+
+    function readReaderDarkMode() {
+        try {
+            return localStorage.getItem(READER_DARK_KEY) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function writeReaderDarkMode(on) {
+        try {
+            localStorage.setItem(READER_DARK_KEY, on ? '1' : '0');
+        } catch (e) { /* private mode / blocked storage */ }
+    }
+
+    function applyReaderDarkChrome(on) {
+        var shell = document.querySelector('.reader-shell');
+        if (shell) {
+            shell.classList.toggle('reader-dark', !!on);
+        }
+    }
+
+    var EPUB_READER_THEME_KEY = 'shelfwarden-reader-theme';
+    var EPUB_READER_THEME_CSS = {
+        light: [
+            'body { background: #ffffff !important; color: #1a1a1a !important; }',
+            'p, li, span, div, h1, h2, h3, h4, h5, h6 { color: inherit !important; }',
+            'a { color: inherit !important; }',
+        ].join('\n'),
+        dark: [
+            'body { background: #1a1a1a !important; color: #e6e6e6 !important; }',
+            'p, li, span, div, h1, h2, h3, h4, h5, h6 { color: #e6e6e6 !important; }',
+            'a { color: #7eb8ff !important; }',
+        ].join('\n'),
+    };
+
+    /** epub.js themes.select() stacks styles and cannot reliably revert to light — use addStylesheetCss instead. */
+    function cleanupLegacyEpubThemeStyles(content) {
+        if (!content || !content.document) return;
+        var doc = content.document;
+        var legacy = doc.getElementById('epubjs-inserted-css-shelfwarden-dark');
+        if (legacy && legacy.parentNode) {
+            legacy.parentNode.removeChild(legacy);
+        }
+        if (typeof content.removeClass === 'function') {
+            content.removeClass('shelfwarden-dark');
+        }
+    }
+
+    function applyEpubReaderThemeToContent(content, isDark) {
+        if (!content || typeof content.addStylesheetCss !== 'function') return;
+        cleanupLegacyEpubThemeStyles(content);
+        content.addStylesheetCss(
+            isDark ? EPUB_READER_THEME_CSS.dark : EPUB_READER_THEME_CSS.light,
+            EPUB_READER_THEME_KEY);
+    }
+
+    function applyEpubReaderTheme(isDark) {
+        state.epubReaderDarkMode = !!isDark;
+        var r = state.rendition;
+        if (!r || typeof r.getContents !== 'function') return;
+        try {
+            r.getContents().forEach(function (content) {
+                applyEpubReaderThemeToContent(content, isDark);
+            });
+        } catch (err) {
+            console.warn('EPUB reader theme', err);
+        }
+    }
+
+    function installEpubReaderThemeHook(sessionId) {
+        var r = state.rendition;
+        if (!r || !r.hooks || !r.hooks.content || state.epubReaderThemeHookInstalled) return;
+        state.epubReaderThemeHookInstalled = true;
+        r.hooks.content.register(function (contents) {
+            if (sessionId !== state.epubSessionId) return;
+            applyEpubReaderThemeToContent(contents, state.epubReaderDarkMode);
+        });
+    }
+
+    function applyEpubDarkTheme(isDark) {
+        applyEpubReaderTheme(isDark);
+    }
+
+    function setReaderDarkMode(on) {
+        writeReaderDarkMode(on);
+        applyReaderDarkChrome(on);
+        applyEpubDarkTheme(on);
     }
 
     function delay(ms) {
@@ -965,7 +1058,9 @@
 
                 attachDocumentZoomInteraction(host);
                 installEpubSwipeHandlers(sessionId);
+                installEpubReaderThemeHook(sessionId);
                 applyReaderChromeViewport(true);
+                setReaderDarkMode(readReaderDarkMode());
             } finally {
                 mountGate.resolve();
             }
@@ -1082,6 +1177,7 @@
             state.currentCfi = null;
             state.currentPercent = 0;
             state.epubLocationsReady = false;
+            state.epubReaderThemeHookInstalled = false;
 
             // Rendition leaves iframe(s) behind; stale DOM causes the next unpack to fail
             // (epub.js: this.resources undefined during replaceCss).
@@ -1155,6 +1251,7 @@
 
             attachDocumentZoomInteraction(container);
             applyReaderChromeViewport(true);
+            applyReaderDarkChrome(readReaderDarkMode());
 
             return { pageCount: state.pdfPageCount };
         },
@@ -1216,6 +1313,14 @@
             var s = typeof scale === 'number' ? scale : parseFloat(scale);
             if (!isFinite(s) || s <= 0) return;
             a.setScale(s);
+        },
+
+        getDarkMode: function () {
+            return readReaderDarkMode();
+        },
+
+        setDarkMode: function (on) {
+            setReaderDarkMode(!!on);
         },
 
         disposePdf: function () {
