@@ -23,7 +23,7 @@ public static class Constants
     /// dashboard's Finished count, the "Continue Reading" filter, and the Mark as Read action
     /// so the UI and services can't drift apart.
     /// </summary>
-    public const double FinishedThresholdPercent = 95d;
+    public const double FinishedThresholdPercent = 99d;
 
     /// <summary>
     /// Sentinel UserId stored on records that are global / system-wide rather than owned
