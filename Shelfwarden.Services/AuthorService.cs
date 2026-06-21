@@ -1,5 +1,7 @@
+using System.Text.Json;
 using OpenLibraryNET.Loader;
 using OpenLibraryNET.Utility;
+using Shelfwarden.Services.Metadata;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
@@ -1069,28 +1071,59 @@ public class AuthorService(
     {
         try
         {
-            var works = await OLAuthorLoader.GetWorksAsync(
-                client,
-                olid,
-                new KeyValuePair<string, string>("limit", count.ToString()));
-
-            if (works is null || works.Length == 0)
+            // Prefer English editions; fall back to all languages if too few English results.
+            var titles = await FetchTopBookTitlesAsync(client, olid, count, englishOnly: true);
+            if (titles.Count < count)
             {
-                return null;
+                titles = await FetchTopBookTitlesAsync(client, olid, count, englishOnly: false);
             }
 
-            var titles = works
-                .Where(w => !string.IsNullOrWhiteSpace(w.Title))
-                .Take(count)
-                .Select(w => w.Title.Trim());
-
-            return string.Join(", ", titles);
+            return titles.Count > 0 ? string.Join(", ", titles) : null;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to fetch works for OpenLibrary author '{OLId}'", olid);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Fetches the most widely-published works for an author from the Open Library search API,
+    /// sorted by edition count as a proxy for recognition. Results are optionally restricted to
+    /// works that have at least one English edition.
+    /// </summary>
+    private async Task<List<string>> FetchTopBookTitlesAsync(
+        HttpClient client, string olid, int count, bool englishOnly)
+    {
+        // Fetch a few extra so minor gaps (blank titles, etc.) don't reduce the final count.
+        int fetchLimit = count + 3;
+        string langSegment = englishOnly ? "&language=eng" : string.Empty;
+        // author_key expects the bare OLID (e.g. OL26320A), not the full /authors/OL26320A key.
+        string url = $"https://openlibrary.org/search.json?author_key={olid}&sort=editions&limit={fetchLimit}&fields=title{langSegment}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("User-Agent", MetadataHttp.UserAgent);
+        request.Headers.TryAddWithoutValidation("Accept", "application/json");
+
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        if (!response.IsSuccessStatusCode)
+        {
+            return [];
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var doc = await JsonDocument.ParseAsync(stream);
+
+        if (!doc.RootElement.TryGetProperty("docs", out var docs))
+        {
+            return [];
+        }
+
+        return docs.EnumerateArray()
+            .Select(d => d.TryGetProperty("title", out var t) ? t.GetString()?.Trim() : null)
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Take(count)
+            .ToList()!;
     }
 
     private static string NormalizeImageExtension(string? extension)
