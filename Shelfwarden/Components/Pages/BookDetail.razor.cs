@@ -20,6 +20,7 @@ public partial class BookDetail : ComponentBase
     private bool enqueuingGenerate;
     private int? extraContentTagScopeAuthorId;
     private string? generateError;
+    private bool isAdministrator => UserContext.IsAdministrator();
     private bool loading = true;
     private string newName = string.Empty;
     private string? pendingVoiceConfirmation;
@@ -232,7 +233,7 @@ public partial class BookDetail : ComponentBase
 
     private async Task ConfirmGenerateAsync()
     {
-        if (string.IsNullOrEmpty(pendingVoiceConfirmation) || !UserContext.IsAdministrator())
+        if (string.IsNullOrEmpty(pendingVoiceConfirmation) || !isAdministrator)
         {
             return;
         }
@@ -431,7 +432,7 @@ public partial class BookDetail : ComponentBase
 
         var loadedCollections =
             collectionsTask.Result.IsSuccess ? collectionsTask.Result.Value : [];
-        collections = UserContext.IsAdministrator()
+        collections = isAdministrator
             ? loadedCollections
             : loadedCollections.Where(c => !c.IsGlobal).ToList();
         readingLists = listsTask.Result.IsSuccess ? listsTask.Result.Value : [];
@@ -563,7 +564,7 @@ public partial class BookDetail : ComponentBase
     /// </summary>
     private async Task StartGenerateFlowAsync()
     {
-        if (!UserContext.IsAdministrator())
+        if (!isAdministrator)
         {
             return;
         }

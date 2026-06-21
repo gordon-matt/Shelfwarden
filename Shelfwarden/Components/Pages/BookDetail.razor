@@ -180,7 +180,7 @@ else
                 {
                     @if (audiobook is null || audiobook.State is AudiobookState.None or AudiobookState.Failed)
                     {
-                        @if (UserContext.IsAdministrator())
+                        @if (isAdministrator)
                         {
                             <button class="btn btn-outline-primary" type="button" @onclick="StartGenerateFlowAsync">
                                 <i class="bi bi-headphones"></i> Generate Audio
@@ -193,7 +193,7 @@ else
                             <i class="bi bi-volume-up"></i>
                             @(showPlayer ? "Hide Player" : "Listen")
                         </button>
-                        @if (UserContext.IsAdministrator())
+                        @if (isAdministrator)
                         {
                             <button class="btn btn-outline-secondary" type="button" @onclick="StartGenerateFlowAsync"
                                     title="Regenerate with different sections, chapters or voice">
@@ -341,7 +341,7 @@ else
                             }
                         </div>
 
-                        @if (UserContext.IsAdministrator())
+                        @if (isAdministrator)
                         {
                             <div class="d-flex flex-wrap gap-2 mt-3">
                                 @if (audiobook.State is AudiobookState.Pending or AudiobookState.Running or AudiobookState.Failed)
@@ -430,7 +430,7 @@ else
                                                        title="Download this chapter">
                                                         <i class="bi bi-download"></i>
                                                     </a>
-                                                    @if (UserContext.IsAdministrator())
+                                                    @if (isAdministrator)
                                                     {
                                                         <button type="button"
                                                                 class="btn btn-sm btn-outline-danger border-0 py-0"

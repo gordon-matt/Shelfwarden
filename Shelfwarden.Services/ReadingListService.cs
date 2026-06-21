@@ -520,7 +520,7 @@ public class ReadingListService(
         var bookIds = (await bookRepository.FindAsync(new SearchOptions<Book>
         {
             Query = b => b.SeriesId == seriesId,
-            OrderBy = q => q.OrderBy(b => b.NumberInSeries).ThenBy(b => b.SortTitle ?? b.Title),
+            OrderBy = query => query.OrderBy(b => b.NumberInSeries).ThenBy(b => b.SortTitle ?? b.Title),
             CancellationToken = cancellationToken,
         }, b => b.Id)).ToList();
 

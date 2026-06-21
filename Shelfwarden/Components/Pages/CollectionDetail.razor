@@ -76,7 +76,7 @@ else
                             <label class="form-label">Description</label>
                             <InputText class="form-control" @bind-Value="editModel.Description" />
                         </div>
-                        @if (UserContext.IsAdministrator())
+                        @if (isAdministrator)
                         {
                             <div class="col-12">
                                 <div class="form-check">
@@ -153,7 +153,7 @@ else
     }
     else
     {
-        @if (UserContext.IsAdministrator() && collection.Books.Count > 0)
+        @if (isAdministrator && collection.Books.Count > 0)
         {
             <div class="selection-toolbar mb-3 d-flex flex-wrap align-items-center gap-2">
                 <span class="text-secondary small">
@@ -204,8 +204,8 @@ else
                     <div class="book-grid">
                         @foreach (var b in FilteredBooks)
                         {
-                            <div class="book-card-wrap @(UserContext.IsAdministrator() && selectedBookIds.Contains(b.Id) ? "selected" : null)">
-                                @if (UserContext.IsAdministrator())
+                            <div class="book-card-wrap @(isAdministrator && selectedBookIds.Contains(b.Id) ? "selected" : null)">
+                                @if (isAdministrator)
                                 {
                                     <input class="form-check-input book-card-select" type="checkbox"
                                            checked="@selectedBookIds.Contains(b.Id)"

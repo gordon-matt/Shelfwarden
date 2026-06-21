@@ -9,6 +9,7 @@ public partial class CollectionDetail : ComponentBase
     private CollectionDetailDto? collection;
     private bool editing;
     private EditModel editModel = new();
+    private bool isAdministrator => isAdministrator;
     private bool loading = true;
     private bool savingEdit;
     private CancellationTokenSource? searchCts;
@@ -101,7 +102,7 @@ public partial class CollectionDetail : ComponentBase
             // Owner can always modify; admins can modify the global flavour. Personal
             // collections owned by other users are 403'd by the service before we get here.
             canModify = collection.IsGlobal
-                ? UserContext.IsAdministrator()
+                ? isAdministrator
                 : collection.OwnerUserId == userId;
         }
         else
@@ -166,7 +167,7 @@ public partial class CollectionDetail : ComponentBase
             {
                 Name = editModel.Name,
                 Description = editModel.Description,
-                IsGlobal = UserContext.IsAdministrator() && editModel.IsGlobal,
+                IsGlobal = isAdministrator && editModel.IsGlobal,
                 CardBannerMode = bannerMode,
                 CardBannerSelectedBookIds = bannerSelectedBooks.Select(b => b.Id).ToList(),
             });

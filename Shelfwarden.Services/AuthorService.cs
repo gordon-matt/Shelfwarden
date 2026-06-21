@@ -132,7 +132,7 @@ public class AuthorService(
         var author = await authorRepository.FindOneAsync(new SearchOptions<Author>
         {
             Query = a => a.Id == id,
-            Include = q => q
+            Include = query => query
                 .Include(a => a.PrimaryAuthor)
                 .Include(a => a.Pseudonyms)
                 .Include(a => a.Links),
@@ -491,7 +491,7 @@ public class AuthorService(
         var authors = (await authorRepository.FindAsync(new SearchOptions<Author>
         {
             Query = a => a.Id == primaryAuthorId || a.Id == pseudonymAuthorId,
-            Include = q => q.Include(a => a.Pseudonyms),
+            Include = query => query.Include(a => a.Pseudonyms),
             CancellationToken = cancellationToken,
         })).ToList();
 
