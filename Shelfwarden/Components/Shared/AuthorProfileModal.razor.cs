@@ -2,36 +2,36 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class AuthorProfileModal : ComponentBase
 {
-    [Parameter] public bool IsOpen { get; set; }
-    [Parameter] public int AuthorId { get; set; }
-    [Parameter] public string AuthorName { get; set; } = string.Empty;
-    [Parameter] public string? CurrentBiography { get; set; }
-    [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; }
-
-    private enum ModalTab
-    { Manual, Match }
-
     private ModalTab activeTab = ModalTab.Manual;
-
-    private string manualName = string.Empty;
+    private string authorMatchQuery = string.Empty;
+    private string? errorMessage;
+    private bool hasLoadedForCurrentOpenState;
+    private bool hasSearchedOpenLibrary;
+    private bool isAwaitingImportConfirmation;
+    private bool isImportingOpenLibrary;
+    private bool isSavingManual;
+    private bool isSearchingOpenLibrary;
     private string? manualBiography;
+    private string manualName = string.Empty;
+    private IReadOnlyList<OpenLibraryAuthorMatchDto> openLibraryMatches = [];
+    private OpenLibraryAuthorMatchDto? pendingMatchSelection;
     private byte[]? selectedPhotoBytes;
     private string? selectedPhotoExtension;
     private string? selectedPhotoName;
-    private bool isSavingManual;
-
-    private string authorMatchQuery = string.Empty;
-    private bool isSearchingOpenLibrary;
-    private bool hasSearchedOpenLibrary;
-    private bool isImportingOpenLibrary;
-    private bool isAwaitingImportConfirmation;
-    private IReadOnlyList<OpenLibraryAuthorMatchDto> openLibraryMatches = [];
-    private OpenLibraryAuthorMatchDto? pendingMatchSelection;
-
     private string? statusMessage;
-    private string? errorMessage;
-    private bool hasLoadedForCurrentOpenState;
+
+    private enum ModalTab
+    {
+        Manual,
+        Match
+    }
+
+    [Parameter] public int AuthorId { get; set; }
+    [Parameter] public string AuthorName { get; set; } = string.Empty;
+    [Parameter] public string? CurrentBiography { get; set; }
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
 
     protected override void OnParametersSet()
     {
@@ -63,21 +63,36 @@ public partial class AuthorProfileModal : ComponentBase
         openLibraryMatches = [];
     }
 
-    private async Task SetTabAsync(ModalTab tab)
+    private void CancelImportConfirmation() => isAwaitingImportConfirmation = false;
+
+    private async Task CloseAsync() => await OnClose.InvokeAsync();
+
+    private async Task ConfirmImportAsync()
     {
-        if (activeTab == tab)
+        if (pendingMatchSelection is null)
         {
             return;
         }
 
-        activeTab = tab;
-        statusMessage = null;
+        isImportingOpenLibrary = true;
         errorMessage = null;
-        isAwaitingImportConfirmation = false;
-
-        if (tab == ModalTab.Match && !hasSearchedOpenLibrary)
+        statusMessage = null;
+        try
         {
-            await SearchOpenLibraryAsync();
+            var result = await AuthorService.ImportFromOpenLibraryAsync(AuthorId, pendingMatchSelection.OpenLibraryId);
+            if (!result.IsSuccess)
+            {
+                errorMessage = "Import failed. Please try a different match.";
+                return;
+            }
+
+            statusMessage = "OpenLibrary metadata imported.";
+            await OnSaved.InvokeAsync();
+            await CloseAsync();
+        }
+        finally
+        {
+            isImportingOpenLibrary = false;
         }
     }
 
@@ -169,6 +184,24 @@ public partial class AuthorProfileModal : ComponentBase
         statusMessage = null;
     }
 
+    private async Task SetTabAsync(ModalTab tab)
+    {
+        if (activeTab == tab)
+        {
+            return;
+        }
+
+        activeTab = tab;
+        statusMessage = null;
+        errorMessage = null;
+        isAwaitingImportConfirmation = false;
+
+        if (tab == ModalTab.Match && !hasSearchedOpenLibrary)
+        {
+            await SearchOpenLibraryAsync();
+        }
+    }
+
     private void StartImportConfirmation()
     {
         if (pendingMatchSelection is null)
@@ -178,37 +211,4 @@ public partial class AuthorProfileModal : ComponentBase
 
         isAwaitingImportConfirmation = true;
     }
-
-    private void CancelImportConfirmation() => isAwaitingImportConfirmation = false;
-
-    private async Task ConfirmImportAsync()
-    {
-        if (pendingMatchSelection is null)
-        {
-            return;
-        }
-
-        isImportingOpenLibrary = true;
-        errorMessage = null;
-        statusMessage = null;
-        try
-        {
-            var result = await AuthorService.ImportFromOpenLibraryAsync(AuthorId, pendingMatchSelection.OpenLibraryId);
-            if (!result.IsSuccess)
-            {
-                errorMessage = "Import failed. Please try a different match.";
-                return;
-            }
-
-            statusMessage = "OpenLibrary metadata imported.";
-            await OnSaved.InvokeAsync();
-            await CloseAsync();
-        }
-        finally
-        {
-            isImportingOpenLibrary = false;
-        }
-    }
-
-    private async Task CloseAsync() => await OnClose.InvokeAsync();
 }

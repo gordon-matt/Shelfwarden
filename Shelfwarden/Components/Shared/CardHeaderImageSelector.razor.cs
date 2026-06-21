@@ -3,51 +3,22 @@ namespace Shelfwarden.Components.Shared;
 public partial class CardHeaderImageSelector : ComponentBase
 {
     private readonly string _groupName = $"hdr-{Guid.NewGuid():N}";
+    private string bookQuery = string.Empty;
+    private IReadOnlyList<BookListItemDto> bookSuggestions = [];
+    private CancellationTokenSource? searchCts;
+    private bool showSuggestions;
 
     [Parameter, EditorRequired] public CardHeaderBannerMode Mode { get; set; }
 
     [Parameter] public EventCallback<CardHeaderBannerMode> ModeChanged { get; set; }
 
-    [Parameter, EditorRequired] public List<BookListItemDto> SelectedBooks { get; set; } = [];
-
     [Parameter] public EventCallback OnSelectedBooksChanged { get; set; }
+    [Parameter, EditorRequired] public Func<IBrowserFile, Task> OnUploadAsync { get; set; } = null!;
 
     /// <summary>Search within the current shelf / collection / reading list only.</summary>
     [Parameter, EditorRequired] public Func<string, Task<IReadOnlyList<BookListItemDto>>> SearchBooksInScopeAsync { get; set; } = null!;
 
-    [Parameter, EditorRequired] public Func<IBrowserFile, Task> OnUploadAsync { get; set; } = null!;
-
-    private string bookQuery = string.Empty;
-    private bool showSuggestions;
-    private IReadOnlyList<BookListItemDto> bookSuggestions = [];
-    private CancellationTokenSource? searchCts;
-
-    private async Task SetMode(CardHeaderBannerMode mode)
-    {
-        Mode = mode;
-        if (ModeChanged.HasDelegate)
-        {
-            await ModeChanged.InvokeAsync(mode);
-        }
-    }
-
-    private async Task OnFileChosenAsync(InputFileChangeEventArgs e)
-    {
-        var file = e.File;
-        if (file is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await OnUploadAsync(file);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Card banner upload failed");
-        }
-    }
+    [Parameter, EditorRequired] public List<BookListItemDto> SelectedBooks { get; set; } = [];
 
     private async Task AddBookAsync(BookListItemDto book)
     {
@@ -73,20 +44,29 @@ public partial class CardHeaderImageSelector : ComponentBase
         }
     }
 
-    private async Task RemoveBookAsync(BookListItemDto book)
-    {
-        SelectedBooks.Remove(book);
-        if (OnSelectedBooksChanged.HasDelegate)
-        {
-            await OnSelectedBooksChanged.InvokeAsync();
-        }
-    }
-
     private async Task OnBookQueryInput(ChangeEventArgs e)
     {
         bookQuery = e.Value?.ToString() ?? string.Empty;
         showSuggestions = true;
         await RefreshSuggestionsAsync();
+    }
+
+    private async Task OnFileChosenAsync(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await OnUploadAsync(file);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Card banner upload failed");
+        }
     }
 
     private async Task RefreshSuggestionsAsync()
@@ -108,5 +88,23 @@ public partial class CardHeaderImageSelector : ComponentBase
             await InvokeAsync(StateHasChanged);
         }
         catch (TaskCanceledException) { }
+    }
+
+    private async Task RemoveBookAsync(BookListItemDto book)
+    {
+        SelectedBooks.Remove(book);
+        if (OnSelectedBooksChanged.HasDelegate)
+        {
+            await OnSelectedBooksChanged.InvokeAsync();
+        }
+    }
+
+    private async Task SetMode(CardHeaderBannerMode mode)
+    {
+        Mode = mode;
+        if (ModeChanged.HasDelegate)
+        {
+            await ModeChanged.InvokeAsync(mode);
+        }
     }
 }

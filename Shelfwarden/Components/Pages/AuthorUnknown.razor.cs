@@ -2,11 +2,10 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class AuthorUnknown : ComponentBase
 {
+    private readonly HashSet<int> selectedBookIds = [];
     private AuthorDetailDto? author;
     private bool loadFailed;
-
     private bool selectMode;
-    private readonly HashSet<int> selectedBookIds = [];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -26,25 +25,17 @@ public partial class AuthorUnknown : ComponentBase
         }
     }
 
-    private void ToggleSelectMode()
-    {
-        selectMode = !selectMode;
-        if (!selectMode)
-        {
-            selectedBookIds.Clear();
-        }
-    }
+    private void ClearSelection() => selectedBookIds.Clear();
 
-    private void ToggleSelection(int id, bool include)
+    private void GoToBatchEdit()
     {
-        if (include)
+        if (selectedBookIds.Count == 0)
         {
-            selectedBookIds.Add(id);
+            return;
         }
-        else
-        {
-            selectedBookIds.Remove(id);
-        }
+
+        string ids = string.Join(',', selectedBookIds);
+        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=authors/unknown");
     }
 
     private void SelectAll()
@@ -60,16 +51,24 @@ public partial class AuthorUnknown : ComponentBase
         }
     }
 
-    private void ClearSelection() => selectedBookIds.Clear();
-
-    private void GoToBatchEdit()
+    private void ToggleSelection(int id, bool include)
     {
-        if (selectedBookIds.Count == 0)
+        if (include)
         {
-            return;
+            selectedBookIds.Add(id);
         }
+        else
+        {
+            selectedBookIds.Remove(id);
+        }
+    }
 
-        string ids = string.Join(',', selectedBookIds);
-        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=authors/unknown");
+    private void ToggleSelectMode()
+    {
+        selectMode = !selectMode;
+        if (!selectMode)
+        {
+            selectedBookIds.Clear();
+        }
     }
 }

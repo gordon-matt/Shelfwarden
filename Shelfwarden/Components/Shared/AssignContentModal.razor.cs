@@ -2,20 +2,21 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class AssignContentModal : ComponentBase
 {
-    /// <summary>Whether the modal is currently open.</summary>
-    [Parameter] public bool IsOpen { get; set; }
+    private readonly HashSet<int> selectedIds = [];
+    private IReadOnlyList<AdditionalContentItemDto>? allItems;
+    private string? error;
+    private List<AdditionalContentItemDto> filteredItems = [];
+    private bool filterUnassigned;
+    private bool loading;
+    private bool saving;
 
     /// <summary>
     /// The author whose content library is shown. Used when no <see cref="SourceSeriesId"/> is set.
     /// </summary>
     [Parameter] public int AuthorId { get; set; }
 
-    /// <summary>
-    /// When set, the modal loads content already assigned to this series instead of a specific
-    /// author. Used on the SeriesDetail page so book-assignment only offers items tied to the
-    /// series.
-    /// </summary>
-    [Parameter] public int? SourceSeriesId { get; set; }
+    /// <summary>The database id of the book or series being assigned to.</summary>
+    [Parameter] public int EntityId { get; set; }
 
     /// <summary>Display label for the entity type (e.g. "series", "book").</summary>
     [Parameter] public string EntityLabel { get; set; } = "entity";
@@ -29,21 +30,20 @@ public partial class AssignContentModal : ComponentBase
     /// </summary>
     [Parameter] public string EntityType { get; set; } = "book";
 
-    /// <summary>The database id of the book or series being assigned to.</summary>
-    [Parameter] public int EntityId { get; set; }
-
-    [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>Whether the modal is currently open.</summary>
+    [Parameter] public bool IsOpen { get; set; }
 
     /// <summary>Called after a successful association so the parent can refresh.</summary>
     [Parameter] public EventCallback OnAssociated { get; set; }
 
-    private IReadOnlyList<AdditionalContentItemDto>? allItems;
-    private List<AdditionalContentItemDto> filteredItems = [];
-    private readonly HashSet<int> selectedIds = [];
-    private bool filterUnassigned;
-    private bool loading;
-    private bool saving;
-    private string? error;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// When set, the modal loads content already assigned to this series instead of a specific
+    /// author. Used on the SeriesDetail page so book-assignment only offers items tied to the
+    /// series.
+    /// </summary>
+    [Parameter] public int? SourceSeriesId { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -61,31 +61,16 @@ public partial class AssignContentModal : ComponentBase
         }
     }
 
-    private async Task LoadItemsAsync()
+    private static string GetFileIcon(string ext) => ext switch
     {
-        loading = true;
-        error = null;
-        try
-        {
-            Result<IReadOnlyList<AdditionalContentItemDto>> result = SourceSeriesId.HasValue
-                ? await ContentService.GetForSeriesAsync(SourceSeriesId.Value)
-                : await ContentService.GetForAuthorAsync(AuthorId);
-
-            if (result.IsSuccess)
-            {
-                allItems = result.Value;
-                ApplyFilter();
-            }
-            else
-            {
-                error = "Could not load content items.";
-            }
-        }
-        finally
-        {
-            loading = false;
-        }
-    }
+        ".pdf" => "bi-filetype-pdf",
+        ".txt" => "bi-filetype-txt",
+        ".md" => "bi-markdown",
+        ".html" or ".htm" => "bi-filetype-html",
+        ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".bmp" or ".svg" => "bi-image",
+        ".zip" => "bi-file-zip",
+        _ => "bi-file-earmark",
+    };
 
     private void ApplyFilter()
     {
@@ -112,12 +97,6 @@ public partial class AssignContentModal : ComponentBase
                 .Where(i => !i.Series.Any(s => s.Id == EntityId))
                 .ToList();
         }
-    }
-
-    private void ToggleItem(int id, bool include)
-    {
-        if (include) selectedIds.Add(id);
-        else selectedIds.Remove(id);
     }
 
     private async Task AssociateSelectedAsync()
@@ -166,14 +145,35 @@ public partial class AssignContentModal : ComponentBase
 
     private async Task Cancel() => await OnClose.InvokeAsync();
 
-    private static string GetFileIcon(string ext) => ext switch
+    private async Task LoadItemsAsync()
     {
-        ".pdf" => "bi-filetype-pdf",
-        ".txt" => "bi-filetype-txt",
-        ".md" => "bi-markdown",
-        ".html" or ".htm" => "bi-filetype-html",
-        ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".bmp" or ".svg" => "bi-image",
-        ".zip" => "bi-file-zip",
-        _ => "bi-file-earmark",
-    };
+        loading = true;
+        error = null;
+        try
+        {
+            Result<IReadOnlyList<AdditionalContentItemDto>> result = SourceSeriesId.HasValue
+                ? await ContentService.GetForSeriesAsync(SourceSeriesId.Value)
+                : await ContentService.GetForAuthorAsync(AuthorId);
+
+            if (result.IsSuccess)
+            {
+                allItems = result.Value;
+                ApplyFilter();
+            }
+            else
+            {
+                error = "Could not load content items.";
+            }
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ToggleItem(int id, bool include)
+    {
+        if (include) selectedIds.Add(id);
+        else selectedIds.Remove(id);
+    }
 }

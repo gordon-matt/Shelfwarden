@@ -4,10 +4,16 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class Shelves : ComponentBase
 {
-    private IReadOnlyList<ShelfDto>? shelves;
-    private IReadOnlyDictionary<int, ScanStatusDto> statuses = new Dictionary<int, ScanStatusDto>();
     private readonly Dictionary<int, DateTime> optimisticBusyUntil = [];
     private CancellationTokenSource? pollCts;
+    private IReadOnlyList<ShelfDto>? shelves;
+    private IReadOnlyDictionary<int, ScanStatusDto> statuses = new Dictionary<int, ScanStatusDto>();
+
+    public void Dispose()
+    {
+        pollCts?.Cancel();
+        pollCts?.Dispose();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -16,6 +22,53 @@ public partial class Shelves : ComponentBase
         pollCts = new CancellationTokenSource();
         _ = Task.Run(() => PollLoopAsync(pollCts.Token));
     }
+
+    private static string FormatRelative(DateTime utc)
+    {
+        var delta = DateTime.UtcNow - utc;
+        return delta < TimeSpan.FromMinutes(1)
+            ? "just now"
+            : delta < TimeSpan.FromHours(1)
+                ? $"{(int)delta.TotalMinutes}m ago"
+                : delta < TimeSpan.FromDays(1)
+                    ? $"{(int)delta.TotalHours}h ago"
+                    : delta < TimeSpan.FromDays(30) ? $"{(int)delta.TotalDays}d ago" : utc.ToLocalTime().ToString("yyyy-MM-dd");
+    }
+
+    private static bool IsBusy(ScanStatusDto? status) =>
+        status is not null && (status.State == ScanState.Running || status.State == ScanState.Queued);
+
+    private static RenderFragment RenderStatusBadge(ScanStatusDto? status) => __builder =>
+    {
+        if (status is null)
+        {
+            return;
+        }
+
+        switch (status.State)
+        {
+            case ScanState.Running:
+                __builder.AddMarkupContent(0,
+                    """<span class="badge bg-info"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Scanning</span>""");
+                break;
+
+            case ScanState.Queued:
+                __builder.AddMarkupContent(0,
+                    """<span class="badge bg-secondary">Queued</span>""");
+                break;
+
+            case ScanState.Idle:
+                __builder.AddMarkupContent(0,
+                    """<span class="badge bg-warning-subtle text-warning-emphasis">Never scanned</span>""");
+                break;
+        }
+    };
+
+    private ScanStatusDto? GetStatus(int shelfId) =>
+        statuses.TryGetValue(shelfId, out var s) ? s : null;
+
+    private bool HasOptimisticBusy(int shelfId)
+        => optimisticBusyUntil.TryGetValue(shelfId, out var until) && until > DateTime.UtcNow;
 
     private async Task LoadAsync()
     {
@@ -27,6 +80,51 @@ public partial class Shelves : ComponentBase
         if (statusTask.Result.IsSuccess)
         {
             statuses = statusTask.Result.Value;
+        }
+    }
+
+    private async Task PollLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1.5), token);
+                if (token.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                await RefreshStatusesAsync();
+            }
+            catch (TaskCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private void PruneOptimisticBusy()
+    {
+        if (optimisticBusyUntil.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var keys = optimisticBusyUntil.Keys.ToList();
+        foreach (int id in keys)
+        {
+            bool serverBusy = statuses.TryGetValue(id, out var s) && IsBusy(s);
+            if (serverBusy)
+            {
+                continue;
+            }
+
+            if (optimisticBusyUntil[id] <= now)
+            {
+                optimisticBusyUntil.Remove(id);
+            }
         }
     }
 
@@ -91,103 +189,5 @@ public partial class Shelves : ComponentBase
         statuses = optimistic;
         StateHasChanged();
         await RefreshStatusesAsync();
-    }
-
-    private ScanStatusDto? GetStatus(int shelfId) =>
-        statuses.TryGetValue(shelfId, out var s) ? s : null;
-
-    private static bool IsBusy(ScanStatusDto? status) =>
-        status is not null && (status.State == ScanState.Running || status.State == ScanState.Queued);
-
-    private bool HasOptimisticBusy(int shelfId)
-        => optimisticBusyUntil.TryGetValue(shelfId, out var until) && until > DateTime.UtcNow;
-
-    private void PruneOptimisticBusy()
-    {
-        if (optimisticBusyUntil.Count == 0)
-        {
-            return;
-        }
-
-        var now = DateTime.UtcNow;
-        var keys = optimisticBusyUntil.Keys.ToList();
-        foreach (int id in keys)
-        {
-            bool serverBusy = statuses.TryGetValue(id, out var s) && IsBusy(s);
-            if (serverBusy)
-            {
-                continue;
-            }
-
-            if (optimisticBusyUntil[id] <= now)
-            {
-                optimisticBusyUntil.Remove(id);
-            }
-        }
-    }
-
-    private static RenderFragment RenderStatusBadge(ScanStatusDto? status) => __builder =>
-    {
-        if (status is null)
-        {
-            return;
-        }
-
-        switch (status.State)
-        {
-            case ScanState.Running:
-                __builder.AddMarkupContent(0,
-                    """<span class="badge bg-info"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Scanning</span>""");
-                break;
-
-            case ScanState.Queued:
-                __builder.AddMarkupContent(0,
-                    """<span class="badge bg-secondary">Queued</span>""");
-                break;
-
-            case ScanState.Idle:
-                __builder.AddMarkupContent(0,
-                    """<span class="badge bg-warning-subtle text-warning-emphasis">Never scanned</span>""");
-                break;
-        }
-    };
-
-    private static string FormatRelative(DateTime utc)
-    {
-        var delta = DateTime.UtcNow - utc;
-        return delta < TimeSpan.FromMinutes(1)
-            ? "just now"
-            : delta < TimeSpan.FromHours(1)
-            ? $"{(int)delta.TotalMinutes}m ago"
-            : delta < TimeSpan.FromDays(1)
-            ? $"{(int)delta.TotalHours}h ago"
-            : delta < TimeSpan.FromDays(30) ? $"{(int)delta.TotalDays}d ago" : utc.ToLocalTime().ToString("yyyy-MM-dd");
-    }
-
-    public void Dispose()
-    {
-        pollCts?.Cancel();
-        pollCts?.Dispose();
-    }
-
-    private async Task PollLoopAsync(CancellationToken token)
-    {
-        while (!token.IsCancellationRequested)
-        {
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(1.5), token);
-                if (token.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                await RefreshStatusesAsync();
-            }
-            catch (TaskCanceledException)
-            {
-                break;
-            }
-        }
     }
 }

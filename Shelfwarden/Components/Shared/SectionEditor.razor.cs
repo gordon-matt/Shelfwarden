@@ -5,49 +5,38 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class SectionEditor : ComponentBase, IAsyncDisposable
 {
-    [Inject] private IJSRuntime Js { get; set; } = default!;
-
-    [Parameter] public bool IsOpen { get; set; }
-
-    [Parameter] public bool Busy { get; set; }
-
-    [Parameter] public IReadOnlyList<BookSection>? Sections { get; set; }
-
-    [Parameter] public SectionDetectionQuality Quality { get; set; }
-
-    [Parameter] public string? Warning { get; set; }
-
-    [Parameter] public bool SplitByChapter { get; set; }
-
-    [Parameter] public EventCallback<bool> SplitByChapterChanged { get; set; }
-
-    /// <summary>True when the book is a PDF — enables the page-marker tab for manual chapter breaks.</summary>
-    [Parameter] public bool IsPdf { get; set; }
-
-    /// <summary>Book id used to stream the PDF into the page-marker view (<c>/files/{id}</c>).</summary>
-    [Parameter] public int BookId { get; set; }
-
-    /// <summary>Raised when the section list is rebuilt from manual page markers.</summary>
-    [Parameter] public EventCallback<List<BookSection>> SectionsChanged { get; set; }
-
-    [Parameter] public EventCallback OnClose { get; set; }
-
-    [Parameter] public EventCallback OnContinue { get; set; }
-
     private readonly string pickerContainerId = $"pdf-chapter-picker-{Guid.NewGuid():N}";
-    private DotNetObjectReference<SectionEditor>? selfRef;
-    private bool wasOpen;
-    private bool pageMarkerMode;
-    private bool pickerMountPending;
-    private bool pickerMounted;
-    private int pdfPageCount;
 
     /// <summary>When true, the page marker renders pages at reduced resolution for faster scrolling.</summary>
     private bool lowResMode = true;
 
-    private bool PageMarkerMode => IsPdf && pageMarkerMode;
+    private bool pageMarkerMode;
+    private int pdfPageCount;
+    private bool pickerMounted;
+    private bool pickerMountPending;
+    private DotNetObjectReference<SectionEditor>? selfRef;
+    private bool wasOpen;
 
-    private int IncludedCount => Sections?.Count(s => s.IsIncluded) ?? 0;
+    /// <summary>Book id used to stream the PDF into the page-marker view (<c>/files/{id}</c>).</summary>
+    [Parameter] public int BookId { get; set; }
+
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public bool IsOpen { get; set; }
+
+    /// <summary>True when the book is a PDF — enables the page-marker tab for manual chapter breaks.</summary>
+    [Parameter] public bool IsPdf { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnContinue { get; set; }
+    [Parameter] public SectionDetectionQuality Quality { get; set; }
+    [Parameter] public IReadOnlyList<BookSection>? Sections { get; set; }
+
+    /// <summary>Raised when the section list is rebuilt from manual page markers.</summary>
+    [Parameter] public EventCallback<List<BookSection>> SectionsChanged { get; set; }
+
+    [Parameter] public bool SplitByChapter { get; set; }
+    [Parameter] public EventCallback<bool> SplitByChapterChanged { get; set; }
+    [Parameter] public string? Warning { get; set; }
 
     /// <summary>Number of output files a split generation would produce given the current boundaries.</summary>
     private int FileCount
@@ -73,166 +62,15 @@ public partial class SectionEditor : ComponentBase, IAsyncDisposable
         }
     }
 
-    protected override async Task OnParametersSetAsync()
+    private int IncludedCount => Sections?.Count(s => s.IsIncluded) ?? 0;
+    [Inject] private IJSRuntime Js { get; set; } = default!;
+    private bool PageMarkerMode => IsPdf && pageMarkerMode;
+
+    public async ValueTask DisposeAsync()
     {
-        // The modal was dismissed (parent set IsOpen=false): tear down any live PDF render.
-        if (wasOpen && !IsOpen)
-        {
-            await DisposePickerAsync();
-            pageMarkerMode = false;
-            pickerMounted = false;
-        }
-        wasOpen = IsOpen;
-    }
-
-    private void SetIncluded(BookSection section, ChangeEventArgs e)
-        => section.IsIncluded = e.Value is true;
-
-    private void SetBoundary(BookSection section, ChangeEventArgs e)
-        => section.IsChapterBoundary = e.Value is true;
-
-    private async Task OnSplitToggled(ChangeEventArgs e)
-    {
-        SplitByChapter = e.Value is true;
-        await SplitByChapterChanged.InvokeAsync(SplitByChapter);
-    }
-
-    private void SelectAll()
-    {
-        if (Sections is null)
-        {
-            return;
-        }
-
-        foreach (var section in Sections)
-        {
-            section.IsIncluded = true;
-        }
-    }
-
-    private void DeselectAll()
-    {
-        if (Sections is null)
-        {
-            return;
-        }
-
-        foreach (var section in Sections)
-        {
-            section.IsIncluded = false;
-        }
-    }
-
-    private void SelectChaptersOnly()
-    {
-        if (Sections is null)
-        {
-            return;
-        }
-
-        foreach (var section in Sections)
-        {
-            section.IsIncluded = section.Kind == SectionKind.Chapter;
-        }
-    }
-
-    private async Task ShowListMode()
-    {
-        if (!pageMarkerMode)
-        {
-            return;
-        }
-
-        pageMarkerMode = false;
         await DisposePickerAsync();
-    }
-
-    private void ShowPageMarkerMode()
-    {
-        if (pageMarkerMode)
-        {
-            return;
-        }
-
-        pageMarkerMode = true;
-        pickerMountPending = true;
-        // Splitting per chapter is the whole point of marking chapters, so turn it on for them.
-        if (!SplitByChapter)
-        {
-            SplitByChapter = true;
-            _ = SplitByChapterChanged.InvokeAsync(true);
-        }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!pickerMountPending || !IsOpen || !PageMarkerMode)
-        {
-            return;
-        }
-
-        pickerMountPending = false;
-        await MountPickerAsync();
-    }
-
-    private async Task MountPickerAsync()
-    {
-        selfRef ??= DotNetObjectReference.Create(this);
-
-        // Seed markers from any auto-detected chapter starts (page >= 2) so the user starts from
-        // the parser's best guess instead of a blank slate.
-        var initial = (Sections ?? [])
-            .Where(s => s.StartPage is >= 2)
-            .Select(s => s.StartPage!.Value)
-            .Distinct()
-            .OrderBy(p => p)
-            .ToArray();
-
-        try
-        {
-            var result = await Js.InvokeAsync<PickerMountResult>(
-                "shelfwardenChapterPicker.mount", pickerContainerId, $"/files/{BookId}", selfRef, initial,
-                new { lowRes = lowResMode });
-            pdfPageCount = result.PageCount;
-            pickerMounted = true;
-        }
-        catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException)
-        {
-        }
-    }
-
-    private async Task OnLowResToggled(ChangeEventArgs e)
-    {
-        lowResMode = e.Value is true;
-        if (!pickerMounted)
-        {
-            return;
-        }
-
-        try
-        {
-            await Js.InvokeVoidAsync("shelfwardenChapterPicker.setLowRes", lowResMode);
-        }
-        catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException)
-        {
-        }
-    }
-
-    private async Task DisposePickerAsync()
-    {
-        if (!pickerMounted)
-        {
-            return;
-        }
-
-        pickerMounted = false;
-        try
-        {
-            await Js.InvokeVoidAsync("shelfwardenChapterPicker.dispose");
-        }
-        catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException)
-        {
-        }
+        selfRef?.Dispose();
+        selfRef = null;
     }
 
     /// <summary>
@@ -246,6 +84,36 @@ public partial class SectionEditor : ComponentBase, IAsyncDisposable
         await SectionsChanged.InvokeAsync(rebuilt);
         await InvokeAsync(StateHasChanged);
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!pickerMountPending || !IsOpen || !PageMarkerMode)
+        {
+            return;
+        }
+
+        pickerMountPending = false;
+        await MountPickerAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // The modal was dismissed (parent set IsOpen=false): tear down any live PDF render.
+        if (wasOpen && !IsOpen)
+        {
+            await DisposePickerAsync();
+            pageMarkerMode = false;
+            pickerMounted = false;
+        }
+        wasOpen = IsOpen;
+    }
+
+    private static string KindLabel(SectionKind kind) => kind switch
+    {
+        SectionKind.FrontMatter => "Front matter",
+        SectionKind.BackMatter => "Back matter",
+        _ => "Other",
+    };
 
     /// <summary>
     /// Turns a sorted set of chapter-start pages into reviewable sections. Pages before the first
@@ -309,19 +177,144 @@ public partial class SectionEditor : ComponentBase, IAsyncDisposable
         return list;
     }
 
-    private static string KindLabel(SectionKind kind) => kind switch
+    private void DeselectAll()
     {
-        SectionKind.FrontMatter => "Front matter",
-        SectionKind.BackMatter => "Back matter",
-        _ => "Other",
-    };
+        if (Sections is null)
+        {
+            return;
+        }
+
+        foreach (var section in Sections)
+        {
+            section.IsIncluded = false;
+        }
+    }
+
+    private async Task DisposePickerAsync()
+    {
+        if (!pickerMounted)
+        {
+            return;
+        }
+
+        pickerMounted = false;
+        try
+        {
+            await Js.InvokeVoidAsync("shelfwardenChapterPicker.dispose");
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task MountPickerAsync()
+    {
+        selfRef ??= DotNetObjectReference.Create(this);
+
+        // Seed markers from any auto-detected chapter starts (page >= 2) so the user starts from
+        // the parser's best guess instead of a blank slate.
+        var initial = (Sections ?? [])
+            .Where(s => s.StartPage is >= 2)
+            .Select(s => s.StartPage!.Value)
+            .Distinct()
+            .OrderBy(p => p)
+            .ToArray();
+
+        try
+        {
+            var result = await Js.InvokeAsync<PickerMountResult>(
+                "shelfwardenChapterPicker.mount", pickerContainerId, $"/files/{BookId}", selfRef, initial,
+                new { lowRes = lowResMode });
+            pdfPageCount = result.PageCount;
+            pickerMounted = true;
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task OnLowResToggled(ChangeEventArgs e)
+    {
+        lowResMode = e.Value is true;
+        if (!pickerMounted)
+        {
+            return;
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync("shelfwardenChapterPicker.setLowRes", lowResMode);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task OnSplitToggled(ChangeEventArgs e)
+    {
+        SplitByChapter = e.Value is true;
+        await SplitByChapterChanged.InvokeAsync(SplitByChapter);
+    }
+
+    private void SelectAll()
+    {
+        if (Sections is null)
+        {
+            return;
+        }
+
+        foreach (var section in Sections)
+        {
+            section.IsIncluded = true;
+        }
+    }
+
+    private void SelectChaptersOnly()
+    {
+        if (Sections is null)
+        {
+            return;
+        }
+
+        foreach (var section in Sections)
+        {
+            section.IsIncluded = section.Kind == SectionKind.Chapter;
+        }
+    }
+
+    private void SetBoundary(BookSection section, ChangeEventArgs e)
+        => section.IsChapterBoundary = e.Value is true;
+
+    private void SetIncluded(BookSection section, ChangeEventArgs e)
+                                                => section.IsIncluded = e.Value is true;
+
+    private async Task ShowListMode()
+    {
+        if (!pageMarkerMode)
+        {
+            return;
+        }
+
+        pageMarkerMode = false;
+        await DisposePickerAsync();
+    }
+
+    private void ShowPageMarkerMode()
+    {
+        if (pageMarkerMode)
+        {
+            return;
+        }
+
+        pageMarkerMode = true;
+        pickerMountPending = true;
+        // Splitting per chapter is the whole point of marking chapters, so turn it on for them.
+        if (!SplitByChapter)
+        {
+            SplitByChapter = true;
+            _ = SplitByChapterChanged.InvokeAsync(true);
+        }
+    }
 
     private sealed record PickerMountResult(int PageCount);
-
-    public async ValueTask DisposeAsync()
-    {
-        await DisposePickerAsync();
-        selfRef?.Dispose();
-        selfRef = null;
-    }
 }

@@ -5,22 +5,24 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class BookEdit : ComponentBase
 {
-    [Parameter]
-    public int Id { get; set; }
-
-    private BookDto? book;
-    private FormModel? form;
-    private bool loading = true;
-    private bool saving;
-    private string? errorMessage;
-
     // Authors / Genres are managed as the actual selected DTOs so we already have the IDs
     // for save without re-resolving them. New entries get an Id of 0 → resolved on save.
     private readonly List<AuthorDto> selectedAuthors = [];
 
     private readonly List<GenreDto> selectedGenres = [];
     private readonly List<string> selectedTags = [];
-    private List<string> tagDirectory = [];
+    private BookDto? book;
+    private string? errorMessage;
+    private FormModel? form;
+    private bool loading = true;
+
+    // Cover changes are applied on Save (covers live as files, not on UpdateBookRequest). Staging a
+    // URL queues an online cover; revertCoverToFile queues re-extraction of the embedded cover. Only
+    // one can be active at a time.
+    private string? pendingCoverUrl;
+
+    private bool revertCoverToFile;
+    private bool saving;
 
     // Series picker — single-select with create-on-the-fly. We track the *name* the user
     // typed/picked here and resolve it to an Id at save time so the user can create new
@@ -29,15 +31,12 @@ public partial class BookEdit : ComponentBase
 
     private string? seriesInput;
     private IReadOnlyList<SeriesDto> seriesSuggestions = [];
-    private bool showSeriesSuggestions;
-
     private bool showMetadataModal;
+    private bool showSeriesSuggestions;
+    private List<string> tagDirectory = [];
 
-    // Cover changes are applied on Save (covers live as files, not on UpdateBookRequest). Staging a
-    // URL queues an online cover; revertCoverToFile queues re-extraction of the embedded cover. Only
-    // one can be active at a time.
-    private string? pendingCoverUrl;
-    private bool revertCoverToFile;
+    [Parameter]
+    public int Id { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -88,11 +87,8 @@ public partial class BookEdit : ComponentBase
         loading = false;
     }
 
-    private async Task<IReadOnlyList<AuthorDto>> SearchAuthorsAsync(string query)
-    {
-        var result = await AuthorService.SearchAsync(query, limit: 20);
-        return result.IsSuccess ? result.Value : [];
-    }
+    private static string? Prefer(string? incoming, string? current)
+        => string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
 
     private async Task AddAuthorAsync(string name)
     {
@@ -107,12 +103,6 @@ public partial class BookEdit : ComponentBase
         }
     }
 
-    private async Task<IReadOnlyList<GenreDto>> SearchGenresAsync(string query)
-    {
-        var result = await GenreService.SearchAsync(query, limit: 20);
-        return result.IsSuccess ? result.Value : [];
-    }
-
     private async Task AddGenreAsync(string name)
     {
         var result = await GenreService.GetOrCreateAsync(name);
@@ -120,74 +110,6 @@ public partial class BookEdit : ComponentBase
         {
             selectedGenres.Add(result.Value);
         }
-    }
-
-    private async Task OnSeriesInput(ChangeEventArgs e)
-    {
-        seriesInput = e.Value?.ToString();
-        if (string.IsNullOrWhiteSpace(seriesInput))
-        {
-            ClearSeries();
-            showSeriesSuggestions = false;
-            return;
-        }
-
-        showSeriesSuggestions = true;
-        await RefreshSeriesSuggestionsAsync();
-    }
-
-    private async Task OnSeriesFocus()
-    {
-        showSeriesSuggestions = true;
-        await RefreshSeriesSuggestionsAsync();
-    }
-
-    private async Task OnSeriesKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(seriesInput))
-        {
-            await SelectSeriesAsync(seriesInput.Trim());
-        }
-        else if (e.Key == "Escape")
-        {
-            showSeriesSuggestions = false;
-        }
-    }
-
-    private async Task RefreshSeriesSuggestionsAsync()
-    {
-        var result = await SeriesService.SearchAsync(seriesInput, limit: 10);
-        seriesSuggestions = result.IsSuccess ? result.Value : [];
-    }
-
-    private async Task SelectSeriesAsync(string name)
-    {
-        var result = await SeriesService.GetOrCreateAsync(name);
-        if (result.IsSuccess)
-        {
-            selectedSeries = result.Value;
-            seriesInput = result.Value.Name;
-            showSeriesSuggestions = false;
-        }
-    }
-
-    private void ClearSeries()
-    {
-        selectedSeries = null;
-        seriesInput = null;
-        form?.NumberInSeries = null;
-    }
-
-    private Task<IReadOnlyList<string>> SearchTagsAsync(string query)
-    {
-        string needle = query.Trim().ToLowerInvariant();
-        IEnumerable<string> q = tagDirectory;
-        if (!string.IsNullOrEmpty(needle))
-        {
-            q = q.Where(t => t.ToLowerInvariant().Contains(needle));
-        }
-
-        return Task.FromResult<IReadOnlyList<string>>(q.Take(50).ToList());
     }
 
     private Task AddTagAsync(string name)
@@ -205,10 +127,6 @@ public partial class BookEdit : ComponentBase
 
         return Task.CompletedTask;
     }
-
-    private void OpenMetadataModal() => showMetadataModal = true;
-
-    private void CloseMetadataModal() => showMetadataModal = false;
 
     /// <summary>
     /// Populates the edit form from a chosen online candidate. Scalar fields are overwritten only
@@ -279,33 +197,54 @@ public partial class BookEdit : ComponentBase
         showMetadataModal = false;
     }
 
-    /// <summary>Queues an online cover to apply on save (e.g. the modal's "Use this cover only").</summary>
-    private void StageCoverFromUrl(string coverUrl)
+    private void ClearSeries()
     {
-        if (string.IsNullOrWhiteSpace(coverUrl))
+        selectedSeries = null;
+        seriesInput = null;
+        form?.NumberInSeries = null;
+    }
+
+    private void CloseMetadataModal() => showMetadataModal = false;
+
+    private async Task OnSeriesFocus()
+    {
+        showSeriesSuggestions = true;
+        await RefreshSeriesSuggestionsAsync();
+    }
+
+    private async Task OnSeriesInput(ChangeEventArgs e)
+    {
+        seriesInput = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(seriesInput))
         {
+            ClearSeries();
+            showSeriesSuggestions = false;
             return;
         }
 
-        pendingCoverUrl = coverUrl.Trim();
-        revertCoverToFile = false;
+        showSeriesSuggestions = true;
+        await RefreshSeriesSuggestionsAsync();
     }
 
-    /// <summary>Queues a revert to the file's embedded cover on save.</summary>
-    private void StageRevertCover()
+    private async Task OnSeriesKeyDown(KeyboardEventArgs e)
     {
-        revertCoverToFile = true;
-        pendingCoverUrl = null;
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(seriesInput))
+        {
+            await SelectSeriesAsync(seriesInput.Trim());
+        }
+        else if (e.Key == "Escape")
+        {
+            showSeriesSuggestions = false;
+        }
     }
 
-    private void UndoCoverChange()
+    private void OpenMetadataModal() => showMetadataModal = true;
+
+    private async Task RefreshSeriesSuggestionsAsync()
     {
-        pendingCoverUrl = null;
-        revertCoverToFile = false;
+        var result = await SeriesService.SearchAsync(seriesInput, limit: 10);
+        seriesSuggestions = result.IsSuccess ? result.Value : [];
     }
-
-    private static string? Prefer(string? incoming, string? current)
-        => string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
 
     private async Task SaveAsync()
     {
@@ -394,10 +333,82 @@ public partial class BookEdit : ComponentBase
         }
     }
 
+    private async Task<IReadOnlyList<AuthorDto>> SearchAuthorsAsync(string query)
+    {
+        var result = await AuthorService.SearchAsync(query, limit: 20);
+        return result.IsSuccess ? result.Value : [];
+    }
+
+    private async Task<IReadOnlyList<GenreDto>> SearchGenresAsync(string query)
+    {
+        var result = await GenreService.SearchAsync(query, limit: 20);
+        return result.IsSuccess ? result.Value : [];
+    }
+
+    private Task<IReadOnlyList<string>> SearchTagsAsync(string query)
+    {
+        string needle = query.Trim().ToLowerInvariant();
+        IEnumerable<string> q = tagDirectory;
+        if (!string.IsNullOrEmpty(needle))
+        {
+            q = q.Where(t => t.ToLowerInvariant().Contains(needle));
+        }
+
+        return Task.FromResult<IReadOnlyList<string>>(q.Take(50).ToList());
+    }
+
+    private async Task SelectSeriesAsync(string name)
+    {
+        var result = await SeriesService.GetOrCreateAsync(name);
+        if (result.IsSuccess)
+        {
+            selectedSeries = result.Value;
+            seriesInput = result.Value.Name;
+            showSeriesSuggestions = false;
+        }
+    }
+
+    /// <summary>Queues an online cover to apply on save (e.g. the modal's "Use this cover only").</summary>
+    private void StageCoverFromUrl(string coverUrl)
+    {
+        if (string.IsNullOrWhiteSpace(coverUrl))
+        {
+            return;
+        }
+
+        pendingCoverUrl = coverUrl.Trim();
+        revertCoverToFile = false;
+    }
+
+    /// <summary>Queues a revert to the file's embedded cover on save.</summary>
+    private void StageRevertCover()
+    {
+        revertCoverToFile = true;
+        pendingCoverUrl = null;
+    }
+
+    private void UndoCoverChange()
+    {
+        pendingCoverUrl = null;
+        revertCoverToFile = false;
+    }
+
     private sealed class FormModel
     {
-        [Required, StringLength(512)]
-        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+
+        [StringLength(32)]
+        public string? Isbn { get; set; }
+
+        [StringLength(16)]
+        public string? Language { get; set; }
+
+        public decimal? NumberInSeries { get; set; }
+
+        public DateTime? PublishedOn { get; set; }
+
+        [StringLength(256)]
+        public string? Publisher { get; set; }
 
         [StringLength(512)]
         public string? SortTitle { get; set; }
@@ -405,19 +416,7 @@ public partial class BookEdit : ComponentBase
         [StringLength(512)]
         public string? Subtitle { get; set; }
 
-        public string? Description { get; set; }
-
-        [StringLength(16)]
-        public string? Language { get; set; }
-
-        [StringLength(256)]
-        public string? Publisher { get; set; }
-
-        [StringLength(32)]
-        public string? Isbn { get; set; }
-
-        public DateTime? PublishedOn { get; set; }
-
-        public decimal? NumberInSeries { get; set; }
+        [Required, StringLength(512)]
+        public string Title { get; set; } = string.Empty;
     }
 }

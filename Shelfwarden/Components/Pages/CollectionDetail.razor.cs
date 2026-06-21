@@ -2,22 +2,27 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class CollectionDetail : ComponentBase
 {
+    private readonly List<BookListItemDto> bannerSelectedBooks = [];
+    private readonly HashSet<int> selectedBookIds = [];
+    private CardHeaderBannerMode bannerMode = CardHeaderBannerMode.RandomCovers;
+    private bool canModify;
+    private CollectionDetailDto? collection;
+    private bool editing;
+    private EditModel editModel = new();
+    private bool loading = true;
+    private bool savingEdit;
+    private CancellationTokenSource? searchCts;
+    private string? searchInput;
+    private IReadOnlyList<BookListItemDto> searchResults = [];
+    private bool showSearch;
+    private string? startsWithFilter;
+
     [Parameter]
     public int Id { get; set; }
 
-    private CollectionDetailDto? collection;
-    private bool loading = true;
-    private bool canModify;
+    private int BulkEditMaxBookCount => Math.Max(1, Configuration.GetValue<int?>("BulkEditMaxBookCount") ?? 100);
 
-    private bool editing;
-    private bool savingEdit;
-    private EditModel editModel = new();
-
-    private string? searchInput;
-    private bool showSearch;
-    private IReadOnlyList<BookListItemDto> searchResults = [];
-    private CancellationTokenSource? searchCts;
-    private string? startsWithFilter;
+    private bool CanSelectAllMatching => MatchingBooksCount > 0 && MatchingBooksCount <= BulkEditMaxBookCount;
 
     private IReadOnlyList<BookListItemDto> FilteredBooks =>
         collection?.Books.Where(b => BookListLetterFilter.MatchesTitleOrSortTitle(b, startsWithFilter)).ToList() ?? [];
@@ -25,19 +30,48 @@ public partial class CollectionDetail : ComponentBase
     private int MatchingBooksCount =>
         collection?.Books.Count(b => BookListLetterFilter.MatchesTitleOrSortTitle(b, startsWithFilter)) ?? 0;
 
-    private int BulkEditMaxBookCount => Math.Max(1, Configuration.GetValue<int?>("BulkEditMaxBookCount") ?? 100);
-    private bool CanSelectAllMatching => MatchingBooksCount > 0 && MatchingBooksCount <= BulkEditMaxBookCount;
-
-    private readonly HashSet<int> selectedBookIds = [];
-
-    private CardHeaderBannerMode bannerMode = CardHeaderBannerMode.RandomCovers;
-    private readonly List<BookListItemDto> bannerSelectedBooks = [];
-
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
         await LoadAsync();
         loading = false;
+    }
+
+    private async Task AddBookAsync(BookListItemDto book)
+    {
+        var result = await CollectionService.AddBookAsync(Id, book.Id);
+        if (result.IsSuccess)
+        {
+            searchInput = string.Empty;
+            searchResults = [];
+            showSearch = false;
+            await LoadAsync();
+        }
+    }
+
+    private void ClearLetterFilter() => startsWithFilter = null;
+
+    private void ClearSelection() => selectedBookIds.Clear();
+
+    private async Task DeleteAsync()
+    {
+        var result = await CollectionService.DeleteAsync(Id);
+        if (result.IsSuccess)
+        {
+            SidebarNavRefresh.NotifyNavigationDataChanged();
+            NavigationManager.NavigateTo("collections");
+        }
+    }
+
+    private void GoToBatchEdit()
+    {
+        if (selectedBookIds.Count == 0)
+        {
+            return;
+        }
+
+        string ids = string.Join(',', selectedBookIds.Order());
+        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=collections/{Id}");
     }
 
     private async Task LoadAsync()
@@ -73,42 +107,6 @@ public partial class CollectionDetail : ComponentBase
         else
         {
             collection = null;
-        }
-    }
-
-    private async Task SaveAsync()
-    {
-        savingEdit = true;
-        try
-        {
-            var result = await CollectionService.UpdateAsync(Id, new UpdateCollectionRequest
-            {
-                Name = editModel.Name,
-                Description = editModel.Description,
-                IsGlobal = UserContext.IsAdministrator() && editModel.IsGlobal,
-                CardBannerMode = bannerMode,
-                CardBannerSelectedBookIds = bannerSelectedBooks.Select(b => b.Id).ToList(),
-            });
-            if (result.IsSuccess)
-            {
-                editing = false;
-                SidebarNavRefresh.NotifyNavigationDataChanged();
-                await LoadAsync();
-            }
-        }
-        finally
-        {
-            savingEdit = false;
-        }
-    }
-
-    private async Task DeleteAsync()
-    {
-        var result = await CollectionService.DeleteAsync(Id);
-        if (result.IsSuccess)
-        {
-            SidebarNavRefresh.NotifyNavigationDataChanged();
-            NavigationManager.NavigateTo("collections");
         }
     }
 
@@ -150,18 +148,6 @@ public partial class CollectionDetail : ComponentBase
         catch (TaskCanceledException) { }
     }
 
-    private async Task AddBookAsync(BookListItemDto book)
-    {
-        var result = await CollectionService.AddBookAsync(Id, book.Id);
-        if (result.IsSuccess)
-        {
-            searchInput = string.Empty;
-            searchResults = [];
-            showSearch = false;
-            await LoadAsync();
-        }
-    }
-
     private async Task RemoveBookAsync(int bookId)
     {
         var result = await CollectionService.RemoveBookAsync(Id, bookId);
@@ -171,26 +157,42 @@ public partial class CollectionDetail : ComponentBase
         }
     }
 
-    private void ClearLetterFilter() => startsWithFilter = null;
-
-    private void ToggleSelection(int bookId, bool include)
+    private async Task SaveAsync()
     {
-        if (include)
+        savingEdit = true;
+        try
         {
-            selectedBookIds.Add(bookId);
+            var result = await CollectionService.UpdateAsync(Id, new UpdateCollectionRequest
+            {
+                Name = editModel.Name,
+                Description = editModel.Description,
+                IsGlobal = UserContext.IsAdministrator() && editModel.IsGlobal,
+                CardBannerMode = bannerMode,
+                CardBannerSelectedBookIds = bannerSelectedBooks.Select(b => b.Id).ToList(),
+            });
+            if (result.IsSuccess)
+            {
+                editing = false;
+                SidebarNavRefresh.NotifyNavigationDataChanged();
+                await LoadAsync();
+            }
         }
-        else
+        finally
         {
-            selectedBookIds.Remove(bookId);
+            savingEdit = false;
         }
     }
 
-    private void SelectAllVisible()
+    private async Task<IReadOnlyList<BookListItemDto>> SearchBooksInCollectionForBannerAsync(string query)
     {
-        foreach (var b in FilteredBooks)
+        var result = await BookService.SearchAsync(new BookSearchRequest
         {
-            selectedBookIds.Add(b.Id);
-        }
+            CollectionId = Id,
+            Query = string.IsNullOrWhiteSpace(query) ? null : query,
+            Page = 1,
+            PageSize = 20,
+        });
+        return result.IsSuccess ? result.Value.Items : [];
     }
 
     private void SelectAllMatching()
@@ -206,29 +208,24 @@ public partial class CollectionDetail : ComponentBase
         }
     }
 
-    private void ClearSelection() => selectedBookIds.Clear();
-
-    private void GoToBatchEdit()
+    private void SelectAllVisible()
     {
-        if (selectedBookIds.Count == 0)
+        foreach (var b in FilteredBooks)
         {
-            return;
+            selectedBookIds.Add(b.Id);
         }
-
-        string ids = string.Join(',', selectedBookIds.Order());
-        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=collections/{Id}");
     }
 
-    private async Task<IReadOnlyList<BookListItemDto>> SearchBooksInCollectionForBannerAsync(string query)
+    private void ToggleSelection(int bookId, bool include)
     {
-        var result = await BookService.SearchAsync(new BookSearchRequest
+        if (include)
         {
-            CollectionId = Id,
-            Query = string.IsNullOrWhiteSpace(query) ? null : query,
-            Page = 1,
-            PageSize = 20,
-        });
-        return result.IsSuccess ? result.Value.Items : [];
+            selectedBookIds.Add(bookId);
+        }
+        else
+        {
+            selectedBookIds.Remove(bookId);
+        }
     }
 
     private async Task UploadCollectionBannerAsync(IBrowserFile file)
@@ -243,11 +240,11 @@ public partial class CollectionDetail : ComponentBase
 
     private sealed class EditModel
     {
-        [Required, StringLength(256)]
-        public string Name { get; set; } = string.Empty;
-
         public string? Description { get; set; }
 
         public bool IsGlobal { get; set; }
+
+        [Required, StringLength(256)]
+        public string Name { get; set; } = string.Empty;
     }
 }

@@ -2,11 +2,59 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class Books : ComponentBase
 {
+    private readonly string observerKey = $"books-page-{Guid.NewGuid():N}";
+
+    private readonly List<BookListItemDto> results = [];
+    private readonly HashSet<int> selectedBookIds = [];
+    private readonly List<TagDto> selectedTagFilters = [];
+    private string authorId = string.Empty;
+    private IReadOnlyList<AuthorDto> authors = [];
+    private bool awaitingReview;
+    private string collectionId = string.Empty;
+    private IReadOnlyList<CollectionDto> collections = [];
+    private DotNetObjectReference<Books>? dotNetRef;
+    private string genreId = string.Empty;
+    private IReadOnlyList<GenreDto> genres = [];
+    private bool hasMorePages;
+    private ElementReference infiniteScrollSentinel;
+    private bool isLoadingMore;
+    private int nextPageToLoad = 1;
+    private int pageSize = 24;
+    private string? query;
+    private BookReadStatusFilter readStatus = BookReadStatusFilter.Any;
+    private CancellationTokenSource? searchDebounceCts;
+    private bool selectAllMatchingBusy;
+    private bool selectMode;
+    private IReadOnlyList<SeriesDto> series = [];
+    private string seriesId = string.Empty;
+    private string shelfId = string.Empty;
+    private IReadOnlyList<ShelfDto> shelves = [];
+    private bool showAdvancedFilters;
+    private BookSortBy sortBy = BookSortBy.AddedAt;
+    private bool sortDescending = true;
+    private string? startsWithFilter;
+    private TagFilterMode tagFilterMode = TagFilterMode.Any;
+    private IReadOnlyList<TagDto> tags = [];
+    private int totalCount;
+    private ViewMode viewMode = ViewMode.Grid;
+
+    private enum TagFilterMode
+    { Any, None, Selected }
+
+    private enum ViewMode
+    { Grid, List }
+
+    [SupplyParameterFromQuery(Name = "author")]
+    public int? AuthorFromUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "genre")]
+    public int? GenreAliasFromUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "genreId")]
+    public int? GenreFromUrl { get; set; }
+
     [SupplyParameterFromQuery(Name = "q")]
     public string? QueryFromUrl { get; set; }
-
-    [SupplyParameterFromQuery(Name = "view")]
-    public string? ViewFromUrl { get; set; }
 
     [SupplyParameterFromQuery(Name = "series")]
     public int? SeriesFromUrl { get; set; }
@@ -15,60 +63,15 @@ public partial class Books : ComponentBase
     [SupplyParameterFromQuery(Name = "seriesId")]
     public int? SeriesIdFromUrl { get; set; }
 
-    [SupplyParameterFromQuery(Name = "author")]
-    public int? AuthorFromUrl { get; set; }
-
-    [SupplyParameterFromQuery(Name = "genreId")]
-    public int? GenreFromUrl { get; set; }
-
-    [SupplyParameterFromQuery(Name = "genre")]
-    public int? GenreAliasFromUrl { get; set; }
-
     [SupplyParameterFromQuery(Name = "tagId")]
     public int? TagFromUrl { get; set; }
 
-    private enum ViewMode
-    { Grid, List }
+    [SupplyParameterFromQuery(Name = "view")]
+    public string? ViewFromUrl { get; set; }
 
-    private enum TagFilterMode
-    { Any, None, Selected }
+    private int BulkEditMaxBookCount => Math.Max(1, Configuration.GetValue<int?>("BulkEditMaxBookCount") ?? 100);
 
-    private readonly List<BookListItemDto> results = [];
-    private readonly string observerKey = $"books-page-{Guid.NewGuid():N}";
-    private string? query;
-    private string shelfId = "";
-    private string collectionId = "";
-    private string authorId = "";
-    private string seriesId = "";
-    private string genreId = "";
-    private TagFilterMode tagFilterMode = TagFilterMode.Any;
-    private readonly List<TagDto> selectedTagFilters = [];
-    private bool awaitingReview;
-    private BookReadStatusFilter readStatus = BookReadStatusFilter.Any;
-    private BookSortBy sortBy = BookSortBy.AddedAt;
-    private bool sortDescending = true;
-    private int nextPageToLoad = 1;
-    private ViewMode viewMode = ViewMode.Grid;
-    private int pageSize = 24;
-    private int totalCount;
-    private bool hasMorePages;
-    private bool isLoadingMore;
-    private string? startsWithFilter;
-    private ElementReference infiniteScrollSentinel;
-    private DotNetObjectReference<Books>? dotNetRef;
-    private CancellationTokenSource? searchDebounceCts;
-
-    private bool selectMode;
-    private bool selectAllMatchingBusy;
-    private bool showAdvancedFilters;
-    private readonly HashSet<int> selectedBookIds = [];
-
-    private IReadOnlyList<ShelfDto> shelves = [];
-    private IReadOnlyList<CollectionDto> collections = [];
-    private IReadOnlyList<AuthorDto> authors = [];
-    private IReadOnlyList<SeriesDto> series = [];
-    private IReadOnlyList<GenreDto> genres = [];
-    private IReadOnlyList<TagDto> tags = [];
+    private bool CanSelectAllMatching => totalCount > 0 && totalCount <= BulkEditMaxBookCount;
 
     private bool HasActiveAdvancedFilters =>
         !string.IsNullOrEmpty(shelfId)
@@ -87,8 +90,88 @@ public partial class Books : ComponentBase
         || !string.IsNullOrWhiteSpace(query);
 
     private bool UseLetterRail => string.IsNullOrEmpty(seriesId);
-    private int BulkEditMaxBookCount => Math.Max(1, Configuration.GetValue<int?>("BulkEditMaxBookCount") ?? 100);
-    private bool CanSelectAllMatching => totalCount > 0 && totalCount <= BulkEditMaxBookCount;
+
+    public async ValueTask DisposeAsync()
+    {
+        searchDebounceCts?.Cancel();
+        searchDebounceCts?.Dispose();
+        dotNetRef?.Dispose();
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("shelfwarden.disconnectInfiniteScroll", observerKey);
+        }
+        catch
+        {
+            // Ignore disposal-time JS failures during teardown.
+        }
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreAsync()
+    {
+        if (isLoadingMore || (!hasMorePages && nextPageToLoad > 1))
+        {
+            return;
+        }
+
+        isLoadingMore = true;
+
+        var result = await BookService.SearchAsync(new BookSearchRequest
+        {
+            Page = nextPageToLoad,
+            PageSize = pageSize,
+            Query = string.IsNullOrWhiteSpace(query) ? null : query,
+            StartsWith = startsWithFilter,
+            ShelfId = ParseId(shelfId),
+            AuthorId = ParseFilterId(authorId),
+            SeriesId = ParseFilterId(seriesId),
+            GenreId = ParseFilterId(genreId),
+            CollectionId = ParseFilterId(collectionId),
+            TagId = GetTagFilterId(),
+            TagIds = GetSelectedTagFilterIds(),
+            AwaitingReview = awaitingReview,
+            ReadStatus = readStatus,
+            SortBy = sortBy,
+            SortDescending = sortDescending,
+        });
+
+        if (result.IsSuccess)
+        {
+            var page = result.Value;
+            results.AddRange(page.Items);
+            totalCount = page.TotalCount;
+            hasMorePages = nextPageToLoad < page.TotalPages;
+            nextPageToLoad++;
+        }
+        else
+        {
+            hasMorePages = false;
+        }
+
+        isLoadingMore = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!UseLetterRail)
+        {
+            return;
+        }
+
+        if (!hasMorePages && !isLoadingMore)
+        {
+            return;
+        }
+
+        await JSRuntime.InvokeVoidAsync(
+            "shelfwarden.observeInfiniteScroll",
+            observerKey,
+            infiniteScrollSentinel,
+            dotNetRef,
+            nameof(LoadMoreAsync));
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -183,99 +266,68 @@ public partial class Books : ComponentBase
         await ResetAndLoadAsync();
     }
 
-    private async Task SetViewMode(ViewMode mode)
+    private static int? ParseFilterId(string raw) =>
+        string.IsNullOrEmpty(raw) ? null : int.TryParse(raw, out int id) ? id : null;
+
+    private static int? ParseId(string raw) =>
+        int.TryParse(raw, out int id) && id > 0 ? id : null;
+
+    private Task AddTagFilterAsync(string tagName)
     {
-        if (viewMode == mode)
+        string trimmed = tagName.Trim();
+        if (string.IsNullOrEmpty(trimmed))
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        viewMode = mode;
-        // List rows are larger so render fewer per page; grid uses the dense default.
-        pageSize = mode == ViewMode.List ? 12 : 24;
+        var existing = tags.FirstOrDefault(t => string.Equals(t.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null && !selectedTagFilters.Any(t => t.Id == existing.Id))
+        {
+            selectedTagFilters.Add(existing);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        query = null;
+        shelfId = "";
+        collectionId = "";
+        authorId = "";
+        seriesId = "";
+        genreId = "";
+        tagFilterMode = TagFilterMode.Any;
+        selectedTagFilters.Clear();
+        awaitingReview = false;
+        readStatus = BookReadStatusFilter.Any;
+        startsWithFilter = null;
         await ResetAndLoadAsync();
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private void ClearSelection() => selectedBookIds.Clear();
+
+    private IReadOnlyList<int> GetSelectedTagFilterIds()
+        => tagFilterMode == TagFilterMode.Selected
+            ? selectedTagFilters.Select(t => t.Id).Distinct().ToList()
+            : [];
+
+    private int? GetTagFilterId() => tagFilterMode switch
     {
-        if (!UseLetterRail)
+        TagFilterMode.None => -1,
+        _ => null,
+    };
+
+    private void GoToBatchEdit()
+    {
+        if (selectedBookIds.Count == 0)
         {
             return;
         }
 
-        if (!hasMorePages && !isLoadingMore)
-        {
-            return;
-        }
-
-        await JSRuntime.InvokeVoidAsync(
-            "shelfwarden.observeInfiniteScroll",
-            observerKey,
-            infiniteScrollSentinel,
-            dotNetRef,
-            nameof(LoadMoreAsync));
-    }
-
-    private async Task ResetAndLoadAsync()
-    {
-        results.Clear();
-        nextPageToLoad = 1;
-        totalCount = 0;
-        hasMorePages = false;
-        if (!UseLetterRail)
-        {
-            await LoadAllSeriesBooksAsync();
-        }
-        else
-        {
-            await LoadMoreAsync();
-        }
-    }
-
-    [JSInvokable]
-    public async Task LoadMoreAsync()
-    {
-        if (isLoadingMore || (!hasMorePages && nextPageToLoad > 1))
-        {
-            return;
-        }
-
-        isLoadingMore = true;
-
-        var result = await BookService.SearchAsync(new BookSearchRequest
-        {
-            Page = nextPageToLoad,
-            PageSize = pageSize,
-            Query = string.IsNullOrWhiteSpace(query) ? null : query,
-            StartsWith = startsWithFilter,
-            ShelfId = ParseId(shelfId),
-            AuthorId = ParseFilterId(authorId),
-            SeriesId = ParseFilterId(seriesId),
-            GenreId = ParseFilterId(genreId),
-            CollectionId = ParseFilterId(collectionId),
-            TagId = GetTagFilterId(),
-            TagIds = GetSelectedTagFilterIds(),
-            AwaitingReview = awaitingReview,
-            ReadStatus = readStatus,
-            SortBy = sortBy,
-            SortDescending = sortDescending,
-        });
-
-        if (result.IsSuccess)
-        {
-            var page = result.Value;
-            results.AddRange(page.Items);
-            totalCount = page.TotalCount;
-            hasMorePages = nextPageToLoad < page.TotalPages;
-            nextPageToLoad++;
-        }
-        else
-        {
-            hasMorePages = false;
-        }
-
-        isLoadingMore = false;
-        await InvokeAsync(StateHasChanged);
+        string ids = string.Join(',', selectedBookIds);
+        // Round-trip back to the books page (preserving the current URL ish — simplest is /books).
+        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=books");
     }
 
     private async Task LoadAllSeriesBooksAsync()
@@ -330,16 +382,6 @@ public partial class Books : ComponentBase
 
     private async Task OnFilterChangedAsync() => await ResetAndLoadAsync();
 
-    private async Task OnTagModeChangedAsync()
-    {
-        if (tagFilterMode != TagFilterMode.Selected)
-        {
-            selectedTagFilters.Clear();
-        }
-
-        await ResetAndLoadAsync();
-    }
-
     private async Task OnSearchQueryChangedAsync()
     {
         searchDebounceCts?.Cancel();
@@ -358,51 +400,47 @@ public partial class Books : ComponentBase
         }
     }
 
-    private async Task ClearFiltersAsync()
+    private async Task OnTagModeChangedAsync()
     {
-        query = null;
-        shelfId = "";
-        collectionId = "";
-        authorId = "";
-        seriesId = "";
-        genreId = "";
-        tagFilterMode = TagFilterMode.Any;
-        selectedTagFilters.Clear();
-        awaitingReview = false;
-        readStatus = BookReadStatusFilter.Any;
-        startsWithFilter = null;
+        if (tagFilterMode != TagFilterMode.Selected)
+        {
+            selectedTagFilters.Clear();
+        }
+
         await ResetAndLoadAsync();
     }
 
-    private void ToggleAdvancedFilters() => showAdvancedFilters = !showAdvancedFilters;
-
-    private void ToggleSelectMode()
+    private async Task ResetAndLoadAsync()
     {
-        selectMode = !selectMode;
-        if (!selectMode)
+        results.Clear();
+        nextPageToLoad = 1;
+        totalCount = 0;
+        hasMorePages = false;
+        if (!UseLetterRail)
         {
-            selectedBookIds.Clear();
-        }
-    }
-
-    private void ToggleSelection(int id, bool include)
-    {
-        if (include)
-        {
-            selectedBookIds.Add(id);
+            await LoadAllSeriesBooksAsync();
         }
         else
         {
-            selectedBookIds.Remove(id);
+            await LoadMoreAsync();
         }
     }
 
-    private void SelectAllVisible()
+    private Task<IReadOnlyList<TagDto>> SearchTagFilterOptionsAsync(string queryText)
     {
-        foreach (var b in results)
+        IEnumerable<TagDto> q = tags;
+        if (!string.IsNullOrWhiteSpace(queryText))
         {
-            selectedBookIds.Add(b.Id);
+            string needle = queryText.Trim();
+            q = q.Where(t => t.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
         }
+
+        var list = q
+            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<TagDto>>(list);
     }
 
     private async Task SelectAllMatchingAsync()
@@ -463,84 +501,47 @@ public partial class Books : ComponentBase
         }
     }
 
-    private void ClearSelection() => selectedBookIds.Clear();
-
-    private void GoToBatchEdit()
+    private void SelectAllVisible()
     {
-        if (selectedBookIds.Count == 0)
+        foreach (var b in results)
+        {
+            selectedBookIds.Add(b.Id);
+        }
+    }
+
+    private async Task SetViewMode(ViewMode mode)
+    {
+        if (viewMode == mode)
         {
             return;
         }
 
-        string ids = string.Join(',', selectedBookIds);
-        // Round-trip back to the books page (preserving the current URL ish — simplest is /books).
-        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=books");
+        viewMode = mode;
+        // List rows are larger so render fewer per page; grid uses the dense default.
+        pageSize = mode == ViewMode.List ? 12 : 24;
+        await ResetAndLoadAsync();
     }
 
-    private static int? ParseId(string raw) =>
-        int.TryParse(raw, out int id) && id > 0 ? id : null;
+    private void ToggleAdvancedFilters() => showAdvancedFilters = !showAdvancedFilters;
 
-    private static int? ParseFilterId(string raw) =>
-        string.IsNullOrEmpty(raw) ? null : int.TryParse(raw, out int id) ? id : null;
-
-    private int? GetTagFilterId() => tagFilterMode switch
+    private void ToggleSelection(int id, bool include)
     {
-        TagFilterMode.None => -1,
-        _ => null,
-    };
-
-    private IReadOnlyList<int> GetSelectedTagFilterIds()
-        => tagFilterMode == TagFilterMode.Selected
-            ? selectedTagFilters.Select(t => t.Id).Distinct().ToList()
-            : [];
-
-    private Task<IReadOnlyList<TagDto>> SearchTagFilterOptionsAsync(string queryText)
-    {
-        IEnumerable<TagDto> q = tags;
-        if (!string.IsNullOrWhiteSpace(queryText))
+        if (include)
         {
-            string needle = queryText.Trim();
-            q = q.Where(t => t.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
+            selectedBookIds.Add(id);
         }
-
-        var list = q
-            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(20)
-            .ToList();
-
-        return Task.FromResult<IReadOnlyList<TagDto>>(list);
+        else
+        {
+            selectedBookIds.Remove(id);
+        }
     }
 
-    private Task AddTagFilterAsync(string tagName)
+    private void ToggleSelectMode()
     {
-        string trimmed = tagName.Trim();
-        if (string.IsNullOrEmpty(trimmed))
+        selectMode = !selectMode;
+        if (!selectMode)
         {
-            return Task.CompletedTask;
-        }
-
-        var existing = tags.FirstOrDefault(t => string.Equals(t.Name, trimmed, StringComparison.OrdinalIgnoreCase));
-        if (existing is not null && !selectedTagFilters.Any(t => t.Id == existing.Id))
-        {
-            selectedTagFilters.Add(existing);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        searchDebounceCts?.Cancel();
-        searchDebounceCts?.Dispose();
-        dotNetRef?.Dispose();
-
-        try
-        {
-            await JSRuntime.InvokeVoidAsync("shelfwarden.disconnectInfiniteScroll", observerKey);
-        }
-        catch
-        {
-            // Ignore disposal-time JS failures during teardown.
+            selectedBookIds.Clear();
         }
     }
 }

@@ -5,9 +5,19 @@ namespace Shelfwarden.Components.Shared;
 public partial class ChipInput<TItem> : ComponentBase
     where TItem : class
 {
-    [Parameter, EditorRequired] public string Label { get; set; } = "Item";
+    private CancellationTokenSource? blurCts;
+    private string? input;
+    private CancellationTokenSource? searchCts;
+    private bool showSuggestions;
+    private IReadOnlyList<TItem> suggestions = [];
 
-    [Parameter, EditorRequired] public IList<TItem> Selected { get; set; } = [];
+    /// <summary>When false, the "create from typed text" option is hidden (e.g. book pickers).</summary>
+    [Parameter] public bool AllowCreate { get; set; } = true;
+
+    /// <summary>Optional extra CSS class on each chip (e.g. <c>chip-tag</c> on the book edit form).</summary>
+    [Parameter] public string? ChipCssSuffix { get; set; }
+
+    [Parameter, EditorRequired] public string Label { get; set; } = "Item";
 
     /// <summary>Map a TItem to its display name. Required because the component is generic.</summary>
     [Parameter, EditorRequired] public Func<TItem, string> NameOf { get; set; } = _ => string.Empty;
@@ -19,30 +29,37 @@ public partial class ChipInput<TItem> : ComponentBase
     /// </summary>
     [Parameter, EditorRequired] public Func<string, Task> OnAddAsync { get; set; } = _ => Task.CompletedTask;
 
+    [Parameter] public EventCallback OnChanged { get; set; }
+
     /// <summary>Returns suggestions for the current input. Called whenever the input changes.</summary>
     [Parameter, EditorRequired]
     public Func<string, Task<IReadOnlyList<TItem>>> SearchAsync { get; set; } =
         _ => Task.FromResult<IReadOnlyList<TItem>>([]);
 
-    /// <summary>Optional extra CSS class on each chip (e.g. <c>chip-tag</c> on the book edit form).</summary>
-    [Parameter] public string? ChipCssSuffix { get; set; }
+    [Parameter, EditorRequired] public IList<TItem> Selected { get; set; } = [];
 
-    /// <summary>When false, the "create from typed text" option is hidden (e.g. book pickers).</summary>
-    [Parameter] public bool AllowCreate { get; set; } = true;
-
-    [Parameter] public EventCallback OnChanged { get; set; }
-
-    private string? input;
-    private bool showSuggestions;
-    private IReadOnlyList<TItem> suggestions = [];
-    private CancellationTokenSource? searchCts;
-    private CancellationTokenSource? blurCts;
-
-    private async Task OnFocusAsync()
+    private async Task CommitAsync(string name)
     {
-        blurCts?.Cancel();
-        showSuggestions = true;
-        await RefreshSuggestionsAsync();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        // Skip duplicates (case-insensitive).
+        if (Selected.Any(s => string.Equals(NameOf(s), name, StringComparison.OrdinalIgnoreCase)))
+        {
+            input = string.Empty;
+            return;
+        }
+
+        await OnAddAsync(name);
+        input = string.Empty;
+        suggestions = [];
+        showSuggestions = false;
+        if (OnChanged.HasDelegate)
+        {
+            await OnChanged.InvokeAsync();
+        }
     }
 
     private async Task OnBlurAsync()
@@ -58,6 +75,13 @@ public partial class ChipInput<TItem> : ComponentBase
             await InvokeAsync(StateHasChanged);
         }
         catch (TaskCanceledException) { }
+    }
+
+    private async Task OnFocusAsync()
+    {
+        blurCts?.Cancel();
+        showSuggestions = true;
+        await RefreshSuggestionsAsync();
     }
 
     private async Task OnInputChangedAsync()
@@ -101,30 +125,6 @@ public partial class ChipInput<TItem> : ComponentBase
             await InvokeAsync(StateHasChanged);
         }
         catch (TaskCanceledException) { }
-    }
-
-    private async Task CommitAsync(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return;
-        }
-
-        // Skip duplicates (case-insensitive).
-        if (Selected.Any(s => string.Equals(NameOf(s), name, StringComparison.OrdinalIgnoreCase)))
-        {
-            input = string.Empty;
-            return;
-        }
-
-        await OnAddAsync(name);
-        input = string.Empty;
-        suggestions = [];
-        showSuggestions = false;
-        if (OnChanged.HasDelegate)
-        {
-            await OnChanged.InvokeAsync();
-        }
     }
 
     private async Task RemoveAsync(TItem item)

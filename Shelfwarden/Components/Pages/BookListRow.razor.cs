@@ -9,15 +9,6 @@ public partial class BookListRow : ComponentBase
     [Parameter]
     public int DescriptionLength { get; set; } = 280;
 
-    /// <summary>
-    /// When true, clicking the row toggles selection via <see cref="OnSelectionToggled"/> instead
-    /// of navigating to the book detail page. Mirrors the same parameter on
-    /// <see cref="BookCard"/> so list and grid views behave identically when the user is
-    /// multi-selecting.
-    /// </summary>
-    [Parameter]
-    public bool SelectionMode { get; set; }
-
     /// <summary>Whether this row is currently part of the parent's selection set.</summary>
     [Parameter]
     public bool IsSelected { get; set; }
@@ -26,9 +17,14 @@ public partial class BookListRow : ComponentBase
     [Parameter]
     public EventCallback<bool> OnSelectionToggled { get; set; }
 
-    private Task HandleRowClickAsync() => !SelectionMode || Book is null || !OnSelectionToggled.HasDelegate
-            ? Task.CompletedTask
-            : OnSelectionToggled.InvokeAsync(!IsSelected);
+    /// <summary>
+    /// When true, clicking the row toggles selection via <see cref="OnSelectionToggled"/> instead
+    /// of navigating to the book detail page. Mirrors the same parameter on
+    /// <see cref="BookCard"/> so list and grid views behave identically when the user is
+    /// multi-selecting.
+    /// </summary>
+    [Parameter]
+    public bool SelectionMode { get; set; }
 
     private static string Truncate(string raw, int max)
     {
@@ -52,4 +48,8 @@ public partial class BookListRow : ComponentBase
 
         return plain[..cut].TrimEnd(',', '.', ';', ':') + "…";
     }
+
+    private Task HandleRowClickAsync() => !SelectionMode || Book is null || !OnSelectionToggled.HasDelegate
+                ? Task.CompletedTask
+            : OnSelectionToggled.InvokeAsync(!IsSelected);
 }

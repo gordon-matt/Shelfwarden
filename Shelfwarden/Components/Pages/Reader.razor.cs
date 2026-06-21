@@ -4,101 +4,65 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class Reader : ComponentBase
 {
-    [Parameter] public int Id { get; set; }
-
-    private BookDto? book;
-    private string? loadError;
-    private double? progressPercent;
-    private DateTime? lastSavedAt;
-    private DotNetObjectReference<Reader>? selfRef;
-    private bool jsMounted;
-    private int pdfPageCount;
-    private int pdfCurrentPage = 1;
-
     private readonly List<BookmarkDto> bookmarks = [];
-    private bool showBookmarks;
+    private BookDto? book;
     private string? bookmarkError;
-    private string? lastSavedCfi;
-    private bool readerDarkMode;
-    private bool readerDarkModeLoaded;
+    private bool jsMounted;
 
     /// <summary>Tracks which <see cref="Id"/> we last loaded — client navigation between <c>/read/1</c> and <c>/read/2</c> reuses this component.</summary>
     private int lastHandledBookId = -1;
 
-    protected override async Task OnParametersSetAsync()
+    private DateTime? lastSavedAt;
+    private string? lastSavedCfi;
+    private string? loadError;
+    private int pdfCurrentPage = 1;
+    private int pdfPageCount;
+    private double? progressPercent;
+    private bool readerDarkMode;
+    private bool readerDarkModeLoaded;
+    private DotNetObjectReference<Reader>? selfRef;
+    private bool showBookmarks;
+    [Parameter] public int Id { get; set; }
+
+    public async ValueTask DisposeAsync() => await TearDownReaderInteropAsync();
+
+    /// <summary>
+    /// Called from JS via <see cref="DotNetObjectReference"/> whenever the rendered location
+    /// changes (debounced on the JS side). We persist progress immediately so the user can
+    /// resume from any device.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnProgress(double percentage, int? page, string? cfi)
     {
-        if (lastHandledBookId == Id)
+        // Avoid Blazor re-renders when epub.js emits duplicate relocated events (same CFI/%).
+        // Full rerenders were visibly "flickering" the reader and could race the JS rendition chain.
+        bool uiNeedsUpdate =
+            !progressPercent.HasValue
+            || Math.Abs(progressPercent.Value - percentage) >= 0.5
+            || !string.Equals(lastSavedCfi, cfi, StringComparison.Ordinal)
+            || (page.HasValue && pdfCurrentPage != page.Value);
+
+        progressPercent = percentage;
+        lastSavedCfi = cfi;
+        if (page.HasValue)
         {
-            return;
+            pdfCurrentPage = page.Value;
         }
 
-        if (lastHandledBookId >= 0)
+        var result = await BookService.SaveProgressAsync(Id, new SaveProgressRequest
         {
-            await TearDownReaderInteropAsync();
-        }
-
-        ResetTransientReaderState();
-
-        var result = await BookService.GetByIdAsync(Id);
-        if (!result.IsSuccess)
-        {
-            loadError = result.Status switch
-            {
-                ResultStatus.NotFound => "Book not found",
-                ResultStatus.Unauthorized => "You need to sign in to read books",
-                _ => "Failed to load book",
-            };
-            book = null;
-            lastHandledBookId = Id;
-            return;
-        }
-
-        book = result.Value;
-        loadError = null;
-        lastHandledBookId = Id;
-        await LoadBookmarksAsync();
-    }
-
-    private void ResetTransientReaderState()
-    {
-        jsMounted = false;
-        pdfPageCount = 0;
-        pdfCurrentPage = 1;
-        progressPercent = null;
-        lastSavedAt = null;
-        lastSavedCfi = null;
-        bookmarkError = null;
-        showBookmarks = false;
-        bookmarks.Clear();
-    }
-
-    private async Task TearDownReaderInteropAsync()
-    {
-        try
-        {
-            await JS.InvokeVoidAsync("shelfwardenReader.disposeEpub");
-            await JS.InvokeVoidAsync("shelfwardenReader.disposePdf");
-            await JS.InvokeVoidAsync("shelfwardenReader.releaseReaderChromeViewport");
-        }
-        catch (Exception ex) when (IsBenignJsInteropFailure(ex))
-        {
-        }
-        catch (Exception)
-        {
-            // Script may not have mounted yet.
-        }
-
-        selfRef?.Dispose();
-        selfRef = null;
-    }
-
-    private async Task LoadBookmarksAsync()
-    {
-        var result = await BookmarkService.ListAsync(Id);
+            Percentage = Math.Clamp(percentage, 0, 100),
+            PageNumber = page,
+            Location = cfi,
+        });
         if (result.IsSuccess)
         {
-            bookmarks.Clear();
-            bookmarks.AddRange(result.Value);
+            lastSavedAt = result.Value.LastReadAt;
+        }
+
+        if (uiNeedsUpdate)
+        {
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -160,159 +124,56 @@ public partial class Reader : ComponentBase
         }
     }
 
+    protected override async Task OnParametersSetAsync()
+    {
+        if (lastHandledBookId == Id)
+        {
+            return;
+        }
+
+        if (lastHandledBookId >= 0)
+        {
+            await TearDownReaderInteropAsync();
+        }
+
+        ResetTransientReaderState();
+
+        var result = await BookService.GetByIdAsync(Id);
+        if (!result.IsSuccess)
+        {
+            loadError = result.Status switch
+            {
+                ResultStatus.NotFound => "Book not found",
+                ResultStatus.Unauthorized => "You need to sign in to read books",
+                _ => "Failed to load book",
+            };
+            book = null;
+            lastHandledBookId = Id;
+            return;
+        }
+
+        book = result.Value;
+        loadError = null;
+        lastHandledBookId = Id;
+        await LoadBookmarksAsync();
+    }
+
+    private static string DefaultBookmarkTitle(BookmarkDto bm)
+        => bm.PageNumber.HasValue ? $"Page {bm.PageNumber}" : "Saved spot";
+
+    private static string FormatRelative(DateTime utc)
+    {
+        var delta = DateTime.UtcNow - utc;
+        return delta < TimeSpan.FromSeconds(5)
+            ? "just now"
+            : delta < TimeSpan.FromMinutes(1)
+            ? $"{(int)delta.TotalSeconds}s ago"
+            : delta < TimeSpan.FromHours(1) ? $"{(int)delta.TotalMinutes}m ago" : utc.ToLocalTime().ToString("HH:mm");
+    }
+
     /// <summary>JS interop failed because the connection ended or the call was canceled — not an app bug.</summary>
     private static bool IsBenignJsInteropFailure(Exception ex)
         => ex is JSDisconnectedException or OperationCanceledException;
-
-    private async Task MountEpubAsync(string fileUrl)
-    {
-        string? resumeCfi = null;
-        var progressResult = await BookService.GetProgressAsync(Id);
-        if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
-        {
-            resumeCfi = dto.Location;
-            progressPercent = dto.Percentage;
-        }
-
-        selfRef = DotNetObjectReference.Create(this);
-        await JS.InvokeVoidAsync("shelfwardenReader.mountEpub", "epub-viewer", fileUrl, selfRef, resumeCfi);
-    }
-
-    private async Task MountPdfAsync(string fileUrl)
-    {
-        int? resumePage = null;
-        var progressResult = await BookService.GetProgressAsync(Id);
-        if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
-        {
-            progressPercent = dto.Percentage;
-            lastSavedAt = dto.LastReadAt;
-            resumePage = dto.PageNumber;
-        }
-
-        selfRef = DotNetObjectReference.Create(this);
-        var mount = await JS.InvokeAsync<PdfMountResult>(
-            "shelfwardenReader.mountPdf", "pdf-viewer", fileUrl, selfRef, resumePage);
-        pdfPageCount = mount.PageCount;
-        pdfCurrentPage = resumePage ?? 1;
-    }
-
-    /// <summary>Fire-and-forget safe interop for reader controls (circuit may drop).</summary>
-    private async Task InvokeReaderAsync(string method, params object?[] args)
-    {
-        try
-        {
-            if (args.Length == 0)
-            {
-                await JS.InvokeVoidAsync($"shelfwardenReader.{method}");
-            }
-            else
-            {
-                await JS.InvokeVoidAsync($"shelfwardenReader.{method}", args);
-            }
-        }
-        catch (JSDisconnectedException) { }
-    }
-
-    private Task GoToFirstPageAsync() =>
-        book?.FileFormat == EbookFormat.Pdf
-            ? InvokeReaderAsync("gotoPdfPage", 1)
-            : InvokeReaderAsync("firstEpubPage");
-
-    private Task PrevPage() => InvokeReaderAsync("prevPage");
-
-    private Task NextPage() => InvokeReaderAsync("nextPage");
-
-    private Task PrevPdfPage() => InvokeReaderAsync("prevPdfPage");
-
-    private Task NextPdfPage() => InvokeReaderAsync("nextPdfPage");
-
-    private Task ZoomInAsync() => InvokeReaderAsync("zoomIn");
-
-    private Task ZoomOutAsync() => InvokeReaderAsync("zoomOut");
-
-    private Task ResetZoomAsync() => InvokeReaderAsync("resetZoom");
-
-    private async Task ToggleReaderDarkModeAsync()
-    {
-        readerDarkMode = !readerDarkMode;
-        await InvokeReaderAsync("setDarkMode", readerDarkMode);
-    }
-
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Home")
-        {
-            await GoToFirstPageAsync();
-        }
-        else if (e.Key == "ArrowLeft")
-        {
-            await PrevPage();
-        }
-        else if (e.Key == "ArrowRight")
-        {
-            await NextPage();
-        }
-    }
-
-    private async Task HandlePdfKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Home")
-        {
-            await GoToFirstPageAsync();
-        }
-        else if (e.Key is "ArrowLeft" or "PageUp")
-        {
-            await PrevPdfPage();
-        }
-        else if (e.Key is "ArrowRight" or "PageDown")
-        {
-            await NextPdfPage();
-        }
-    }
-
-    private record PdfMountResult(int PageCount);
-
-    /// <summary>
-    /// Called from JS via <see cref="DotNetObjectReference"/> whenever the rendered location
-    /// changes (debounced on the JS side). We persist progress immediately so the user can
-    /// resume from any device.
-    /// </summary>
-    [JSInvokable]
-    public async Task OnProgress(double percentage, int? page, string? cfi)
-    {
-        // Avoid Blazor re-renders when epub.js emits duplicate relocated events (same CFI/%).
-        // Full rerenders were visibly "flickering" the reader and could race the JS rendition chain.
-        bool uiNeedsUpdate =
-            !progressPercent.HasValue
-            || Math.Abs(progressPercent.Value - percentage) >= 0.5
-            || !string.Equals(lastSavedCfi, cfi, StringComparison.Ordinal)
-            || (page.HasValue && pdfCurrentPage != page.Value);
-
-        progressPercent = percentage;
-        lastSavedCfi = cfi;
-        if (page.HasValue)
-        {
-            pdfCurrentPage = page.Value;
-        }
-
-        var result = await BookService.SaveProgressAsync(Id, new SaveProgressRequest
-        {
-            Percentage = Math.Clamp(percentage, 0, 100),
-            PageNumber = page,
-            Location = cfi,
-        });
-        if (result.IsSuccess)
-        {
-            lastSavedAt = result.Value.LastReadAt;
-        }
-
-        if (uiNeedsUpdate)
-        {
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private void ToggleBookmarks() => showBookmarks = !showBookmarks;
 
     private async Task AddBookmarkAsync()
     {
@@ -379,6 +240,15 @@ public partial class Reader : ComponentBase
         await InvokeAsync(StateHasChanged);
     }
 
+    private async Task DeleteBookmarkAsync(BookmarkDto bm)
+    {
+        var result = await BookmarkService.DeleteAsync(bm.Id);
+        if (result.IsSuccess)
+        {
+            bookmarks.Remove(bm);
+        }
+    }
+
     private async Task GotoBookmarkAsync(BookmarkDto bm)
     {
         if (book is null)
@@ -398,29 +268,157 @@ public partial class Reader : ComponentBase
         showBookmarks = false;
     }
 
-    private async Task DeleteBookmarkAsync(BookmarkDto bm)
+    private Task GoToFirstPageAsync() =>
+        book?.FileFormat == EbookFormat.Pdf
+            ? InvokeReaderAsync("gotoPdfPage", 1)
+            : InvokeReaderAsync("firstEpubPage");
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        var result = await BookmarkService.DeleteAsync(bm.Id);
-        if (result.IsSuccess)
+        if (e.Key == "Home")
         {
-            bookmarks.Remove(bm);
+            await GoToFirstPageAsync();
+        }
+        else if (e.Key == "ArrowLeft")
+        {
+            await PrevPage();
+        }
+        else if (e.Key == "ArrowRight")
+        {
+            await NextPage();
         }
     }
 
-    private static string DefaultBookmarkTitle(BookmarkDto bm)
-        => bm.PageNumber.HasValue ? $"Page {bm.PageNumber}" : "Saved spot";
-
-    private sealed record EpubLocation(string? Cfi, double? Percent);
-
-    private static string FormatRelative(DateTime utc)
+    private async Task HandlePdfKeyDown(KeyboardEventArgs e)
     {
-        var delta = DateTime.UtcNow - utc;
-        return delta < TimeSpan.FromSeconds(5)
-            ? "just now"
-            : delta < TimeSpan.FromMinutes(1)
-            ? $"{(int)delta.TotalSeconds}s ago"
-            : delta < TimeSpan.FromHours(1) ? $"{(int)delta.TotalMinutes}m ago" : utc.ToLocalTime().ToString("HH:mm");
+        if (e.Key == "Home")
+        {
+            await GoToFirstPageAsync();
+        }
+        else if (e.Key is "ArrowLeft" or "PageUp")
+        {
+            await PrevPdfPage();
+        }
+        else if (e.Key is "ArrowRight" or "PageDown")
+        {
+            await NextPdfPage();
+        }
     }
 
-    public async ValueTask DisposeAsync() => await TearDownReaderInteropAsync();
+    /// <summary>Fire-and-forget safe interop for reader controls (circuit may drop).</summary>
+    private async Task InvokeReaderAsync(string method, params object?[] args)
+    {
+        try
+        {
+            if (args.Length == 0)
+            {
+                await JS.InvokeVoidAsync($"shelfwardenReader.{method}");
+            }
+            else
+            {
+                await JS.InvokeVoidAsync($"shelfwardenReader.{method}", args);
+            }
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    private async Task LoadBookmarksAsync()
+    {
+        var result = await BookmarkService.ListAsync(Id);
+        if (result.IsSuccess)
+        {
+            bookmarks.Clear();
+            bookmarks.AddRange(result.Value);
+        }
+    }
+
+    private async Task MountEpubAsync(string fileUrl)
+    {
+        string? resumeCfi = null;
+        var progressResult = await BookService.GetProgressAsync(Id);
+        if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
+        {
+            resumeCfi = dto.Location;
+            progressPercent = dto.Percentage;
+        }
+
+        selfRef = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("shelfwardenReader.mountEpub", "epub-viewer", fileUrl, selfRef, resumeCfi);
+    }
+
+    private async Task MountPdfAsync(string fileUrl)
+    {
+        int? resumePage = null;
+        var progressResult = await BookService.GetProgressAsync(Id);
+        if (progressResult.IsSuccess && progressResult.Value is BookProgressDto dto)
+        {
+            progressPercent = dto.Percentage;
+            lastSavedAt = dto.LastReadAt;
+            resumePage = dto.PageNumber;
+        }
+
+        selfRef = DotNetObjectReference.Create(this);
+        var mount = await JS.InvokeAsync<PdfMountResult>(
+            "shelfwardenReader.mountPdf", "pdf-viewer", fileUrl, selfRef, resumePage);
+        pdfPageCount = mount.PageCount;
+        pdfCurrentPage = resumePage ?? 1;
+    }
+
+    private Task NextPage() => InvokeReaderAsync("nextPage");
+
+    private Task NextPdfPage() => InvokeReaderAsync("nextPdfPage");
+
+    private Task PrevPage() => InvokeReaderAsync("prevPage");
+
+    private Task PrevPdfPage() => InvokeReaderAsync("prevPdfPage");
+
+    private void ResetTransientReaderState()
+    {
+        jsMounted = false;
+        pdfPageCount = 0;
+        pdfCurrentPage = 1;
+        progressPercent = null;
+        lastSavedAt = null;
+        lastSavedCfi = null;
+        bookmarkError = null;
+        showBookmarks = false;
+        bookmarks.Clear();
+    }
+
+    private Task ResetZoomAsync() => InvokeReaderAsync("resetZoom");
+
+    private async Task TearDownReaderInteropAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("shelfwardenReader.disposeEpub");
+            await JS.InvokeVoidAsync("shelfwardenReader.disposePdf");
+            await JS.InvokeVoidAsync("shelfwardenReader.releaseReaderChromeViewport");
+        }
+        catch (Exception ex) when (IsBenignJsInteropFailure(ex))
+        {
+        }
+        catch (Exception)
+        {
+            // Script may not have mounted yet.
+        }
+
+        selfRef?.Dispose();
+        selfRef = null;
+    }
+
+    private void ToggleBookmarks() => showBookmarks = !showBookmarks;
+
+    private async Task ToggleReaderDarkModeAsync()
+    {
+        readerDarkMode = !readerDarkMode;
+        await InvokeReaderAsync("setDarkMode", readerDarkMode);
+    }
+
+    private Task ZoomInAsync() => InvokeReaderAsync("zoomIn");
+
+    private Task ZoomOutAsync() => InvokeReaderAsync("zoomOut");
+
+    private record PdfMountResult(int PageCount);
+    private sealed record EpubLocation(string? Cfi, double? Percent);
 }

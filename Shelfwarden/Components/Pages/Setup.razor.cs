@@ -5,28 +5,26 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class Setup : ComponentBase
 {
-    [SupplyParameterFromQuery] public string? Step { get; set; }
-    [SupplyParameterFromQuery] public string? Error { get; set; }
-
-    private SetupStatusDto? status;
-    private string? errorMessage;
     private readonly string adminEmail = "admin@shelfwarden.local";
     private readonly string shelfName = "My Shelf";
-    private string shelfFolders = "";
-    private bool _showSetupFolderPicker;
-
-    private void OnSetupFolderPickerConfirm(string path)
-    {
-        var existing = shelfFolders.Trim();
-        shelfFolders = string.IsNullOrEmpty(existing) ? path : $"{existing}\n{path}";
-        _showSetupFolderPicker = false;
-    }
-
-    private record StepDescriptor(string Id, int Number, string Label);
-
     private readonly List<StepDescriptor> steps = [];
-
+    private bool _showSetupFolderPicker;
+    private string? errorMessage;
+    private string shelfFolders = string.Empty;
+    private SetupStatusDto? status;
+    [SupplyParameterFromQuery] public string? Error { get; set; }
+    [SupplyParameterFromQuery] public string? Step { get; set; }
     private string CurrentStep => ResolveStep(Step);
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && !string.IsNullOrWhiteSpace(errorMessage))
+        {
+            SetupWizardLogger.LogWarning(
+                "[SetupWizard] First render: showing alert with errorMessage length={Len}",
+                errorMessage!.Length);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -51,50 +49,6 @@ public partial class Setup : ComponentBase
                 errorMessage?.Length ?? 0);
         }
     }
-
-    private void BuildSteps()
-    {
-        steps.Clear();
-        steps.Add(new StepDescriptor("welcome", 1, "Welcome"));
-
-        int n = 2;
-        if (status?.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Identity))
-        {
-            steps.Add(new StepDescriptor("admin", n++, "Administrator"));
-        }
-
-        steps.Add(new StepDescriptor("shelf", n++, "First shelf"));
-        steps.Add(new StepDescriptor("done", n, "Finish"));
-    }
-
-    private string ResolveStep(string? requested)
-    {
-        if (status is null)
-        {
-            return "welcome";
-        }
-
-        if (string.IsNullOrEmpty(requested))
-        {
-            return "welcome";
-        }
-
-        bool valid = steps.Any(s => s.Id.Equals(requested, StringComparison.OrdinalIgnoreCase));
-        return valid ? requested.ToLowerInvariant() : "welcome";
-    }
-
-    private bool IsStepDone(string stepId)
-    {
-        int currentIndex = steps.FindIndex(s => s.Id == CurrentStep);
-        int targetIndex = steps.FindIndex(s => s.Id == stepId);
-        return currentIndex >= 0 && targetIndex >= 0 && targetIndex < currentIndex;
-    }
-
-    private string NextLinkAfterWelcome() => status?.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Identity) ? "/setup?step=admin" : "/setup?step=shelf";
-
-    private static string FolderPlaceholder() => OperatingSystem.IsWindows()
-        ? "D:\\Library\\Fiction\nD:\\Library\\NonFiction"
-        : "/app/data/library/Fiction\n/app/data/library/NonFiction";
 
     protected override void OnParametersSet()
     {
@@ -121,14 +75,42 @@ public partial class Setup : ComponentBase
         }
     }
 
-    protected override void OnAfterRender(bool firstRender)
+    private static string FolderPlaceholder() => OperatingSystem.IsWindows()
+        ? "D:\\Library\\Fiction\nD:\\Library\\NonFiction"
+        : "/app/data/library/Fiction\n/app/data/library/NonFiction";
+
+    private static string FormatCodePoints(string s, int maxChars)
     {
-        if (firstRender && !string.IsNullOrWhiteSpace(errorMessage))
+        int n = Math.Min(s.Length, maxChars);
+        string[] parts = new string[n];
+        for (int i = 0; i < n; i++)
         {
-            SetupWizardLogger.LogWarning(
-                "[SetupWizard] First render: showing alert with errorMessage length={Len}",
-                errorMessage!.Length);
+            parts[i] = $"U+{(uint)s[i]:X4}";
         }
+
+        return string.Join(",", parts);
+    }
+
+    private void BuildSteps()
+    {
+        steps.Clear();
+        steps.Add(new StepDescriptor("welcome", 1, "Welcome"));
+
+        int n = 2;
+        if (status?.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Identity))
+        {
+            steps.Add(new StepDescriptor("admin", n++, "Administrator"));
+        }
+
+        steps.Add(new StepDescriptor("shelf", n++, "First shelf"));
+        steps.Add(new StepDescriptor("done", n, "Finish"));
+    }
+
+    private bool IsStepDone(string stepId)
+    {
+        int currentIndex = steps.FindIndex(s => s.Id == CurrentStep);
+        int targetIndex = steps.FindIndex(s => s.Id == stepId);
+        return currentIndex >= 0 && targetIndex >= 0 && targetIndex < currentIndex;
     }
 
     /// <summary>Logs raw query vs supply parameters — helps debug proxy/encoding issues on NAS.</summary>
@@ -170,15 +152,32 @@ public partial class Setup : ComponentBase
         }
     }
 
-    private static string FormatCodePoints(string s, int maxChars)
+    private string NextLinkAfterWelcome() => status?.AuthProvider == nameof(Services.Auth.AuthProvider.Identity)
+        ? "/setup?step=admin"
+        : "/setup?step=shelf";
+
+    private void OnSetupFolderPickerConfirm(string path)
     {
-        int n = Math.Min(s.Length, maxChars);
-        string[] parts = new string[n];
-        for (int i = 0; i < n; i++)
+        var existing = shelfFolders.Trim();
+        shelfFolders = string.IsNullOrEmpty(existing) ? path : $"{existing}\n{path}";
+        _showSetupFolderPicker = false;
+    }
+
+    private record StepDescriptor(string Id, int Number, string Label);
+
+    private string ResolveStep(string? requested)
+    {
+        if (status is null)
         {
-            parts[i] = $"U+{(uint)s[i]:X4}";
+            return "welcome";
         }
 
-        return string.Join(",", parts);
+        if (string.IsNullOrEmpty(requested))
+        {
+            return "welcome";
+        }
+
+        bool valid = steps.Any(s => s.Id.Equals(requested, StringComparison.OrdinalIgnoreCase));
+        return valid ? requested.ToLowerInvariant() : "welcome";
     }
 }

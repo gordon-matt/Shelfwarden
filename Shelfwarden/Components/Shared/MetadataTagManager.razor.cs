@@ -4,35 +4,29 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class MetadataTagManager : ComponentBase
 {
+    private readonly HashSet<int> selectedTagIds = [];
+    private TagKind loadedKind;
+    private List<TagDto> tagMergeCandidates = [];
+    private bool tagMergeModalOpen;
+    private int tagMergeTargetId;
+    private string tagQuery = string.Empty;
+    private IReadOnlyList<TagDto>? tags;
+    private CancellationTokenSource? tagSearchCts;
+
     public enum TagKind
     {
         Book,
         ExtraContent,
     }
 
-    [Parameter, EditorRequired] public TagKind Kind { get; set; }
-
     [Parameter] public EventCallback<string?> ErrorChanged { get; set; }
-
+    [Parameter, EditorRequired] public TagKind Kind { get; set; }
     [Inject] private ITagService BookTagService { get; set; } = null!;
+    private string EntityPlural => Kind == TagKind.Book ? "tags" : "extra content tags";
+    private string EntitySingular => Kind == TagKind.Book ? "tag" : "extra content tag";
     [Inject] private IAdditionalContentTagService ExtraContentTagService { get; set; } = null!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
-
-    private IReadOnlyList<TagDto>? tags;
-    private string tagQuery = string.Empty;
-    private CancellationTokenSource? tagSearchCts;
-    private readonly HashSet<int> selectedTagIds = [];
-    private bool tagMergeModalOpen;
-    private int tagMergeTargetId;
-    private List<TagDto> tagMergeCandidates = [];
-
-    private string EntitySingular => Kind == TagKind.Book ? "tag" : "extra content tag";
-
-    private string EntityPlural => Kind == TagKind.Book ? "tags" : "extra content tags";
-
     private string MergeRadioName => Kind == TagKind.Book ? "mergePrimaryBookTag" : "mergePrimaryExtraContentTag";
-
-    private TagKind loadedKind;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -50,6 +44,139 @@ public partial class MetadataTagManager : ComponentBase
         {
             await LoadTagsAsync();
         }
+    }
+
+    private static string FormatResult(Result result) =>
+        result.ValidationErrors is not null && result.ValidationErrors.Any()
+            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
+            : string.Join(" ", result.Errors);
+
+    private static string FormatResult<T>(Result<T> result) =>
+        result.ValidationErrors is not null && result.ValidationErrors.Any()
+            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
+            : string.Join(" ", result.Errors);
+
+    private Task ClearErrorAsync() => ErrorChanged.InvokeAsync(null);
+
+    private void ClearTagSelection() => selectedTagIds.Clear();
+
+    private void CloseTagMergeModal()
+    {
+        tagMergeModalOpen = false;
+        tagMergeCandidates = [];
+    }
+
+    private async Task ConfirmTagMergeAsync()
+    {
+        var sourceIds = tagMergeCandidates
+            .Where(c => c.Id != tagMergeTargetId)
+            .Select(c => c.Id)
+            .ToList();
+
+        if (sourceIds.Count == 0)
+        {
+            return;
+        }
+
+        string targetName = tagMergeCandidates.First(c => c.Id == tagMergeTargetId).Name;
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
+                $"Merge into \"{targetName}\"? Other selected {EntityPlural} will be deleted."))
+        {
+            return;
+        }
+
+        if (Kind == TagKind.Book)
+        {
+            var result = await BookTagService.MergeAsync(tagMergeTargetId, sourceIds);
+            if (!result.IsSuccess)
+            {
+                await ReportErrorAsync(result);
+                return;
+            }
+        }
+        else
+        {
+            var result = await ExtraContentTagService.MergeAsync(tagMergeTargetId, sourceIds);
+            if (!result.IsSuccess)
+            {
+                await ReportErrorAsync(result);
+                return;
+            }
+        }
+
+        CloseTagMergeModal();
+        selectedTagIds.Clear();
+        await ClearErrorAsync();
+        await LoadTagsAsync();
+    }
+
+    private async Task DeleteSelectedTagsAsync()
+    {
+        if (selectedTagIds.Count == 0)
+        {
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
+            $"Delete {selectedTagIds.Count} selected {EntityPlural}? This cannot be undone."))
+        {
+            return;
+        }
+
+        if (Kind == TagKind.Book)
+        {
+            var result = await BookTagService.DeleteManyAsync(selectedTagIds.ToList());
+            if (!result.IsSuccess)
+            {
+                await ReportErrorAsync(result);
+                return;
+            }
+        }
+        else
+        {
+            var result = await ExtraContentTagService.DeleteManyAsync(selectedTagIds.ToList());
+            if (!result.IsSuccess)
+            {
+                await ReportErrorAsync(result);
+                return;
+            }
+        }
+
+        selectedTagIds.Clear();
+        await ClearErrorAsync();
+        await LoadTagsAsync();
+    }
+
+    private async Task DeleteTagAsync(TagDto tag)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
+            $"Delete {EntitySingular} \"{tag.Name}\"? This cannot be undone."))
+        {
+            return;
+        }
+
+        if (Kind == TagKind.Book)
+        {
+            var result = await BookTagService.DeleteAsync(tag.Id);
+            if (!result.IsSuccess)
+            {
+                await ReportErrorAsync(result);
+                return;
+            }
+        }
+        else
+        {
+            var result = await ExtraContentTagService.DeleteAsync(tag.Id);
+            if (!result.IsSuccess)
+            {
+                await ReportErrorAsync(result);
+                return;
+            }
+        }
+
+        selectedTagIds.Remove(tag.Id);
+        await ClearErrorAsync();
+        await LoadTagsAsync();
     }
 
     private async Task LoadTagsAsync()
@@ -100,20 +227,6 @@ public partial class MetadataTagManager : ComponentBase
         }
     }
 
-    private void ToggleTagSelection(int tagId, bool include)
-    {
-        if (include)
-        {
-            selectedTagIds.Add(tagId);
-        }
-        else
-        {
-            selectedTagIds.Remove(tagId);
-        }
-    }
-
-    private void ClearTagSelection() => selectedTagIds.Clear();
-
     private async Task OpenTagCreateAsync()
     {
         string? name = await JSRuntime.InvokeAsync<string?>("prompt", $"New {EntitySingular} name:");
@@ -145,6 +258,28 @@ public partial class MetadataTagManager : ComponentBase
         await LoadTagsAsync();
     }
 
+    private void OpenTagMergeModal()
+    {
+        if (tags is null || selectedTagIds.Count < 2)
+        {
+            return;
+        }
+
+        tagMergeCandidates = tags
+            .Where(t => selectedTagIds.Contains(t.Id))
+            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (tagMergeCandidates.Count < 2)
+        {
+            tagMergeCandidates = [];
+            return;
+        }
+
+        tagMergeTargetId = tagMergeCandidates[0].Id;
+        tagMergeModalOpen = true;
+    }
+
     private async Task OpenTagRenameAsync(TagDto tag)
     {
         string? name = await JSRuntime.InvokeAsync<string?>("prompt", $"Rename {EntitySingular}:", tag.Name);
@@ -172,75 +307,6 @@ public partial class MetadataTagManager : ComponentBase
             }
         }
 
-        await ClearErrorAsync();
-        await LoadTagsAsync();
-    }
-
-    private async Task DeleteTagAsync(TagDto tag)
-    {
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                $"Delete {EntitySingular} \"{tag.Name}\"? This cannot be undone."))
-        {
-            return;
-        }
-
-        if (Kind == TagKind.Book)
-        {
-            var result = await BookTagService.DeleteAsync(tag.Id);
-            if (!result.IsSuccess)
-            {
-                await ReportErrorAsync(result);
-                return;
-            }
-        }
-        else
-        {
-            var result = await ExtraContentTagService.DeleteAsync(tag.Id);
-            if (!result.IsSuccess)
-            {
-                await ReportErrorAsync(result);
-                return;
-            }
-        }
-
-        selectedTagIds.Remove(tag.Id);
-        await ClearErrorAsync();
-        await LoadTagsAsync();
-    }
-
-    private async Task DeleteSelectedTagsAsync()
-    {
-        if (selectedTagIds.Count == 0)
-        {
-            return;
-        }
-
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                $"Delete {selectedTagIds.Count} selected {EntityPlural}? This cannot be undone."))
-        {
-            return;
-        }
-
-        if (Kind == TagKind.Book)
-        {
-            var result = await BookTagService.DeleteManyAsync(selectedTagIds.ToList());
-            if (!result.IsSuccess)
-            {
-                await ReportErrorAsync(result);
-                return;
-            }
-        }
-        else
-        {
-            var result = await ExtraContentTagService.DeleteManyAsync(selectedTagIds.ToList());
-            if (!result.IsSuccess)
-            {
-                await ReportErrorAsync(result);
-                return;
-            }
-        }
-
-        selectedTagIds.Clear();
         await ClearErrorAsync();
         await LoadTagsAsync();
     }
@@ -280,92 +346,19 @@ public partial class MetadataTagManager : ComponentBase
         await LoadTagsAsync();
     }
 
-    private void OpenTagMergeModal()
+    private Task ReportErrorAsync(Result result) => ErrorChanged.InvokeAsync(FormatResult(result));
+
+    private Task ReportErrorAsync<T>(Result<T> result) => ErrorChanged.InvokeAsync(FormatResult(result));
+
+    private void ToggleTagSelection(int tagId, bool include)
     {
-        if (tags is null || selectedTagIds.Count < 2)
+        if (include)
         {
-            return;
-        }
-
-        tagMergeCandidates = tags
-            .Where(t => selectedTagIds.Contains(t.Id))
-            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (tagMergeCandidates.Count < 2)
-        {
-            tagMergeCandidates = [];
-            return;
-        }
-
-        tagMergeTargetId = tagMergeCandidates[0].Id;
-        tagMergeModalOpen = true;
-    }
-
-    private void CloseTagMergeModal()
-    {
-        tagMergeModalOpen = false;
-        tagMergeCandidates = [];
-    }
-
-    private async Task ConfirmTagMergeAsync()
-    {
-        var sourceIds = tagMergeCandidates
-            .Where(c => c.Id != tagMergeTargetId)
-            .Select(c => c.Id)
-            .ToList();
-        if (sourceIds.Count == 0)
-        {
-            return;
-        }
-
-        string targetName = tagMergeCandidates.First(c => c.Id == tagMergeTargetId).Name;
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                $"Merge into \"{targetName}\"? Other selected {EntityPlural} will be deleted."))
-        {
-            return;
-        }
-
-        if (Kind == TagKind.Book)
-        {
-            var result = await BookTagService.MergeAsync(tagMergeTargetId, sourceIds);
-            if (!result.IsSuccess)
-            {
-                await ReportErrorAsync(result);
-                return;
-            }
+            selectedTagIds.Add(tagId);
         }
         else
         {
-            var result = await ExtraContentTagService.MergeAsync(tagMergeTargetId, sourceIds);
-            if (!result.IsSuccess)
-            {
-                await ReportErrorAsync(result);
-                return;
-            }
+            selectedTagIds.Remove(tagId);
         }
-
-        CloseTagMergeModal();
-        selectedTagIds.Clear();
-        await ClearErrorAsync();
-        await LoadTagsAsync();
     }
-
-    private Task ClearErrorAsync() => ErrorChanged.InvokeAsync(null);
-
-    private Task ReportErrorAsync(Ardalis.Result.Result result) =>
-        ErrorChanged.InvokeAsync(FormatResult(result));
-
-    private Task ReportErrorAsync<T>(Ardalis.Result.Result<T> result) =>
-        ErrorChanged.InvokeAsync(FormatResult(result));
-
-    private static string FormatResult(Ardalis.Result.Result result) =>
-        result.ValidationErrors is not null && result.ValidationErrors.Any()
-            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
-            : string.Join(" ", result.Errors);
-
-    private static string FormatResult<T>(Ardalis.Result.Result<T> result) =>
-        result.ValidationErrors is not null && result.ValidationErrors.Any()
-            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
-            : string.Join(" ", result.Errors);
 }

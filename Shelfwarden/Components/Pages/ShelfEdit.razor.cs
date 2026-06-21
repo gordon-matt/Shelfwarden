@@ -4,25 +4,25 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class ShelfEdit : ComponentBase
 {
-    [Parameter]
-    public int? Id { get; set; }
-
-    private bool IsCreate => Id is null;
-
+    private readonly List<BookListItemDto> bannerSelectedBooks = [];
     private readonly ShelfFormModel model = new();
+    private readonly HashSet<string> selectedUserIds = new(StringComparer.Ordinal);
+    private int _pickerTargetIndex;
+    private bool _showFolderPicker;
+    private bool allowRoleAdministrator;
+    private bool allowRoleUser;
+    private CardHeaderBannerMode bannerMode = CardHeaderBannerMode.RandomCovers;
+    private IReadOnlyList<UserInfo>? catalogUsers;
     private List<string> folders = [string.Empty];
     private string? loadError;
     private string? saveError;
     private bool saving;
-
-    private IReadOnlyList<UserInfo>? catalogUsers;
-    private readonly HashSet<string> selectedUserIds = new(StringComparer.Ordinal);
-    private bool allowRoleAdministrator;
-    private bool allowRoleUser;
-
     private CardBannerSettingsDto? shelfBannerSettings;
-    private CardHeaderBannerMode bannerMode = CardHeaderBannerMode.RandomCovers;
-    private readonly List<BookListItemDto> bannerSelectedBooks = [];
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool IsCreate => Id is null;
 
     protected override async Task OnInitializedAsync() => catalogUsers = await UserInfoService.GetAllUsersAsync();
 
@@ -91,6 +91,30 @@ public partial class ShelfEdit : ComponentBase
         }
     }
 
+    private static string DirectoryStructureLabel(DirectoryStructure structure) => structure switch
+    {
+        DirectoryStructure.Calibre => "Calibre library",
+        _ => "Unstructured (any layout)",
+    };
+
+    private void AddFolder() => folders.Add(string.Empty);
+
+    private IReadOnlyList<string> BuildRoleNames()
+    {
+        var list = new List<string>();
+        if (allowRoleAdministrator)
+        {
+            list.Add(Constants.Roles.Administrator);
+        }
+
+        if (allowRoleUser)
+        {
+            list.Add(Constants.Roles.User);
+        }
+
+        return list;
+    }
+
     private async Task LoadBannerSelectedBooksAsync(int shelfId, IReadOnlyList<int> ids)
     {
         bannerSelectedBooks.Clear();
@@ -117,73 +141,21 @@ public partial class ShelfEdit : ComponentBase
         }
     }
 
-    private async Task<IReadOnlyList<BookListItemDto>> SearchBooksOnThisShelfForBannerAsync(string query)
+    private void LogShelfSaveFailure<T>(string operation, Result<T> result, string? userMessage)
     {
-        if (Id is not int sid)
+        ShelfEditLogger.LogWarning(
+            "[ShelfEdit] {Operation} failed Status={Status} UserFacingLen={MsgLen} WhitespaceOnly={Ws} RawErrors=[{Errors}] Validation=[{Validation}]",
+            operation,
+            result.Status,
+            userMessage?.Length ?? 0,
+            string.IsNullOrWhiteSpace(userMessage),
+            string.Join(" | ", result.Errors.OfType<string>()),
+            string.Join(" | ", result.ValidationErrors.Select(v => v.ErrorMessage)));
+        if (!string.IsNullOrWhiteSpace(userMessage))
         {
-            return [];
+            int n = Math.Min(userMessage!.Length, 400);
+            ShelfEditLogger.LogWarning("[ShelfEdit] User-facing message preview: {Preview}", userMessage[..n]);
         }
-
-        var result = await BookService.SearchAsync(new BookSearchRequest
-        {
-            ShelfId = sid,
-            Query = string.IsNullOrWhiteSpace(query) ? null : query,
-            Page = 1,
-            PageSize = 20,
-        });
-        return result.IsSuccess ? result.Value.Items : [];
-    }
-
-    private async Task UploadThisShelfBannerAsync(IBrowserFile file)
-    {
-        if (Id is not int sid)
-        {
-            return;
-        }
-
-        await using var s = file.OpenReadStream(2_000_000);
-        var result = await ShelfService.UploadCardBannerAsync(sid, s, file.Name, file.Size);
-        if (result.IsSuccess)
-        {
-            await OnParametersSetAsync();
-        }
-    }
-
-    private void ToggleUser(string userId, bool on)
-    {
-        if (on)
-        {
-            selectedUserIds.Add(userId);
-        }
-        else
-        {
-            selectedUserIds.Remove(userId);
-        }
-    }
-
-    private IReadOnlyList<string> BuildRoleNames()
-    {
-        var list = new List<string>();
-        if (allowRoleAdministrator)
-        {
-            list.Add(Constants.Roles.Administrator);
-        }
-
-        if (allowRoleUser)
-        {
-            list.Add(Constants.Roles.User);
-        }
-
-        return list;
-    }
-
-    private bool _showFolderPicker;
-    private int _pickerTargetIndex;
-
-    private void ShowFolderPicker(int index)
-    {
-        _pickerTargetIndex = index;
-        _showFolderPicker = true;
     }
 
     private void OnFolderPickerConfirm(string path)
@@ -192,8 +164,6 @@ public partial class ShelfEdit : ComponentBase
             folders[_pickerTargetIndex] = path;
         _showFolderPicker = false;
     }
-
-    private void AddFolder() => folders.Add(string.Empty);
 
     private void RemoveFolder(int index)
     {
@@ -298,52 +268,79 @@ public partial class ShelfEdit : ComponentBase
         }
     }
 
-    private void LogShelfSaveFailure<T>(string operation, Result<T> result, string? userMessage)
+    private async Task<IReadOnlyList<BookListItemDto>> SearchBooksOnThisShelfForBannerAsync(string query)
     {
-        ShelfEditLogger.LogWarning(
-            "[ShelfEdit] {Operation} failed Status={Status} UserFacingLen={MsgLen} WhitespaceOnly={Ws} RawErrors=[{Errors}] Validation=[{Validation}]",
-            operation,
-            result.Status,
-            userMessage?.Length ?? 0,
-            string.IsNullOrWhiteSpace(userMessage),
-            string.Join(" | ", result.Errors.OfType<string>()),
-            string.Join(" | ", result.ValidationErrors.Select(v => v.ErrorMessage)));
-        if (!string.IsNullOrWhiteSpace(userMessage))
+        if (Id is not int sid)
         {
-            int n = Math.Min(userMessage!.Length, 400);
-            ShelfEditLogger.LogWarning("[ShelfEdit] User-facing message preview: {Preview}", userMessage[..n]);
+            return [];
+        }
+
+        var result = await BookService.SearchAsync(new BookSearchRequest
+        {
+            ShelfId = sid,
+            Query = string.IsNullOrWhiteSpace(query) ? null : query,
+            Page = 1,
+            PageSize = 20,
+        });
+        return result.IsSuccess ? result.Value.Items : [];
+    }
+
+    private void ShowFolderPicker(int index)
+    {
+        _pickerTargetIndex = index;
+        _showFolderPicker = true;
+    }
+
+    private void ToggleUser(string userId, bool on)
+    {
+        if (on)
+        {
+            selectedUserIds.Add(userId);
+        }
+        else
+        {
+            selectedUserIds.Remove(userId);
         }
     }
 
-    private static string DirectoryStructureLabel(DirectoryStructure structure) => structure switch
+    private async Task UploadThisShelfBannerAsync(IBrowserFile file)
     {
-        DirectoryStructure.Calibre => "Calibre library",
-        _ => "Unstructured (any layout)",
-    };
+        if (Id is not int sid)
+        {
+            return;
+        }
+
+        await using var s = file.OpenReadStream(2_000_000);
+        var result = await ShelfService.UploadCardBannerAsync(sid, s, file.Name, file.Size);
+        if (result.IsSuccess)
+        {
+            await OnParametersSetAsync();
+        }
+    }
 
     private sealed class ShelfFormModel
     {
-        [Required, StringLength(256)]
-        public string Name { get; set; } = string.Empty;
+        public bool AlwaysIgnoreAuthor { get; set; }
+
+        public bool AlwaysIgnoreGenres { get; set; }
+
+        public bool AlwaysIgnoreTags { get; set; }
+
+        public bool AlwaysUseFileNameForTitle { get; set; }
+
+        public bool AssignNewBooksToCollection { get; set; }
+
+        public bool AutoFetchOnlineMetadata { get; set; }
 
         [StringLength(2048)]
         public string? Description { get; set; }
 
         public DirectoryStructure DirectoryStructure { get; set; } = DirectoryStructure.Unstructured;
 
-        public bool AlwaysUseFileNameForTitle { get; set; }
-
-        public bool AlwaysIgnoreAuthor { get; set; }
-
-        public bool AlwaysIgnoreTags { get; set; }
-
-        public bool AlwaysIgnoreGenres { get; set; }
-
-        public bool AssignNewBooksToCollection { get; set; }
+        [Required, StringLength(256)]
+        public string Name { get; set; } = string.Empty;
 
         [StringLength(256)]
         public string? NewBooksCollectionName { get; set; }
-
-        public bool AutoFetchOnlineMetadata { get; set; }
     }
 }

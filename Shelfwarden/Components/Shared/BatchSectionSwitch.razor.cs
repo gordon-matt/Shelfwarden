@@ -2,12 +2,12 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class BatchSectionSwitch : ComponentBase
 {
-    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    private readonly string switchId = $"batch-section-{Guid.NewGuid():N}";
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public bool Enabled { get; set; }
     [Parameter] public EventCallback<bool> EnabledChanged { get; set; }
-    [Parameter] public RenderFragment? ChildContent { get; set; }
-
-    private readonly string switchId = $"batch-section-{Guid.NewGuid():N}";
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
 
     private async Task OnEnabledChanged(ChangeEventArgs e)
     {

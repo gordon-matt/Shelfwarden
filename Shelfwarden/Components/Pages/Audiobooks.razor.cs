@@ -4,16 +4,14 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class Audiobooks : ComponentBase, IDisposable
 {
-    [Inject] private IAudiobookService AudiobookService { get; set; } = default!;
-    [Inject] private IJSRuntime JS { get; set; } = default!;
-
+    private int? busyBookId;
+    private string? error;
     private IReadOnlyList<AudiobookSummaryDto>? items;
     private bool loading = true;
-    private string? error;
-    private int? busyBookId;
     private int? playingBookId;
-
     private Timer? pollTimer;
+    [Inject] private IAudiobookService AudiobookService { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -23,51 +21,56 @@ public partial class Audiobooks : ComponentBase, IDisposable
         pollTimer = new Timer(_ => _ = PollAsync(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
     }
 
-    private async Task PollAsync()
+    private static string Describe(
+        IEnumerable<ValidationError>? validationErrors,
+        IEnumerable<string>? errors)
     {
-        try
+        var validation = validationErrors?.Select(e => e.ErrorMessage).ToList() ?? [];
+        if (validation.Count > 0)
         {
-            if (items is null || !items.Any(i => i.State is AudiobookState.Pending or AudiobookState.Running))
-            {
-                return;
-            }
+            return string.Join(" ", validation);
+        }
 
-            await InvokeAsync(async () =>
-            {
-                await LoadAsync();
-                StateHasChanged();
-            });
-        }
-        catch (ObjectDisposedException)
-        {
-        }
+        var general = errors?.ToList() ?? [];
+        return general.Count > 0 ? string.Join(" ", general) : "Something went wrong. Check the server logs.";
     }
 
-    private async Task LoadAsync()
+    private static string FormatDuration(double? seconds)
     {
-        var result = await AudiobookService.ListAllAsync();
-        if (result.IsSuccess)
+        if (seconds is not > 0)
         {
-            items = result.Value;
-            error = null;
-        }
-        else
-        {
-            error = FormatResult(result);
-            items ??= [];
+            return "—";
         }
 
-        loading = false;
+        var ts = TimeSpan.FromSeconds(seconds.Value);
+        return ts.TotalHours >= 1
+            ? $"{(int)ts.TotalHours}:{ts.Minutes:00}:{ts.Seconds:00}"
+            : $"{ts.Minutes}:{ts.Seconds:00}";
     }
 
-    private async Task RefreshAsync()
+    private static string FormatResult(Result result) => Describe(result.ValidationErrors, result.Errors);
+
+    private static string FormatResult<T>(Result<T> result) => Describe(result.ValidationErrors, result.Errors);
+
+    private static string FormatSize(long? bytes)
     {
-        loading = true;
-        await LoadAsync();
+        if (bytes is not > 0)
+        {
+            return "—";
+        }
+
+        double mb = bytes.Value / 1024d / 1024d;
+        return mb >= 1024 ? $"{mb / 1024d:0.0} GB" : $"{mb:0.0} MB";
     }
 
-    private void TogglePlay(int bookId)
-        => playingBookId = playingBookId == bookId ? null : bookId;
+    private static (string Css, string Label) StatusBadge(AudiobookState state) => state switch
+    {
+        AudiobookState.Pending => ("text-bg-secondary", "Queued"),
+        AudiobookState.Running => ("text-bg-primary", "Generating"),
+        AudiobookState.Completed => ("text-bg-success", "Completed"),
+        AudiobookState.Failed => ("text-bg-danger", "Failed"),
+        _ => ("text-bg-light", "—"),
+    };
 
     private async Task CancelAsync(AudiobookSummaryDto item)
     {
@@ -129,56 +132,51 @@ public partial class Audiobooks : ComponentBase, IDisposable
         }
     }
 
-    private static string FormatResult(Ardalis.Result.Result result) => Describe(result.ValidationErrors, result.Errors);
-
-    private static string FormatResult<T>(Ardalis.Result.Result<T> result) => Describe(result.ValidationErrors, result.Errors);
-
-    private static string Describe(
-        IEnumerable<Ardalis.Result.ValidationError>? validationErrors,
-        IEnumerable<string>? errors)
+    private async Task LoadAsync()
     {
-        var validation = validationErrors?.Select(e => e.ErrorMessage).ToList() ?? [];
-        if (validation.Count > 0)
+        var result = await AudiobookService.ListAllAsync();
+        if (result.IsSuccess)
         {
-            return string.Join(" ", validation);
+            items = result.Value;
+            error = null;
+        }
+        else
+        {
+            error = FormatResult(result);
+            items ??= [];
         }
 
-        var general = errors?.ToList() ?? [];
-        return general.Count > 0 ? string.Join(" ", general) : "Something went wrong. Check the server logs.";
+        loading = false;
     }
 
-    private static (string Css, string Label) StatusBadge(AudiobookState state) => state switch
+    private async Task PollAsync()
     {
-        AudiobookState.Pending => ("text-bg-secondary", "Queued"),
-        AudiobookState.Running => ("text-bg-primary", "Generating"),
-        AudiobookState.Completed => ("text-bg-success", "Completed"),
-        AudiobookState.Failed => ("text-bg-danger", "Failed"),
-        _ => ("text-bg-light", "—"),
-    };
-
-    private static string FormatSize(long? bytes)
-    {
-        if (bytes is not > 0)
+        try
         {
-            return "—";
+            if (items is null || !items.Any(i => i.State is AudiobookState.Pending or AudiobookState.Running))
+            {
+                return;
+            }
+
+            await InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            });
         }
-
-        double mb = bytes.Value / 1024d / 1024d;
-        return mb >= 1024 ? $"{mb / 1024d:0.0} GB" : $"{mb:0.0} MB";
-    }
-
-    private static string FormatDuration(double? seconds)
-    {
-        if (seconds is not > 0)
+        catch (ObjectDisposedException)
         {
-            return "—";
         }
-
-        var ts = TimeSpan.FromSeconds(seconds.Value);
-        return ts.TotalHours >= 1
-            ? $"{(int)ts.TotalHours}:{ts.Minutes:00}:{ts.Seconds:00}"
-            : $"{ts.Minutes}:{ts.Seconds:00}";
     }
+
+    private async Task RefreshAsync()
+    {
+        loading = true;
+        await LoadAsync();
+    }
+
+    private void TogglePlay(int bookId)
+        => playingBookId = playingBookId == bookId ? null : bookId;
 
     public void Dispose()
     {

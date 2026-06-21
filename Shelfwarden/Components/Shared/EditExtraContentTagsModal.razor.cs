@@ -4,20 +4,20 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class EditExtraContentTagsModal : ComponentBase
 {
-    [Parameter] public bool IsOpen { get; set; }
-    [Parameter] public string Title { get; set; } = "Edit tags";
-    [Parameter] public IReadOnlyList<int> ItemIds { get; set; } = [];
-    [Parameter] public IReadOnlyList<string> InitialTagNames { get; set; } = [];
-    [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; }
+    private readonly List<string> selectedTags = [];
+    private string? error;
+    private bool saving;
+    private List<AdditionalContentTagDto> tagDirectory = [];
 
     /// <summary>When set, tag suggestions are limited to tags on that author's items.</summary>
     [Parameter] public int? AuthorIdForTagSuggestions { get; set; }
 
-    private readonly List<string> selectedTags = [];
-    private List<AdditionalContentTagDto> tagDirectory = [];
-    private bool saving;
-    private string? error;
+    [Parameter] public IReadOnlyList<string> InitialTagNames { get; set; } = [];
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public IReadOnlyList<int> ItemIds { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public string Title { get; set; } = "Edit tags";
 
     protected override void OnParametersSet()
     {
@@ -46,17 +46,6 @@ public partial class EditExtraContentTagsModal : ComponentBase
         }
     }
 
-    private Task<IReadOnlyList<string>> SearchTagsAsync(string query)
-    {
-        IEnumerable<AdditionalContentTagDto> q = tagDirectory;
-        if (!string.IsNullOrWhiteSpace(query))
-        {
-            q = q.Where(t => t.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
-        }
-
-        return Task.FromResult<IReadOnlyList<string>>(q.Select(t => t.Name).Take(20).ToList());
-    }
-
     private Task AddTagAsync(string name)
     {
         string trimmed = name.Trim();
@@ -71,6 +60,14 @@ public partial class EditExtraContentTagsModal : ComponentBase
         }
 
         return Task.CompletedTask;
+    }
+
+    private async Task Close()
+    {
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
     }
 
     private async Task SaveAsync()
@@ -104,11 +101,14 @@ public partial class EditExtraContentTagsModal : ComponentBase
         }
     }
 
-    private async Task Close()
+    private Task<IReadOnlyList<string>> SearchTagsAsync(string query)
     {
-        if (OnClose.HasDelegate)
+        IEnumerable<AdditionalContentTagDto> q = tagDirectory;
+        if (!string.IsNullOrWhiteSpace(query))
         {
-            await OnClose.InvokeAsync();
+            q = q.Where(t => t.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
+
+        return Task.FromResult<IReadOnlyList<string>>(q.Select(t => t.Name).Take(20).ToList());
     }
 }

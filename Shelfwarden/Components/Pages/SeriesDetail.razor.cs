@@ -2,17 +2,16 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class SeriesDetail : ComponentBase
 {
-    [Parameter] public int Id { get; set; }
+    // Assign-content modal state
+    private bool assignModalOpen;
 
-    private SeriesDto? series;
+    private int assignTargetBookId;
+    private string? assignTargetBookTitle;
     private IReadOnlyList<BookListItemDto>? books;
     private IReadOnlyList<AdditionalContentItemDto>? extraContent;
     private bool loading = true;
-
-    // Assign-content modal state
-    private bool assignModalOpen;
-    private int assignTargetBookId;
-    private string? assignTargetBookTitle;
+    private SeriesDto? series;
+    [Parameter] public int Id { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -51,19 +50,27 @@ public partial class SeriesDetail : ComponentBase
         loading = false;
     }
 
-    private void OpenAssignContentBook(int bookId, string bookTitle)
-    {
-        assignTargetBookId = bookId;
-        assignTargetBookTitle = bookTitle;
-        assignModalOpen = true;
-    }
-
     private void CloseAssignModal() => assignModalOpen = false;
 
     private async Task OnContentAssociatedAsync()
     {
         assignModalOpen = false;
         await RefreshExtraContentAsync();
+    }
+
+    private void OnItemRenamed(AdditionalContentItemDto renamed)
+    {
+        if (extraContent is null) return;
+        extraContent = extraContent
+            .Select(i => i.Id == renamed.Id ? renamed : i)
+            .ToList();
+    }
+
+    private void OpenAssignContentBook(int bookId, string bookTitle)
+    {
+        assignTargetBookId = bookId;
+        assignTargetBookTitle = bookTitle;
+        assignModalOpen = true;
     }
 
     private async Task RefreshExtraContentAsync()
@@ -74,13 +81,5 @@ public partial class SeriesDetail : ComponentBase
             extraContent = result.Value;
             StateHasChanged();
         }
-    }
-
-    private void OnItemRenamed(AdditionalContentItemDto renamed)
-    {
-        if (extraContent is null) return;
-        extraContent = extraContent
-            .Select(i => i.Id == renamed.Id ? renamed : i)
-            .ToList();
     }
 }

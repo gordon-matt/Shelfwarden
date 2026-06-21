@@ -2,43 +2,37 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class AuthorDetail : ComponentBase
 {
-    [Parameter] public int Id { get; set; }
-
-    private AuthorDetailDto? author;
-    private bool loadFailed;
-    private IReadOnlyList<AdditionalContentItemDto>? extraContent;
-
-    private bool selectMode;
-    private readonly HashSet<int> selectedBookIds = [];
-    private bool isAuthorEditModalOpen;
     private readonly Dictionary<int, long> authorPhotoVersions = [];
-
-    private bool isAssignContentModalOpen;
+    private readonly HashSet<int> selectedBookIds = [];
+    private int assignEntityId;
     private string assignEntityLabel = "entity";
     private string? assignEntityName;
     private string assignEntityType = "book";
-    private int assignEntityId;
-
-    private string pseudonymQuery = string.Empty;
-    private List<AuthorDto> pseudonymSuggestions = [];
-    private bool showPseudonymSuggestions;
-    private string? pseudonymError;
+    private AuthorDetailDto? author;
+    private IReadOnlyList<AdditionalContentItemDto>? extraContent;
+    private bool isAssignContentModalOpen;
+    private bool isAuthorEditModalOpen;
+    private bool isAuthorLinkModalOpen;
     private bool isPseudonymModalOpen;
-
+    private string? linkError;
     private string linkName = string.Empty;
     private string linkUrl = string.Empty;
-    private string? linkError;
-    private bool isAuthorLinkModalOpen;
-
+    private bool loadFailed;
+    private string? pseudonymError;
+    private string pseudonymQuery = string.Empty;
+    private List<AuthorDto> pseudonymSuggestions = [];
+    private bool selectMode;
+    private bool showPseudonymSuggestions;
+    [Parameter] public int Id { get; set; }
     private bool isAdministrator => UserContext.IsAdministrator();
-
-    private bool ShowPseudonymsPanel =>
-        author is { PrimaryAuthor: null } current
-        && (current.Pseudonyms.Count > 0 || isAdministrator);
 
     private bool ShowLinksRow =>
         author is { Id: > 0 } current
         && (current.Links.Count > 0 || isAdministrator);
+
+    private bool ShowPseudonymsPanel =>
+            author is { PrimaryAuthor: null } current
+        && (current.Pseudonyms.Count > 0 || isAdministrator);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -78,41 +72,67 @@ public partial class AuthorDetail : ComponentBase
         }
     }
 
-    private void ToggleSelectMode()
+    private static string GetLinkDisplayName(AuthorLinkDto link)
     {
-        selectMode = !selectMode;
-        if (!selectMode)
+        if (!string.IsNullOrWhiteSpace(link.Name))
         {
-            selectedBookIds.Clear();
+            return link.Name;
         }
+
+        return Uri.TryCreate(link.Url, UriKind.Absolute, out Uri? uri)
+            ? uri.Host
+            : link.Url;
     }
 
-    private void ToggleSelection(int id, bool include)
+    private async Task AddPseudonymAsync(int pseudonymId)
     {
-        if (include)
+        pseudonymError = null;
+        var result = await AuthorService.LinkPseudonymAsync(Id, pseudonymId);
+        if (!result.IsSuccess)
         {
-            selectedBookIds.Add(id);
-        }
-        else
-        {
-            selectedBookIds.Remove(id);
-        }
-    }
-
-    private void SelectAll()
-    {
-        if (author is null)
-        {
+            pseudonymError = result.Errors.FirstOrDefault()
+                ?? result.ValidationErrors.Select(v => v.ErrorMessage).FirstOrDefault()
+                ?? "Could not link the pseudonym.";
             return;
         }
 
-        foreach (var b in author.StandaloneBooks)
-        {
-            selectedBookIds.Add(b.Id);
-        }
+        pseudonymQuery = string.Empty;
+        pseudonymSuggestions = [];
+        showPseudonymSuggestions = false;
+        isPseudonymModalOpen = false;
+        await ReloadDetailAsync();
     }
 
     private void ClearSelection() => selectedBookIds.Clear();
+
+    private void CloseAssignContent() => isAssignContentModalOpen = false;
+
+    private Task CloseAuthorEditModalAsync()
+    {
+        isAuthorEditModalOpen = false;
+        return Task.CompletedTask;
+    }
+
+    private void CloseAuthorLinkModal()
+    {
+        isAuthorLinkModalOpen = false;
+        linkName = string.Empty;
+        linkUrl = string.Empty;
+    }
+
+    private void ClosePseudonymModal()
+    {
+        isPseudonymModalOpen = false;
+        pseudonymQuery = string.Empty;
+        pseudonymSuggestions = [];
+        showPseudonymSuggestions = false;
+    }
+
+    private string GetAuthorPhotoUrl(int authorId)
+    {
+        long version = authorPhotoVersions.GetValueOrDefault(authorId, 0);
+        return $"author-photos/{authorId}?v={version}";
+    }
 
     private void GoToBatchEdit()
     {
@@ -125,51 +145,6 @@ public partial class AuthorDetail : ComponentBase
         NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=authors/{Id}");
     }
 
-    private void OpenAssignContentSeries(int seriesId, string seriesName)
-    {
-        assignEntityId = seriesId;
-        assignEntityType = "series";
-        assignEntityLabel = "series";
-        assignEntityName = seriesName;
-        isAssignContentModalOpen = true;
-    }
-
-    private void OpenAssignContentBook(int bookId, string bookTitle)
-    {
-        assignEntityId = bookId;
-        assignEntityType = "book";
-        assignEntityLabel = "book";
-        assignEntityName = bookTitle;
-        isAssignContentModalOpen = true;
-    }
-
-    private void CloseAssignContent() => isAssignContentModalOpen = false;
-
-    private async Task RefreshExtraContentAsync()
-    {
-        var result = await ContentService.GetForAuthorAsync(Id);
-        if (result.IsSuccess)
-        {
-            extraContent = result.Value;
-        }
-    }
-
-    private void OnContentItemRenamed(AdditionalContentItemDto renamed)
-    {
-        if (extraContent is null) return;
-        extraContent = extraContent
-            .Select(i => i.Id == renamed.Id ? renamed : i)
-            .ToList();
-    }
-
-    private void OpenAuthorEditModal() => isAuthorEditModalOpen = true;
-
-    private Task CloseAuthorEditModalAsync()
-    {
-        isAuthorEditModalOpen = false;
-        return Task.CompletedTask;
-    }
-
     private async Task OnAuthorSavedAsync()
     {
         authorPhotoVersions[Id] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -180,27 +155,12 @@ public partial class AuthorDetail : ComponentBase
         }
     }
 
-    private string GetAuthorPhotoUrl(int authorId)
+    private void OnContentItemRenamed(AdditionalContentItemDto renamed)
     {
-        long version = authorPhotoVersions.GetValueOrDefault(authorId, 0);
-        return $"author-photos/{authorId}?v={version}";
-    }
-
-    private void OpenPseudonymModal()
-    {
-        pseudonymError = null;
-        pseudonymQuery = string.Empty;
-        pseudonymSuggestions = [];
-        showPseudonymSuggestions = false;
-        isPseudonymModalOpen = true;
-    }
-
-    private void ClosePseudonymModal()
-    {
-        isPseudonymModalOpen = false;
-        pseudonymQuery = string.Empty;
-        pseudonymSuggestions = [];
-        showPseudonymSuggestions = false;
+        if (extraContent is null) return;
+        extraContent = extraContent
+            .Select(i => i.Id == renamed.Id ? renamed : i)
+            .ToList();
     }
 
     private async Task OnPseudonymInput(ChangeEventArgs e)
@@ -228,23 +188,124 @@ public partial class AuthorDetail : ComponentBase
         showPseudonymSuggestions = pseudonymSuggestions.Count > 0;
     }
 
-    private async Task AddPseudonymAsync(int pseudonymId)
+    private void OpenAssignContentBook(int bookId, string bookTitle)
+    {
+        assignEntityId = bookId;
+        assignEntityType = "book";
+        assignEntityLabel = "book";
+        assignEntityName = bookTitle;
+        isAssignContentModalOpen = true;
+    }
+
+    private void OpenAssignContentSeries(int seriesId, string seriesName)
+    {
+        assignEntityId = seriesId;
+        assignEntityType = "series";
+        assignEntityLabel = "series";
+        assignEntityName = seriesName;
+        isAssignContentModalOpen = true;
+    }
+
+    private void OpenAuthorEditModal() => isAuthorEditModalOpen = true;
+
+    private void OpenAuthorLinkModal()
+    {
+        linkError = null;
+        linkName = string.Empty;
+        linkUrl = string.Empty;
+        isAuthorLinkModalOpen = true;
+    }
+
+    private void OpenPseudonymModal()
     {
         pseudonymError = null;
-        var result = await AuthorService.LinkPseudonymAsync(Id, pseudonymId);
-        if (!result.IsSuccess)
-        {
-            pseudonymError = result.Errors.FirstOrDefault()
-                ?? result.ValidationErrors.Select(v => v.ErrorMessage).FirstOrDefault()
-                ?? "Could not link the pseudonym.";
-            return;
-        }
-
         pseudonymQuery = string.Empty;
         pseudonymSuggestions = [];
         showPseudonymSuggestions = false;
-        isPseudonymModalOpen = false;
+        isPseudonymModalOpen = true;
+    }
+
+    private async Task RefreshExtraContentAsync()
+    {
+        var result = await ContentService.GetForAuthorAsync(Id);
+        if (result.IsSuccess)
+        {
+            extraContent = result.Value;
+        }
+    }
+
+    private async Task ReloadDetailAsync()
+    {
+        var result = await AuthorService.GetDetailAsync(Id);
+        if (result.IsSuccess)
+        {
+            author = result.Value;
+        }
+    }
+
+    private async Task RemoveAuthorLinkAsync(int linkId)
+    {
+        linkError = null;
+        var result = await AuthorService.RemoveAuthorLinkAsync(Id, linkId);
+        if (!result.IsSuccess)
+        {
+            linkError = result.Errors.FirstOrDefault() ?? "Could not remove the link.";
+            return;
+        }
+
         await ReloadDetailAsync();
+    }
+
+    private async Task SaveAuthorLinkAsync()
+    {
+        linkError = null;
+        var result = await AuthorService.AddAuthorLinkAsync(Id, linkName, linkUrl);
+        if (!result.IsSuccess)
+        {
+            linkError = result.Errors.FirstOrDefault()
+                ?? result.ValidationErrors.Select(v => v.ErrorMessage).FirstOrDefault()
+                ?? "Could not add the link.";
+            return;
+        }
+
+        isAuthorLinkModalOpen = false;
+        linkName = string.Empty;
+        linkUrl = string.Empty;
+        await ReloadDetailAsync();
+    }
+
+    private void SelectAll()
+    {
+        if (author is null)
+        {
+            return;
+        }
+
+        foreach (var b in author.StandaloneBooks)
+        {
+            selectedBookIds.Add(b.Id);
+        }
+    }
+
+    private void ToggleSelection(int id, bool include)
+    {
+        if (include)
+        {
+            selectedBookIds.Add(id);
+        }
+        else
+        {
+            selectedBookIds.Remove(id);
+        }
+    }
+
+    private void ToggleSelectMode()
+    {
+        selectMode = !selectMode;
+        if (!selectMode)
+        {
+            selectedBookIds.Clear();
+        }
     }
 
     private async Task UnlinkPseudonymAsync(int pseudonymId)
@@ -267,73 +328,6 @@ public partial class AuthorDetail : ComponentBase
         if (!result.IsSuccess)
         {
             pseudonymError = result.Errors.FirstOrDefault() ?? "Could not unlink from the primary author.";
-            return;
-        }
-
-        await ReloadDetailAsync();
-    }
-
-    private async Task ReloadDetailAsync()
-    {
-        var result = await AuthorService.GetDetailAsync(Id);
-        if (result.IsSuccess)
-        {
-            author = result.Value;
-        }
-    }
-
-    private static string GetLinkDisplayName(AuthorLinkDto link)
-    {
-        if (!string.IsNullOrWhiteSpace(link.Name))
-        {
-            return link.Name;
-        }
-
-        return Uri.TryCreate(link.Url, UriKind.Absolute, out Uri? uri)
-            ? uri.Host
-            : link.Url;
-    }
-
-    private void OpenAuthorLinkModal()
-    {
-        linkError = null;
-        linkName = string.Empty;
-        linkUrl = string.Empty;
-        isAuthorLinkModalOpen = true;
-    }
-
-    private void CloseAuthorLinkModal()
-    {
-        isAuthorLinkModalOpen = false;
-        linkName = string.Empty;
-        linkUrl = string.Empty;
-    }
-
-    private async Task SaveAuthorLinkAsync()
-    {
-        linkError = null;
-        var result = await AuthorService.AddAuthorLinkAsync(Id, linkName, linkUrl);
-        if (!result.IsSuccess)
-        {
-            linkError = result.Errors.FirstOrDefault()
-                ?? result.ValidationErrors.Select(v => v.ErrorMessage).FirstOrDefault()
-                ?? "Could not add the link.";
-            return;
-        }
-
-        isAuthorLinkModalOpen = false;
-        linkName = string.Empty;
-        linkUrl = string.Empty;
-        await ReloadDetailAsync();
-    }
-
-    private async Task RemoveAuthorLinkAsync(int linkId)
-    {
-        linkError = null;
-        var result = await AuthorService.RemoveAuthorLinkAsync(Id, linkId);
-        if (!result.IsSuccess)
-        {
-            linkError = result.Errors.FirstOrDefault() ?? "Could not remove the link.";
             return;
         }
 

@@ -4,27 +4,58 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
 {
-    [Parameter] public bool IsOpen { get; set; }
-    [Parameter] public string? InitialVoiceName { get; set; }
-    [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnBack { get; set; }
-    [Parameter] public EventCallback<string> OnSelected { get; set; }
-
-    [Inject] private IJSRuntime Js { get; set; } = default!;
-
-    private bool loading;
-    private bool hasLoaded;
-    private string? loadError;
-    private string? previewError;
-    private string? playingVoiceName;
-    private string? selectedVoiceName;
+    private const string EnglishBucket = "English";
+    private ElementReference audioElement;
     private string filterText = string.Empty;
+    private bool hasLoaded;
+    private string[] languageDropdownOptions = [];
+    private string? loadError;
+    private bool loading;
+    private string? playingVoiceName;
+    private string? previewError;
 
     /// <summary>
     /// Dropdown value: synthetic <see cref="EnglishBucket"/> maps to American + British English
     /// voices; otherwise matches <see cref="KokoroVoiceDto.Language"/> exactly.
     /// </summary>
     private string selectedLanguageBucketValue = EnglishBucket;
+
+    private string? selectedVoiceName;
+    private IReadOnlyList<KokoroVoiceDto> voices = [];
+    [Parameter] public string? InitialVoiceName { get; set; }
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<string> OnSelected { get; set; }
+
+    private IReadOnlyList<KokoroVoiceDto> FilteredVoices
+    {
+        get
+        {
+            IEnumerable<KokoroVoiceDto> q = voices;
+            if (string.Equals(selectedLanguageBucketValue, EnglishBucket, StringComparison.Ordinal))
+            {
+                q = q.Where(IsEnglishVoice);
+            }
+            else if (!string.IsNullOrEmpty(selectedLanguageBucketValue))
+            {
+                q = q.Where(v =>
+                    string.Equals(v.Language, selectedLanguageBucketValue, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterText))
+            {
+                string term = filterText.Trim();
+                q = q.Where(v =>
+                    v.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    v.Name.Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return q.ToList();
+        }
+    }
+
+    [Inject] private IJSRuntime Js { get; set; } = default!;
 
     private string selectedLanguageBucket
     {
@@ -41,11 +72,7 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
         }
     }
 
-    private IReadOnlyList<KokoroVoiceDto> voices = [];
-    private string[] languageDropdownOptions = [];
-    private ElementReference audioElement;
-
-    private const string EnglishBucket = "English";
+    public async ValueTask DisposeAsync() => await StopPreviewAsync();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -61,6 +88,63 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
             filterText = string.Empty;
             await LoadVoicesAsync();
         }
+    }
+
+    private static string[] BuildLanguageDropdown(IReadOnlyList<KokoroVoiceDto> all)
+    {
+        var opts = new List<string>();
+        if (all.Any(IsEnglishVoice))
+        {
+            opts.Add(EnglishBucket);
+        }
+
+        foreach (string lang in all
+            .Select(v => v.Language)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(l => !IsEnglishLanguageLabel(l))
+            .OrderBy(l => l, StringComparer.OrdinalIgnoreCase))
+        {
+            opts.Add(lang);
+        }
+
+        return [.. opts];
+    }
+
+    private static bool IsEnglishLanguageLabel(string language)
+        => language.Equals("American English", StringComparison.OrdinalIgnoreCase)
+           || language.Equals("British English", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsEnglishVoice(KokoroVoiceDto v) => IsEnglishLanguageLabel(v.Language);
+
+    private static string LanguageBucketFor(KokoroVoiceDto v)
+        => IsEnglishVoice(v) ? EnglishBucket : v.Language;
+
+    private async Task BackAsync()
+    {
+        if (!OnBack.HasDelegate)
+        {
+            return;
+        }
+
+        await StopPreviewAsync();
+        await OnBack.InvokeAsync();
+    }
+
+    private async Task CloseAsync()
+    {
+        await StopPreviewAsync();
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (string.IsNullOrEmpty(selectedVoiceName))
+        {
+            return;
+        }
+
+        await StopPreviewAsync();
+        await OnSelected.InvokeAsync(selectedVoiceName);
     }
 
     private async Task LoadVoicesAsync()
@@ -116,87 +200,7 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
         }
     }
 
-    private IReadOnlyList<KokoroVoiceDto> FilteredVoices
-    {
-        get
-        {
-            IEnumerable<KokoroVoiceDto> q = voices;
-            if (string.Equals(selectedLanguageBucketValue, EnglishBucket, StringComparison.Ordinal))
-            {
-                q = q.Where(IsEnglishVoice);
-            }
-            else if (!string.IsNullOrEmpty(selectedLanguageBucketValue))
-            {
-                q = q.Where(v =>
-                    string.Equals(v.Language, selectedLanguageBucketValue, StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (!string.IsNullOrWhiteSpace(filterText))
-            {
-                string term = filterText.Trim();
-                q = q.Where(v =>
-                    v.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    v.Name.Contains(term, StringComparison.OrdinalIgnoreCase));
-            }
-
-            return q.ToList();
-        }
-    }
-
-    private static string[] BuildLanguageDropdown(IReadOnlyList<KokoroVoiceDto> all)
-    {
-        var opts = new List<string>();
-        if (all.Any(IsEnglishVoice))
-        {
-            opts.Add(EnglishBucket);
-        }
-
-        foreach (string lang in all
-            .Select(v => v.Language)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Where(l => !IsEnglishLanguageLabel(l))
-            .OrderBy(l => l, StringComparer.OrdinalIgnoreCase))
-        {
-            opts.Add(lang);
-        }
-
-        return [.. opts];
-    }
-
-    private static bool IsEnglishVoice(KokoroVoiceDto v) => IsEnglishLanguageLabel(v.Language);
-
-    private static bool IsEnglishLanguageLabel(string language)
-        => language.Equals("American English", StringComparison.OrdinalIgnoreCase)
-           || language.Equals("British English", StringComparison.OrdinalIgnoreCase);
-
-    private static string LanguageBucketFor(KokoroVoiceDto v)
-        => IsEnglishVoice(v) ? EnglishBucket : v.Language;
-
-    private void PickDefaultVoiceInFilter()
-    {
-        var list = FilteredVoices;
-        selectedVoiceName = list.Count > 0 ? list[0].Name : null;
-    }
-
-    private void SyncSelectionAfterLanguageChange()
-    {
-        var list = FilteredVoices;
-        if (list.Count == 0)
-        {
-            selectedVoiceName = null;
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(selectedVoiceName)
-            && list.Any(v => v.Name.Equals(selectedVoiceName, StringComparison.OrdinalIgnoreCase)))
-        {
-            return;
-        }
-
-        selectedVoiceName = list[0].Name;
-    }
-
-    private void SelectVoice(KokoroVoiceDto voice) => selectedVoiceName = voice.Name;
+    private void OnPreviewEnded() => playingVoiceName = null;
 
     private void OnVoiceKeyDown(KeyboardEventArgs e, KokoroVoiceDto voice)
     {
@@ -205,6 +209,12 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
         {
             SelectVoice(voice);
         }
+    }
+
+    private void PickDefaultVoiceInFilter()
+    {
+        var list = FilteredVoices;
+        selectedVoiceName = list.Count > 0 ? list[0].Name : null;
     }
 
     private async Task PlayPreviewAsync(KokoroVoiceDto voice)
@@ -227,35 +237,7 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
         }
     }
 
-    private void OnPreviewEnded() => playingVoiceName = null;
-
-    private async Task ConfirmAsync()
-    {
-        if (string.IsNullOrEmpty(selectedVoiceName))
-        {
-            return;
-        }
-
-        await StopPreviewAsync();
-        await OnSelected.InvokeAsync(selectedVoiceName);
-    }
-
-    private async Task CloseAsync()
-    {
-        await StopPreviewAsync();
-        await OnClose.InvokeAsync();
-    }
-
-    private async Task BackAsync()
-    {
-        if (!OnBack.HasDelegate)
-        {
-            return;
-        }
-
-        await StopPreviewAsync();
-        await OnBack.InvokeAsync();
-    }
+    private void SelectVoice(KokoroVoiceDto voice) => selectedVoiceName = voice.Name;
 
     private async Task StopPreviewAsync()
     {
@@ -273,5 +255,21 @@ public partial class VoicePickerModal : ComponentBase, IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync() => await StopPreviewAsync();
+    private void SyncSelectionAfterLanguageChange()
+    {
+        var list = FilteredVoices;
+        if (list.Count == 0)
+        {
+            selectedVoiceName = null;
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(selectedVoiceName)
+            && list.Any(v => v.Name.Equals(selectedVoiceName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        selectedVoiceName = list[0].Name;
+    }
 }

@@ -4,17 +4,40 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class SeriesIndex : ComponentBase
 {
-    private IReadOnlyList<SeriesListItemDto>? series;
     private string query = string.Empty;
-    private CancellationTokenSource? searchCts;
-
+    private string? renameError;
     private bool renameModalOpen;
+    private bool renameSaving;
     private int renameSeriesId;
     private string renameSeriesName = string.Empty;
-    private string? renameError;
-    private bool renameSaving;
+    private CancellationTokenSource? searchCts;
+    private IReadOnlyList<SeriesListItemDto>? series;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private void CloseRenameModal()
+    {
+        renameModalOpen = false;
+        renameSaving = false;
+        renameError = null;
+    }
+
+    private async Task ConfirmDeleteSeriesAsync(SeriesListItemDto s)
+    {
+        bool ok = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"Delete series \"{s.Name}\"? Books stay in the library but are removed from this series.");
+        if (!ok)
+        {
+            return;
+        }
+
+        var result = await SeriesService.DeleteAsync(s.Id);
+        if (result.IsSuccess)
+        {
+            await LoadAsync();
+        }
+    }
 
     private async Task LoadAsync()
     {
@@ -63,13 +86,6 @@ public partial class SeriesIndex : ComponentBase
         renameModalOpen = true;
     }
 
-    private void CloseRenameModal()
-    {
-        renameModalOpen = false;
-        renameSaving = false;
-        renameError = null;
-    }
-
     private async Task SaveRenameAsync()
     {
         renameSaving = true;
@@ -90,23 +106,6 @@ public partial class SeriesIndex : ComponentBase
         finally
         {
             renameSaving = false;
-        }
-    }
-
-    private async Task ConfirmDeleteSeriesAsync(SeriesListItemDto s)
-    {
-        bool ok = await JS.InvokeAsync<bool>(
-            "confirm",
-            $"Delete series \"{s.Name}\"? Books stay in the library but are removed from this series.");
-        if (!ok)
-        {
-            return;
-        }
-
-        var result = await SeriesService.DeleteAsync(s.Id);
-        if (result.IsSuccess)
-        {
-            await LoadAsync();
         }
     }
 }

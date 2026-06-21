@@ -5,37 +5,35 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class BookMetadataModal : ComponentBase
 {
-    [Parameter] public bool IsOpen { get; set; }
-
-    /// <summary>Seed values used to pre-fill (and auto-run) the search when the modal opens.</summary>
-    [Parameter] public string? InitialTitle { get; set; }
+    private string? errorMessage;
+    private bool hasLoadedForCurrentOpenState;
+    private bool hasSearched;
+    private bool isSearching;
+    private IReadOnlyList<ExternalBookMetadataDto> results = [];
+    private string? searchAuthor;
+    private string? searchIsbn;
+    private string? searchTitle;
+    private int selectedIndex = -1;
 
     [Parameter] public string? InitialAuthor { get; set; }
 
     [Parameter] public string? InitialIsbn { get; set; }
 
-    [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>Seed values used to pre-fill (and auto-run) the search when the modal opens.</summary>
+    [Parameter] public string? InitialTitle { get; set; }
+
+    [Parameter] public bool IsOpen { get; set; }
 
     /// <summary>Raised with the chosen candidate. The parent populates its edit form; nothing is persisted here.</summary>
     [Parameter] public EventCallback<ExternalBookMetadataDto> OnApply { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
 
     /// <summary>
     /// Raised with just a cover URL when the user clicks "Use this cover only" — lets them pick a
     /// cover from a different edition than the one whose metadata they apply.
     /// </summary>
     [Parameter] public EventCallback<string> OnUseCover { get; set; }
-
-    private string? searchTitle;
-    private string? searchAuthor;
-    private string? searchIsbn;
-
-    private bool isSearching;
-    private bool hasSearched;
-    private string? errorMessage;
-    private IReadOnlyList<ExternalBookMetadataDto> results = [];
-    private int selectedIndex = -1;
-
-    private bool hasLoadedForCurrentOpenState;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -65,6 +63,26 @@ public partial class BookMetadataModal : ComponentBase
             await SearchAsync();
         }
     }
+
+    private static string Preview(string text)
+    {
+        const int max = 220;
+        string trimmed = text.Trim();
+        return trimmed.Length <= max ? trimmed : $"{trimmed[..max]}…";
+    }
+
+    private async Task ApplySelectedAsync()
+    {
+        if (selectedIndex < 0 || selectedIndex >= results.Count)
+        {
+            return;
+        }
+
+        await OnApply.InvokeAsync(results[selectedIndex]);
+        await CloseAsync();
+    }
+
+    private async Task CloseAsync() => await OnClose.InvokeAsync();
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
@@ -123,17 +141,6 @@ public partial class BookMetadataModal : ComponentBase
         }
     }
 
-    private async Task ApplySelectedAsync()
-    {
-        if (selectedIndex < 0 || selectedIndex >= results.Count)
-        {
-            return;
-        }
-
-        await OnApply.InvokeAsync(results[selectedIndex]);
-        await CloseAsync();
-    }
-
     private async Task UseCoverOnlyAsync(ExternalBookMetadataDto match)
     {
         if (string.IsNullOrWhiteSpace(match.CoverUrl))
@@ -143,14 +150,5 @@ public partial class BookMetadataModal : ComponentBase
 
         await OnUseCover.InvokeAsync(match.CoverUrl);
         await CloseAsync();
-    }
-
-    private async Task CloseAsync() => await OnClose.InvokeAsync();
-
-    private static string Preview(string text)
-    {
-        const int max = 220;
-        string trimmed = text.Trim();
-        return trimmed.Length <= max ? trimmed : $"{trimmed[..max]}…";
     }
 }

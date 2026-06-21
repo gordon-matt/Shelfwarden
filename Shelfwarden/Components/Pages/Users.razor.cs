@@ -4,23 +4,20 @@ public partial class Users : ComponentBase
 {
     private IAdminUserManagementService? adminUsers;
 
+    private IReadOnlyList<RoleOption>? assignableRoles;
+    private string? bannerError;
+    private string? currentUserId;
+    private string? editingUserId;
     private bool identityLoading = true;
     private IReadOnlyList<AdminUserListItem>? identityRows;
-    private string? currentUserId;
-    private IReadOnlyList<RoleOption>? assignableRoles;
-
+    private string modalEmail = string.Empty;
+    private string? modalError;
+    private string modalPassword = string.Empty;
+    private string? modalRole;
+    private bool modalSaving;
     private IReadOnlyList<UserInfo>? readOnlyUsers;
-
-    private string? bannerError;
-
     private bool showUserModal;
     private bool userModalCreate;
-    private string modalEmail = "";
-    private string modalPassword = "";
-    private string? modalRole;
-    private string? editingUserId;
-    private bool modalSaving;
-    private string? modalError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -33,6 +30,43 @@ public partial class Users : ComponentBase
         else
         {
             readOnlyUsers = await UserInfoService.GetAllUsersAsync();
+        }
+    }
+
+    private static string FormatResult(Result result) => result.ValidationErrors is not null && result.ValidationErrors.Any()
+            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
+            : string.Join(" ", result.Errors);
+
+    private static string FormatResult<T>(Result<T> result) => result.ValidationErrors is not null && result.ValidationErrors.Any()
+            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
+            : string.Join(" ", result.Errors);
+
+    private void CloseUserModal()
+    {
+        showUserModal = false;
+        modalError = null;
+    }
+
+    private async Task DeleteAsync(AdminUserListItem u)
+    {
+        if (adminUsers is null)
+        {
+            return;
+        }
+
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete user \"{u.Email}\"? This cannot be undone."))
+        {
+            return;
+        }
+
+        var result = await adminUsers.DeleteUserAsync(u.Id);
+        if (result.IsSuccess)
+        {
+            await LoadIdentityGridAsync();
+        }
+        else
+        {
+            bannerError = FormatResult(result);
         }
     }
 
@@ -97,12 +131,6 @@ public partial class Users : ComponentBase
         modalRole = u.Roles.FirstOrDefault() ?? Constants.Roles.User;
         modalError = null;
         showUserModal = true;
-    }
-
-    private void CloseUserModal()
-    {
-        showUserModal = false;
-        modalError = null;
     }
 
     private async Task SaveUserModalAsync()
@@ -185,35 +213,4 @@ public partial class Users : ComponentBase
             bannerError = FormatResult(result);
         }
     }
-
-    private async Task DeleteAsync(AdminUserListItem u)
-    {
-        if (adminUsers is null)
-        {
-            return;
-        }
-
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete user \"{u.Email}\"? This cannot be undone."))
-        {
-            return;
-        }
-
-        var result = await adminUsers.DeleteUserAsync(u.Id);
-        if (result.IsSuccess)
-        {
-            await LoadIdentityGridAsync();
-        }
-        else
-        {
-            bannerError = FormatResult(result);
-        }
-    }
-
-    private static string FormatResult(Ardalis.Result.Result result) => result.ValidationErrors is not null && result.ValidationErrors.Any()
-            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
-            : string.Join(" ", result.Errors);
-
-    private static string FormatResult<T>(Ardalis.Result.Result<T> result) => result.ValidationErrors is not null && result.ValidationErrors.Any()
-            ? string.Join(" ", result.ValidationErrors.Select(e => e.ErrorMessage))
-            : string.Join(" ", result.Errors);
 }

@@ -2,40 +2,49 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class BookDetail : ComponentBase
 {
-    [Parameter]
-    public int Id { get; set; }
-
-    private BookDto? book;
-    private bool loading = true;
     private readonly List<BookmarkDto> bookmarks = [];
-    private IReadOnlyList<AdditionalContentItemDto>? bookExtraContent;
-    private int? extraContentTagScopeAuthorId;
-
+    private string? addToError;
+    private string? addToFlash;
+    private bool addToLoaded;
     private AudiobookDto? audiobook;
-    private bool audiobookSupported;
-    private bool showPlayer;
-    private bool voicePickerOpen;
-    private string? pendingVoiceConfirmation;
-    private bool enqueuingGenerate;
-    private string? generateError;
     private bool audiobookActionBusy;
-    private System.Threading.Timer? pollTimer;
-
-    private bool sectionEditorOpen;
-    private bool sectionsBusy;
+    private bool audiobookSupported;
+    private BookDto? book;
+    private IReadOnlyList<AdditionalContentItemDto>? bookExtraContent;
+    private IReadOnlyList<CollectionDto>? collections;
+    private bool creating;
+    private AddToTarget? creatingTarget;
     private List<BookSection>? detectedSections;
     private SectionDetectionQuality detectionQuality;
     private string? detectionWarning;
-    private bool splitByChapter;
-
-    private IReadOnlyList<CollectionDto>? collections;
-    private IReadOnlyList<ReadingListDto>? readingLists;
-    private bool addToLoaded;
-    private AddToTarget? creatingTarget;
+    private bool enqueuingGenerate;
+    private int? extraContentTagScopeAuthorId;
+    private string? generateError;
+    private bool loading = true;
     private string newName = string.Empty;
-    private bool creating;
-    private string? addToError;
-    private string? addToFlash;
+    private string? pendingVoiceConfirmation;
+    private Timer? pollTimer;
+    private IReadOnlyList<ReadingListDto>? readingLists;
+    private bool sectionEditorOpen;
+    private bool sectionsBusy;
+    private bool showPlayer;
+    private bool splitByChapter;
+    private bool voicePickerOpen;
+
+    private enum AddToTarget
+    {
+        Collection,
+        ReadingList,
+    }
+
+    [Parameter]
+    public int Id { get; set; }
+
+    public ValueTask DisposeAsync()
+    {
+        StopPolling();
+        return ValueTask.CompletedTask;
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -79,184 +88,93 @@ public partial class BookDetail : ComponentBase
         loading = false;
     }
 
-    private async Task RefreshExtraContentAsync()
+    private static string DefaultBookmarkTitle(BookmarkDto bm)
+        => bm.PageNumber.HasValue ? $"Page {bm.PageNumber}" : "Saved spot";
+
+    private static string FormatBytes(long bytes)
     {
-        var result = await ContentService.GetForBookAsync(Id);
-        if (result.IsSuccess)
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        int unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
         {
-            bookExtraContent = result.Value;
+            value /= 1024;
+            unit++;
         }
+        return $"{value:0.##} {units[unit]}";
     }
 
-    private void OnContentItemRenamed(AdditionalContentItemDto renamed)
+    private static string FormatDuration(double seconds)
     {
-        if (bookExtraContent is null) return;
-        bookExtraContent = bookExtraContent
-            .Select(i => i.Id == renamed.Id ? renamed : i)
-            .ToList();
+        var ts = TimeSpan.FromSeconds(seconds);
+        return ts.TotalHours >= 1
+            ? $"{(int)ts.TotalHours}h {ts.Minutes}m"
+            : ts.TotalMinutes >= 1
+                ? $"{ts.Minutes}m {ts.Seconds}s"
+                : $"{ts.Seconds}s";
     }
 
-    private async Task RefreshAudiobookStatusAsync()
+    private static string FormatState(AudiobookState state) => state switch
     {
-        var status = await AudiobookService.GetStatusAsync(Id);
-        if (status.IsSuccess)
-        {
-            audiobook = status.Value;
-        }
-    }
+        AudiobookState.Pending => "Queued",
+        AudiobookState.Running => "Generating",
+        AudiobookState.Completed => "Ready",
+        AudiobookState.Failed => "Failed",
+        _ => "—",
+    };
 
     /// <summary>
-    /// Start (or stop) the background poller depending on whether the current audiobook is in
-    /// a non-terminal state. We use a Timer rather than a Task.Delay loop so the page is happy
-    /// to be disposed without waiting for the next tick.
+    /// FFmpeg merge + AAC encode after all PCM chunks exist. We key off <see cref="AudiobookDto.CurrentStage"/>
+    /// first; if counts show 100% while still running we infer stitching unless the worker
+    /// hasn't flipped the label yet (still "Synthesising…").
     /// </summary>
-    private void EnsurePollingMatchesState()
+    private static bool IsStitchingPhase(AudiobookDto a)
     {
-        bool needsPolling = audiobook is { State: AudiobookState.Pending or AudiobookState.Running };
-        if (needsPolling && pollTimer is null)
+        if (a.State != AudiobookState.Running)
         {
-            pollTimer = new System.Threading.Timer(async _ =>
-            {
-                try
-                {
-                    await InvokeAsync(async () =>
-                    {
-                        await RefreshAudiobookStatusAsync();
-                        EnsurePollingMatchesState();
-                        StateHasChanged();
-                    });
-                }
-                catch
-                {
-                    // Page is being torn down; the timer will be disposed shortly.
-                }
-            }, state: null, dueTime: TimeSpan.FromSeconds(3), period: TimeSpan.FromSeconds(3));
-        }
-        else if (!needsPolling && pollTimer is not null)
-        {
-            StopPolling();
-        }
-    }
-
-    private void StopPolling()
-    {
-        pollTimer?.Dispose();
-        pollTimer = null;
-    }
-
-    /// <summary>
-    /// Entry point for both "Generate Audio" and "Regenerate": parse the book into reviewable
-    /// sections and open the section editor. Voice selection follows once the user has chosen
-    /// what to read and whether to split into chapters.
-    /// </summary>
-    private async Task StartGenerateFlowAsync()
-    {
-        if (!UserContext.IsAdministrator())
-        {
-            return;
+            return false;
         }
 
-        generateError = null;
-        detectedSections = null;
-        detectionWarning = null;
-        detectionQuality = SectionDetectionQuality.Structured;
-        splitByChapter = audiobook?.SplitByChapter ?? false;
-        sectionEditorOpen = true;
-        sectionsBusy = true;
-        StateHasChanged();
-
-        var result = await AudiobookService.GetSectionsAsync(Id);
-        if (result.IsSuccess)
+        if (!string.IsNullOrWhiteSpace(a.CurrentStage)
+            && a.CurrentStage.Contains("Stitch", StringComparison.OrdinalIgnoreCase))
         {
-            detectedSections = result.Value.Sections.ToList();
-            detectionQuality = result.Value.Quality;
-            detectionWarning = result.Value.Warning;
-        }
-        else
-        {
-            generateError = result.Errors.FirstOrDefault() ?? "Could not analyse this book's chapters.";
-            sectionEditorOpen = false;
+            return true;
         }
 
-        sectionsBusy = false;
-    }
-
-    private void CloseSectionEditor() => sectionEditorOpen = false;
-
-    private void OnSplitByChapterChanged(bool value) => splitByChapter = value;
-
-    /// <summary>The section editor rebuilt the plan from manually-placed PDF chapter markers.</summary>
-    private void OnSectionsRebuilt(List<BookSection> sections)
-    {
-        detectedSections = sections;
-        detectionQuality = SectionDetectionQuality.Structured;
-        detectionWarning = null;
-    }
-
-    private void OnSectionsContinue()
-    {
-        sectionEditorOpen = false;
-        generateError = null;
-        voicePickerOpen = true;
-    }
-
-    private void CloseVoicePicker() => voicePickerOpen = false;
-
-    private void OnVoiceBack()
-    {
-        voicePickerOpen = false;
-        sectionEditorOpen = true;
-    }
-
-    private void OnVoiceSelected(string voiceName)
-    {
-        voicePickerOpen = false;
-        pendingVoiceConfirmation = voiceName;
-        generateError = null;
-    }
-
-    private void CancelGenerate()
-    {
-        pendingVoiceConfirmation = null;
-        generateError = null;
-    }
-
-    private async Task ConfirmGenerateAsync()
-    {
-        if (string.IsNullOrEmpty(pendingVoiceConfirmation) || !UserContext.IsAdministrator())
+        if (a.TotalChunks <= 0 || a.CompletedChunks < a.TotalChunks)
         {
-            return;
+            return false;
         }
 
-        enqueuingGenerate = true;
-        generateError = null;
-        try
-        {
-            var result = await AudiobookService.GenerateAsync(Id, new GenerateAudiobookRequest
-            {
-                VoiceName = pendingVoiceConfirmation,
-                SplitByChapter = splitByChapter,
-                Sections = detectedSections,
-            });
-
-            if (!result.IsSuccess)
-            {
-                generateError = result.Errors.FirstOrDefault() ?? "Could not start generation.";
-                return;
-            }
-
-            audiobook = result.Value;
-            pendingVoiceConfirmation = null;
-            showPlayer = false;
-            EnsurePollingMatchesState();
-        }
-        finally
-        {
-            enqueuingGenerate = false;
-        }
+        // All chunks accounted for but job still running — must be final I/O unless we're in
+        // the sub-second window before CurrentStage updates away from Synthesising.
+        return string.IsNullOrWhiteSpace(a.CurrentStage) || !a.CurrentStage.Contains("Synthes", StringComparison.OrdinalIgnoreCase);
     }
 
-    private void ToggleListen() => showPlayer = !showPlayer;
+    private static string StatusBadgeClass(AudiobookState state) => state switch
+    {
+        AudiobookState.Pending => "text-bg-info",
+        AudiobookState.Running => "text-bg-primary",
+        AudiobookState.Completed => "text-bg-success",
+        AudiobookState.Failed => "text-bg-danger",
+        _ => "text-bg-secondary",
+    };
+
+    private async Task AddToCollectionAsync(CollectionDto c)
+    {
+        var result = await CollectionService.AddBookAsync(c.Id, Id);
+        FlashAddTo(result.IsSuccess
+            ? $"Added to collection \"{c.Name}\"."
+            : (result.Errors.FirstOrDefault() ?? "Could not add to collection."), result.IsSuccess);
+    }
+
+    private async Task AddToReadingListAsync(ReadingListDto l)
+    {
+        var result = await ReadingListService.AddBookAsync(l.Id, Id);
+        FlashAddTo(result.IsSuccess
+            ? $"Added to reading list \"{l.Name}\"."
+            : (result.Errors.FirstOrDefault() ?? "Could not add to reading list."), result.IsSuccess);
+    }
 
     private async Task CancelAudiobookGenerationAsync()
     {
@@ -296,215 +214,55 @@ public partial class BookDetail : ComponentBase
         }
     }
 
-    private async Task DeleteFinishedAudiobookAsync()
-    {
-        if (audiobook?.State != AudiobookState.Completed)
-        {
-            return;
-        }
-
-        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                "Delete this audiobook file from disk? You can generate again with any voice."))
-        {
-            return;
-        }
-
-        audiobookActionBusy = true;
-        generateError = null;
-        try
-        {
-            var result = await AudiobookService.DeleteAsync(Id);
-            if (!result.IsSuccess)
-            {
-                generateError = result.Errors.FirstOrDefault() ?? "Could not delete audiobook.";
-                return;
-            }
-
-            audiobook = null;
-            showPlayer = false;
-            StopPolling();
-            await RefreshAudiobookStatusAsync();
-            EnsurePollingMatchesState();
-        }
-        finally
-        {
-            audiobookActionBusy = false;
-        }
-    }
-
-    private async Task DeleteChapterAsync(int chapterIndex)
-    {
-        if (audiobook?.State != AudiobookState.Completed || !audiobook.SplitByChapter)
-        {
-            return;
-        }
-
-        var chapter = audiobook.Chapters?.FirstOrDefault(c => c.Index == chapterIndex);
-        string label = chapter is not null ? chapter.Title : $"chapter {chapterIndex + 1}";
-        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                $"Remove \"{label}\" from disk? The other chapters will be kept."))
-        {
-            return;
-        }
-
-        audiobookActionBusy = true;
-        generateError = null;
-        try
-        {
-            var result = await AudiobookService.DeleteChapterAsync(Id, chapterIndex);
-            if (!result.IsSuccess)
-            {
-                generateError = result.Errors.FirstOrDefault() ?? "Could not delete chapter.";
-                return;
-            }
-
-            audiobook = result.Value;
-            if (audiobook.State == AudiobookState.None)
-            {
-                showPlayer = false;
-            }
-
-            await RefreshAudiobookStatusAsync();
-            EnsurePollingMatchesState();
-        }
-        finally
-        {
-            audiobookActionBusy = false;
-        }
-    }
-
-    private static string FormatState(AudiobookState state) => state switch
-    {
-        AudiobookState.Pending => "Queued",
-        AudiobookState.Running => "Generating",
-        AudiobookState.Completed => "Ready",
-        AudiobookState.Failed => "Failed",
-        _ => "—",
-    };
-
-    private static string StatusBadgeClass(AudiobookState state) => state switch
-    {
-        AudiobookState.Pending => "text-bg-info",
-        AudiobookState.Running => "text-bg-primary",
-        AudiobookState.Completed => "text-bg-success",
-        AudiobookState.Failed => "text-bg-danger",
-        _ => "text-bg-secondary",
-    };
-
-    private static string FormatDuration(double seconds)
-    {
-        var ts = TimeSpan.FromSeconds(seconds);
-        return ts.TotalHours >= 1
-            ? $"{(int)ts.TotalHours}h {ts.Minutes}m"
-            : ts.TotalMinutes >= 1
-                ? $"{ts.Minutes}m {ts.Seconds}s"
-                : $"{ts.Seconds}s";
-    }
-
-    /// <summary>
-    /// FFmpeg merge + AAC encode after all PCM chunks exist. We key off <see cref="AudiobookDto.CurrentStage"/>
-    /// first; if counts show 100% while still running we infer stitching unless the worker
-    /// hasn't flipped the label yet (still "Synthesising…").
-    /// </summary>
-    private static bool IsStitchingPhase(AudiobookDto a)
-    {
-        if (a.State != AudiobookState.Running)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(a.CurrentStage)
-            && a.CurrentStage.Contains("Stitch", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (a.TotalChunks <= 0 || a.CompletedChunks < a.TotalChunks)
-        {
-            return false;
-        }
-
-        // All chunks accounted for but job still running — must be final I/O unless we're in
-        // the sub-second window before CurrentStage updates away from Synthesising.
-        return string.IsNullOrWhiteSpace(a.CurrentStage) || !a.CurrentStage.Contains("Synthes", StringComparison.OrdinalIgnoreCase);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        StopPolling();
-        return ValueTask.CompletedTask;
-    }
-
-    private async Task DeleteAsync()
-    {
-        var result = await BookService.DeleteAsync(Id);
-        if (result.IsSuccess)
-        {
-            NavigationManager.NavigateTo("books");
-        }
-    }
-
-    private async Task RemoveBookmarkAsync(BookmarkDto bm)
-    {
-        var result = await BookmarkService.DeleteAsync(bm.Id);
-        if (result.IsSuccess)
-        {
-            bookmarks.Remove(bm);
-        }
-    }
-
-    /// <summary>
-    /// Lazy-load the collections / reading lists the first time the dropdown opens —
-    /// the typical book detail visit doesn't touch them at all, so eagerly fetching is wasted work.
-    /// </summary>
-    private async Task EnsureAddToLoadedAsync()
-    {
-        if (addToLoaded)
-        {
-            return;
-        }
-
-        addToLoaded = true;
-
-        var collectionsTask = CollectionService.ListAsync();
-        var listsTask = ReadingListService.ListAsync();
-        await Task.WhenAll(collectionsTask, listsTask);
-
-        var loadedCollections =
-            collectionsTask.Result.IsSuccess ? collectionsTask.Result.Value : [];
-        collections = UserContext.IsAdministrator()
-            ? loadedCollections
-            : loadedCollections.Where(c => !c.IsGlobal).ToList();
-        readingLists = listsTask.Result.IsSuccess ? listsTask.Result.Value : [];
-    }
-
-    private async Task AddToCollectionAsync(CollectionDto c)
-    {
-        var result = await CollectionService.AddBookAsync(c.Id, Id);
-        FlashAddTo(result.IsSuccess
-            ? $"Added to collection \"{c.Name}\"."
-            : (result.Errors.FirstOrDefault() ?? "Could not add to collection."), result.IsSuccess);
-    }
-
-    private async Task AddToReadingListAsync(ReadingListDto l)
-    {
-        var result = await ReadingListService.AddBookAsync(l.Id, Id);
-        FlashAddTo(result.IsSuccess
-            ? $"Added to reading list \"{l.Name}\"."
-            : (result.Errors.FirstOrDefault() ?? "Could not add to reading list."), result.IsSuccess);
-    }
-
-    private void StartCreate(AddToTarget target)
-    {
-        creatingTarget = target;
-        newName = string.Empty;
-        addToError = null;
-    }
-
     private void CancelCreate()
     {
         creatingTarget = null;
         addToError = null;
+    }
+
+    private void CancelGenerate()
+    {
+        pendingVoiceConfirmation = null;
+        generateError = null;
+    }
+
+    private void CloseSectionEditor() => sectionEditorOpen = false;
+
+    private void CloseVoicePicker() => voicePickerOpen = false;
+
+    private async Task ConfirmGenerateAsync()
+    {
+        if (string.IsNullOrEmpty(pendingVoiceConfirmation) || !UserContext.IsAdministrator())
+        {
+            return;
+        }
+
+        enqueuingGenerate = true;
+        generateError = null;
+        try
+        {
+            var result = await AudiobookService.GenerateAsync(Id, new GenerateAudiobookRequest
+            {
+                VoiceName = pendingVoiceConfirmation,
+                SplitByChapter = splitByChapter,
+                Sections = detectedSections,
+            });
+
+            if (!result.IsSuccess)
+            {
+                generateError = result.Errors.FirstOrDefault() ?? "Could not start generation.";
+                return;
+            }
+
+            audiobook = result.Value;
+            pendingVoiceConfirmation = null;
+            showPlayer = false;
+            EnsurePollingMatchesState();
+        }
+        finally
+        {
+            enqueuingGenerate = false;
+        }
     }
 
     private async Task CreateAndAddAsync()
@@ -568,6 +326,150 @@ public partial class BookDetail : ComponentBase
         }
     }
 
+    private async Task DeleteAsync()
+    {
+        var result = await BookService.DeleteAsync(Id);
+        if (result.IsSuccess)
+        {
+            NavigationManager.NavigateTo("books");
+        }
+    }
+
+    private async Task DeleteChapterAsync(int chapterIndex)
+    {
+        if (audiobook?.State != AudiobookState.Completed || !audiobook.SplitByChapter)
+        {
+            return;
+        }
+
+        var chapter = audiobook.Chapters?.FirstOrDefault(c => c.Index == chapterIndex);
+        string label = chapter is not null ? chapter.Title : $"chapter {chapterIndex + 1}";
+        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog",
+                $"Remove \"{label}\" from disk? The other chapters will be kept."))
+        {
+            return;
+        }
+
+        audiobookActionBusy = true;
+        generateError = null;
+        try
+        {
+            var result = await AudiobookService.DeleteChapterAsync(Id, chapterIndex);
+            if (!result.IsSuccess)
+            {
+                generateError = result.Errors.FirstOrDefault() ?? "Could not delete chapter.";
+                return;
+            }
+
+            audiobook = result.Value;
+            if (audiobook.State == AudiobookState.None)
+            {
+                showPlayer = false;
+            }
+
+            await RefreshAudiobookStatusAsync();
+            EnsurePollingMatchesState();
+        }
+        finally
+        {
+            audiobookActionBusy = false;
+        }
+    }
+
+    private async Task DeleteFinishedAudiobookAsync()
+    {
+        if (audiobook?.State != AudiobookState.Completed)
+        {
+            return;
+        }
+
+        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog",
+                "Delete this audiobook file from disk? You can generate again with any voice."))
+        {
+            return;
+        }
+
+        audiobookActionBusy = true;
+        generateError = null;
+        try
+        {
+            var result = await AudiobookService.DeleteAsync(Id);
+            if (!result.IsSuccess)
+            {
+                generateError = result.Errors.FirstOrDefault() ?? "Could not delete audiobook.";
+                return;
+            }
+
+            audiobook = null;
+            showPlayer = false;
+            StopPolling();
+            await RefreshAudiobookStatusAsync();
+            EnsurePollingMatchesState();
+        }
+        finally
+        {
+            audiobookActionBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Lazy-load the collections / reading lists the first time the dropdown opens —
+    /// the typical book detail visit doesn't touch them at all, so eagerly fetching is wasted work.
+    /// </summary>
+    private async Task EnsureAddToLoadedAsync()
+    {
+        if (addToLoaded)
+        {
+            return;
+        }
+
+        addToLoaded = true;
+
+        var collectionsTask = CollectionService.ListAsync();
+        var listsTask = ReadingListService.ListAsync();
+        await Task.WhenAll(collectionsTask, listsTask);
+
+        var loadedCollections =
+            collectionsTask.Result.IsSuccess ? collectionsTask.Result.Value : [];
+        collections = UserContext.IsAdministrator()
+            ? loadedCollections
+            : loadedCollections.Where(c => !c.IsGlobal).ToList();
+        readingLists = listsTask.Result.IsSuccess ? listsTask.Result.Value : [];
+    }
+
+    /// <summary>
+    /// Start (or stop) the background poller depending on whether the current audiobook is in
+    /// a non-terminal state. We use a Timer rather than a Task.Delay loop so the page is happy
+    /// to be disposed without waiting for the next tick.
+    /// </summary>
+    private void EnsurePollingMatchesState()
+    {
+        bool needsPolling = audiobook is { State: AudiobookState.Pending or AudiobookState.Running };
+        if (needsPolling && pollTimer is null)
+        {
+            pollTimer = new System.Threading.Timer(async _ =>
+            {
+                try
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        await RefreshAudiobookStatusAsync();
+                        EnsurePollingMatchesState();
+                        StateHasChanged();
+                    });
+                }
+                catch
+                {
+                    // Page is being torn down; the timer will be disposed shortly.
+                }
+            }, state: null, dueTime: TimeSpan.FromSeconds(3), period: TimeSpan.FromSeconds(3));
+        }
+        else if (!needsPolling && pollTimer is not null)
+        {
+            StopPolling();
+        }
+    }
+
     private void FlashAddTo(string message, bool success)
     {
         if (success)
@@ -582,25 +484,120 @@ public partial class BookDetail : ComponentBase
         }
     }
 
-    private enum AddToTarget
+    private void OnContentItemRenamed(AdditionalContentItemDto renamed)
     {
-        Collection,
-        ReadingList,
+        if (bookExtraContent is null) return;
+        bookExtraContent = bookExtraContent
+            .Select(i => i.Id == renamed.Id ? renamed : i)
+            .ToList();
     }
 
-    private static string DefaultBookmarkTitle(BookmarkDto bm)
-        => bm.PageNumber.HasValue ? $"Page {bm.PageNumber}" : "Saved spot";
-
-    private static string FormatBytes(long bytes)
+    private void OnSectionsContinue()
     {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double value = bytes;
-        int unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
+        sectionEditorOpen = false;
+        generateError = null;
+        voicePickerOpen = true;
+    }
+
+    /// <summary>The section editor rebuilt the plan from manually-placed PDF chapter markers.</summary>
+    private void OnSectionsRebuilt(List<BookSection> sections)
+    {
+        detectedSections = sections;
+        detectionQuality = SectionDetectionQuality.Structured;
+        detectionWarning = null;
+    }
+
+    private void OnSplitByChapterChanged(bool value) => splitByChapter = value;
+
+    private void OnVoiceBack()
+    {
+        voicePickerOpen = false;
+        sectionEditorOpen = true;
+    }
+
+    private void OnVoiceSelected(string voiceName)
+    {
+        voicePickerOpen = false;
+        pendingVoiceConfirmation = voiceName;
+        generateError = null;
+    }
+
+    private async Task RefreshAudiobookStatusAsync()
+    {
+        var status = await AudiobookService.GetStatusAsync(Id);
+        if (status.IsSuccess)
         {
-            value /= 1024;
-            unit++;
+            audiobook = status.Value;
         }
-        return $"{value:0.##} {units[unit]}";
     }
+
+    private async Task RefreshExtraContentAsync()
+    {
+        var result = await ContentService.GetForBookAsync(Id);
+        if (result.IsSuccess)
+        {
+            bookExtraContent = result.Value;
+        }
+    }
+
+    private async Task RemoveBookmarkAsync(BookmarkDto bm)
+    {
+        var result = await BookmarkService.DeleteAsync(bm.Id);
+        if (result.IsSuccess)
+        {
+            bookmarks.Remove(bm);
+        }
+    }
+
+    private void StartCreate(AddToTarget target)
+    {
+        creatingTarget = target;
+        newName = string.Empty;
+        addToError = null;
+    }
+
+    /// <summary>
+    /// Entry point for both "Generate Audio" and "Regenerate": parse the book into reviewable
+    /// sections and open the section editor. Voice selection follows once the user has chosen
+    /// what to read and whether to split into chapters.
+    /// </summary>
+    private async Task StartGenerateFlowAsync()
+    {
+        if (!UserContext.IsAdministrator())
+        {
+            return;
+        }
+
+        generateError = null;
+        detectedSections = null;
+        detectionWarning = null;
+        detectionQuality = SectionDetectionQuality.Structured;
+        splitByChapter = audiobook?.SplitByChapter ?? false;
+        sectionEditorOpen = true;
+        sectionsBusy = true;
+        StateHasChanged();
+
+        var result = await AudiobookService.GetSectionsAsync(Id);
+        if (result.IsSuccess)
+        {
+            detectedSections = result.Value.Sections.ToList();
+            detectionQuality = result.Value.Quality;
+            detectionWarning = result.Value.Warning;
+        }
+        else
+        {
+            generateError = result.Errors.FirstOrDefault() ?? "Could not analyse this book's chapters.";
+            sectionEditorOpen = false;
+        }
+
+        sectionsBusy = false;
+    }
+
+    private void StopPolling()
+    {
+        pollTimer?.Dispose();
+        pollTimer = null;
+    }
+
+    private void ToggleListen() => showPlayer = !showPlayer;
 }

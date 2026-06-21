@@ -2,47 +2,89 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class ShelfDetail : ComponentBase
 {
-    [Parameter]
-    public int Id { get; set; }
-
-    private ShelfDto? shelf;
-    private readonly List<BookListItemDto> books = [];
-    private readonly HashSet<int> selectedBookIds = [];
-    private readonly string observerKey = $"shelf-books-{Guid.NewGuid():N}";
-    private ViewMode viewMode = ViewMode.Grid;
-    private int totalBookCount;
-    private bool selectAllMatchingBusy;
-    private bool scanIndicatorVisible;
-    private DateTime? optimisticBusyUntilUtc;
-    private CancellationTokenSource? pollCts;
-    private ElementReference infiniteScrollSentinel;
-    private DotNetObjectReference<ShelfDetail>? dotNetRef;
-    private int pageNumber = 1;
     private const int PageSize = 48;
+    private readonly List<BookListItemDto> books = [];
+    private readonly string observerKey = $"shelf-books-{Guid.NewGuid():N}";
+    private readonly HashSet<int> selectedBookIds = [];
+    private DotNetObjectReference<ShelfDetail>? dotNetRef;
     private bool hasMoreBooks;
+    private ElementReference infiniteScrollSentinel;
     private bool isLoadingMoreBooks;
+    private DateTime? optimisticBusyUntilUtc;
+    private int pageNumber = 1;
+    private CancellationTokenSource? pollCts;
+    private bool scanIndicatorVisible;
+    private bool selectAllMatchingBusy;
+    private ShelfDto? shelf;
     private string? startsWithFilter;
+    private int totalBookCount;
+    private ViewMode viewMode = ViewMode.Grid;
 
     private enum ViewMode
-    { Grid, List }
+    {
+        Grid,
+        List
+    }
+
+    [Parameter]
+    public int Id { get; set; }
 
     private int BulkEditMaxBookCount => Math.Max(1, Configuration.GetValue<int?>("BulkEditMaxBookCount") ?? 100);
     private bool CanSelectAllMatching => totalBookCount > 0 && totalBookCount <= BulkEditMaxBookCount;
 
-    protected override async Task OnParametersSetAsync()
+    public void Dispose()
     {
-        var lib = await ShelfService.GetByIdAsync(Id);
-        shelf = lib.IsSuccess ? lib.Value : null;
-
-        selectedBookIds.Clear();
-        await ResetBooksAsync();
+        pollCts?.Cancel();
+        pollCts?.Dispose();
+        dotNetRef?.Dispose();
     }
 
-    protected override void OnInitialized()
+    public async ValueTask DisposeAsync()
     {
-        pollCts = new CancellationTokenSource();
-        dotNetRef = DotNetObjectReference.Create(this);
-        _ = Task.Run(() => PollLoopAsync(pollCts.Token));
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("shelfwarden.disconnectInfiniteScroll", observerKey);
+        }
+        catch
+        {
+            // Ignore disposal-time JS failures during teardown.
+        }
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreBooksAsync()
+    {
+        if (isLoadingMoreBooks || (!hasMoreBooks && pageNumber > 1) || shelf is null)
+        {
+            return;
+        }
+
+        isLoadingMoreBooks = true;
+
+        var bookResult = await BookService.SearchAsync(new BookSearchRequest
+        {
+            ShelfId = Id,
+            Page = pageNumber,
+            PageSize = PageSize,
+            SortBy = BookSortBy.Title,
+            StartsWith = startsWithFilter,
+        });
+
+        if (bookResult.IsSuccess)
+        {
+            var page = bookResult.Value;
+            totalBookCount = page.TotalCount;
+            books.AddRange(page.Items);
+            hasMoreBooks = pageNumber < page.TotalPages;
+            pageNumber++;
+        }
+        else
+        {
+            hasMoreBooks = false;
+        }
+
+        isLoadingMoreBooks = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -67,17 +109,59 @@ public partial class ShelfDetail : ComponentBase
             nameof(LoadMoreBooksAsync));
     }
 
-    private async Task ScanAsync()
+    protected override void OnInitialized()
     {
-        scanIndicatorVisible = true;
-        optimisticBusyUntilUtc = DateTime.UtcNow.AddSeconds(20);
-        StateHasChanged();
-        var result = await ShelfService.ScheduleScanAsync(Id);
-        if (!result.IsSuccess)
+        pollCts = new CancellationTokenSource();
+        dotNetRef = DotNetObjectReference.Create(this);
+        _ = Task.Run(() => PollLoopAsync(pollCts.Token));
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var lib = await ShelfService.GetByIdAsync(Id);
+        shelf = lib.IsSuccess ? lib.Value : null;
+
+        selectedBookIds.Clear();
+        await ResetBooksAsync();
+    }
+
+    private static bool IsBusy(ScanStatusDto? status)
+        => status is not null && (status.State == ScanState.Running || status.State == ScanState.Queued);
+
+    private async Task ClearLetterFilterAsync()
+    {
+        startsWithFilter = null;
+        selectedBookIds.Clear();
+        await ResetBooksAsync();
+    }
+
+    private void ClearSelection() => selectedBookIds.Clear();
+
+    private async Task DeleteAsync()
+    {
+        var result = await ShelfService.DeleteAsync(Id);
+        if (result.IsSuccess)
         {
-            scanIndicatorVisible = false;
-            optimisticBusyUntilUtc = null;
+            SidebarNavRefresh.NotifyNavigationDataChanged();
+            NavigationManager.NavigateTo("shelves");
         }
+    }
+
+    private void GoToBatchEdit()
+    {
+        if (selectedBookIds.Count == 0)
+        {
+            return;
+        }
+
+        string ids = string.Join(',', selectedBookIds);
+        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=shelves/{Id}");
+    }
+
+    private async Task OnLetterRailChangedAsync()
+    {
+        selectedBookIds.Clear();
+        await ResetBooksAsync();
     }
 
     private async Task PollLoopAsync(CancellationToken token)
@@ -134,36 +218,24 @@ public partial class ShelfDetail : ComponentBase
         }
     }
 
-    private static bool IsBusy(ScanStatusDto? status)
-        => status is not null && (status.State == ScanState.Running || status.State == ScanState.Queued);
-
-    private async Task DeleteAsync()
+    private async Task ResetBooksAsync()
     {
-        var result = await ShelfService.DeleteAsync(Id);
-        if (result.IsSuccess)
-        {
-            SidebarNavRefresh.NotifyNavigationDataChanged();
-            NavigationManager.NavigateTo("shelves");
-        }
+        pageNumber = 1;
+        books.Clear();
+        hasMoreBooks = false;
+        await LoadMoreBooksAsync();
     }
 
-    private void ToggleSelection(int id, bool include)
+    private async Task ScanAsync()
     {
-        if (include)
+        scanIndicatorVisible = true;
+        optimisticBusyUntilUtc = DateTime.UtcNow.AddSeconds(20);
+        StateHasChanged();
+        var result = await ShelfService.ScheduleScanAsync(Id);
+        if (!result.IsSuccess)
         {
-            selectedBookIds.Add(id);
-        }
-        else
-        {
-            selectedBookIds.Remove(id);
-        }
-    }
-
-    private void SelectAllVisible()
-    {
-        foreach (var b in books)
-        {
-            selectedBookIds.Add(b.Id);
+            scanIndicatorVisible = false;
+            optimisticBusyUntilUtc = null;
         }
     }
 
@@ -215,92 +287,23 @@ public partial class ShelfDetail : ComponentBase
         }
     }
 
-    private void ClearSelection() => selectedBookIds.Clear();
-
-    private void GoToBatchEdit()
+    private void SelectAllVisible()
     {
-        if (selectedBookIds.Count == 0)
+        foreach (var b in books)
         {
-            return;
+            selectedBookIds.Add(b.Id);
         }
-
-        string ids = string.Join(',', selectedBookIds);
-        NavigationManager.NavigateTo($"books/batch-edit?ids={ids}&return=shelves/{Id}");
     }
 
-    private async Task ResetBooksAsync()
+    private void ToggleSelection(int id, bool include)
     {
-        pageNumber = 1;
-        books.Clear();
-        hasMoreBooks = false;
-        await LoadMoreBooksAsync();
-    }
-
-    [JSInvokable]
-    public async Task LoadMoreBooksAsync()
-    {
-        if (isLoadingMoreBooks || (!hasMoreBooks && pageNumber > 1) || shelf is null)
+        if (include)
         {
-            return;
-        }
-
-        isLoadingMoreBooks = true;
-
-        var bookResult = await BookService.SearchAsync(new BookSearchRequest
-        {
-            ShelfId = Id,
-            Page = pageNumber,
-            PageSize = PageSize,
-            SortBy = BookSortBy.Title,
-            StartsWith = startsWithFilter,
-        });
-
-        if (bookResult.IsSuccess)
-        {
-            var page = bookResult.Value;
-            totalBookCount = page.TotalCount;
-            books.AddRange(page.Items);
-            hasMoreBooks = pageNumber < page.TotalPages;
-            pageNumber++;
+            selectedBookIds.Add(id);
         }
         else
         {
-            hasMoreBooks = false;
-        }
-
-        isLoadingMoreBooks = false;
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task OnLetterRailChangedAsync()
-    {
-        selectedBookIds.Clear();
-        await ResetBooksAsync();
-    }
-
-    private async Task ClearLetterFilterAsync()
-    {
-        startsWithFilter = null;
-        selectedBookIds.Clear();
-        await ResetBooksAsync();
-    }
-
-    public void Dispose()
-    {
-        pollCts?.Cancel();
-        pollCts?.Dispose();
-        dotNetRef?.Dispose();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        try
-        {
-            await JSRuntime.InvokeVoidAsync("shelfwarden.disconnectInfiniteScroll", observerKey);
-        }
-        catch
-        {
-            // Ignore disposal-time JS failures during teardown.
+            selectedBookIds.Remove(id);
         }
     }
 }

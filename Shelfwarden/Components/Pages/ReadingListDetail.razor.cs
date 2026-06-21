@@ -2,32 +2,53 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class ReadingListDetail : ComponentBase
 {
-    [Parameter]
-    public int Id { get; set; }
-
-    private ReadingListDetailDto? list;
-    private bool loading = true;
-    private bool editing;
-    private bool savingEdit;
-    private bool reordering;
-    private EditModel editModel = new();
-
-    private CardHeaderBannerMode bannerMode = CardHeaderBannerMode.RandomCovers;
     private readonly List<BookListItemDto> bannerSelectedBooks = [];
-
-    private string? searchInput;
-    private bool showSearch;
-    private IReadOnlyList<BookListItemDto> searchResults = [];
-    private CancellationTokenSource? searchCts;
+    private CardHeaderBannerMode bannerMode = CardHeaderBannerMode.RandomCovers;
+    private bool editing;
+    private EditModel editModel = new();
 
     /// <summary>Id of the next book to read — first item that's not at 100% progress, or null when nothing remains.</summary>
     private int? firstUnreadId;
+
+    private ReadingListDetailDto? list;
+    private bool loading = true;
+    private bool reordering;
+    private bool savingEdit;
+    private CancellationTokenSource? searchCts;
+    private string? searchInput;
+    private IReadOnlyList<BookListItemDto> searchResults = [];
+    private bool showSearch;
+
+    [Parameter]
+    public int Id { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
         await LoadAsync();
         loading = false;
+    }
+
+    private async Task AddBookAsync(BookListItemDto book)
+    {
+        var result = await ReadingListService.AddBookAsync(Id, book.Id);
+        if (result.IsSuccess)
+        {
+            searchInput = string.Empty;
+            searchResults = [];
+            showSearch = false;
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        var result = await ReadingListService.DeleteAsync(Id);
+        if (result.IsSuccess)
+        {
+            SidebarNavRefresh.NotifyNavigationDataChanged();
+            NavigationManager.NavigateTo("reading-lists");
+        }
     }
 
     private async Task LoadAsync()
@@ -57,38 +78,37 @@ public partial class ReadingListDetail : ComponentBase
         }
     }
 
-    private async Task SaveAsync()
+    /// <summary>
+    /// Reorder by swapping the two adjacent positions. We send the *new* full ordering to the
+    /// server so the back-end is the source of truth and a concurrent edit can't shear the list.
+    /// </summary>
+    private async Task MoveAsync(int fromIndex, int toIndex)
     {
-        savingEdit = true;
+        if (list is null || reordering)
+        {
+            return;
+        }
+
+        if (toIndex < 0 || toIndex >= list.Items.Count)
+        {
+            return;
+        }
+
+        reordering = true;
         try
         {
-            var result = await ReadingListService.UpdateAsync(Id, new UpdateReadingListRequest
-            {
-                Name = editModel.Name,
-                Description = editModel.Description,
-                CardBannerMode = bannerMode,
-                CardBannerSelectedBookIds = bannerSelectedBooks.Select(b => b.Id).ToList(),
-            });
+            var ids = list.Items.Select(i => i.Id).ToList();
+            (ids[fromIndex], ids[toIndex]) = (ids[toIndex], ids[fromIndex]);
+
+            var result = await ReadingListService.ReorderAsync(Id, ids);
             if (result.IsSuccess)
             {
-                editing = false;
-                SidebarNavRefresh.NotifyNavigationDataChanged();
                 await LoadAsync();
             }
         }
         finally
         {
-            savingEdit = false;
-        }
-    }
-
-    private async Task DeleteAsync()
-    {
-        var result = await ReadingListService.DeleteAsync(Id);
-        if (result.IsSuccess)
-        {
-            SidebarNavRefresh.NotifyNavigationDataChanged();
-            NavigationManager.NavigateTo("reading-lists");
+            reordering = false;
         }
     }
 
@@ -129,18 +149,6 @@ public partial class ReadingListDetail : ComponentBase
         catch (TaskCanceledException) { }
     }
 
-    private async Task AddBookAsync(BookListItemDto book)
-    {
-        var result = await ReadingListService.AddBookAsync(Id, book.Id);
-        if (result.IsSuccess)
-        {
-            searchInput = string.Empty;
-            searchResults = [];
-            showSearch = false;
-            await LoadAsync();
-        }
-    }
-
     private async Task RemoveBookAsync(int bookId)
     {
         var result = await ReadingListService.RemoveBookAsync(Id, bookId);
@@ -150,37 +158,28 @@ public partial class ReadingListDetail : ComponentBase
         }
     }
 
-    /// <summary>
-    /// Reorder by swapping the two adjacent positions. We send the *new* full ordering to the
-    /// server so the back-end is the source of truth and a concurrent edit can't shear the list.
-    /// </summary>
-    private async Task MoveAsync(int fromIndex, int toIndex)
+    private async Task SaveAsync()
     {
-        if (list is null || reordering)
-        {
-            return;
-        }
-
-        if (toIndex < 0 || toIndex >= list.Items.Count)
-        {
-            return;
-        }
-
-        reordering = true;
+        savingEdit = true;
         try
         {
-            var ids = list.Items.Select(i => i.Id).ToList();
-            (ids[fromIndex], ids[toIndex]) = (ids[toIndex], ids[fromIndex]);
-
-            var result = await ReadingListService.ReorderAsync(Id, ids);
+            var result = await ReadingListService.UpdateAsync(Id, new UpdateReadingListRequest
+            {
+                Name = editModel.Name,
+                Description = editModel.Description,
+                CardBannerMode = bannerMode,
+                CardBannerSelectedBookIds = bannerSelectedBooks.Select(b => b.Id).ToList(),
+            });
             if (result.IsSuccess)
             {
+                editing = false;
+                SidebarNavRefresh.NotifyNavigationDataChanged();
                 await LoadAsync();
             }
         }
         finally
         {
-            reordering = false;
+            savingEdit = false;
         }
     }
 
@@ -208,9 +207,9 @@ public partial class ReadingListDetail : ComponentBase
 
     private sealed class EditModel
     {
+        public string? Description { get; set; }
+
         [Required, StringLength(256)]
         public string Name { get; set; } = string.Empty;
-
-        public string? Description { get; set; }
     }
 }

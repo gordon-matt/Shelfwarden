@@ -2,16 +2,19 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class BookCard : ComponentBase
 {
-    [Parameter, EditorRequired]
-    public BookListItemDto? Book { get; set; }
+    private bool isUpdatingProgress;
+
+    private BookListItemDto? lastSeenBook;
 
     /// <summary>
-    /// Raised after a successful Mark as Read / Unread so the parent grid can update its
-    /// in-memory <see cref="BookListItemDto"/> (records are immutable). Optional — when not wired
-    /// up, the card still reflects the new state via its own override.
+    /// Local override applied after a Mark as Read/Unread click so the card reflects the new
+    /// state immediately without forcing the parent to re-fetch. Resets when the parent passes
+    /// in a new <see cref="Book"/> instance.
     /// </summary>
-    [Parameter]
-    public EventCallback<BookListItemDto> OnBookChanged { get; set; }
+    private double? progressOverride;
+
+    [Parameter, EditorRequired]
+    public BookListItemDto? Book { get; set; }
 
     /// <summary>
     /// Optional <see cref="RenderFragment"/> appended to the bottom of the context menu (after
@@ -23,6 +26,25 @@ public partial class BookCard : ComponentBase
     [Parameter]
     public RenderFragment? ExtraMenuItems { get; set; }
 
+    /// <summary>Whether this card is currently part of the parent's selection set.</summary>
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    /// <summary>
+    /// Raised after a successful Mark as Read / Unread so the parent grid can update its
+    /// in-memory <see cref="BookListItemDto"/> (records are immutable). Optional — when not wired
+    /// up, the card still reflects the new state via its own override.
+    /// </summary>
+    [Parameter]
+    public EventCallback<BookListItemDto> OnBookChanged { get; set; }
+
+    /// <summary>
+    /// Raised when <see cref="SelectionMode"/> is on and the user clicks the card body. The
+    /// payload is the desired new selection state (i.e. the inverse of <see cref="IsSelected"/>).
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> OnSelectionToggled { get; set; }
+
     /// <summary>
     /// When true, clicking anywhere on the card toggles selection via <see cref="OnSelectionToggled"/>
     /// instead of navigating to the book detail page. Parents typically set this to
@@ -33,27 +55,6 @@ public partial class BookCard : ComponentBase
     /// </summary>
     [Parameter]
     public bool SelectionMode { get; set; }
-
-    /// <summary>Whether this card is currently part of the parent's selection set.</summary>
-    [Parameter]
-    public bool IsSelected { get; set; }
-
-    /// <summary>
-    /// Raised when <see cref="SelectionMode"/> is on and the user clicks the card body. The
-    /// payload is the desired new selection state (i.e. the inverse of <see cref="IsSelected"/>).
-    /// </summary>
-    [Parameter]
-    public EventCallback<bool> OnSelectionToggled { get; set; }
-
-    /// <summary>
-    /// Local override applied after a Mark as Read/Unread click so the card reflects the new
-    /// state immediately without forcing the parent to re-fetch. Resets when the parent passes
-    /// in a new <see cref="Book"/> instance.
-    /// </summary>
-    private double? progressOverride;
-
-    private bool isUpdatingProgress;
-    private BookListItemDto? lastSeenBook;
 
     private double CurrentProgress => progressOverride ?? Book?.ProgressPercentage ?? 0;
 
@@ -69,6 +70,25 @@ public partial class BookCard : ComponentBase
             progressOverride = null;
             lastSeenBook = Book;
         }
+    }
+
+    private Task HandleCardClickAsync() =>
+        // When SelectionMode is off, `@onclick:preventDefault` is false and the anchor's
+        // href takes over — nothing to do here. When SelectionMode is on, preventDefault is
+        // active so the browser won't navigate; we just flip the selection.
+        !SelectionMode || Book is null || !OnSelectionToggled.HasDelegate
+            ? Task.CompletedTask
+            : OnSelectionToggled.InvokeAsync(!IsSelected);
+
+    private Task NotifyBookChangedAsync(double newPercentage)
+    {
+        if (Book is null || !OnBookChanged.HasDelegate)
+        {
+            return Task.CompletedTask;
+        }
+
+        var updated = Book with { ProgressPercentage = newPercentage };
+        return OnBookChanged.InvokeAsync(updated);
     }
 
     private async Task ToggleReadAsync()
@@ -105,23 +125,4 @@ public partial class BookCard : ComponentBase
             isUpdatingProgress = false;
         }
     }
-
-    private Task NotifyBookChangedAsync(double newPercentage)
-    {
-        if (Book is null || !OnBookChanged.HasDelegate)
-        {
-            return Task.CompletedTask;
-        }
-
-        var updated = Book with { ProgressPercentage = newPercentage };
-        return OnBookChanged.InvokeAsync(updated);
-    }
-
-    private Task HandleCardClickAsync() =>
-        // When SelectionMode is off, `@onclick:preventDefault` is false and the anchor's
-        // href takes over — nothing to do here. When SelectionMode is on, preventDefault is
-        // active so the browser won't navigate; we just flip the selection.
-        !SelectionMode || Book is null || !OnSelectionToggled.HasDelegate
-            ? Task.CompletedTask
-            : OnSelectionToggled.InvokeAsync(!IsSelected);
 }
