@@ -282,7 +282,7 @@ public sealed class PdfSectionParser(ILogger<PdfSectionParser> logger) : IEbookS
 
             // Detect running heads / footers (and page numbers) once up front so we can strip them
             // from every page. PdfPig emits them as ordinary lines, which otherwise get read aloud.
-            var marginPatterns = DetectMarginPatterns(document, pageCount, cancellationToken);
+            var marginProfile = DetectMarginProfile(document, pageCount, cancellationToken);
 
             foreach (var (start, end) in EnumeratePageRanges(sections, pageCount))
             {
@@ -301,20 +301,12 @@ public sealed class PdfSectionParser(ILogger<PdfSectionParser> logger) : IEbookS
                         continue;
                     }
 
-                    string text;
-                    try
-                    {
-                        text = ContentOrderTextExtractor.GetText(page) ?? string.Empty;
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        logger.LogDebug(ex, "Falling back to raw text on page {PageNumber} of {File}", pageNum, filePath);
-                        text = page.Text ?? string.Empty;
-                    }
+                    string text = ExtractPageText(page, marginProfile, pageNum, filePath);
 
-                    // Drop the running head / footer / page number before re-flowing — the normalizer
-                    // would otherwise fuse them into the first / last paragraph of the page.
-                    text = PdfMarginFilter.StripMarginals(text, marginPatterns);
+                    // The geometric rebuild removes running heads whose text changes per chapter and the
+                    // OCR-fused folios the text filter can't isolate; the text-pattern pass then mops up
+                    // any constant chrome (fixed title, standalone page number) that survives.
+                    text = PdfMarginFilter.StripMarginals(text, marginProfile.TextPatterns);
 
                     // Re-flow line-wrapped text so words split across visual lines (e.g. the
                     // hyphenated "clus-/tered") are spoken as one word rather than two fragments.
@@ -337,22 +329,75 @@ public sealed class PdfSectionParser(ILogger<PdfSectionParser> logger) : IEbookS
     }
 
     /// <summary>
-    /// Samples up to ~40 evenly-spaced pages and infers the document's running head / footer patterns
-    /// from the text that recurs in their top / bottom margins. Sampling (rather than a full pass)
-    /// keeps this cheap on large PDFs while still seeing enough pages to be statistically confident.
+    /// Extracts one page's text, preferring a geometric line rebuild that can drop running heads/footers
+    /// when the document is known to carry them, and falling back to the content-order extractor
+    /// otherwise (or when the rebuild yields nothing usable).
     /// </summary>
-    private PdfMarginPatterns DetectMarginPatterns(PdfDocument document, int pageCount, CancellationToken cancellationToken)
+    private string ExtractPageText(Page page, PdfMarginProfile profile, int pageNum, string filePath)
+    {
+        if (profile.StripHeader || profile.StripFooter)
+        {
+            try
+            {
+                string? rebuilt = PdfRunningHeadDetector.BuildBodyText(page, profile.StripHeader, profile.StripFooter);
+                if (!string.IsNullOrWhiteSpace(rebuilt))
+                {
+                    return rebuilt;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogDebug(ex, "Running-head rebuild failed on page {PageNumber} of {File}", pageNum, filePath);
+            }
+        }
+
+        try
+        {
+            return ContentOrderTextExtractor.GetText(page) ?? string.Empty;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogDebug(ex, "Falling back to raw text on page {PageNumber} of {File}", pageNum, filePath);
+            return page.Text ?? string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Samples up to ~40 evenly-spaced pages and infers the document's running head / footer profile:
+    /// the constant-text patterns (<see cref="PdfMarginFilter"/>) plus whether a short marginal line
+    /// recurs often enough that the geometric <see cref="PdfRunningHeadDetector"/> should rebuild pages
+    /// with heads/footers dropped (which also handles changing per-chapter heads). Sampling keeps this
+    /// cheap on large PDFs.
+    /// </summary>
+    private PdfMarginProfile DetectMarginProfile(PdfDocument document, int pageCount, CancellationToken cancellationToken)
     {
         const int maxSamples = 40;
         int step = Math.Max(1, pageCount / maxSamples);
         var samples = new List<string>();
+        int usablePages = 0;
+        int headerPages = 0;
+        int footerPages = 0;
 
         for (int pageNum = 1; pageNum <= pageCount; pageNum += step)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            Page page;
             try
             {
-                string text = ContentOrderTextExtractor.GetText(document.GetPage(pageNum)) ?? string.Empty;
+                page = document.GetPage(pageNum);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogDebug(ex, "Skipping unreadable PDF page {PageNumber} during header/footer detection", pageNum);
+                continue;
+            }
+
+            usablePages++;
+
+            try
+            {
+                string text = ContentOrderTextExtractor.GetText(page) ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     samples.Add(text);
@@ -360,12 +405,47 @@ public sealed class PdfSectionParser(ILogger<PdfSectionParser> logger) : IEbookS
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogDebug(ex, "Skipping unreadable PDF page {PageNumber} during header/footer detection", pageNum);
+                logger.LogDebug(ex, "Skipping unreadable text on PDF page {PageNumber} during header/footer detection", pageNum);
+            }
+
+            try
+            {
+                if (PdfRunningHeadDetector.HasHeader(page))
+                {
+                    headerPages++;
+                }
+
+                if (PdfRunningHeadDetector.HasFooter(page))
+                {
+                    footerPages++;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogDebug(ex, "Running-head geometry failed on PDF page {PageNumber} during detection", pageNum);
             }
         }
 
-        return PdfMarginFilter.Detect(samples);
+        var textPatterns = PdfMarginFilter.Detect(samples);
+        if (usablePages < 3)
+        {
+            return new PdfMarginProfile(textPatterns, false, false);
+        }
+
+        // Require a short marginal on at least half the sampled pages (and at least three) before
+        // rebuilding document-wide — a couple of stray short first/last lines shouldn't trigger it.
+        double threshold = usablePages * 0.5;
+        bool stripHeader = headerPages >= threshold && headerPages >= 3;
+        bool stripFooter = footerPages >= threshold && footerPages >= 3;
+
+        return new PdfMarginProfile(textPatterns, stripHeader, stripFooter);
     }
+
+    /// <summary>The running-head / footer chrome to strip from a document: constant-text patterns plus whether a per-page geometric rebuild that drops the head / footer is warranted.</summary>
+    private sealed record PdfMarginProfile(
+        PdfMarginPatterns TextPatterns,
+        bool StripHeader,
+        bool StripFooter);
 
     private static IEnumerable<(int Start, int End)> EnumeratePageRanges(
         IReadOnlyList<BookSection>? sections,

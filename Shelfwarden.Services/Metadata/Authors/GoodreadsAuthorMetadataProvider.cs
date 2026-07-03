@@ -1,20 +1,22 @@
 using System.Net.Http;
-using System.Text.RegularExpressions;
+using System.Text.Json;
 using HtmlAgilityPack;
 
 namespace Shelfwarden.Services.Metadata.Authors;
 
 /// <summary>
-/// Author metadata scraped from Goodreads. Goodreads has no author API, so we run a keyword search,
-/// harvest the distinct author links from the results, then parse each author page
-/// (<c>/author/show/{id}</c>) for the name, photo, life dates, full "about" biography and a few
-/// notable titles. Best-effort: any blocking or parse failure yields an empty list.
+/// Author metadata scraped from Goodreads. Goodreads has no author API and its HTML search page is
+/// behind an AWS WAF JavaScript challenge, so we discover author ids through the public
+/// <c>book/auto_complete</c> JSON endpoint (each result carries the contributing author's id/name),
+/// then parse each author page (<c>/author/show/{id}</c>) for the name, photo, life dates, full
+/// "about" biography and a few notable titles. Best-effort: any blocking or parse failure yields an
+/// empty list.
 /// </summary>
-public sealed partial class GoodreadsAuthorMetadataProvider(
+public sealed class GoodreadsAuthorMetadataProvider(
     ILogger<GoodreadsAuthorMetadataProvider> logger,
     IHttpClientFactory httpClientFactory) : IAuthorMetadataProvider
 {
-    private const string SearchUrl = "https://www.goodreads.com/search?q=";
+    private const string AutoCompleteUrl = "https://www.goodreads.com/book/auto_complete?format=json&q=";
     private const string AuthorUrl = "https://www.goodreads.com/author/show/";
 
     /// <summary>Cap on author-page fetches per search (each is a separate scrape).</summary>
@@ -34,13 +36,17 @@ public sealed partial class GoodreadsAuthorMetadataProvider(
         try
         {
             string trimmed = query.Trim();
-            var searchDoc = await ScraperHttp.LoadAsync(httpClientFactory, SearchUrl + Uri.EscapeDataString(trimmed), cancellationToken: cancellationToken);
-            if (searchDoc is null)
+            string? json = await ScraperHttp.LoadStringAsync(
+                httpClientFactory,
+                AutoCompleteUrl + Uri.EscapeDataString(trimmed),
+                accept: "application/json, text/plain, */*",
+                cancellationToken: cancellationToken);
+            if (json is null)
             {
                 return [];
             }
 
-            var ids = ExtractAuthorIds(searchDoc, trimmed);
+            var ids = ExtractAuthorIds(json, trimmed);
             if (ids.Count == 0)
             {
                 return [];
@@ -73,41 +79,78 @@ public sealed partial class GoodreadsAuthorMetadataProvider(
         }
     }
 
-    private static List<string> ExtractAuthorIds(HtmlDocument doc, string query)
+    /// <summary>
+    /// Reads the <c>book/auto_complete</c> JSON array and returns the distinct author ids it references.
+    /// Authors whose name looks like the query are ordered first so the best match is fetched even when
+    /// the fetch cap trims the list.
+    /// </summary>
+    private List<string> ExtractAuthorIds(string json, string query)
     {
-        var links = doc.DocumentNode.SelectNodes("//a[contains(concat(' ', normalize-space(@class), ' '), ' authorName ')]");
-        if (links is null)
-        {
-            return [];
-        }
-
-        // Prefer authors whose displayed name looks like the query, but keep the rest as fallbacks.
         var preferred = new List<string>();
         var others = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var link in links)
+        try
         {
-            string? id = ExtractIdFromHref(link.GetAttributeValue("href", string.Empty));
-            if (id is null || !seen.Add(id))
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
             {
-                continue;
+                return [];
             }
 
-            string name = HtmlEntity.DeEntitize(link.InnerText)?.Trim() ?? string.Empty;
-            if (name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || query.Contains(name, StringComparison.OrdinalIgnoreCase))
+            foreach (var item in document.RootElement.EnumerateArray())
             {
-                preferred.Add(id);
+                if (item.ValueKind != JsonValueKind.Object
+                    || !item.TryGetProperty("author", out var author)
+                    || author.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                string? id = ReadAuthorId(author);
+                if (id is null || !seen.Add(id))
+                {
+                    continue;
+                }
+
+                string name = author.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String
+                    ? nameEl.GetString()?.Trim() ?? string.Empty
+                    : string.Empty;
+
+                if (name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || query.Contains(name, StringComparison.OrdinalIgnoreCase))
+                {
+                    preferred.Add(id);
+                }
+                else
+                {
+                    others.Add(id);
+                }
             }
-            else
-            {
-                others.Add(id);
-            }
+        }
+        catch (JsonException ex)
+        {
+            logger.LogDebug(ex, "Failed to parse Goodreads auto_complete response for '{Query}'", query);
+            return [];
         }
 
         preferred.AddRange(others);
         return preferred;
+    }
+
+    private static string? ReadAuthorId(JsonElement author)
+    {
+        if (!author.TryGetProperty("id", out var idEl))
+        {
+            return null;
+        }
+
+        return idEl.ValueKind switch
+        {
+            JsonValueKind.Number when idEl.TryGetInt64(out long n) => n.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            JsonValueKind.String => MetadataNormalization.NullIfBlank(idEl.GetString()),
+            _ => null,
+        };
     }
 
     private ExternalAuthorMatchDto? ParseAuthor(HtmlDocument doc, string goodreadsId)
@@ -187,18 +230,4 @@ public sealed partial class GoodreadsAuthorMetadataProvider(
         string text = HtmlEntity.DeEntitize(node.InnerText)?.Trim() ?? string.Empty;
         return string.IsNullOrWhiteSpace(text) ? null : text;
     }
-
-    private static string? ExtractIdFromHref(string? href)
-    {
-        if (string.IsNullOrWhiteSpace(href))
-        {
-            return null;
-        }
-
-        var match = AuthorShowIdRegex().Match(href);
-        return match.Success ? match.Groups[1].Value : null;
-    }
-
-    [GeneratedRegex(@"/author/show/(\d+)", RegexOptions.Compiled)]
-    private static partial Regex AuthorShowIdRegex();
 }

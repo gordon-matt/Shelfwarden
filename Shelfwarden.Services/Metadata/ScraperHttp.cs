@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using HtmlAgilityPack;
 
@@ -20,8 +21,37 @@ internal static class ScraperHttp
         string acceptLanguage = "en-US,en;q=0.9",
         CancellationToken cancellationToken = default)
     {
+        string? html = await LoadStringAsync(
+            httpClientFactory,
+            url,
+            accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            acceptLanguage: acceptLanguage,
+            cancellationToken: cancellationToken);
+        if (html is null)
+        {
+            return null;
+        }
+
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+        return doc;
+    }
+
+    /// <summary>
+    /// Fetches a URL with the same browser-like headers as <see cref="LoadAsync"/> and returns the raw
+    /// response body. Used for JSON endpoints (e.g. Goodreads' <c>book/auto_complete</c>) that back the
+    /// scrapers when the HTML search pages are behind a bot challenge. Returns null on any non-success
+    /// status, an empty body, or a bot-mitigation challenge (HTTP 202 from AWS WAF).
+    /// </summary>
+    public static async Task<string?> LoadStringAsync(
+        IHttpClientFactory httpClientFactory,
+        string url,
+        string accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        string acceptLanguage = "en-US,en;q=0.9",
+        CancellationToken cancellationToken = default)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.TryAddWithoutValidation("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        request.Headers.TryAddWithoutValidation("accept", accept);
         request.Headers.TryAddWithoutValidation("accept-language", acceptLanguage);
         request.Headers.TryAddWithoutValidation("user-agent", ChromeUserAgent);
         request.Headers.TryAddWithoutValidation("sec-ch-ua", "\"Google Chrome\";v=\"137\", \"Chromium\";v=\"137\", \"Not_A Brand\";v=\"24\"");
@@ -34,19 +64,15 @@ internal static class ScraperHttp
 
         var client = httpClientFactory.CreateClient();
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+
+        // Goodreads (AWS WAF) answers challenged requests with 202 Accepted and a JS challenge page
+        // instead of real content; treat that as a failed fetch rather than parsing the challenge markup.
+        if (!response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Accepted)
         {
             return null;
         }
 
-        string html = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(html))
-        {
-            return null;
-        }
-
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-        return doc;
+        string body = await response.Content.ReadAsStringAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(body) ? null : body;
     }
 }
