@@ -344,6 +344,7 @@ public class BookService(
         book.PublishedOn = request.PublishedOn;
         book.SeriesId = request.SeriesId;
         book.NumberInSeries = request.NumberInSeries;
+        book.Rating = request.Rating is > 0 and <= 5 ? (byte)request.Rating.Value : null;
         book.UpdatedAt = DateTime.UtcNow;
 
         await bookRepository.UpdateAsync(book);
@@ -351,6 +352,35 @@ public class BookService(
         await SyncBookAuthorsAsync(id, request.AuthorIds);
         await SyncBookGenresAsync(id, request.GenreIds);
         await SyncBookTagsAsync(id, request.Tags);
+
+        return await GetByIdAsync(id, cancellationToken);
+    }
+
+    public async Task<Result<BookDto>> SetRatingAsync(int id, int? rating, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        if (rating is < 0 or > 5)
+        {
+            return Result.Invalid(new ValidationError(nameof(rating), "Rating must be between 0 and 5."));
+        }
+
+        var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
+        {
+            Query = b => b.Id == id,
+            CancellationToken = cancellationToken,
+        });
+
+        if (book is null)
+        {
+            return Result.NotFound($"Book {id} not found.");
+        }
+
+        book.Rating = rating is > 0 ? (byte)rating.Value : null;
+        await bookRepository.UpdateAsync(book);
 
         return await GetByIdAsync(id, cancellationToken);
     }
@@ -673,5 +703,6 @@ public class BookService(
             .ToList(),
         b.CreatedAt,
         b.LastScannedAt,
-        b.UpdatedAt);
+        b.UpdatedAt,
+        b.Rating);
 }

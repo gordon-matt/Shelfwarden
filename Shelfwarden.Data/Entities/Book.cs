@@ -49,6 +49,8 @@ public class Book : BaseEntity<int>
     /// <summary>Position within the series. Nullable decimal so 1, 1.5, 2 etc. all work.</summary>
     public decimal? NumberInSeries { get; set; }
 
+    public byte? Rating { get; set; }
+
     public virtual Shelf Shelf { get; set; } = null!;
 
     public virtual Series? Series { get; set; }

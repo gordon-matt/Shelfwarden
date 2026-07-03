@@ -70,6 +70,7 @@ public partial class BookEdit : ComponentBase
             Isbn = book.Isbn,
             PublishedOn = book.PublishedOn,
             NumberInSeries = book.NumberInSeries,
+            Rating = book.Rating ?? 0,
         };
 
         selectedAuthors.Clear();
@@ -285,6 +286,7 @@ public partial class BookEdit : ComponentBase
                 PublishedOn = form.PublishedOn,
                 SeriesId = resolvedSeriesId,
                 NumberInSeries = resolvedSeriesId is null ? null : resolvedNumberInSeries,
+                Rating = form.Rating <= 0 ? null : form.Rating,
                 AuthorIds = selectedAuthors.Select(a => a.Id).ToList(),
                 GenreIds = selectedGenres.Select(g => g.Id).ToList(),
                 Tags = selectedTags,
@@ -404,6 +406,9 @@ public partial class BookEdit : ComponentBase
         public string? Language { get; set; }
 
         public decimal? NumberInSeries { get; set; }
+
+        [Range(0, 5)]
+        public int Rating { get; set; }
 
         public DateTime? PublishedOn { get; set; }
 

@@ -107,10 +107,9 @@
     }
 
     function applyReaderDarkChrome(on) {
-        var shell = document.querySelector('.reader-shell');
-        if (shell) {
-            shell.classList.toggle('reader-dark', !!on);
-        }
+        // The class lives on <html> (not .reader-shell) so it can be set pre-paint by theme-init.js
+        // and Blazor re-renders of the shell never wipe it — this is what removes the mode flicker.
+        document.documentElement.classList.toggle('reader-dark', !!on);
     }
 
     var EPUB_READER_THEME_KEY = 'shelfwarden-reader-theme';

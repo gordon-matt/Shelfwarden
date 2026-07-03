@@ -15,24 +15,51 @@ public record AuthorListItemDto(
     string? Biography,
     int BookCount);
 
-/// <summary>Candidate author match returned by OpenLibrary search.</summary>
-public record OpenLibraryAuthorMatchDto(
-    string OpenLibraryId,
+/// <summary>
+/// A candidate author match returned by one of the pluggable author metadata providers
+/// (OpenLibrary, Wikidata, Goodreads, …). Carries the <em>full</em> biography so an import doesn't
+/// need a second round-trip; the UI shows <see cref="BioPreview"/> instead.
+/// </summary>
+public record ExternalAuthorMatchDto(
+    string Provider,
+    string ProviderId,
     string Name,
     string? BirthDate,
     string? DeathDate,
-    bool HasBio,
-    bool HasPhoto,
-    string? BioPreview,
+    string? Biography,
     string? PhotoUrl,
-    string? TopBooks);
+    string? TopBooks,
+    string? InfoUrl)
+{
+    public bool HasBio => !string.IsNullOrWhiteSpace(Biography);
 
-/// <summary>Outcome of importing OpenLibrary author metadata into Shelfwarden.</summary>
-public record AuthorOpenLibraryImportResultDto(
+    public bool HasPhoto => !string.IsNullOrWhiteSpace(PhotoUrl);
+
+    /// <summary>First ~180 chars of the biography for the candidate list.</summary>
+    public string? BioPreview
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Biography))
+            {
+                return null;
+            }
+
+            string trimmed = Biography.Trim();
+            const int max = 180;
+            return trimmed.Length <= max ? trimmed : $"{trimmed[..max]}...";
+        }
+    }
+}
+
+/// <summary>Outcome of importing external author metadata into Shelfwarden.</summary>
+public record AuthorMetadataImportResultDto(
     int AuthorId,
-    string OpenLibraryId,
+    string Provider,
+    string ProviderId,
     bool BiographyUpdated,
-    bool PhotoUpdated);
+    bool PhotoUpdated,
+    bool LinkAdded);
 
 /// <summary>Outcome of manually updating author biography and/or photo.</summary>
 public record AuthorProfileUpdateResultDto(

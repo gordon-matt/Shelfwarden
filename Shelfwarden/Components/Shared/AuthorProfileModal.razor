@@ -57,28 +57,45 @@
                     }
                     else
                     {
-                        <label class="form-label">Author name</label>
-                        <div class="input-group mb-3">
-                            <input class="form-control" @bind="authorMatchQuery" @bind:event="oninput" />
-                            <button type="button" class="btn btn-primary" @onclick="SearchOpenLibraryAsync" disabled="@isSearchingOpenLibrary">
-                                @if (isSearchingOpenLibrary)
-                                {
-                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                                }
-                                <i class="bi bi-search"></i> Search
-                            </button>
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-4">
+                                <label class="form-label">Source</label>
+                                <select class="form-select" value="@selectedProvider" @onchange="OnProviderChangedAsync">
+                                    <option value="">All sources</option>
+                                    @foreach (var p in providers)
+                                    {
+                                        <option value="@p">@p</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-sm-8">
+                                <label class="form-label">Author name</label>
+                                <div class="input-group">
+                                    <input class="form-control" @bind="authorMatchQuery" @bind:event="oninput"
+                                           @onkeydown="@(async e => { if (e.Key == "Enter") await SearchProviderAsync(); })" />
+                                    <button type="button" class="btn btn-primary" @onclick="SearchProviderAsync" disabled="@isSearching">
+                                        @if (isSearching)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                        }
+                                        <i class="bi bi-search"></i> Search
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
-                        @if (openLibraryMatches.Count == 0 && hasSearchedOpenLibrary && string.IsNullOrWhiteSpace(errorMessage))
+                        @if (providerMatches.Count == 0 && hasSearched && !isSearching && string.IsNullOrWhiteSpace(errorMessage))
                         {
-                            <div class="alert alert-secondary py-2 mb-0">No OpenLibrary author matches were found.</div>
+                            <div class="alert alert-secondary py-2 mb-0">No author matches were found.</div>
                         }
-                        else if (openLibraryMatches.Count > 0)
+                        else if (providerMatches.Count > 0)
                         {
                             <div class="d-flex flex-column gap-2">
-                                @foreach (var match in openLibraryMatches)
+                                @foreach (var match in providerMatches)
                                 {
-                                    bool isSelected = pendingMatchSelection?.OpenLibraryId == match.OpenLibraryId;
+                                    bool isSelected = pendingMatchSelection is not null
+                                        && pendingMatchSelection.Provider == match.Provider
+                                        && pendingMatchSelection.ProviderId == match.ProviderId;
                                     <button type="button"
                                             class="btn text-start border @(isSelected ? "btn-primary" : "btn-outline-secondary")"
                                             @onclick="() => SelectMatch(match)">
@@ -94,14 +111,16 @@
                                                     </div>
                                                 }
                                                 <div>
-                                                <div class="fw-semibold">@match.Name</div>
+                                                <div class="fw-semibold">
+                                                    @match.Name
+                                                    <span class="badge bg-info-subtle text-info-emphasis ms-1">@match.Provider</span>
+                                                </div>
                                                 <div class="small opacity-75">
-                                                    <span>@match.OpenLibraryId</span>
                                                     @if (!string.IsNullOrWhiteSpace(match.BirthDate) || !string.IsNullOrWhiteSpace(match.DeathDate))
                                                     {
-                                                        <span> · @match.BirthDate-@match.DeathDate</span>
+                                                        <span>@match.BirthDate-@match.DeathDate · </span>
                                                     }
-                                                    <span> · Bio: @(match.HasBio ? "yes" : "no")</span>
+                                                    <span>Bio: @(match.HasBio ? "yes" : "no")</span>
                                                     <span> · Photo: @(match.HasPhoto ? "yes" : "no")</span>
                                                 </div>
                                                 @if (!string.IsNullOrWhiteSpace(match.TopBooks))
@@ -127,7 +146,7 @@
                         {
                             <div class="alert alert-warning mt-3 mb-0">
                                 <div class="fw-semibold mb-1">Are you sure?</div>
-                                <div class="small">This will import biography/photo for <strong>@AuthorName</strong> from OpenLibrary match <strong>@pendingMatchSelection.OpenLibraryId</strong>.</div>
+                                <div class="small">This will import biography/photo for <strong>@AuthorName</strong> from the <strong>@pendingMatchSelection.Provider</strong> match <strong>@pendingMatchSelection.Name</strong>.</div>
                             </div>
                         }
                     }
@@ -156,8 +175,8 @@
                     else
                     {
                         <button type="button" class="btn btn-outline-secondary" @onclick="CancelImportConfirmation">Back</button>
-                        <button type="button" class="btn btn-danger" @onclick="ConfirmImportAsync" disabled="@isImportingOpenLibrary">
-                            @if (isImportingOpenLibrary)
+                        <button type="button" class="btn btn-danger" @onclick="ConfirmImportAsync" disabled="@isImporting">
+                            @if (isImporting)
                             {
                                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                             }

@@ -1,7 +1,6 @@
-using System.Text.Json;
-using OpenLibraryNET.Loader;
-using OpenLibraryNET.Utility;
+using System.Net.Http;
 using Shelfwarden.Services.Metadata;
+using Shelfwarden.Services.Metadata.Authors;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
@@ -16,7 +15,8 @@ public class AuthorService(
     IRepository<AdditionalContentItem> contentRepository,
     IUserContextService userContext,
     IHttpClientFactory httpClientFactory,
-    IStoragePathProvider storagePathProvider) : IAuthorService
+    IStoragePathProvider storagePathProvider,
+    IEnumerable<IAuthorMetadataProvider> authorMetadataProviders) : IAuthorService
 {
     public async Task<Result<IReadOnlyList<AuthorDto>>> SearchAsync(string? query, int limit = 50, CancellationToken cancellationToken = default)
     {
@@ -674,7 +674,17 @@ public class AuthorService(
             : null;
     }
 
-    public async Task<Result<IReadOnlyList<OpenLibraryAuthorMatchDto>>> SearchOpenLibraryAuthorsAsync(string query, int limit = 8, CancellationToken cancellationToken = default)
+    public IReadOnlyList<string> GetAuthorMetadataProviders()
+        => authorMetadataProviders
+            .OrderBy(p => p.Priority)
+            .Select(p => p.Name)
+            .ToList();
+
+    public async Task<Result<IReadOnlyList<ExternalAuthorMatchDto>>> SearchAuthorMetadataAsync(
+        string query,
+        string? provider = null,
+        int limit = 8,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -682,80 +692,48 @@ public class AuthorService(
         }
 
         int clampedLimit = Math.Clamp(limit, 1, 20);
-        string trimmed = query.Trim();
+
+        var selected = string.IsNullOrWhiteSpace(provider)
+            ? authorMetadataProviders.OrderBy(p => p.Priority).ToList()
+            : authorMetadataProviders
+                .Where(p => string.Equals(p.Name, provider, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+        if (selected.Count == 0)
+        {
+            return Result.Invalid(new ValidationError(nameof(provider), $"Unknown metadata provider '{provider}'."));
+        }
 
         try
         {
-            var client = httpClientFactory.CreateClient();
-            var rows = await OLSearchLoader.GetAuthorSearchResultsAsync(
-                client,
-                trimmed,
-                new KeyValuePair<string, string>("limit", clampedLimit.ToString()));
+            // Fan out to the chosen provider(s) in parallel; results stay grouped by provider order
+            // (which is priority order) so the richest source shows first.
+            var lists = await Task.WhenAll(
+                selected.Select(p => p.SearchAsync(query.Trim(), clampedLimit, cancellationToken)));
 
-            var baseMatches = (rows ?? [])
-                .Select(a => new
-                {
-                    Id = NormalizeOpenLibraryAuthorId(a.ID),
-                    a.Name,
-                })
-                .Where(a => !string.IsNullOrWhiteSpace(a.Id) && !string.IsNullOrWhiteSpace(a.Name))
-                .GroupBy(a => a.Id, StringComparer.OrdinalIgnoreCase)
-                .Select(g => g.First())
-                .ToList();
-
-            var matches = new List<OpenLibraryAuthorMatchDto>(baseMatches.Count);
-            foreach (var candidate in baseMatches)
-            {
-                // Search endpoint is intentionally lightweight; hydrate each candidate from
-                // /authors/{id}.json so users can choose from real bio/photo-rich records.
-                var detail = await OLAuthorLoader.GetDataAsync(client, candidate.Id);
-                if (detail is null)
-                {
-                    continue;
-                }
-
-                bool hasBio = !string.IsNullOrWhiteSpace(detail.Bio);
-                bool hasPhoto = detail.PhotosIDs.Count > 0;
-                if (!hasBio && !hasPhoto)
-                {
-                    continue;
-                }
-
-                string? topBooks = await GetTopBooksAsync(client, candidate.Id);
-                int photoId = detail.PhotosIDs.FirstOrDefault();
-                matches.Add(new OpenLibraryAuthorMatchDto(
-                    NormalizeOpenLibraryAuthorId(detail.ID),
-                    string.IsNullOrWhiteSpace(detail.Name) ? candidate.Name : detail.Name.Trim(),
-                    string.IsNullOrWhiteSpace(detail.BirthDate) ? null : detail.BirthDate.Trim(),
-                    string.IsNullOrWhiteSpace(detail.DeathDate) ? null : detail.DeathDate.Trim(),
-                    hasBio,
-                    hasPhoto,
-                    BuildBioPreview(detail.Bio),
-                    photoId > 0 ? $"https://covers.openlibrary.org/a/id/{photoId}-M.jpg" : null,
-                    topBooks));
-            }
-
-            IReadOnlyList<OpenLibraryAuthorMatchDto> result = matches;
-            return Result.Success(result);
+            IReadOnlyList<ExternalAuthorMatchDto> merged = lists.SelectMany(list => list).ToList();
+            return Result.Success(merged);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "OpenLibrary author search failed for query '{Query}'", trimmed);
-            return Result.Error("Failed to search OpenLibrary.");
+            logger.LogWarning(ex, "Author metadata search failed for '{Query}' (provider {Provider})", query, provider ?? "all");
+            return Result.Error("Failed to search author metadata.");
         }
     }
 
-    public async Task<Result<AuthorOpenLibraryImportResultDto>> ImportFromOpenLibraryAsync(int authorId, string openLibraryAuthorId, CancellationToken cancellationToken = default)
+    public async Task<Result<AuthorMetadataImportResultDto>> ImportAuthorMetadataAsync(
+        int authorId,
+        ExternalAuthorMatchDto match,
+        CancellationToken cancellationToken = default)
     {
         if (!userContext.IsAdministrator())
         {
             return Result.Forbidden();
         }
 
-        string olid = NormalizeOpenLibraryAuthorId(openLibraryAuthorId);
-        if (string.IsNullOrWhiteSpace(olid))
+        if (match is null || string.IsNullOrWhiteSpace(match.ProviderId))
         {
-            return Result.Invalid(new ValidationError(nameof(openLibraryAuthorId), "A valid OpenLibrary author id is required."));
+            return Result.Invalid(new ValidationError(nameof(match), "A valid metadata match is required."));
         }
 
         var author = await authorRepository.FindOneAsync(new SearchOptions<Author>
@@ -770,15 +748,11 @@ public class AuthorService(
 
         try
         {
-            var client = httpClientFactory.CreateClient();
-            var source = await OLAuthorLoader.GetDataAsync(client, olid);
-            if (source is null)
-            {
-                return Result.NotFound($"OpenLibrary author '{olid}' was not found.");
-            }
-
-            string? importedBio = string.IsNullOrWhiteSpace(source.Bio) ? null : source.Bio.Trim();
-            bool biographyUpdated = !string.Equals(author.Biography, importedBio, StringComparison.Ordinal);
+            // Only overwrite the biography when the match actually carries one — otherwise a provider
+            // that happens to have a photo but no bio would blank out existing prose.
+            string? importedBio = string.IsNullOrWhiteSpace(match.Biography) ? null : match.Biography.Trim();
+            bool biographyUpdated = importedBio is not null
+                && !string.Equals(author.Biography, importedBio, StringComparison.Ordinal);
             if (biographyUpdated)
             {
                 author.Biography = importedBio;
@@ -786,18 +760,83 @@ public class AuthorService(
             }
 
             bool photoUpdated = false;
-            int photoId = source.PhotosIDs.FirstOrDefault();
-            if (photoId > 0)
+            if (!string.IsNullOrWhiteSpace(match.PhotoUrl))
             {
-                photoUpdated = await TrySaveAuthorPhotoAsync(client, authorId, photoId, cancellationToken);
+                photoUpdated = await TryDownloadAndSavePhotoAsync(authorId, match.PhotoUrl!, cancellationToken);
             }
 
-            return Result.Success(new AuthorOpenLibraryImportResultDto(authorId, olid, biographyUpdated, photoUpdated));
+            bool linkAdded = await TryAddSourceLinkAsync(authorId, match, cancellationToken);
+
+            return Result.Success(new AuthorMetadataImportResultDto(
+                authorId, match.Provider, match.ProviderId, biographyUpdated, photoUpdated, linkAdded));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "OpenLibrary import failed for author {AuthorId} using match {OpenLibraryAuthorId}", authorId, openLibraryAuthorId);
-            return Result.Error("Failed to import OpenLibrary author metadata.");
+            logger.LogWarning(ex, "Author metadata import failed for author {AuthorId} from {Provider}/{ProviderId}",
+                authorId, match.Provider, match.ProviderId);
+            return Result.Error("Failed to import author metadata.");
+        }
+    }
+
+    private async Task<bool> TryAddSourceLinkAsync(int authorId, ExternalAuthorMatchDto match, CancellationToken cancellationToken)
+    {
+        string? url = NormalizeAuthorLinkUrl(match.InfoUrl ?? string.Empty);
+        if (url is null)
+        {
+            return false;
+        }
+
+        var existing = await authorLinkRepository.FindOneAsync(new SearchOptions<AuthorLink>
+        {
+            Query = l => l.AuthorId == authorId && l.Url == url,
+            CancellationToken = cancellationToken,
+        });
+        if (existing is not null)
+        {
+            return false;
+        }
+
+        await authorLinkRepository.InsertAsync(new AuthorLink
+        {
+            AuthorId = authorId,
+            Name = match.Provider,
+            Url = url,
+        });
+        return true;
+    }
+
+    private async Task<bool> TryDownloadAndSavePhotoAsync(int authorId, string url, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var client = httpClientFactory.CreateClient();
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.TryAddWithoutValidation("User-Agent", MetadataHttp.UserAgent);
+
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+
+            byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            if (bytes.Length == 0)
+            {
+                return false;
+            }
+
+            string? ext = response.Content.Headers.ContentType?.MediaType?.Split('/').LastOrDefault();
+            if (string.IsNullOrWhiteSpace(ext))
+            {
+                ext = Path.GetExtension(new Uri(url, UriKind.RelativeOrAbsolute).IsAbsoluteUri ? new Uri(url).AbsolutePath : url);
+            }
+
+            return await SaveAuthorPhotoAsync(authorId, bytes, ext, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Failed to download author photo from {Url} for author {AuthorId}", url, authorId);
+            return false;
         }
     }
 
@@ -1000,30 +1039,6 @@ public class AuthorService(
         }
     }
 
-    private async Task<bool> TrySaveAuthorPhotoAsync(HttpClient client, int authorId, int photoId, CancellationToken cancellationToken)
-    {
-        var (ok, bytes) = await OLImageLoader.TryGetAuthorPhotoAsync(
-            client,
-            AuthorPhotoIdType.ID,
-            photoId.ToString(),
-            ImageSize.Medium);
-
-        if (!ok || bytes is null || bytes.Length == 0)
-        {
-            return false;
-        }
-
-        try
-        {
-            return await SaveAuthorPhotoAsync(authorId, bytes, "jpg", cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to persist OpenLibrary photo for author {AuthorId}", authorId);
-            return false;
-        }
-    }
-
     private async Task<bool> SaveAuthorPhotoAsync(int authorId, byte[] bytes, string? extension, CancellationToken cancellationToken)
     {
         string normalizedExt = NormalizeImageExtension(extension);
@@ -1037,93 +1052,6 @@ public class AuthorService(
         string path = Path.Combine(storagePathProvider.AuthorPhotosDirectory, $"{authorId}.{normalizedExt}");
         await File.WriteAllBytesAsync(path, bytes, cancellationToken);
         return true;
-    }
-
-    private static string NormalizeOpenLibraryAuthorId(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return string.Empty;
-        }
-
-        string value = raw.Trim();
-        if (value.StartsWith("/authors/", StringComparison.OrdinalIgnoreCase))
-        {
-            value = value["/authors/".Length..];
-        }
-
-        return value;
-    }
-
-    private static string? BuildBioPreview(string? bio)
-    {
-        if (string.IsNullOrWhiteSpace(bio))
-        {
-            return null;
-        }
-
-        string trimmed = bio.Trim();
-        const int max = 180;
-        return trimmed.Length <= max ? trimmed : $"{trimmed[..max]}...";
-    }
-
-    private async Task<string?> GetTopBooksAsync(HttpClient client, string olid, int count = 3)
-    {
-        try
-        {
-            // Prefer English editions; fall back to all languages if too few English results.
-            var titles = await FetchTopBookTitlesAsync(client, olid, count, englishOnly: true);
-            if (titles.Count < count)
-            {
-                titles = await FetchTopBookTitlesAsync(client, olid, count, englishOnly: false);
-            }
-
-            return titles.Count > 0 ? string.Join(", ", titles) : null;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to fetch works for OpenLibrary author '{OLId}'", olid);
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Fetches the most widely-published works for an author from the Open Library search API,
-    /// sorted by edition count as a proxy for recognition. Results are optionally restricted to
-    /// works that have at least one English edition.
-    /// </summary>
-    private async Task<List<string>> FetchTopBookTitlesAsync(
-        HttpClient client, string olid, int count, bool englishOnly)
-    {
-        // Fetch a few extra so minor gaps (blank titles, etc.) don't reduce the final count.
-        int fetchLimit = count + 3;
-        string langSegment = englishOnly ? "&language=eng" : string.Empty;
-        // author_key expects the bare OLID (e.g. OL26320A), not the full /authors/OL26320A key.
-        string url = $"https://openlibrary.org/search.json?author_key={olid}&sort=editions&limit={fetchLimit}&fields=title{langSegment}";
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.TryAddWithoutValidation("User-Agent", MetadataHttp.UserAgent);
-        request.Headers.TryAddWithoutValidation("Accept", "application/json");
-
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-        if (!response.IsSuccessStatusCode)
-        {
-            return [];
-        }
-
-        await using var stream = await response.Content.ReadAsStreamAsync();
-        using var doc = await JsonDocument.ParseAsync(stream);
-
-        if (!doc.RootElement.TryGetProperty("docs", out var docs))
-        {
-            return [];
-        }
-
-        return docs.EnumerateArray()
-            .Select(d => d.TryGetProperty("title", out var t) ? t.GetString()?.Trim() : null)
-            .Where(t => !string.IsNullOrWhiteSpace(t))
-            .Take(count)
-            .ToList()!;
     }
 
     private static string NormalizeImageExtension(string? extension)

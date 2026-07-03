@@ -11,6 +11,18 @@
     ];
     var DARK = { cyborg: 1, darkly: 1, slate: 1, solar: 1, superhero: 1, vapor: 1 };
 
+    // Reader-only dark mode. Applied to <html> here — before first paint — so the ebook reader
+    // opens in the correct mode with no light-then-dark flash. Kept in sync by reader.js.
+    var READER_DARK_KEY = 'shelfwarden.reader.darkMode';
+
+    try {
+        if (localStorage.getItem(READER_DARK_KEY) === '1') {
+            document.documentElement.classList.add('reader-dark');
+        }
+    } catch (e) {
+        /* private mode / blocked storage */
+    }
+
     try {
         var raw = localStorage.getItem(KEY);
         if (!raw) return;

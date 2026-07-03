@@ -534,6 +534,9 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .IsUnicode(true)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<byte?>("Rating")
+                        .HasColumnType("smallint");
+
                     b.Property<int?>("SeriesId")
                         .HasColumnType("integer");
 

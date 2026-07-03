@@ -279,6 +279,11 @@ public sealed class PdfSectionParser(ILogger<PdfSectionParser> logger) : IEbookS
         try
         {
             int pageCount = document.NumberOfPages;
+
+            // Detect running heads / footers (and page numbers) once up front so we can strip them
+            // from every page. PdfPig emits them as ordinary lines, which otherwise get read aloud.
+            var marginPatterns = DetectMarginPatterns(document, pageCount, cancellationToken);
+
             foreach (var (start, end) in EnumeratePageRanges(sections, pageCount))
             {
                 for (int pageNum = start; pageNum <= end; pageNum++)
@@ -307,6 +312,10 @@ public sealed class PdfSectionParser(ILogger<PdfSectionParser> logger) : IEbookS
                         text = page.Text ?? string.Empty;
                     }
 
+                    // Drop the running head / footer / page number before re-flowing — the normalizer
+                    // would otherwise fuse them into the first / last paragraph of the page.
+                    text = PdfMarginFilter.StripMarginals(text, marginPatterns);
+
                     // Re-flow line-wrapped text so words split across visual lines (e.g. the
                     // hyphenated "clus-/tered") are spoken as one word rather than two fragments.
                     text = PdfTextNormalizer.Normalize(text);
@@ -325,6 +334,37 @@ public sealed class PdfSectionParser(ILogger<PdfSectionParser> logger) : IEbookS
         {
             document.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Samples up to ~40 evenly-spaced pages and infers the document's running head / footer patterns
+    /// from the text that recurs in their top / bottom margins. Sampling (rather than a full pass)
+    /// keeps this cheap on large PDFs while still seeing enough pages to be statistically confident.
+    /// </summary>
+    private PdfMarginPatterns DetectMarginPatterns(PdfDocument document, int pageCount, CancellationToken cancellationToken)
+    {
+        const int maxSamples = 40;
+        int step = Math.Max(1, pageCount / maxSamples);
+        var samples = new List<string>();
+
+        for (int pageNum = 1; pageNum <= pageCount; pageNum += step)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                string text = ContentOrderTextExtractor.GetText(document.GetPage(pageNum)) ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    samples.Add(text);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogDebug(ex, "Skipping unreadable PDF page {PageNumber} during header/footer detection", pageNum);
+            }
+        }
+
+        return PdfMarginFilter.Detect(samples);
     }
 
     private static IEnumerable<(int Start, int End)> EnumeratePageRanges(

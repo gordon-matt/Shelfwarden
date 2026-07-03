@@ -82,6 +82,25 @@ else
                 }
             </p>
 
+            <div class="d-flex align-items-center gap-2 mb-2">
+                @if (isAdministrator)
+                {
+                    <StarRating Value="book.Rating ?? 0" ValueChanged="SaveRatingAsync" AriaLabel="Rate this book" />
+                }
+                else if (book.Rating is > 0)
+                {
+                    <StarRating Value="book.Rating.Value" ReadOnly="true" AriaLabel="@($"Rated {book.Rating} out of 5")" />
+                }
+                @if (book.Rating is > 0)
+                {
+                    <span class="text-secondary small">@book.Rating / 5</span>
+                }
+                else if (isAdministrator)
+                {
+                    <span class="text-secondary small">Not rated</span>
+                }
+            </div>
+
             <dl class="row small">
                 @if (!string.IsNullOrEmpty(book.Publisher))
                 {

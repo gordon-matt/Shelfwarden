@@ -41,7 +41,8 @@ public record BookDto(
     IReadOnlyList<TagDto> Tags,
     DateTime CreatedAt,
     DateTime? LastScannedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    int? Rating = null);
 
 /// <summary>User-supplied metadata edits. The scanner-derived fields (FilePath, FileSize, etc) cannot be edited.</summary>
 public record UpdateBookRequest
@@ -71,6 +72,10 @@ public record UpdateBookRequest
     public int? SeriesId { get; init; }
 
     public decimal? NumberInSeries { get; init; }
+
+    /// <summary>Star rating out of 5. Null or 0 means unrated.</summary>
+    [Range(0, 5)]
+    public int? Rating { get; init; }
 
     public IReadOnlyList<int> AuthorIds { get; init; } = [];
 

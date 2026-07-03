@@ -1,0 +1,55 @@
+@* Reusable 1..MaxStars rating widget. Two-way bindable via @bind-Value. Set ReadOnly for a
+   display-only rendering (e.g. on the book detail page). Clicking the current rating again clears
+   it, so a book can be un-rated without a separate control. *@
+<div class="star-rating @(ReadOnly ? "star-rating-readonly" : null) @CssClass" role="@(ReadOnly ? "img" : "radiogroup")"
+     aria-label="@AriaLabel">
+    @for (int i = 1; i <= MaxStars; i++)
+    {
+        int starValue = i;
+        bool filled = starValue <= (hoverValue ?? Value);
+
+        @if (ReadOnly)
+        {
+            <span class="star @(filled ? "filled" : null)" aria-hidden="true">
+                <i class="bi @(filled ? "bi-star-fill" : "bi-star")"></i>
+            </span>
+        }
+        else
+        {
+            <button type="button"
+                    class="star @(filled ? "filled" : null)"
+                    role="radio"
+                    aria-checked="@(starValue == Value)"
+                    aria-label="@($"{starValue} of {MaxStars} stars")"
+                    title="@($"{starValue} of {MaxStars}")"
+                    @onclick="() => SetRatingAsync(starValue)"
+                    @onmouseover="() => hoverValue = starValue"
+                    @onmouseout="() => hoverValue = null"
+                    @onfocus="() => hoverValue = starValue"
+                    @onblur="() => hoverValue = null">
+                <i class="bi @(filled ? "bi-star-fill" : "bi-star")"></i>
+            </button>
+        }
+    }
+</div>
+
+@code {
+    private int? hoverValue;
+
+    [Parameter] public int MaxStars { get; set; } = 5;
+    [Parameter] public int Value { get; set; }
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>Extra CSS applied to the wrapper (e.g. <c>star-rating-sm</c> for a compact display).</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    [Parameter] public string AriaLabel { get; set; } = "Rating";
+
+    private async Task SetRatingAsync(int newValue)
+    {
+        // Clicking the already-selected rating clears it (0 = unrated).
+        Value = newValue == Value ? 0 : newValue;
+        await ValueChanged.InvokeAsync(Value);
+    }
+}

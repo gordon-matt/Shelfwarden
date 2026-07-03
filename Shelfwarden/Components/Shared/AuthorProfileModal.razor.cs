@@ -2,19 +2,24 @@ namespace Shelfwarden.Components.Shared;
 
 public partial class AuthorProfileModal : ComponentBase
 {
+    /// <summary>Sentinel provider value meaning "query every source".</summary>
+    private const string AllProviders = "";
+
     private ModalTab activeTab = ModalTab.Manual;
     private string authorMatchQuery = string.Empty;
     private string? errorMessage;
     private bool hasLoadedForCurrentOpenState;
-    private bool hasSearchedOpenLibrary;
+    private bool hasSearched;
     private bool isAwaitingImportConfirmation;
-    private bool isImportingOpenLibrary;
+    private bool isImporting;
     private bool isSavingManual;
-    private bool isSearchingOpenLibrary;
+    private bool isSearching;
     private string? manualBiography;
     private string manualName = string.Empty;
-    private IReadOnlyList<OpenLibraryAuthorMatchDto> openLibraryMatches = [];
-    private OpenLibraryAuthorMatchDto? pendingMatchSelection;
+    private IReadOnlyList<ExternalAuthorMatchDto> providerMatches = [];
+    private IReadOnlyList<string> providers = [];
+    private ExternalAuthorMatchDto? pendingMatchSelection;
+    private string selectedProvider = AllProviders;
     private byte[]? selectedPhotoBytes;
     private string? selectedPhotoExtension;
     private string? selectedPhotoName;
@@ -56,11 +61,13 @@ public partial class AuthorProfileModal : ComponentBase
         statusMessage = null;
         errorMessage = null;
 
+        providers = AuthorService.GetAuthorMetadataProviders();
+        selectedProvider = AllProviders;
         authorMatchQuery = AuthorName;
-        hasSearchedOpenLibrary = false;
+        hasSearched = false;
         isAwaitingImportConfirmation = false;
         pendingMatchSelection = null;
-        openLibraryMatches = [];
+        providerMatches = [];
     }
 
     private void CancelImportConfirmation() => isAwaitingImportConfirmation = false;
@@ -74,25 +81,25 @@ public partial class AuthorProfileModal : ComponentBase
             return;
         }
 
-        isImportingOpenLibrary = true;
+        isImporting = true;
         errorMessage = null;
         statusMessage = null;
         try
         {
-            var result = await AuthorService.ImportFromOpenLibraryAsync(AuthorId, pendingMatchSelection.OpenLibraryId);
+            var result = await AuthorService.ImportAuthorMetadataAsync(AuthorId, pendingMatchSelection);
             if (!result.IsSuccess)
             {
                 errorMessage = "Import failed. Please try a different match.";
                 return;
             }
 
-            statusMessage = "OpenLibrary metadata imported.";
+            statusMessage = $"Imported metadata from {pendingMatchSelection.Provider}.";
             await OnSaved.InvokeAsync();
             await CloseAsync();
         }
         finally
         {
-            isImportingOpenLibrary = false;
+            isImporting = false;
         }
     }
 
@@ -145,38 +152,50 @@ public partial class AuthorProfileModal : ComponentBase
         }
     }
 
-    private async Task SearchOpenLibraryAsync()
+    private async Task SearchProviderAsync()
     {
         errorMessage = null;
         statusMessage = null;
-        hasSearchedOpenLibrary = true;
+        hasSearched = true;
         isAwaitingImportConfirmation = false;
         pendingMatchSelection = null;
 
         if (string.IsNullOrWhiteSpace(authorMatchQuery))
         {
-            openLibraryMatches = [];
+            providerMatches = [];
             errorMessage = "Please enter an author name to search.";
             return;
         }
 
-        isSearchingOpenLibrary = true;
+        isSearching = true;
         try
         {
-            var result = await AuthorService.SearchOpenLibraryAuthorsAsync(authorMatchQuery, 10);
-            openLibraryMatches = result.IsSuccess ? result.Value : [];
+            var result = await AuthorService.SearchAuthorMetadataAsync(
+                authorMatchQuery,
+                string.IsNullOrEmpty(selectedProvider) ? null : selectedProvider,
+                10);
+            providerMatches = result.IsSuccess ? result.Value : [];
             if (!result.IsSuccess)
             {
-                errorMessage = "OpenLibrary search failed.";
+                errorMessage = "Metadata search failed.";
             }
         }
         finally
         {
-            isSearchingOpenLibrary = false;
+            isSearching = false;
         }
     }
 
-    private void SelectMatch(OpenLibraryAuthorMatchDto match)
+    private async Task OnProviderChangedAsync(ChangeEventArgs e)
+    {
+        selectedProvider = e.Value?.ToString() ?? AllProviders;
+        if (!string.IsNullOrWhiteSpace(authorMatchQuery))
+        {
+            await SearchProviderAsync();
+        }
+    }
+
+    private void SelectMatch(ExternalAuthorMatchDto match)
     {
         pendingMatchSelection = match;
         isAwaitingImportConfirmation = false;
@@ -196,9 +215,9 @@ public partial class AuthorProfileModal : ComponentBase
         errorMessage = null;
         isAwaitingImportConfirmation = false;
 
-        if (tab == ModalTab.Match && !hasSearchedOpenLibrary)
+        if (tab == ModalTab.Match && !hasSearched)
         {
-            await SearchOpenLibraryAsync();
+            await SearchProviderAsync();
         }
     }
 

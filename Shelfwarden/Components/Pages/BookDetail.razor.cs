@@ -47,6 +47,20 @@ public partial class BookDetail : ComponentBase
         return ValueTask.CompletedTask;
     }
 
+    private async Task SaveRatingAsync(int rating)
+    {
+        if (book is null)
+        {
+            return;
+        }
+
+        var result = await BookService.SetRatingAsync(Id, rating);
+        if (result.IsSuccess)
+        {
+            book = result.Value;
+        }
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         loading = true;

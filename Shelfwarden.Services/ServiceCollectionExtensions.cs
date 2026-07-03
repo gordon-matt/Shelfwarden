@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shelfwarden.Services.Jobs;
 using Shelfwarden.Services.Metadata;
+using Shelfwarden.Services.Metadata.Authors;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
 using Shelfwarden.Services.Tts;
@@ -60,6 +61,12 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IBookMetadataProvider, AmazonMetadataProvider>();
             services.AddSingleton<IBookMetadataProvider, GoodreadsMetadataProvider>();
             services.AddScoped<IBookMetadataService, BookMetadataService>();
+
+            // Author metadata sources — same pluggable model as the book providers. OpenLibrary +
+            // Wikidata hit public APIs; Goodreads scrapes the public author page (lowest priority).
+            services.AddSingleton<IAuthorMetadataProvider, OpenLibraryAuthorMetadataProvider>();
+            services.AddSingleton<IAuthorMetadataProvider, WikidataAuthorMetadataProvider>();
+            services.AddSingleton<IAuthorMetadataProvider, GoodreadsAuthorMetadataProvider>();
 
             // Text-to-speech. The Kokoro engine and FFmpeg binaries are big; both providers
             // are singletons and lazy-initialise themselves on first job. Per-format text

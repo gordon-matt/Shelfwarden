@@ -17,6 +17,12 @@ public interface IBookService
 
     Task<Result<BookDto>> UpdateAsync(int id, UpdateBookRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Sets (or clears) the book's star rating without touching any other metadata. Pass 0 or null
+    /// to un-rate. Administrator only. Used by the inline star widget on the book detail page.
+    /// </summary>
+    Task<Result<BookDto>> SetRatingAsync(int id, int? rating, CancellationToken cancellationToken = default);
+
     Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default);
 
     Task<Result<BookProgressDto>> SaveProgressAsync(int id, SaveProgressRequest request, CancellationToken cancellationToken = default);

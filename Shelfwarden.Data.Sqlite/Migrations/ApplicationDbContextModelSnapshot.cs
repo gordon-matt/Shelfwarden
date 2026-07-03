@@ -514,6 +514,9 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .IsUnicode(true)
                         .HasColumnType("TEXT");
 
+                    b.Property<byte?>("Rating")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("SeriesId")
                         .HasColumnType("INTEGER");
 

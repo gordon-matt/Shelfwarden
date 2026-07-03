@@ -20,15 +20,20 @@ public interface IAuthorService
     /// </summary>
     Task<Result<AuthorDetailDto>> GetDetailAsync(int id, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Searches OpenLibrary authors for a user-provided name and returns candidate matches.
-    /// </summary>
-    Task<Result<IReadOnlyList<OpenLibraryAuthorMatchDto>>> SearchOpenLibraryAuthorsAsync(string query, int limit = 8, CancellationToken cancellationToken = default);
+    /// <summary>Display names of the registered author metadata providers, in priority order.</summary>
+    IReadOnlyList<string> GetAuthorMetadataProviders();
 
     /// <summary>
-    /// Imports bio/photo metadata for an existing author from a selected OpenLibrary author id.
+    /// Searches one (or, when <paramref name="provider"/> is null, every) author metadata provider —
+    /// OpenLibrary, Wikidata, Goodreads — for a user-provided name and returns candidate matches.
     /// </summary>
-    Task<Result<AuthorOpenLibraryImportResultDto>> ImportFromOpenLibraryAsync(int authorId, string openLibraryAuthorId, CancellationToken cancellationToken = default);
+    Task<Result<IReadOnlyList<ExternalAuthorMatchDto>>> SearchAuthorMetadataAsync(string query, string? provider = null, int limit = 8, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Imports the biography / photo (and a source link) from a chosen provider match into an
+    /// existing author. The match already carries the full data, so no second lookup is needed.
+    /// </summary>
+    Task<Result<AuthorMetadataImportResultDto>> ImportAuthorMetadataAsync(int authorId, ExternalAuthorMatchDto match, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Manually updates author display name, biography, and optionally uploads/replaces the author photo.
