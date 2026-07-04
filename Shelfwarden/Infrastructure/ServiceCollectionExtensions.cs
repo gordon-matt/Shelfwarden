@@ -81,8 +81,13 @@ internal static class ServiceCollectionExtensions
                     break;
 
                 case Constants.DatabaseProviders.MySql:
-                    throw new InvalidOperationException(
-                        "MySQL is not currently supported (pending Pomelo EF Core 10 release).");
+                    if (string.IsNullOrEmpty(connectionString))
+                    {
+                        throw new InvalidOperationException("Hangfire requires a connection string when using MySql.");
+                    }
+
+                    services.AddShelfwardenMySqlHangfire(connectionString);
+                    break;
 
                 default:
                     throw new InvalidOperationException($"Unknown Database:Provider '{provider}'.");

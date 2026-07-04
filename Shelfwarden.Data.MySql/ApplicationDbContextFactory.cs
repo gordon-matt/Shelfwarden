@@ -4,14 +4,28 @@ namespace Shelfwarden.Data.MySql;
 
 public class ApplicationDbContextFactory(IConfiguration configuration) : IDbContextFactory
 {
-    public DbContext GetContext()
-        => throw NotSupported();
+    private DbContextOptions<ApplicationDbContext> Options
+        => field ??= BuildOptions(configuration.GetConnectionString("DefaultConnection"));
+
+    public DbContext GetContext() => new ApplicationDbContext(Options);
 
     public DbContext GetContext(string connectionString)
-        => throw NotSupported();
+        => new ApplicationDbContext(BuildOptions(connectionString));
 
-    private static NotSupportedException NotSupported() => new(
-        "MySQL provider is not currently supported. Pomelo.EntityFrameworkCore.MySql has " +
-        "not yet released an EF Core 10 compatible package. Use Sqlite, Npgsql, or SqlServer " +
-        "for now, or downgrade the solution to EF Core 9.");
+    private static DbContextOptions<ApplicationDbContext> BuildOptions(string? connectionString)
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
+
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            optionsBuilder.UseInMemoryDatabase("ShelfwardenDb");
+        }
+        else
+        {
+            optionsBuilder.UseMySQL(connectionString, mySql =>
+                mySql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.GetName().Name));
+        }
+
+        return optionsBuilder.Options;
+    }
 }

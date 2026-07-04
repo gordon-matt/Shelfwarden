@@ -1,3 +1,6 @@
+using System.Transactions;
+using Hangfire;
+using Hangfire.Storage.MySql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,18 +11,60 @@ public static class ServiceCollectionExtensions
     extension(IServiceCollection services)
     {
         /// <summary>
-        /// Throws — MySQL is structurally wired but disabled until Pomelo ships an EF Core 10
-        /// release. The web project's provider switch is expected to surface this error during
-        /// startup, not at first request.
+        /// Registers the MySQL <see cref="ApplicationDbContext"/>, an <see cref="IDbContextFactory"/>
+        /// and the abstract <see cref="ApplicationDbContextBase"/>. Falls back to EF Core's in-memory
+        /// provider when no connection string is configured (useful for first-run / smoke tests).
+        /// Uses Oracle's <c>MySql.EntityFrameworkCore</c> provider (Pomelo has no EF Core 10 build yet).
         /// </summary>
         public IServiceCollection AddShelfwardenMySql(IConfiguration configuration)
-            => throw new NotSupportedException(
-                "MySQL provider is not currently supported. " +
-                "Pomelo.EntityFrameworkCore.MySql has not yet released an EF Core 10 build.");
+        {
+            string? connectionString = configuration.GetConnectionString("DefaultConnection");
 
+            services.AddDbContext<ApplicationDbContext>(options =>
+            {
+                if (string.IsNullOrEmpty(connectionString))
+                {
+                    options.UseInMemoryDatabase("ShelfwardenDb");
+                }
+                else
+                {
+                    options.UseMySQL(connectionString, mySql =>
+                        mySql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.GetName().Name));
+                }
+            });
+
+            services.AddScoped<ApplicationDbContextBase>(sp => sp.GetRequiredService<ApplicationDbContext>());
+            services.AddSingleton<IDbContextFactory, ApplicationDbContextFactory>();
+
+            return services;
+        }
+
+        /// <summary>
+        /// Registers Hangfire with MySQL-backed storage via <c>Hangfire.Storage.MySql</c>.
+        /// The connection string should include <c>Allow User Variables=True</c> for the storage
+        /// adapter to function correctly.
+        /// </summary>
         public IServiceCollection AddShelfwardenMySqlHangfire(string connectionString)
-            => throw new NotSupportedException(
-                "MySQL Hangfire storage is not currently wired up. Re-enable when " +
-                "Hangfire.Storage.MySql / Pomelo are confirmed working on EF Core 10.");
+        {
+            var storage = new MySqlStorage(connectionString, new MySqlStorageOptions
+            {
+                TransactionIsolationLevel = IsolationLevel.ReadCommitted,
+                QueuePollInterval = TimeSpan.FromSeconds(15),
+                JobExpirationCheckInterval = TimeSpan.FromHours(1),
+                CountersAggregateInterval = TimeSpan.FromMinutes(5),
+                PrepareSchemaIfNecessary = true,
+                DashboardJobListLimit = 50000,
+                TransactionTimeout = TimeSpan.FromMinutes(1),
+                TablesPrefix = "Hangfire",
+            });
+
+            services.AddHangfire(config => config
+                .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+                .UseSimpleAssemblyNameTypeSerializer()
+                .UseRecommendedSerializerSettings()
+                .UseStorage(storage));
+
+            return services;
+        }
     }
 }
