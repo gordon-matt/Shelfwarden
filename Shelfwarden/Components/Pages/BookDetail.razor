@@ -3,6 +3,7 @@
 @implements IAsyncDisposable
 @inject IBookService BookService
 @inject IBookmarkService BookmarkService
+@inject IBookUserService BookUserService
 @inject ICollectionService CollectionService
 @inject IReadingListService ReadingListService
 @inject IAudiobookService AudiobookService
@@ -83,21 +84,14 @@ else
             </p>
 
             <div class="d-flex align-items-center gap-2 mb-2">
-                @if (isAdministrator)
-                {
-                    <StarRating Value="book.Rating ?? 0" ValueChanged="SaveRatingAsync" AriaLabel="Rate this book" />
-                }
-                else if (book.Rating is > 0)
-                {
-                    <StarRating Value="book.Rating.Value" ReadOnly="true" AriaLabel="@($"Rated {book.Rating} out of 5")" />
-                }
+                <StarRating Value="book.Rating ?? 0" ValueChanged="SaveRatingAsync" AriaLabel="Your rating" />
                 @if (book.Rating is > 0)
                 {
                     <span class="text-secondary small">@book.Rating / 5</span>
                 }
-                else if (isAdministrator)
+                else
                 {
-                    <span class="text-secondary small">Not rated</span>
+                    <span class="text-secondary small">Rate this book</span>
                 }
             </div>
 
@@ -157,39 +151,118 @@ else
                 </p>
             }
 
-            @if (!string.IsNullOrEmpty(book.Description))
-            {
-                <h3 class="h6 mt-3">Description</h3>
-                <p>@((MarkupString)book.Description)</p>
-            }
-
-            @if (bookmarks.Count > 0)
-            {
-                <h3 class="h6 mt-3 mb-2">
-                    <i class="bi bi-bookmarks"></i> Your bookmarks
-                    <span class="badge text-bg-secondary ms-1">@bookmarks.Count</span>
-                </h3>
-                <ul class="list-unstyled mb-3">
-                    @foreach (var bm in bookmarks)
+            <ul class="nav nav-tabs mt-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(activeTab == DetailTab.Description ? "active" : null)" type="button"
+                            @onclick="() => activeTab = DetailTab.Description">
+                        <i class="bi bi-card-text"></i> Description
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(activeTab == DetailTab.Bookmarks ? "active" : null)" type="button"
+                            @onclick="() => activeTab = DetailTab.Bookmarks">
+                        <i class="bi bi-bookmarks"></i> Bookmarks
+                        @if (bookmarks.Count > 0)
+                        {
+                            <span class="badge text-bg-secondary ms-1">@bookmarks.Count</span>
+                        }
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(activeTab == DetailTab.Notes ? "active" : null)" type="button"
+                            @onclick="() => activeTab = DetailTab.Notes">
+                        <i class="bi bi-journal-text"></i> Notes
+                    </button>
+                </li>
+            </ul>
+            <div class="border border-top-0 rounded-bottom p-3 mb-3">
+                @if (activeTab == DetailTab.Description)
+                {
+                    @if (!string.IsNullOrEmpty(book.Description))
                     {
-                        <li class="bookmark-row">
-                            <a class="btn btn-link p-0 text-start" href="@($"read/{book.Id}")">
-                                <span class="d-block fw-semibold">@(bm.Title ?? DefaultBookmarkTitle(bm))</span>
-                                <span class="d-block text-secondary small">
-                                    @bm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
-                                    @if (bm.PageNumber.HasValue)
-                                    {
-                                        <text> · Page @bm.PageNumber</text>
-                                    }
-                                </span>
-                            </a>
-                            <button class="btn btn-sm btn-outline-secondary border-0" title="Remove" @onclick="() => RemoveBookmarkAsync(bm)">
-                                <i class="bi bi-x-lg"></i>
-                            </button>
-                        </li>
+                        <div class="book-description">@((MarkupString)book.Description)</div>
                     }
-                </ul>
-            }
+                    else
+                    {
+                        <p class="text-secondary mb-0">No description available.</p>
+                    }
+                }
+                else if (activeTab == DetailTab.Bookmarks)
+                {
+                    @if (bookmarks.Count == 0)
+                    {
+                        <p class="text-secondary mb-0">You haven't added any bookmarks to this book yet.</p>
+                    }
+                    else
+                    {
+                        <div class="accordion" id="bookmarksAccordion">
+                            @foreach (var bm in bookmarks)
+                            {
+                                bool isOpen = expandedBookmarkId == bm.Id;
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button @(isOpen ? null : "collapsed")" type="button"
+                                                @onclick="() => ToggleBookmark(bm)">
+                                            <span class="d-flex flex-column text-start">
+                                                <span class="fw-semibold">@(bm.Title ?? DefaultBookmarkTitle(bm))</span>
+                                                <span class="text-secondary small">
+                                                    @bm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                                    @if (bm.PageNumber.HasValue)
+                                                    {
+                                                        <text> · Page @bm.PageNumber</text>
+                                                    }
+                                                </span>
+                                            </span>
+                                        </button>
+                                    </h2>
+                                    @if (isOpen)
+                                    {
+                                        <div class="accordion-collapse collapse show">
+                                            <div class="accordion-body">
+                                                <textarea class="form-control" rows="3"
+                                                          placeholder="Add a note for this bookmark…"
+                                                          @bind="bookmarkNoteDraft"></textarea>
+                                                <div class="d-flex align-items-center gap-2 mt-2">
+                                                    <button class="btn btn-sm btn-primary" disabled="@bookmarkNoteSaving"
+                                                            @onclick="() => SaveBookmarkNoteAsync(bm)">
+                                                        <i class="bi bi-save"></i> Save note
+                                                    </button>
+                                                    <a class="btn btn-sm btn-outline-secondary" href="@($"read/{book.Id}")">
+                                                        <i class="bi bi-box-arrow-up-right"></i> Open
+                                                    </a>
+                                                    <button class="btn btn-sm btn-outline-danger ms-auto"
+                                                            @onclick="() => RemoveBookmarkAsync(bm)">
+                                                        <i class="bi bi-trash"></i> Remove
+                                                    </button>
+                                                </div>
+                                                @if (bookmarkNoteFlash is not null)
+                                                {
+                                                    <div class="text-success small mt-2">@bookmarkNoteFlash</div>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <textarea class="form-control" rows="8"
+                              placeholder="Your private notes about this book…"
+                              @bind="bookNotesDraft"></textarea>
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <button class="btn btn-primary" disabled="@bookNotesSaving" @onclick="SaveBookNotesAsync">
+                            <i class="bi bi-save"></i> Save notes
+                        </button>
+                        @if (bookNotesFlash is not null)
+                        {
+                            <span class="text-success small">@bookNotesFlash</span>
+                        }
+                    </div>
+                }
+            </div>
 
             <div class="mt-4 d-flex flex-wrap gap-2">
                 <a class="btn btn-primary" href="@($"read/{book.Id}")">

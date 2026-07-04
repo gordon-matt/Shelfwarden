@@ -64,6 +64,12 @@ public record BookSearchRequest
     /// </summary>
     public BookReadStatusFilter ReadStatus { get; init; } = BookReadStatusFilter.Any;
 
+    /// <summary>
+    /// Filter by the calling user's own star rating. When set (1–5), only books this user has rated at
+    /// or above the value are returned. Null applies no filter.
+    /// </summary>
+    public int? MinRating { get; init; }
+
     public string? Query { get; init; }
 
     public int Page { get; init; } = 1;

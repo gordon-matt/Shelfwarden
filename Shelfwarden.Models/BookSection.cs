@@ -68,3 +68,14 @@ public sealed record SectionDetectionResult(
     IReadOnlyList<BookSection> Sections,
     SectionDetectionQuality Quality,
     string? Warning);
+
+/// <summary>
+/// Sections to review before generating an audiobook, with the user's previous selection already
+/// applied where it still matches the freshly detected structure. <see cref="SplitByChapter"/> is
+/// the user's remembered "split into chapters" choice.
+/// </summary>
+public sealed record AudiobookPlanDto(
+    IReadOnlyList<BookSection> Sections,
+    SectionDetectionQuality Quality,
+    string? Warning,
+    bool SplitByChapter);

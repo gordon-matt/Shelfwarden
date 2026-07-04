@@ -49,8 +49,6 @@ public class Book : BaseEntity<int>
     /// <summary>Position within the series. Nullable decimal so 1, 1.5, 2 etc. all work.</summary>
     public decimal? NumberInSeries { get; set; }
 
-    public byte? Rating { get; set; }
-
     public virtual Shelf Shelf { get; set; } = null!;
 
     public virtual Series? Series { get; set; }
@@ -64,6 +62,9 @@ public class Book : BaseEntity<int>
     public virtual ICollection<BookProgress> ReadingProgress { get; set; } = [];
 
     public virtual ICollection<Bookmark> Bookmarks { get; set; } = [];
+
+    /// <summary>Per-user state (rating, notes) for this book.</summary>
+    public virtual ICollection<BookUser> BookUsers { get; set; } = [];
 
     /// <summary>Rows linking this book into user/global collections (join entity).</summary>
     public virtual ICollection<CollectionBook> CollectionBooks { get; set; } = [];

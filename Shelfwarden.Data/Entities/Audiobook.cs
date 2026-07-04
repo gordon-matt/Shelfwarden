@@ -4,6 +4,12 @@ namespace Shelfwarden.Data.Entities;
 /// Generated audiobook for a <see cref="Book"/>. Created when a user clicks
 /// "Generate Audio" on the book detail page; updated by the TTS Hangfire job as it
 /// progresses. There is at most one row per book — regenerating reuses the same row.
+/// <para>
+/// Deleting/cancelling an audiobook <em>soft-deletes</em> the row (<see cref="AudiobookStatus.Deleted"/>):
+/// the generated output is removed from disk and the progress/output fields are cleared, but the
+/// user's <see cref="VoiceName"/>, <see cref="SplitByChapter"/> and <see cref="SectionPlanJson"/>
+/// choices are retained so the next generation can pre-apply them.
+/// </para>
 /// </summary>
 public class Audiobook : BaseEntity<int>
 {
@@ -83,6 +89,12 @@ public enum AudiobookStatus
 
     /// <summary>Generation failed; <see cref="Audiobook.ErrorMessage"/> has the reason.</summary>
     Failed = 3,
+
+    /// <summary>
+    /// Soft-deleted: the output has been removed but the row is kept to remember the user's voice,
+    /// chapter-split and section-plan choices for the next generation. Treated as "no audiobook".
+    /// </summary>
+    Deleted = 4,
 }
 
 public class AudiobookMap : IEntityTypeConfiguration<Audiobook>

@@ -106,14 +106,41 @@
                     <ul class="list-unstyled mb-0">
                         @foreach (var bm in bookmarks)
                         {
-                            <li class="bookmark-row">
-                                <button class="btn btn-link p-0 text-start" @onclick="() => GotoBookmarkAsync(bm)" title="Jump to this spot">
-                                    <span class="d-block fw-semibold">@(bm.Title ?? DefaultBookmarkTitle(bm))</span>
-                                    <span class="d-block text-secondary small">@bm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
-                                </button>
-                                <button class="btn btn-sm btn-outline-secondary border-0" title="Remove" @onclick="() => DeleteBookmarkAsync(bm)">
-                                    <i class="bi bi-x-lg"></i>
-                                </button>
+                            bool isOpen = expandedBookmarkId == bm.Id;
+                            <li class="bookmark-row flex-column align-items-stretch">
+                                <div class="d-flex align-items-start w-100">
+                                    <button class="btn btn-link p-0 text-start flex-grow-1" @onclick="() => GotoBookmarkAsync(bm)" title="Jump to this spot">
+                                        <span class="d-block fw-semibold">@(bm.Title ?? DefaultBookmarkTitle(bm))</span>
+                                        <span class="d-block text-secondary small">
+                                            @bm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                            @if (bm.PageNumber.HasValue)
+                                            {
+                                                <text> · Page @bm.PageNumber</text>
+                                            }
+                                        </span>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary border-0" title="Notes" @onclick="() => ToggleBookmarkNotes(bm)">
+                                        <i class="bi bi-journal-text"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary border-0" title="Remove" @onclick="() => DeleteBookmarkAsync(bm)">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                                @if (isOpen)
+                                {
+                                    <div class="w-100 mt-2">
+                                        <textarea class="form-control form-control-sm" rows="3"
+                                                  placeholder="Add a note…" @bind="bookmarkNoteDraft"></textarea>
+                                        <div class="d-flex align-items-center gap-2 mt-1">
+                                            <button class="btn btn-sm btn-primary" disabled="@bookmarkNoteSaving"
+                                                    @onclick="() => SaveBookmarkNoteAsync(bm)">Save</button>
+                                            @if (bookmarkNoteFlash is not null)
+                                            {
+                                                <span class="text-success small">@bookmarkNoteFlash</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
                             </li>
                         }
                     </ul>

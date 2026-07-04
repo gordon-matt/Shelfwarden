@@ -536,9 +536,6 @@ namespace Shelfwarden.Data.Sql.Migrations
                         .IsUnicode(true)
                         .HasColumnType("nvarchar(256)");
 
-                    b.Property<byte?>("Rating")
-                        .HasColumnType("tinyint");
-
                     b.Property<int?>("SeriesId")
                         .HasColumnType("int");
 
@@ -711,6 +708,27 @@ namespace Shelfwarden.Data.Sql.Migrations
                         .IsUnique();
 
                     b.ToTable("BookTags", "app");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.BookUser", b =>
+                {
+                    b.Property<int>("BookId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Notes")
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte?>("Rating")
+                        .HasColumnType("tinyint");
+
+                    b.HasKey("BookId", "UserId");
+
+                    b.ToTable("BookUsers", "app");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Bookmark", b =>
@@ -1412,6 +1430,17 @@ namespace Shelfwarden.Data.Sql.Migrations
                     b.Navigation("Tag");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.BookUser", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
+                        .WithMany("BookUsers")
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Book");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Bookmark", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
@@ -1547,6 +1576,8 @@ namespace Shelfwarden.Data.Sql.Migrations
                     b.Navigation("BookGenres");
 
                     b.Navigation("BookTags");
+
+                    b.Navigation("BookUsers");
 
                     b.Navigation("Bookmarks");
 

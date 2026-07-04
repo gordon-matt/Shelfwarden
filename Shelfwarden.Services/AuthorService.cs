@@ -711,7 +711,14 @@ public class AuthorService(
             var lists = await Task.WhenAll(
                 selected.Select(p => p.SearchAsync(query.Trim(), clampedLimit, cancellationToken)));
 
-            IReadOnlyList<ExternalAuthorMatchDto> merged = lists.SelectMany(list => list).ToList();
+            // Rank candidates by how much content they carry (both bio + photo first, then photo-only,
+            // then bio-only, then neither) and, within a tier, by provider preference. A stable sort
+            // preserves each provider's own relevance order for ties.
+            IReadOnlyList<ExternalAuthorMatchDto> merged = lists
+                .SelectMany(list => list)
+                .OrderBy(ContentRank)
+                .ThenBy(m => ProviderRank(m.Provider))
+                .ToList();
             return Result.Success(merged);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -721,9 +728,27 @@ public class AuthorService(
         }
     }
 
+    /// <summary>Content-richness tier used to order candidates: bio + photo, then photo, then bio, then neither.</summary>
+    private static int ContentRank(ExternalAuthorMatchDto m) => m switch
+    {
+        { HasBio: true, HasPhoto: true } => 0,
+        { HasPhoto: true } => 1,
+        { HasBio: true } => 2,
+        _ => 3,
+    };
+
+    /// <summary>Provider preference within a content tier: Goodreads, then OpenLibrary, then the rest.</summary>
+    private static int ProviderRank(string provider) => provider switch
+    {
+        _ when string.Equals(provider, "Goodreads", StringComparison.OrdinalIgnoreCase) => 0,
+        _ when string.Equals(provider, "OpenLibrary", StringComparison.OrdinalIgnoreCase) => 1,
+        _ when string.Equals(provider, "Wikidata", StringComparison.OrdinalIgnoreCase) => 2,
+        _ => 3,
+    };
+
     public async Task<Result<AuthorMetadataImportResultDto>> ImportAuthorMetadataAsync(
         int authorId,
-        ExternalAuthorMatchDto match,
+        AuthorMetadataImportRequest request,
         CancellationToken cancellationToken = default)
     {
         if (!userContext.IsAdministrator())
@@ -731,9 +756,14 @@ public class AuthorService(
             return Result.Forbidden();
         }
 
-        if (match is null || string.IsNullOrWhiteSpace(match.ProviderId))
+        // The bio and photo can come from two different candidates (e.g. Goodreads photo + OpenLibrary
+        // bio). Each is optional, but at least one usable source must be supplied.
+        ExternalAuthorMatchDto? bioMatch = request?.BiographyMatch is { } b && !string.IsNullOrWhiteSpace(b.Biography) ? b : null;
+        ExternalAuthorMatchDto? photoMatch = request?.PhotoMatch is { } p && !string.IsNullOrWhiteSpace(p.PhotoUrl) ? p : null;
+
+        if (bioMatch is null && photoMatch is null)
         {
-            return Result.Invalid(new ValidationError(nameof(match), "A valid metadata match is required."));
+            return Result.Invalid(new ValidationError(nameof(request), "Choose a biography and/or a photo to import."));
         }
 
         var author = await authorRepository.FindOneAsync(new SearchOptions<Author>
@@ -748,32 +778,44 @@ public class AuthorService(
 
         try
         {
-            // Only overwrite the biography when the match actually carries one — otherwise a provider
-            // that happens to have a photo but no bio would blank out existing prose.
-            string? importedBio = string.IsNullOrWhiteSpace(match.Biography) ? null : match.Biography.Trim();
-            bool biographyUpdated = importedBio is not null
-                && !string.Equals(author.Biography, importedBio, StringComparison.Ordinal);
-            if (biographyUpdated)
+            bool biographyUpdated = false;
+            if (bioMatch is not null)
             {
-                author.Biography = importedBio;
-                await authorRepository.UpdateAsync(author);
+                string importedBio = bioMatch.Biography!.Trim();
+                if (!string.Equals(author.Biography, importedBio, StringComparison.Ordinal))
+                {
+                    author.Biography = importedBio;
+                    await authorRepository.UpdateAsync(author);
+                    biographyUpdated = true;
+                }
             }
 
             bool photoUpdated = false;
-            if (!string.IsNullOrWhiteSpace(match.PhotoUrl))
+            if (photoMatch is not null)
             {
-                photoUpdated = await TryDownloadAndSavePhotoAsync(authorId, match.PhotoUrl!, cancellationToken);
+                photoUpdated = await TryDownloadAndSavePhotoAsync(authorId, photoMatch.PhotoUrl!, cancellationToken);
             }
 
-            bool linkAdded = await TryAddSourceLinkAsync(authorId, match, cancellationToken);
+            // Record a source link for each distinct provider we actually pulled content from.
+            bool linkAdded = false;
+            foreach (var source in new[] { bioMatch, photoMatch }
+                .Where(m => m is not null)
+                .Select(m => m!)
+                .DistinctBy(m => (m.Provider, m.InfoUrl)))
+            {
+                linkAdded |= await TryAddSourceLinkAsync(authorId, source, cancellationToken);
+            }
+
+            string providerSummary = string.Join(" + ", new[] { bioMatch?.Provider, photoMatch?.Provider }
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Distinct());
 
             return Result.Success(new AuthorMetadataImportResultDto(
-                authorId, match.Provider, match.ProviderId, biographyUpdated, photoUpdated, linkAdded));
+                authorId, providerSummary, (bioMatch ?? photoMatch)!.ProviderId, biographyUpdated, photoUpdated, linkAdded));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Author metadata import failed for author {AuthorId} from {Provider}/{ProviderId}",
-                authorId, match.Provider, match.ProviderId);
+            logger.LogWarning(ex, "Author metadata import failed for author {AuthorId}", authorId);
             return Result.Error("Failed to import author metadata.");
         }
     }

@@ -12,7 +12,8 @@ public record BookListItemDto(
     EbookFormat FileFormat,
     double ProgressPercentage,
     string? SortTitle = null,
-    string? Description = null);
+    string? Description = null,
+    int? Rating = null);
 
 /// <summary>Tag attached to a book (id + display name).</summary>
 public record TagDto(int Id, string Name);
@@ -42,7 +43,11 @@ public record BookDto(
     DateTime CreatedAt,
     DateTime? LastScannedAt,
     DateTime? UpdatedAt,
+    /// <summary>The calling user's own star rating out of 5. Null or 0 means unrated.</summary>
     int? Rating = null);
+
+/// <summary>The calling user's per-book state: their star rating and free-form notes.</summary>
+public record BookUserDto(int BookId, int? Rating, string? Notes);
 
 /// <summary>User-supplied metadata edits. The scanner-derived fields (FilePath, FileSize, etc) cannot be edited.</summary>
 public record UpdateBookRequest
@@ -72,10 +77,6 @@ public record UpdateBookRequest
     public int? SeriesId { get; init; }
 
     public decimal? NumberInSeries { get; init; }
-
-    /// <summary>Star rating out of 5. Null or 0 means unrated.</summary>
-    [Range(0, 5)]
-    public int? Rating { get; init; }
 
     public IReadOnlyList<int> AuthorIds { get; init; } = [];
 

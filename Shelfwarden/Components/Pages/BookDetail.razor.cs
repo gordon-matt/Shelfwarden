@@ -32,10 +32,26 @@ public partial class BookDetail : ComponentBase
     private bool splitByChapter;
     private bool voicePickerOpen;
 
+    private DetailTab activeTab = DetailTab.Description;
+    private int? expandedBookmarkId;
+    private string bookmarkNoteDraft = string.Empty;
+    private bool bookmarkNoteSaving;
+    private string? bookmarkNoteFlash;
+    private string bookNotesDraft = string.Empty;
+    private bool bookNotesSaving;
+    private string? bookNotesFlash;
+
     private enum AddToTarget
     {
         Collection,
         ReadingList,
+    }
+
+    private enum DetailTab
+    {
+        Description,
+        Bookmarks,
+        Notes,
     }
 
     [Parameter]
@@ -54,10 +70,69 @@ public partial class BookDetail : ComponentBase
             return;
         }
 
-        var result = await BookService.SetRatingAsync(Id, rating);
+        var result = await BookUserService.SetRatingAsync(Id, rating);
         if (result.IsSuccess)
         {
-            book = result.Value;
+            book = book with { Rating = result.Value };
+        }
+    }
+
+    private void ToggleBookmark(BookmarkDto bm)
+    {
+        bookmarkNoteFlash = null;
+        if (expandedBookmarkId == bm.Id)
+        {
+            expandedBookmarkId = null;
+            return;
+        }
+
+        expandedBookmarkId = bm.Id;
+        bookmarkNoteDraft = bm.Note ?? string.Empty;
+    }
+
+    private async Task SaveBookmarkNoteAsync(BookmarkDto bm)
+    {
+        bookmarkNoteSaving = true;
+        bookmarkNoteFlash = null;
+        try
+        {
+            var result = await BookmarkService.UpdateAsync(bm.Id, new UpdateBookmarkRequest
+            {
+                Title = bm.Title,
+                Note = bookmarkNoteDraft,
+            });
+
+            if (result.IsSuccess)
+            {
+                int index = bookmarks.FindIndex(b => b.Id == bm.Id);
+                if (index >= 0)
+                {
+                    bookmarks[index] = result.Value;
+                }
+                bookmarkNoteFlash = "Note saved.";
+            }
+        }
+        finally
+        {
+            bookmarkNoteSaving = false;
+        }
+    }
+
+    private async Task SaveBookNotesAsync()
+    {
+        bookNotesSaving = true;
+        bookNotesFlash = null;
+        try
+        {
+            var result = await BookUserService.SetNotesAsync(Id, bookNotesDraft);
+            if (result.IsSuccess)
+            {
+                bookNotesFlash = "Notes saved.";
+            }
+        }
+        finally
+        {
+            bookNotesSaving = false;
         }
     }
 
@@ -72,6 +147,12 @@ public partial class BookDetail : ComponentBase
         audiobook = null;
         showPlayer = false;
         audiobookSupported = false;
+        activeTab = DetailTab.Description;
+        expandedBookmarkId = null;
+        bookmarkNoteDraft = string.Empty;
+        bookmarkNoteFlash = null;
+        bookNotesDraft = string.Empty;
+        bookNotesFlash = null;
         StopPolling();
 
         extraContentTagScopeAuthorId = book?.Authors.FirstOrDefault()?.Id;
@@ -80,11 +161,17 @@ public partial class BookDetail : ComponentBase
         {
             var bmTask = BookmarkService.ListAsync(Id);
             var contentTask = ContentService.GetForBookAsync(Id);
-            await Task.WhenAll(bmTask, contentTask);
+            var bookUserTask = BookUserService.GetAsync(Id);
+            await Task.WhenAll(bmTask, contentTask, bookUserTask);
 
             if (bmTask.Result.IsSuccess)
             {
                 bookmarks.AddRange(bmTask.Result.Value);
+            }
+
+            if (bookUserTask.Result.IsSuccess)
+            {
+                bookNotesDraft = bookUserTask.Result.Value.Notes ?? string.Empty;
             }
 
             if (contentTask.Result.IsSuccess)
@@ -598,6 +685,9 @@ public partial class BookDetail : ComponentBase
             detectedSections = result.Value.Sections.ToList();
             detectionQuality = result.Value.Quality;
             detectionWarning = result.Value.Warning;
+            // Prefer the live audiobook's split choice (during regenerate); otherwise use the value
+            // remembered on the book from the last generation.
+            splitByChapter = audiobook?.SplitByChapter ?? result.Value.SplitByChapter;
         }
         else
         {

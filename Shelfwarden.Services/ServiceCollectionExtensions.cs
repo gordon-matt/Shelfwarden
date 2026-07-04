@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IServerSettingsService, ServerSettingsService>();
             services.AddScoped<IDashboardService, DashboardService>();
             services.AddScoped<IBookmarkService, BookmarkService>();
+            services.AddScoped<IBookUserService, BookUserService>();
             services.AddScoped<ICollectionService, CollectionService>();
             services.AddScoped<IReadingListService, ReadingListService>();
             services.AddScoped<ISetupService, SetupService>();

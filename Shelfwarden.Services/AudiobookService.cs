@@ -40,7 +40,7 @@ public class AudiobookService(
             CancellationToken = cancellationToken,
         });
 
-        return existing is null
+        return existing is null or { Status: AudiobookStatus.Deleted }
             ? Result.Success(new AudiobookDto(
                 bookId,
                 AudiobookState.None,
@@ -74,6 +74,7 @@ public class AudiobookService(
 
         var rows = await audiobookRepository.FindAsync(new SearchOptions<Audiobook>
         {
+            Query = a => a.Status != AudiobookStatus.Deleted,
             Include = query => query.Include(a => a.Book).ThenInclude(b => b.BookAuthors).ThenInclude(ba => ba.Author),
             SplitQuery = true,
             CancellationToken = cancellationToken,
@@ -209,7 +210,7 @@ public class AudiobookService(
         return Result.Success(MergeWithLiveProgress(audiobook));
     }
 
-    public async Task<Result<SectionDetectionResult>> GetSectionsAsync(int bookId, CancellationToken cancellationToken = default)
+    public async Task<Result<AudiobookPlanDto>> GetSectionsAsync(int bookId, CancellationToken cancellationToken = default)
     {
         if (!userContext.IsAuthenticated())
         {
@@ -249,16 +250,81 @@ public class AudiobookService(
                 "Only EPUB and PDF books support text-to-speech."));
         }
 
+        // The last generation's choices live on the audiobook row and survive a (soft) delete, so
+        // pre-apply them even when there is no active audiobook right now.
+        var lastAudiobook = await audiobookRepository.FindOneAsync(new SearchOptions<Audiobook>
+        {
+            Query = a => a.BookId == bookId,
+            CancellationToken = cancellationToken,
+        });
+
         try
         {
             var result = await parser.ParseSectionsAsync(book.FilePath, cancellationToken);
-            return Result.Success(result);
+            var sections = ApplySavedSelection(result.Sections, lastAudiobook?.SectionPlanJson);
+            return Result.Success(new AudiobookPlanDto(
+                sections, result.Quality, result.Warning, lastAudiobook?.SplitByChapter ?? false));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to parse sections for book {BookId}", bookId);
             return Result.Error("Could not analyse this book's chapters.");
         }
+    }
+
+    /// <summary>
+    /// Overlays the user's previously saved include / chapter-boundary choices onto freshly detected
+    /// sections, matched by section identity (title + page range / reading-order start). Sections that
+    /// don't match a saved entry keep their detected defaults, so the merge degrades gracefully if the
+    /// book's structure has changed since the last generation.
+    /// </summary>
+    private IReadOnlyList<BookSection> ApplySavedSelection(IReadOnlyList<BookSection> detected, string? savedPlanJson)
+    {
+        if (string.IsNullOrWhiteSpace(savedPlanJson))
+        {
+            return detected;
+        }
+
+        List<BookSection>? saved;
+        try
+        {
+            saved = JsonSerializer.Deserialize<List<BookSection>>(savedPlanJson, JsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "Could not read saved audiobook section plan; using detected defaults.");
+            return detected;
+        }
+
+        if (saved is not { Count: > 0 })
+        {
+            return detected;
+        }
+
+        var savedByKey = new Dictionary<string, BookSection>();
+        foreach (var s in saved)
+        {
+            savedByKey[SectionKey(s)] = s;
+        }
+
+        foreach (var section in detected)
+        {
+            if (savedByKey.TryGetValue(SectionKey(section), out var match))
+            {
+                section.IsIncluded = match.IsIncluded;
+                section.IsChapterBoundary = match.IsChapterBoundary;
+            }
+        }
+
+        return detected;
+    }
+
+    private static string SectionKey(BookSection s)
+    {
+        string locator = s.StartPage is int start
+            ? $"p{start}-{s.EndPage}"
+            : $"r{(s.ReadingOrderIndices.Count > 0 ? s.ReadingOrderIndices[0] : -1)}";
+        return $"{s.Title}|{locator}";
     }
 
     public Task<Result<IReadOnlyList<KokoroVoiceDto>>> GetVoicesAsync(CancellationToken cancellationToken = default)
@@ -355,11 +421,33 @@ public class AudiobookService(
             return Result.Conflict("Use Cancel to clear a failed generation.");
         }
 
-        await audiobookRepository.DeleteAsync(existing);
-        storage.DeleteAudiobook(bookId);
-        progressTracker.Finish(bookId);
+        await SoftDeleteAsync(existing);
 
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Removes the generated output from disk and marks the row <see cref="AudiobookStatus.Deleted"/>,
+    /// keeping the voice / chapter-split / section-plan choices so they can be pre-applied next time.
+    /// </summary>
+    private async Task SoftDeleteAsync(Audiobook existing)
+    {
+        storage.DeleteAudiobook(existing.BookId);
+        progressTracker.Finish(existing.BookId);
+
+        existing.Status = AudiobookStatus.Deleted;
+        existing.OutputFileName = null;
+        existing.ChaptersJson = null;
+        existing.OutputSizeBytes = null;
+        existing.DurationSeconds = null;
+        existing.ErrorMessage = null;
+        existing.HangfireJobId = null;
+        existing.TotalChunks = 0;
+        existing.CompletedChunks = 0;
+        existing.StartedAt = null;
+        existing.CompletedAt = null;
+
+        await audiobookRepository.UpdateAsync(existing);
     }
 
     public async Task<Result<AudiobookDto>> DeleteChapterAsync(
@@ -421,9 +509,7 @@ public class AudiobookService(
         var remaining = chapters.Where(c => c.Index != chapterIndex).ToList();
         if (remaining.Count == 0)
         {
-            await audiobookRepository.DeleteAsync(existing);
-            storage.DeleteAudiobook(bookId);
-            progressTracker.Finish(bookId);
+            await SoftDeleteAsync(existing);
 
             return Result.Success(new AudiobookDto(
                 bookId,
@@ -496,9 +582,7 @@ public class AudiobookService(
             }
         }
 
-        progressTracker.Finish(bookId);
-        storage.DeleteAudiobook(bookId);
-        await audiobookRepository.DeleteAsync(existing);
+        await SoftDeleteAsync(existing);
 
         return Result.Success();
     }

@@ -21,6 +21,7 @@ public partial class Books : ComponentBase
     private int nextPageToLoad = 1;
     private int pageSize = 24;
     private string? query;
+    private string minRating = string.Empty;
     private BookReadStatusFilter readStatus = BookReadStatusFilter.Any;
     private CancellationTokenSource? searchDebounceCts;
     private bool selectAllMatchingBusy;
@@ -82,6 +83,7 @@ public partial class Books : ComponentBase
         || tagFilterMode == TagFilterMode.None
         || (tagFilterMode == TagFilterMode.Selected && selectedTagFilters.Count > 0)
         || awaitingReview
+        || !string.IsNullOrEmpty(minRating)
         || readStatus != BookReadStatusFilter.Any;
 
     private bool HasActiveFilters =>
@@ -132,6 +134,7 @@ public partial class Books : ComponentBase
             TagIds = GetSelectedTagFilterIds(),
             AwaitingReview = awaitingReview,
             ReadStatus = readStatus,
+            MinRating = ParseId(minRating),
             SortBy = sortBy,
             SortDescending = sortDescending,
         });
@@ -301,6 +304,7 @@ public partial class Books : ComponentBase
         selectedTagFilters.Clear();
         awaitingReview = false;
         readStatus = BookReadStatusFilter.Any;
+        minRating = "";
         startsWithFilter = null;
         await ResetAndLoadAsync();
     }
@@ -352,6 +356,7 @@ public partial class Books : ComponentBase
                 TagIds = GetSelectedTagFilterIds(),
                 AwaitingReview = awaitingReview,
                 ReadStatus = readStatus,
+                MinRating = ParseId(minRating),
                 SortBy = sortBy,
                 SortDescending = sortDescending,
             });
@@ -472,6 +477,7 @@ public partial class Books : ComponentBase
                     TagIds = GetSelectedTagFilterIds(),
                     AwaitingReview = awaitingReview,
                     ReadStatus = readStatus,
+                    MinRating = ParseId(minRating),
                     SortBy = sortBy,
                     SortDescending = sortDescending,
                 });

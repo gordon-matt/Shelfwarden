@@ -52,6 +52,14 @@ public record ExternalAuthorMatchDto(
     }
 }
 
+/// <summary>
+/// Which candidate to pull each piece of metadata from. The biography and photo may come from
+/// different providers; either may be null to leave that piece untouched.
+/// </summary>
+public record AuthorMetadataImportRequest(
+    ExternalAuthorMatchDto? BiographyMatch,
+    ExternalAuthorMatchDto? PhotoMatch);
+
 /// <summary>Outcome of importing external author metadata into Shelfwarden.</summary>
 public record AuthorMetadataImportResultDto(
     int AuthorId,

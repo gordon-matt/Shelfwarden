@@ -209,6 +209,19 @@
                     </select>
                 </div>
                 <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small text-body-secondary mb-1">My rating</label>
+                    <select class="form-select form-select-sm"
+                            @bind="minRating"
+                            @bind:after="OnFilterChangedAsync">
+                        <option value="">Any rating</option>
+                        <option value="5">★★★★★ 5</option>
+                        <option value="4">★★★★☆ 4 &amp; up</option>
+                        <option value="3">★★★☆☆ 3 &amp; up</option>
+                        <option value="2">★★☆☆☆ 2 &amp; up</option>
+                        <option value="1">★☆☆☆☆ 1 &amp; up</option>
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small text-body-secondary mb-1">Genre</label>
                     <select class="form-select form-select-sm"
                             @bind="genreId"

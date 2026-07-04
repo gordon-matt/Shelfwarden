@@ -33,7 +33,11 @@ public interface IAuthorService
     /// Imports the biography / photo (and a source link) from a chosen provider match into an
     /// existing author. The match already carries the full data, so no second lookup is needed.
     /// </summary>
-    Task<Result<AuthorMetadataImportResultDto>> ImportAuthorMetadataAsync(int authorId, ExternalAuthorMatchDto match, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Imports author metadata, optionally combining a biography from one candidate and a photo from
+    /// another (e.g. an OpenLibrary bio with a Goodreads photo). Administrator only.
+    /// </summary>
+    Task<Result<AuthorMetadataImportResultDto>> ImportAuthorMetadataAsync(int authorId, AuthorMetadataImportRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Manually updates author display name, biography, and optionally uploads/replaces the author photo.

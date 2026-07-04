@@ -46,6 +46,8 @@ public abstract class ApplicationDbContextBase
 
     public DbSet<Bookmark> Bookmarks => Set<Bookmark>();
 
+    public DbSet<BookUser> BookUsers => Set<BookUser>();
+
     public DbSet<Collection> Collections => Set<Collection>();
 
     public DbSet<CollectionBook> CollectionBooks => Set<CollectionBook>();

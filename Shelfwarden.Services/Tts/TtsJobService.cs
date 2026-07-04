@@ -319,7 +319,13 @@ public sealed class TtsJobService(
             paragraphs.Add(paragraph);
         }
 
-        return TextChunker.ChunkParagraphs(paragraphs).ToList();
+        // PDFs are emitted one page at a time, so a sentence that spans a page break would otherwise be
+        // split into two chunks and read as two sentences with a pause. Chunk PDFs as a continuous
+        // stream that carries the unfinished sentence across the boundary. EPUBs already emit whole
+        // paragraphs, so their existing per-paragraph pauses are preserved.
+        return parser.Format == EbookFormat.Pdf
+            ? TextChunker.ChunkContinuous(paragraphs).ToList()
+            : TextChunker.ChunkParagraphs(paragraphs).ToList();
     }
 
     /// <summary>

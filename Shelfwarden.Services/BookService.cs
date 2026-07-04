@@ -11,7 +11,8 @@ public class BookService(
     IRepository<BookGenre> bookGenreRepository,
     IRepository<Tag> tagRepository,
     IRepository<BookTag> bookTagRepository,
-    IRepository<BookProgress> progressRepository) : IBookService
+    IRepository<BookProgress> progressRepository,
+    IRepository<BookUser> bookUserRepository) : IBookService
 {
     public async Task<Result<PagedList<BookListItemDto>>> SearchAsync(BookSearchRequest request, CancellationToken cancellationToken = default)
     {
@@ -165,6 +166,18 @@ public class BookService(
             }
         }
 
+        // Rating filter is per-user: keep books the calling user has rated at or above the threshold.
+        // With no identity to resolve against, the filter is silently dropped rather than returning nothing.
+        if (request.MinRating is int minRating && minRating > 0)
+        {
+            string? ratingUserId = userContext.GetCurrentUserId();
+            if (!string.IsNullOrEmpty(ratingUserId))
+            {
+                predicate = predicate.And(b => b.BookUsers.Any(
+                    bu => bu.UserId == ratingUserId && bu.Rating != null && bu.Rating >= minRating));
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Query))
         {
             string q = request.Query.Trim().ToUpperInvariant();
@@ -236,11 +249,13 @@ public class BookService(
 
         var bookIds = page_.Select(b => b.Id).ToList();
         var progressByBook = await LoadProgressMapAsync(userId, bookIds);
+        var ratingByBook = await LoadRatingMapAsync(userId, bookIds);
 
         var items = page_
             .Select(b => BookProjections.ToListItem(
                 b,
-                progressByBook.GetValueOrDefault(b.Id)?.Percentage ?? 0))
+                progressByBook.GetValueOrDefault(b.Id)?.Percentage ?? 0,
+                ratingByBook.GetValueOrDefault(b.Id)))
             .ToList();
 
         var result = new PagedList<BookListItemDto>(items, page_.ItemCount, page, pageSize);
@@ -280,9 +295,10 @@ public class BookService(
         string? userId = userContext.GetCurrentUserId();
         var progress = await BookProjections.LoadProgressPercentagesAsync(
             progressRepository, userId, books.Select(b => b.Id).ToList(), cancellationToken);
+        var ratingByBook = await LoadRatingMapAsync(userId, books.Select(b => b.Id).ToList());
 
         IReadOnlyList<BookListItemDto> items = books
-            .Select(b => BookProjections.ToListItem(b, progress.GetValueOrDefault(b.Id, 0)))
+            .Select(b => BookProjections.ToListItem(b, progress.GetValueOrDefault(b.Id, 0), ratingByBook.GetValueOrDefault(b.Id)))
             .ToList();
         return Result.Success(items);
     }
@@ -305,11 +321,24 @@ public class BookService(
             CancellationToken = cancellationToken,
         });
 
-        return book is null
-            ? (Result<BookDto>)Result.NotFound($"Book {id} not found.")
-            : !ShelfAccessEvaluator.CanAccessShelf(book.Shelf, userContext)
-            ? (Result<BookDto>)Result.NotFound($"Book {id} not found.")
-            : Result.Success(MapBook(book));
+        if (book is null || !ShelfAccessEvaluator.CanAccessShelf(book.Shelf, userContext))
+        {
+            return Result.NotFound($"Book {id} not found.");
+        }
+
+        string? userId = userContext.GetCurrentUserId();
+        int? rating = null;
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var bookUser = await bookUserRepository.FindOneAsync(new SearchOptions<BookUser>
+            {
+                Query = bu => bu.BookId == id && bu.UserId == userId,
+                CancellationToken = cancellationToken,
+            });
+            rating = bookUser?.Rating;
+        }
+
+        return Result.Success(MapBook(book, rating));
     }
 
     public async Task<Result<BookDto>> UpdateAsync(int id, UpdateBookRequest request, CancellationToken cancellationToken = default)
@@ -344,7 +373,6 @@ public class BookService(
         book.PublishedOn = request.PublishedOn;
         book.SeriesId = request.SeriesId;
         book.NumberInSeries = request.NumberInSeries;
-        book.Rating = request.Rating is > 0 and <= 5 ? (byte)request.Rating.Value : null;
         book.UpdatedAt = DateTime.UtcNow;
 
         await bookRepository.UpdateAsync(book);
@@ -352,35 +380,6 @@ public class BookService(
         await SyncBookAuthorsAsync(id, request.AuthorIds);
         await SyncBookGenresAsync(id, request.GenreIds);
         await SyncBookTagsAsync(id, request.Tags);
-
-        return await GetByIdAsync(id, cancellationToken);
-    }
-
-    public async Task<Result<BookDto>> SetRatingAsync(int id, int? rating, CancellationToken cancellationToken = default)
-    {
-        if (!userContext.IsAdministrator())
-        {
-            return Result.Forbidden();
-        }
-
-        if (rating is < 0 or > 5)
-        {
-            return Result.Invalid(new ValidationError(nameof(rating), "Rating must be between 0 and 5."));
-        }
-
-        var book = await bookRepository.FindOneAsync(new SearchOptions<Book>
-        {
-            Query = b => b.Id == id,
-            CancellationToken = cancellationToken,
-        });
-
-        if (book is null)
-        {
-            return Result.NotFound($"Book {id} not found.");
-        }
-
-        book.Rating = rating is > 0 ? (byte)rating.Value : null;
-        await bookRepository.UpdateAsync(book);
 
         return await GetByIdAsync(id, cancellationToken);
     }
@@ -672,7 +671,21 @@ public class BookService(
     private static string? NullIfWhitespace(string? s)
         => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
-    private static BookDto MapBook(Book b) => new(
+    private async Task<Dictionary<int, int?>> LoadRatingMapAsync(string? userId, IReadOnlyList<int> bookIds)
+    {
+        if (string.IsNullOrEmpty(userId) || bookIds.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await bookUserRepository.FindAsync(new SearchOptions<BookUser>
+        {
+            Query = bu => bu.UserId == userId && bookIds.Contains(bu.BookId) && bu.Rating != null,
+        });
+        return rows.ToDictionary(bu => bu.BookId, bu => (int?)bu.Rating);
+    }
+
+    private static BookDto MapBook(Book b, int? rating) => new(
         b.Id,
         b.Title,
         b.SortTitle,
@@ -704,5 +717,5 @@ public class BookService(
         b.CreatedAt,
         b.LastScannedAt,
         b.UpdatedAt,
-        b.Rating);
+        rating);
 }

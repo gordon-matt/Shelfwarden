@@ -33,9 +33,10 @@ public interface IAudiobookService
 
     /// <summary>
     /// Parse <paramref name="bookId"/> into reviewable sections (chapters + auto-detected front /
-    /// back matter) so the user can choose what to skip and where to split (administrators only).
+    /// back matter) so the user can choose what to skip and where to split (administrators only). Any
+    /// previously saved selection for this book is re-applied on top of the detected sections.
     /// </summary>
-    Task<Result<SectionDetectionResult>> GetSectionsAsync(int bookId, CancellationToken cancellationToken = default);
+    Task<Result<AudiobookPlanDto>> GetSectionsAsync(int bookId, CancellationToken cancellationToken = default);
 
     /// <summary>List Kokoro voices (administrators only).</summary>
     Task<Result<IReadOnlyList<KokoroVoiceDto>>> GetVoicesAsync(CancellationToken cancellationToken = default);

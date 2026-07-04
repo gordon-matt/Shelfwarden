@@ -90,27 +90,28 @@
                         }
                         else if (providerMatches.Count > 0)
                         {
+                            <p class="small text-body-secondary mb-2">
+                                Pick a whole candidate, or mix and match — e.g. take the photo from one source and the
+                                biography from another.
+                            </p>
                             <div class="d-flex flex-column gap-2">
                                 @foreach (var match in providerMatches)
                                 {
-                                    bool isSelected = pendingMatchSelection is not null
-                                        && pendingMatchSelection.Provider == match.Provider
-                                        && pendingMatchSelection.ProviderId == match.ProviderId;
-                                    <button type="button"
-                                            class="btn text-start border @(isSelected ? "btn-primary" : "btn-outline-secondary")"
-                                            @onclick="() => SelectMatch(match)">
-                                        <div class="d-flex justify-content-between align-items-start gap-2">
-                                            <div class="d-flex align-items-start gap-2">
-                                                @if (!string.IsNullOrWhiteSpace(match.PhotoUrl))
-                                                {
-                                                    <div class="author-match-photo flex-shrink-0">
-                                                        <img src="@match.PhotoUrl" alt="Photo of @match.Name"
-                                                             loading="lazy" referrerpolicy="no-referrer"
-                                                             onerror="this.classList.add('d-none');this.parentElement.classList.add('no-photo')" />
-                                                        <i class="bi bi-person placeholder-icon"></i>
-                                                    </div>
-                                                }
-                                                <div>
+                                    bool isPhoto = IsPhotoSource(match);
+                                    bool isBio = IsBioSource(match);
+                                    bool isSelected = isPhoto || isBio;
+                                    <div class="border rounded p-2 @(isSelected ? "border-primary" : null)">
+                                        <div class="d-flex align-items-start gap-2">
+                                            @if (!string.IsNullOrWhiteSpace(match.PhotoUrl))
+                                            {
+                                                <div class="author-match-photo flex-shrink-0">
+                                                    <img src="@match.PhotoUrl" alt="Photo of @match.Name"
+                                                         loading="lazy" referrerpolicy="no-referrer"
+                                                         onerror="this.classList.add('d-none');this.parentElement.classList.add('no-photo')" />
+                                                    <i class="bi bi-person placeholder-icon"></i>
+                                                </div>
+                                            }
+                                            <div class="flex-grow-1">
                                                 <div class="fw-semibold">
                                                     @match.Name
                                                     <span class="badge bg-info-subtle text-info-emphasis ms-1">@match.Provider</span>
@@ -131,22 +132,57 @@
                                                 {
                                                     <div class="small mt-1">@match.BioPreview</div>
                                                 }
+                                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                                    <button type="button"
+                                                            class="btn btn-sm @(isSelected ? "btn-primary" : "btn-outline-primary")"
+                                                            @onclick="() => SelectWholeMatch(match)"
+                                                            disabled="@(!match.HasBio && !match.HasPhoto)">
+                                                        Use this
+                                                    </button>
+                                                    <button type="button"
+                                                            class="btn btn-sm @(isPhoto ? "btn-success" : "btn-outline-secondary")"
+                                                            @onclick="() => SelectPhotoSource(match)"
+                                                            disabled="@(!match.HasPhoto)">
+                                                        <i class="bi bi-image"></i> @(isPhoto ? "Photo ✓" : "Use photo")
+                                                    </button>
+                                                    <button type="button"
+                                                            class="btn btn-sm @(isBio ? "btn-success" : "btn-outline-secondary")"
+                                                            @onclick="() => SelectBioSource(match)"
+                                                            disabled="@(!match.HasBio)">
+                                                        <i class="bi bi-card-text"></i> @(isBio ? "Bio ✓" : "Use bio")
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <span class="badge @(isSelected ? "bg-primary-subtle text-primary-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
-                                                @(isSelected ? "Selected" : "Select")
-                                            </span>
                                         </div>
-                                    </button>
+                                    </div>
                                 }
                             </div>
                         }
 
-                        @if (isAwaitingImportConfirmation && pendingMatchSelection is not null)
+                        @if (HasSelection)
+                        {
+                            <div class="alert alert-info mt-3 mb-0 py-2 small">
+                                <strong>Will import:</strong>
+                                Photo — @(photoSource is not null ? photoSource.Provider : "unchanged")
+                                · Biography — @(bioSource is not null ? bioSource.Provider : "unchanged")
+                            </div>
+                        }
+
+                        @if (isAwaitingImportConfirmation && HasSelection)
                         {
                             <div class="alert alert-warning mt-3 mb-0">
                                 <div class="fw-semibold mb-1">Are you sure?</div>
-                                <div class="small">This will import biography/photo for <strong>@AuthorName</strong> from the <strong>@pendingMatchSelection.Provider</strong> match <strong>@pendingMatchSelection.Name</strong>.</div>
+                                <div class="small">
+                                    This will import the selected biography/photo for <strong>@AuthorName</strong>
+                                    @if (bioSource is not null)
+                                    {
+                                        <text> (bio from <strong>@bioSource.Provider</strong>)</text>
+                                    }
+                                    @if (photoSource is not null)
+                                    {
+                                        <text> (photo from <strong>@photoSource.Provider</strong>)</text>
+                                    }.
+                                </div>
                             </div>
                         }
                     }
@@ -167,7 +203,7 @@
                     {
                         <button type="button"
                                 class="btn btn-primary"
-                                disabled="@(pendingMatchSelection is null)"
+                                disabled="@(!HasSelection)"
                                 @onclick="StartImportConfirmation">
                             Continue
                         </button>

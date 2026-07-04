@@ -71,6 +71,8 @@
         pdfRenderedPages: new Set(),
         pdfDotnetRef: null,
         pdfRenderQueue: Promise.resolve(),
+        /** @type {number|null} Page a bookmark asked to jump to before the PDF finished mounting. */
+        pendingPdfGoto: null,
         /** @type {number} Multiplier applied on top of fit-to-width pdf.js viewport scale. */
         pdfUserScale: 1,
         /** @type {function(): void|null} */
@@ -878,6 +880,67 @@
         });
     }
 
+    /**
+     * Give every not-yet-rendered page an estimated height so the scroll container has a stable
+     * total height *before* any page paints. Without this, pages above a bookmark/resume target
+     * are collapsed to ~0px while loading, so scrolling to page N lands in the wrong place and the
+     * position jumps around as earlier pages render in. Estimated from page 1's aspect ratio.
+     */
+    async function applyPdfPlaceholderHeights() {
+        if (!state.pdfDoc || !state.pdfContainer) return;
+        try {
+            var firstPage = await state.pdfDoc.getPage(1);
+            var vp = firstPage.getViewport({ scale: 1 });
+            var availableWidth = Math.max(32, state.pdfContainer.clientWidth - 32);
+            var availableHeight = Math.max(48, state.pdfContainer.clientHeight - 28);
+            var fitScale = Math.max(0.06, Math.min(availableWidth / vp.width, availableHeight / vp.height));
+            var estimated = Math.round(vp.height * fitScale * state.pdfUserScale);
+            if (estimated <= 0) return;
+            state.pdfPageElements.forEach(function (el) {
+                var pageNum = parseInt(el.dataset.page, 10);
+                if (!state.pdfRenderedPages.has(pageNum)) {
+                    el.style.minHeight = estimated + 'px';
+                }
+            });
+        } catch (err) {
+            // Non-fatal: navigation still works, it just may need the delayed re-align below.
+            console.warn('applyPdfPlaceholderHeights failed', err);
+        }
+    }
+
+    /**
+     * Scroll a page into view robustly, even while the document is still loading. Renders the target
+     * (plus neighbours) and re-aligns a few times as nearby pages finish painting and shift offsets,
+     * which is what previously made bookmark jumps miss while the book was loading.
+     */
+    function scrollToPdfPage(pageNumber, smooth) {
+        if (!pageNumber) return false;
+        // Called before the document finished mounting: remember it and apply once ready.
+        if (!state.pdfPageElements.size || !state.pdfDoc) {
+            state.pendingPdfGoto = pageNumber;
+            return false;
+        }
+        var clamped = Math.max(1, Math.min(state.pdfPageCount, pageNumber));
+        var el = state.pdfPageElements.get(clamped);
+        if (!el) return false;
+
+        renderPdfPage(clamped);
+        if (clamped + 1 <= state.pdfPageCount) renderPdfPage(clamped + 1);
+        if (clamped - 1 >= 1) renderPdfPage(clamped - 1);
+
+        el.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
+        state.pdfCurrentPage = clamped;
+
+        [120, 400, 800].forEach(function (delay) {
+            setTimeout(function () {
+                var target = state.pdfPageElements.get(clamped);
+                if (target) target.scrollIntoView({ block: 'start' });
+                schedulePdfScrollSync();
+            }, delay);
+        });
+        return true;
+    }
+
     function buildPdfPagePlaceholders() {
         state.pdfContainer.innerHTML = '';
         state.pdfPageElements.clear();
@@ -1230,6 +1293,7 @@
 
             state.pdfPageCount = state.pdfDoc.numPages;
             buildPdfPagePlaceholders();
+            await applyPdfPlaceholderHeights();
             setupPdfObserver();
 
             if (state.pdfScrollListener && container) {
@@ -1240,11 +1304,13 @@
             };
             container.addEventListener('scroll', state.pdfScrollListener, { passive: true });
 
-            if (resumePage && resumePage > 1 && resumePage <= state.pdfPageCount) {
-                // Wait a tick so the placeholders have been laid out before scrollIntoView.
+            // A bookmark clicked before the mount finished is queued in pendingPdfGoto; it takes
+            // precedence over the resume position so the jump the user asked for still happens.
+            var initialPage = state.pendingPdfGoto || resumePage;
+            state.pendingPdfGoto = null;
+            if (initialPage && initialPage > 1 && initialPage <= state.pdfPageCount) {
                 setTimeout(function () {
-                    var el = state.pdfPageElements.get(resumePage);
-                    if (el) el.scrollIntoView({ block: 'start' });
+                    scrollToPdfPage(initialPage, false);
                 }, 0);
             }
 
@@ -1268,16 +1334,7 @@
          * page is ready by the time the scroll lands.
          */
         gotoPdfPage: function (pageNumber) {
-            if (!state.pdfPageElements.size || !pageNumber) return false;
-            var clamped = Math.max(1, Math.min(state.pdfPageCount, pageNumber));
-            var el = state.pdfPageElements.get(clamped);
-            if (!el) return false;
-            renderPdfPage(clamped);
-            el.scrollIntoView({ block: 'start', behavior: 'smooth' });
-            setTimeout(function () {
-                schedulePdfScrollSync();
-            }, 450);
-            return true;
+            return scrollToPdfPage(pageNumber, true);
         },
 
         nextPdfPage: function () {
@@ -1354,6 +1411,7 @@
             state.pdfDotnetRef = null;
             state.pdfRenderQueue = Promise.resolve();
             state.pdfUserScale = 1;
+            state.pendingPdfGoto = null;
         },
     };
 })();

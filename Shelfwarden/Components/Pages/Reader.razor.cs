@@ -8,6 +8,10 @@ public partial class Reader : ComponentBase
     private BookDto? book;
     private string? bookmarkError;
     private bool jsMounted;
+    private int? expandedBookmarkId;
+    private string bookmarkNoteDraft = string.Empty;
+    private bool bookmarkNoteSaving;
+    private string? bookmarkNoteFlash;
 
     /// <summary>Tracks which <see cref="Id"/> we last loaded — client navigation between <c>/read/1</c> and <c>/read/2</c> reuses this component.</summary>
     private int lastHandledBookId = -1;
@@ -266,6 +270,47 @@ public partial class Reader : ComponentBase
         }
 
         showBookmarks = false;
+    }
+
+    private void ToggleBookmarkNotes(BookmarkDto bm)
+    {
+        bookmarkNoteFlash = null;
+        if (expandedBookmarkId == bm.Id)
+        {
+            expandedBookmarkId = null;
+            return;
+        }
+
+        expandedBookmarkId = bm.Id;
+        bookmarkNoteDraft = bm.Note ?? string.Empty;
+    }
+
+    private async Task SaveBookmarkNoteAsync(BookmarkDto bm)
+    {
+        bookmarkNoteSaving = true;
+        bookmarkNoteFlash = null;
+        try
+        {
+            var result = await BookmarkService.UpdateAsync(bm.Id, new UpdateBookmarkRequest
+            {
+                Title = bm.Title,
+                Note = bookmarkNoteDraft,
+            });
+
+            if (result.IsSuccess)
+            {
+                int index = bookmarks.FindIndex(b => b.Id == bm.Id);
+                if (index >= 0)
+                {
+                    bookmarks[index] = result.Value;
+                }
+                bookmarkNoteFlash = "Saved.";
+            }
+        }
+        finally
+        {
+            bookmarkNoteSaving = false;
+        }
     }
 
     private Task GoToFirstPageAsync() =>

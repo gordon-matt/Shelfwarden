@@ -92,22 +92,6 @@ else
                         </div>
 
                         <div class="mt-3">
-                            <label class="form-label d-block">Rating</label>
-                            <div class="d-flex align-items-center gap-2">
-                                <StarRating @bind-Value="form.Rating" />
-                                @if (form.Rating > 0)
-                                {
-                                    <span class="text-secondary small">@form.Rating / 5</span>
-                                    <button type="button" class="btn btn-sm btn-link p-0" @onclick="() => form.Rating = 0">Clear</button>
-                                }
-                                else
-                                {
-                                    <span class="text-secondary small">Not rated</span>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="mt-3">
                             <label class="form-label">Description</label>
                             <InputTextArea class="form-control" rows="6" @bind-Value="form.Description" />
                             <div class="form-text">HTML is rendered on the detail page.</div>

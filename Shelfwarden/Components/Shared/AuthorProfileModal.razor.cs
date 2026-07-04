@@ -18,7 +18,8 @@ public partial class AuthorProfileModal : ComponentBase
     private string manualName = string.Empty;
     private IReadOnlyList<ExternalAuthorMatchDto> providerMatches = [];
     private IReadOnlyList<string> providers = [];
-    private ExternalAuthorMatchDto? pendingMatchSelection;
+    private ExternalAuthorMatchDto? photoSource;
+    private ExternalAuthorMatchDto? bioSource;
     private string selectedProvider = AllProviders;
     private byte[]? selectedPhotoBytes;
     private string? selectedPhotoExtension;
@@ -66,9 +67,19 @@ public partial class AuthorProfileModal : ComponentBase
         authorMatchQuery = AuthorName;
         hasSearched = false;
         isAwaitingImportConfirmation = false;
-        pendingMatchSelection = null;
+        photoSource = null;
+        bioSource = null;
         providerMatches = [];
     }
+
+    private bool HasSelection => photoSource is not null || bioSource is not null;
+
+    private static bool SameMatch(ExternalAuthorMatchDto? a, ExternalAuthorMatchDto b)
+        => a is not null && a.Provider == b.Provider && a.ProviderId == b.ProviderId;
+
+    private bool IsPhotoSource(ExternalAuthorMatchDto m) => SameMatch(photoSource, m);
+
+    private bool IsBioSource(ExternalAuthorMatchDto m) => SameMatch(bioSource, m);
 
     private void CancelImportConfirmation() => isAwaitingImportConfirmation = false;
 
@@ -76,7 +87,7 @@ public partial class AuthorProfileModal : ComponentBase
 
     private async Task ConfirmImportAsync()
     {
-        if (pendingMatchSelection is null)
+        if (!HasSelection)
         {
             return;
         }
@@ -86,14 +97,15 @@ public partial class AuthorProfileModal : ComponentBase
         statusMessage = null;
         try
         {
-            var result = await AuthorService.ImportAuthorMetadataAsync(AuthorId, pendingMatchSelection);
+            var result = await AuthorService.ImportAuthorMetadataAsync(
+                AuthorId, new AuthorMetadataImportRequest(bioSource, photoSource));
             if (!result.IsSuccess)
             {
                 errorMessage = "Import failed. Please try a different match.";
                 return;
             }
 
-            statusMessage = $"Imported metadata from {pendingMatchSelection.Provider}.";
+            statusMessage = "Imported author metadata.";
             await OnSaved.InvokeAsync();
             await CloseAsync();
         }
@@ -158,7 +170,8 @@ public partial class AuthorProfileModal : ComponentBase
         statusMessage = null;
         hasSearched = true;
         isAwaitingImportConfirmation = false;
-        pendingMatchSelection = null;
+        photoSource = null;
+        bioSource = null;
 
         if (string.IsNullOrWhiteSpace(authorMatchQuery))
         {
@@ -195,9 +208,44 @@ public partial class AuthorProfileModal : ComponentBase
         }
     }
 
-    private void SelectMatch(ExternalAuthorMatchDto match)
+    /// <summary>Use this candidate for everything it provides (photo and/or bio).</summary>
+    private void SelectWholeMatch(ExternalAuthorMatchDto match)
     {
-        pendingMatchSelection = match;
+        if (match.HasPhoto)
+        {
+            photoSource = match;
+        }
+        if (match.HasBio)
+        {
+            bioSource = match;
+        }
+        ClearSelectionFeedback();
+    }
+
+    private void SelectPhotoSource(ExternalAuthorMatchDto match)
+    {
+        if (!match.HasPhoto)
+        {
+            return;
+        }
+
+        photoSource = IsPhotoSource(match) ? null : match;
+        ClearSelectionFeedback();
+    }
+
+    private void SelectBioSource(ExternalAuthorMatchDto match)
+    {
+        if (!match.HasBio)
+        {
+            return;
+        }
+
+        bioSource = IsBioSource(match) ? null : match;
+        ClearSelectionFeedback();
+    }
+
+    private void ClearSelectionFeedback()
+    {
         isAwaitingImportConfirmation = false;
         errorMessage = null;
         statusMessage = null;
@@ -223,7 +271,7 @@ public partial class AuthorProfileModal : ComponentBase
 
     private void StartImportConfirmation()
     {
-        if (pendingMatchSelection is null)
+        if (!HasSelection)
         {
             return;
         }

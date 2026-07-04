@@ -11,7 +11,7 @@ internal static class BookProjections
     /// Builds a <see cref="BookListItemDto"/> from a fully-hydrated <see cref="Book"/>.
     /// The caller is responsible for `.Include`-ing <c>Series</c> + <c>BookAuthors.Author</c>.
     /// </summary>
-    public static BookListItemDto ToListItem(Book b, double progressPercent) => new(
+    public static BookListItemDto ToListItem(Book b, double progressPercent, int? rating = null) => new(
         b.Id,
         b.Title,
         b.Subtitle,
@@ -25,7 +25,8 @@ internal static class BookProjections
         FileFormat: b.FileFormat,
         ProgressPercentage: progressPercent,
         SortTitle: b.SortTitle,
-        Description: b.Description);
+        Description: b.Description,
+        Rating: rating);
 
     public static async Task<Dictionary<int, double>> LoadProgressPercentagesAsync(
         IRepository<BookProgress> progressRepository,

@@ -131,6 +131,78 @@ public static class TextChunker
         }
     }
 
+    /// <summary>
+    /// Like <see cref="ChunkParagraphs"/> but treats the blocks as a <em>continuous</em> stream: when a
+    /// block does not end on sentence-terminating punctuation (typical of a PDF page that breaks
+    /// mid-sentence), its trailing partial sentence is carried over and joined to the start of the next
+    /// block, so the sentence is synthesised as one utterance instead of two with an unnatural pause in
+    /// between. Blocks that <em>do</em> end a sentence still terminate a chunk, preserving the natural
+    /// pause at genuine sentence / paragraph ends.
+    /// </summary>
+    public static IEnumerable<string> ChunkContinuous(IEnumerable<string> blocks, int maxChars = DefaultMaxChars)
+    {
+        string carry = string.Empty;
+
+        foreach (string block in blocks)
+        {
+            if (string.IsNullOrWhiteSpace(block))
+            {
+                continue;
+            }
+
+            string text = block.Trim();
+            if (carry.Length > 0)
+            {
+                text = $"{carry} {text}";
+                carry = string.Empty;
+            }
+
+            var sentences = SplitIntoSentences(text).ToList();
+            if (sentences.Count == 0)
+            {
+                continue;
+            }
+
+            // Hold back the final sentence when this block stops mid-sentence, so the next block can
+            // complete it. Everything before it is safe to emit now.
+            if (!EndsWithSentenceTerminator(text))
+            {
+                carry = sentences[^1];
+                sentences.RemoveAt(sentences.Count - 1);
+            }
+
+            foreach (string chunk in BuildChunks(sentences, maxChars))
+            {
+                yield return chunk;
+            }
+        }
+
+        if (carry.Length > 0)
+        {
+            foreach (string chunk in BuildChunks(SplitIntoSentences(carry), maxChars))
+            {
+                yield return chunk;
+            }
+        }
+    }
+
+    /// <summary>True if the last visible character is sentence-ending punctuation (ignoring trailing quotes / brackets).</summary>
+    private static bool EndsWithSentenceTerminator(string text)
+    {
+        for (int i = text.Length - 1; i >= 0; i--)
+        {
+            char c = text[i];
+            if (char.IsWhiteSpace(c) || c is '"' or '\'' or '”' or '’' or ')' or ']')
+            {
+                continue;
+            }
+
+            return c is '.' or '!' or '?' or '。' or '！' or '？' or '…';
+        }
+
+        return false;
+    }
+
     private static IEnumerable<string> HardSplit(string sentence, int maxChars)
     {
         // Walk the sentence word-by-word, packing as many as fit before emitting. The result
