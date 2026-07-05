@@ -67,11 +67,17 @@
                     </button>
                 </div>
 
+                @* Icon + "active" look are driven entirely by CSS off the ancestor `.reader-dark`
+                   class (see site.css) instead of a Blazor-tracked bool — that class is already
+                   applied pre-paint by theme-init.js, so this button never needs a JS round-trip
+                   + re-render on mount just to know which icon to show (that extra render was a
+                   source of visible flicker on mobile). *@
                 <button type="button"
-                        class="btn btn-sm btn-outline-secondary @(readerDarkMode ? "active" : null)"
+                        class="btn btn-sm btn-outline-secondary reader-dark-toggle"
                         @onclick="ToggleReaderDarkModeAsync"
-                        title="@(readerDarkMode ? "Switch to light mode" : "Switch to dark mode")">
-                    <i class="bi @(readerDarkMode ? "bi-sun" : "bi-moon-stars")"></i>
+                        title="Toggle reader dark mode">
+                    <i class="bi bi-moon-stars reader-dark-toggle-icon-off"></i>
+                    <i class="bi bi-sun reader-dark-toggle-icon-on"></i>
                 </button>
             }
 

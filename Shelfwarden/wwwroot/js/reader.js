@@ -1379,6 +1379,11 @@
             setReaderDarkMode(!!on);
         },
 
+        /** Flip dark mode without a Blazor round-trip — the button's icon/style react via CSS off `.reader-dark`. */
+        toggleDarkMode: function () {
+            setReaderDarkMode(!readReaderDarkMode());
+        },
+
         disposePdf: function () {
             if (pdfProgressTimer) { clearTimeout(pdfProgressTimer); pdfProgressTimer = null; }
             if (pdfScrollSyncTimer) {

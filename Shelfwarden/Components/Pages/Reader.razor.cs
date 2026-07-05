@@ -22,8 +22,6 @@ public partial class Reader : ComponentBase
     private int pdfCurrentPage = 1;
     private int pdfPageCount;
     private double? progressPercent;
-    private bool readerDarkMode;
-    private bool readerDarkModeLoaded;
     private DotNetObjectReference<Reader>? selfRef;
     private bool showBookmarks;
     [Parameter] public int Id { get; set; }
@@ -72,19 +70,6 @@ public partial class Reader : ComponentBase
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!readerDarkModeLoaded)
-        {
-            try
-            {
-                readerDarkMode = await JS.InvokeAsync<bool>("shelfwardenReader.getDarkMode");
-                readerDarkModeLoaded = true;
-                await InvokeAsync(StateHasChanged);
-            }
-            catch (Exception ex) when (IsBenignJsInteropFailure(ex))
-            {
-            }
-        }
-
         if (book is null || jsMounted)
         {
             return;
@@ -454,11 +439,12 @@ public partial class Reader : ComponentBase
 
     private void ToggleBookmarks() => showBookmarks = !showBookmarks;
 
-    private async Task ToggleReaderDarkModeAsync()
-    {
-        readerDarkMode = !readerDarkMode;
-        await InvokeReaderAsync("setDarkMode", readerDarkMode);
-    }
+    /// <summary>
+    /// Toggling is handled entirely on the JS side (reads/flips/writes localStorage + the
+    /// `reader-dark` class on &lt;html&gt;) so there's no Blazor state to fetch on mount or
+    /// re-render after — see the comment on the button in Reader.razor.
+    /// </summary>
+    private Task ToggleReaderDarkModeAsync() => InvokeReaderAsync("toggleDarkMode");
 
     private Task ZoomInAsync() => InvokeReaderAsync("zoomIn");
 

@@ -975,6 +975,27 @@ a.stat-card-link {
         --bs-btn-active-border-color: #636366;
     }
 
+/* Dark-mode toggle button in the reader toolbar: which icon shows and whether it looks "active"
+   is derived purely from the `.reader-dark` ancestor class (see above) instead of a Blazor bool,
+   so toggling never needs a JS round-trip + component re-render — see Reader.razor. */
+.reader-dark-toggle-icon-on {
+    display: none;
+}
+
+.reader-dark .reader-dark-toggle-icon-off {
+    display: none;
+}
+
+.reader-dark .reader-dark-toggle-icon-on {
+    display: inline;
+}
+
+.reader-dark .reader-dark-toggle {
+    color: var(--bs-btn-hover-color, #fff);
+    background-color: var(--bs-btn-active-bg, #636366);
+    border-color: var(--bs-btn-active-border-color, #636366);
+}
+
 /* Star rating widget (Components/Shared/StarRating.razor). Amber uses the theme's warning colour so
    it tracks Bootswatch swaps; empty stars use the muted border colour. */
 .star-rating {

@@ -9,7 +9,7 @@ public partial class CollectionDetail : ComponentBase
     private CollectionDetailDto? collection;
     private bool editing;
     private EditModel editModel = new();
-    private bool isAdministrator => isAdministrator;
+    private bool isAdministrator => UserContext.IsAdministrator();
     private bool loading = true;
     private bool savingEdit;
     private CancellationTokenSource? searchCts;
