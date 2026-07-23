@@ -79,3 +79,40 @@ See [CONTEXT.md](./CONTEXT.md). Briefly:
 - `Shelfwarden.Services` — business logic
 - `Shelfwarden.Desktop` — ElectronNET wrapper
 - `Shelfwarden.Tests` — xUnit tests
+
+---
+
+## Did I use AI for this?
+
+Yes—shamelessly. Without AI, this project would not exist. It is something I have wanted to build for years but never had the time. Life is busy: work, family, and everything in between. I am a senior developer and have been coding since the mid-2000s—I know what good code looks like and I know what sloppy code looks like. So yes: I used AI as a **productivity tool**, but the **architecture and decisions are mine**, and I am the one maintaining it.
+
+## Support
+
+If you find this project useful, consider supporting its development.
+
+<p align="center">
+  <a href="https://buymeacoffee.com/vnmatt">
+    <img src="https://github.com/gordon-matt/MyResume/blob/gh-pages/assets/images/BuyMeACoffee_Logo.png"
+         alt="Buy Me a Coffee"
+         height="40">
+  </a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=gordon_matt%40live%2ecom&lc=AU&currency_code=AUD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted">
+    <img src="https://github.com/gordon-matt/MyResume/blob/gh-pages/assets/images/PayPal_Logo.png"
+         alt="Donate with PayPal"
+         height="40">
+  </a>
+</p>
+
+<p align="center">
+  Prefer using your phone? Scan the QR code:
+</p>
+
+<p align="center">
+  <a href="https://buymeacoffee.com/vnmatt">
+    <img src="https://github.com/gordon-matt/MyResume/blob/gh-pages/assets/images/BuyMeACoffee_QR.png"
+         alt="Buy Me a Coffee QR Code"
+         width="180">
+  </a>
+</p>
+
+<img src="https://komarev.com/ghpvc/?username=gordon-matt&label=GitHub%20Hits%20Since%202025-06-01%3A%20&color=ff0000&style=flat" alt="gordon-matt" />
