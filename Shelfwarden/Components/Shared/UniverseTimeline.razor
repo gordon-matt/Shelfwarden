@@ -1,6 +1,6 @@
 @* Read-only "poster" view of a universe timeline: a matrix of series lanes (rows) against the
-   universe's timeline dates (columns), so each series' books sit in its own lane at the date
-   they happen. Position comes from the dates' order alone — the text is never parsed. *@
+   universe's timeline dates (columns). Each lane draws a colourful bar across the dates it
+   occupies, with that date's books as a horizontal strip underneath. *@
 <div class="universe-timeline">
     <div class="universe-timeline-scroll">
         <div class="universe-timeline-grid" style="--tl-columns: @Groups.Count;">
@@ -15,37 +15,54 @@
 
             @foreach (var row in Rows)
             {
+                var (spanStart, spanEnd) = OccupiedRange(row);
+
                 <div class="universe-timeline-lane" style="--tl-colour: @RowColour(row)">
                     <span class="universe-timeline-lane-swatch"></span>
                     <span class="universe-timeline-lane-label text-truncate" title="@row.Label">@row.Label</span>
                 </div>
 
-                @foreach (var cell in row.Cells)
+                @for (int ci = 0; ci < row.Cells.Count; ci++)
                 {
-                    <div class="universe-timeline-cell @(cell.Entries.Count == 0 ? "is-empty" : null)"
-                         style="--tl-colour: @RowColour(row)">
-                        @foreach (var entry in cell.Entries)
+                    var cell = row.Cells[ci];
+                    bool inSpan = spanStart >= 0 && ci >= spanStart && ci <= spanEnd;
+                    string cellClass = "universe-timeline-cell"
+                        + (cell.Entries.Count == 0 ? " is-empty" : string.Empty)
+                        + (inSpan ? " is-span" : " is-rail")
+                        + (ci == spanStart ? " is-span-start" : string.Empty)
+                        + (ci == spanEnd ? " is-span-end" : string.Empty)
+                        + (ci == 0 ? " is-first-col" : string.Empty)
+                        + (ci == row.Cells.Count - 1 ? " is-last-col" : string.Empty);
+
+                    <div class="@cellClass" style="--tl-colour: @RowColour(row)">
+                        <div class="universe-timeline-cell-bar"></div>
+                        @if (cell.Entries.Count > 0)
                         {
-                            <a class="universe-timeline-card" href="@($"books/{entry.Book.Id}")" title="@entry.Book.Title">
-                                <div class="universe-timeline-cover">
-                                    @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
-                                    {
-                                        <img src="@($"covers/{entry.Book.Id}")" alt="@entry.Book.Title" loading="lazy" />
-                                    }
-                                    else
-                                    {
-                                        <i class="bi bi-book"></i>
-                                    }
-                                    @if (entry.Book.ProgressPercentage > 0)
-                                    {
-                                        <div class="universe-timeline-progress" role="progressbar"
-                                             aria-valuenow="@entry.Book.ProgressPercentage" aria-valuemin="0" aria-valuemax="100">
-                                            <div class="bar" style="width: @($"{(entry.Book.ProgressPercentage):0}%")"></div>
+                            <div class="universe-timeline-cell-books">
+                                @foreach (var entry in cell.Entries)
+                                {
+                                    <a class="universe-timeline-card" href="@($"books/{entry.Book.Id}")" title="@entry.Book.Title">
+                                        <div class="universe-timeline-cover">
+                                            @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
+                                            {
+                                                <img src="@($"covers/{entry.Book.Id}")" alt="@entry.Book.Title" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-book"></i>
+                                            }
+                                            @if (entry.Book.ProgressPercentage > 0)
+                                            {
+                                                <div class="universe-timeline-progress" role="progressbar"
+                                                     aria-valuenow="@entry.Book.ProgressPercentage" aria-valuemin="0" aria-valuemax="100">
+                                                    <div class="bar" style="width: @($"{(entry.Book.ProgressPercentage):0}%")"></div>
+                                                </div>
+                                            }
                                         </div>
-                                    }
-                                </div>
-                                <div class="universe-timeline-title">@entry.Book.Title</div>
-                            </a>
+                                        <div class="universe-timeline-title">@entry.Book.Title</div>
+                                    </a>
+                                }
+                            </div>
                         }
                     </div>
                 }

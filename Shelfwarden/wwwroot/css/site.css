@@ -1147,9 +1147,8 @@ ol.reading-list {
 }
 
 /* Universe timeline — read-only "poster" mode: a matrix of series lanes (rows) against the
-   universe's dates (columns), so each series' books stay in its own lane at the date they
-   happen. The dates are free text and hand-ordered, so the columns are evenly spaced rather
-   than scaled to any parsed value. */
+   universe's dates (columns). Each lane draws a colourful Gantt-style bar across the dates it
+   occupies, with that date's books as a horizontal scrolling strip underneath. */
 .universe-timeline {
     background-color: var(--bs-tertiary-bg);
     border: 1px solid var(--bs-border-color);
@@ -1163,10 +1162,11 @@ ol.reading-list {
 
 .universe-timeline-grid {
     display: grid;
-    grid-template-columns: 11rem repeat(var(--tl-columns), minmax(7.5rem, 1fr));
-    gap: 0.5rem 0.75rem;
+    grid-template-columns: 11rem repeat(var(--tl-columns), minmax(8.5rem, 1fr));
+    column-gap: 0.75rem;
+    row-gap: 1rem;
     min-width: min-content;
-    align-items: stretch;
+    align-items: start;
 }
 
 .universe-timeline-corner {
@@ -1213,6 +1213,8 @@ ol.reading-list {
     align-items: center;
     gap: 0.4rem;
     padding-right: 0.5rem;
+    /* Align with the bar row rather than the covers below it. */
+    padding-top: 0.35rem;
     background-color: var(--bs-tertiary-bg);
     font-size: 0.8125rem;
     font-weight: 600;
@@ -1231,28 +1233,75 @@ ol.reading-list {
     min-width: 0;
 }
 
-/* Empty cells keep a faint rail so a lane reads as one continuous thread across the timeline. */
 .universe-timeline-cell {
     position: relative;
     display: flex;
-    flex-wrap: wrap;
-    align-content: start;
-    justify-content: center;
+    flex-direction: column;
     gap: 0.5rem;
-    padding: 0.35rem 0;
     min-width: 0;
 }
 
-    .universe-timeline-cell.is-empty::before {
-        content: "";
-        position: absolute;
-        left: -0.75rem;
-        right: -0.75rem;
-        top: 50%;
-        border-top: 2px dotted var(--bs-border-color);
-    }
+/* Continuous rail / colourful bar. Negative margins eat the grid's column-gap so adjacent
+   segments read as one bar; the span's ends keep their rounded caps. */
+.universe-timeline-cell-bar {
+    height: 1.75rem;
+    background-color: var(--bs-secondary-bg);
+    border-radius: 0;
+}
 
-.universe-timeline-cell .universe-timeline-card {
+.universe-timeline-cell.is-span .universe-timeline-cell-bar {
+    background-color: var(--tl-colour);
+    margin-left: -0.375rem;
+    margin-right: -0.375rem;
+}
+
+.universe-timeline-cell.is-span-start .universe-timeline-cell-bar {
+    margin-left: 0;
+    border-top-left-radius: 999px;
+    border-bottom-left-radius: 999px;
+}
+
+.universe-timeline-cell.is-span-end .universe-timeline-cell-bar {
+    margin-right: 0;
+    border-top-right-radius: 999px;
+    border-bottom-right-radius: 999px;
+}
+
+.universe-timeline-cell.is-span-start.is-span-end .universe-timeline-cell-bar {
+    border-radius: 999px;
+}
+
+/* Outside the series' date range the faint rail still bridges the gap so empty lanes don't look
+   broken, just quieter. */
+.universe-timeline-cell.is-rail .universe-timeline-cell-bar {
+    margin-left: -0.375rem;
+    margin-right: -0.375rem;
+}
+
+.universe-timeline-cell.is-first-col .universe-timeline-cell-bar {
+    margin-left: 0;
+    border-top-left-radius: 999px;
+    border-bottom-left-radius: 999px;
+}
+
+.universe-timeline-cell.is-last-col .universe-timeline-cell-bar {
+    margin-right: 0;
+    border-top-right-radius: 999px;
+    border-bottom-right-radius: 999px;
+}
+
+/* Books stay in a single horizontal strip — wrap was stacking them vertically inside a cell. */
+.universe-timeline-cell-books {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+    scrollbar-width: thin;
+}
+
+.universe-timeline-cell-books .universe-timeline-card {
+    flex: 0 0 auto;
     width: 5.25rem;
 }
 

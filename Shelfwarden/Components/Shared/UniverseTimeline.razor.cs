@@ -5,8 +5,10 @@ namespace Shelfwarden.Components.Shared;
 /// "Edit timeline" toggle so this view can stay a clean poster rather than a form.
 /// <para>
 /// Rendered as a matrix: one column per timeline date (plus a trailing "Unscheduled" column while
-/// anything still needs placing) and one row per series (plus a shared "Standalone" lane), so a
-/// series' books stay in that series' lane instead of being pooled into one strip.
+/// anything still needs placing) and one row per series (plus a shared "Standalone" lane). Each
+/// lane draws a colourful spanning bar across the dates it occupies, with that date's books as a
+/// horizontal strip underneath — so covers stay under their series instead of pooling into one
+/// strip, without stacking vertically inside a cell.
 /// </para>
 /// </summary>
 public partial class UniverseTimeline : ComponentBase
@@ -22,6 +24,34 @@ public partial class UniverseTimeline : ComponentBase
 
     private static string RowColour(UniverseTimelineRowDto row) =>
         row.SeriesId is null ? NoSeriesColour : ColourFor(row.Label);
+
+    /// <summary>
+    /// Inclusive range of columns that carry at least one book for this lane. Used to draw the
+    /// colourful spanning bar the way the old Gantt view did — empty columns outside the range
+    /// stay a faint rail, empty columns inside stay coloured so the bar reads as continuous.
+    /// </summary>
+    private static (int Start, int End) OccupiedRange(UniverseTimelineRowDto row)
+    {
+        int start = -1;
+        int end = -1;
+
+        for (int i = 0; i < row.Cells.Count; i++)
+        {
+            if (row.Cells[i].Entries.Count == 0)
+            {
+                continue;
+            }
+
+            if (start < 0)
+            {
+                start = i;
+            }
+
+            end = i;
+        }
+
+        return (start, end);
+    }
 
     /// <summary>
     /// Derives a stable colour from the series name so the same series keeps its colour across
