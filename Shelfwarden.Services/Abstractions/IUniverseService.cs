@@ -35,8 +35,9 @@ public interface IUniverseService
     Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Appends books to the universe timeline. Books already in the universe are skipped, so
-    /// repeated calls can't produce duplicate <see cref="UniverseBook"/> rows.
+    /// Adds books to the universe. They arrive unscheduled — assigning them a
+    /// <see cref="TimelineDate"/> is a separate, deliberate step. Books already in the universe
+    /// are skipped, so repeated calls can't produce duplicate <see cref="UniverseBook"/> rows.
     /// </summary>
     /// <returns>Number of books actually added.</returns>
     Task<Result<int>> AddBooksAsync(int universeId, IReadOnlyCollection<int> bookIds, CancellationToken cancellationToken = default);
@@ -44,14 +45,48 @@ public interface IUniverseService
     /// <summary>Removes the membership row only — the book itself is untouched.</summary>
     Task<Result> RemoveBookAsync(int universeId, int bookId, CancellationToken cancellationToken = default);
 
-    /// <summary>Sets the descriptive in-universe date. Never affects ordering.</summary>
-    Task<Result> SetTimelineDateAsync(int universeId, int bookId, string? timelineDate, CancellationToken cancellationToken = default);
+    /// <summary>The universe's timeline dates, in timeline order. Feeds the date dropdowns.</summary>
+    Task<Result<IReadOnlyList<UniverseTimelineDateDto>>> ListTimelineDatesAsync(int universeId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Re-applies <see cref="UniverseBook.TimelineOrder"/> so it matches the supplied id order
-    /// (UniverseBook id → new order). Ids not in the universe are ignored.
+    /// Adds a date to the end of the universe's timeline. Dates are free text and never parsed;
+    /// re-using text that already exists in the universe is rejected, since two identical dates
+    /// would be indistinguishable in every dropdown.
     /// </summary>
-    Task<Result> ReorderTimelineAsync(int universeId, IReadOnlyList<int> orderedUniverseBookIds, CancellationToken cancellationToken = default);
+    Task<Result<UniverseTimelineDateDto>> CreateTimelineDateAsync(int universeId, string date, CancellationToken cancellationToken = default);
+
+    /// <summary>Renames a timeline date. Every book on it follows automatically.</summary>
+    Task<Result<UniverseTimelineDateDto>> RenameTimelineDateAsync(int timelineDateId, string date, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a timeline date. Books sitting on it aren't removed from the universe — they go
+    /// back to being unscheduled.
+    /// </summary>
+    Task<Result> DeleteTimelineDateAsync(int timelineDateId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Re-applies timeline order to match the supplied <see cref="TimelineDate"/> id order. Ids
+    /// not belonging to the universe are ignored; dates the caller left out keep their relative
+    /// order at the end.
+    /// </summary>
+    Task<Result> ReorderTimelineDatesAsync(int universeId, IReadOnlyList<int> orderedTimelineDateIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moves a book onto a timeline date, or back to unscheduled when
+    /// <paramref name="timelineDateId"/> is null. It lands at the end of its new date's books.
+    /// </summary>
+    Task<Result> SetBookTimelineDateAsync(int universeId, int bookId, int? timelineDateId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reorders the books sharing one timeline date (or the unscheduled bucket, when
+    /// <paramref name="timelineDateId"/> is null) to match the supplied
+    /// <see cref="UniverseBook"/> id order. Ids on any other date are ignored.
+    /// </summary>
+    Task<Result> ReorderTimelineGroupAsync(
+        int universeId,
+        int? timelineDateId,
+        IReadOnlyList<int> orderedUniverseBookIds,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Reads the universe a book belongs to, or null when it isn't in one.</summary>
     Task<Result<UniverseMembershipDto?>> GetBookMembershipAsync(int bookId, CancellationToken cancellationToken = default);
@@ -60,7 +95,7 @@ public interface IUniverseService
     /// Puts a book in a universe (or moves / removes it when <paramref name="universeId"/> changes
     /// or is null). Used by the book edit page, which only ever deals with one membership.
     /// </summary>
-    Task<Result> SetBookMembershipAsync(int bookId, int? universeId, string? timelineDate, CancellationToken cancellationToken = default);
+    Task<Result> SetBookMembershipAsync(int bookId, int? universeId, int? timelineDateId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Assigns (or clears, when <paramref name="universeId"/> is null) the series' universe.

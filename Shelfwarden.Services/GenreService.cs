@@ -65,11 +65,11 @@ public class GenreService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToLowerInvariant();
+        string normalized = trimmed.ToLowerInvariant();
 
         var existing = await genreRepository.FindOneAsync(new SearchOptions<Genre>
         {
-            Query = g => g.NormalizedName == normalised,
+            Query = g => g.NormalizedName == normalized,
         });
 
         if (existing is not null)
@@ -80,7 +80,7 @@ public class GenreService(
         var created = await genreRepository.InsertAsync(new Genre
         {
             Name = trimmed,
-            NormalizedName = normalised,
+            NormalizedName = normalized,
         });
 
         return Result.Success(new GenreDto(created.Id, created.Name));
@@ -99,11 +99,11 @@ public class GenreService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToLowerInvariant();
+        string normalized = trimmed.ToLowerInvariant();
 
         var existing = await genreRepository.FindOneAsync(new SearchOptions<Genre>
         {
-            Query = g => g.NormalizedName == normalised,
+            Query = g => g.NormalizedName == normalized,
             CancellationToken = cancellationToken,
         });
         if (existing is not null)
@@ -114,7 +114,7 @@ public class GenreService(
         var created = await genreRepository.InsertAsync(new Genre
         {
             Name = trimmed,
-            NormalizedName = normalised,
+            NormalizedName = normalized,
         });
 
         return Result.Success(new GenreDto(created.Id, created.Name));
@@ -133,7 +133,7 @@ public class GenreService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToLowerInvariant();
+        string normalized = trimmed.ToLowerInvariant();
 
         var entity = await genreRepository.FindOneAsync(new SearchOptions<Genre>
         {
@@ -147,7 +147,7 @@ public class GenreService(
 
         var clash = await genreRepository.FindOneAsync(new SearchOptions<Genre>
         {
-            Query = g => g.NormalizedName == normalised && g.Id != id,
+            Query = g => g.NormalizedName == normalized && g.Id != id,
             CancellationToken = cancellationToken,
         });
         if (clash is not null)
@@ -156,7 +156,7 @@ public class GenreService(
         }
 
         entity.Name = trimmed;
-        entity.NormalizedName = normalised;
+        entity.NormalizedName = normalized;
         var updated = await genreRepository.UpdateAsync(entity);
         return Result.Success(new GenreDto(updated.Id, updated.Name));
     }

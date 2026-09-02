@@ -3,7 +3,7 @@ using Shelfwarden.Models.Metadata;
 namespace Shelfwarden.Services.Metadata;
 
 /// <summary>
-/// Normalised inputs for a single provider query. Mirrors Calibre's
+/// Normalized inputs for a single provider query. Mirrors Calibre's
 /// <c>identify(title, authors, identifiers)</c> contract: an ISBN search is preferred when present,
 /// otherwise a title (+ optional author) search is used.
 /// </summary>

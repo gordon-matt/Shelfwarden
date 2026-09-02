@@ -709,13 +709,13 @@ public class AdditionalContentService(
         IReadOnlyList<string> tagNames,
         CancellationToken cancellationToken)
     {
-        var normalised = tagNames
+        var normalized = tagNames
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .Select(t => t.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var lookup = normalised.Select(n => n.ToLowerInvariant()).ToList();
+        var lookup = normalized.Select(n => n.ToLowerInvariant()).ToList();
         var existingTags = (await additionalContentTagRepository.FindAsync(new SearchOptions<AdditionalContentTag>
         {
             Query = t => lookup.Contains(t.NormalizedName),
@@ -725,7 +725,7 @@ public class AdditionalContentService(
         var byNormalized = existingTags.ToDictionary(t => t.NormalizedName, StringComparer.OrdinalIgnoreCase);
 
         var toCreate = new List<AdditionalContentTag>();
-        foreach (string name in normalised)
+        foreach (string name in normalized)
         {
             string key = name.ToLowerInvariant();
             if (!byNormalized.ContainsKey(key))
@@ -751,7 +751,7 @@ public class AdditionalContentService(
             CancellationToken = cancellationToken,
         })).ToList();
 
-        var desiredTagIds = normalised
+        var desiredTagIds = normalized
             .Select(n => byNormalized[n.ToLowerInvariant()].Id)
             .ToHashSet();
 

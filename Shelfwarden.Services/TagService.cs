@@ -38,11 +38,11 @@ public class TagService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToLowerInvariant();
+        string normalized = trimmed.ToLowerInvariant();
 
         var existing = await tagRepository.FindOneAsync(new SearchOptions<Tag>
         {
-            Query = t => t.NormalizedName == normalised,
+            Query = t => t.NormalizedName == normalized,
             CancellationToken = cancellationToken,
         });
         if (existing is not null)
@@ -53,7 +53,7 @@ public class TagService(
         var created = await tagRepository.InsertAsync(new Tag
         {
             Name = trimmed,
-            NormalizedName = normalised,
+            NormalizedName = normalized,
         });
 
         return Result.Success(new TagDto(created.Id, created.Name));
@@ -72,7 +72,7 @@ public class TagService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToLowerInvariant();
+        string normalized = trimmed.ToLowerInvariant();
 
         var entity = await tagRepository.FindOneAsync(new SearchOptions<Tag>
         {
@@ -86,7 +86,7 @@ public class TagService(
 
         var clash = await tagRepository.FindOneAsync(new SearchOptions<Tag>
         {
-            Query = t => t.NormalizedName == normalised && t.Id != id,
+            Query = t => t.NormalizedName == normalized && t.Id != id,
             CancellationToken = cancellationToken,
         });
         if (clash is not null)
@@ -95,7 +95,7 @@ public class TagService(
         }
 
         entity.Name = trimmed;
-        entity.NormalizedName = normalised;
+        entity.NormalizedName = normalized;
         var updated = await tagRepository.UpdateAsync(entity);
         return Result.Success(new TagDto(updated.Id, updated.Name));
     }

@@ -614,14 +614,14 @@ public class BookService(
 
     private async Task SyncBookTagsAsync(int bookId, IReadOnlyList<string> tagNames)
     {
-        var normalised = tagNames
+        var normalized = tagNames
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .Select(t => t.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // Resolve / create tags by normalised name.
-        var lookup = normalised.Select(n => n.ToLowerInvariant()).ToList();
+        // Resolve / create tags by normalized name.
+        var lookup = normalized.Select(n => n.ToLowerInvariant()).ToList();
         var existingTags = (await tagRepository.FindAsync(new SearchOptions<Tag>
         {
             Query = t => lookup.Contains(t.NormalizedName),
@@ -630,7 +630,7 @@ public class BookService(
         var byNormalized = existingTags.ToDictionary(t => t.NormalizedName, StringComparer.OrdinalIgnoreCase);
 
         var toCreate = new List<Tag>();
-        foreach (string? name in normalised)
+        foreach (string? name in normalized)
         {
             if (!byNormalized.ContainsKey(name.ToLowerInvariant()))
             {
@@ -652,7 +652,7 @@ public class BookService(
             Query = bt => bt.BookId == bookId,
         })).ToList();
 
-        var desiredTagIds = normalised
+        var desiredTagIds = normalized
             .Select(n => byNormalized[n.ToLowerInvariant()].Id)
             .ToHashSet();
 

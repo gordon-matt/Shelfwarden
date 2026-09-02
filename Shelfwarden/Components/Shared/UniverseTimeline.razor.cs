@@ -3,21 +3,25 @@ namespace Shelfwarden.Components.Shared;
 /// <summary>
 /// The presentation half of a universe timeline. Editing lives on the universe page behind an
 /// "Edit timeline" toggle so this view can stay a clean poster rather than a form.
+/// <para>
+/// Rendered as a matrix: one column per timeline date (plus a trailing "Unscheduled" column while
+/// anything still needs placing) and one row per series (plus a shared "Standalone" lane), so a
+/// series' books stay in that series' lane instead of being pooled into one strip.
+/// </para>
 /// </summary>
 public partial class UniverseTimeline : ComponentBase
 {
     private const string NoSeriesColour = "hsl(210 8% 55%)";
 
+    /// <summary>The timeline's columns, in order. Every row's cells line up one-to-one with these.</summary>
     [Parameter, EditorRequired]
-    public IReadOnlyList<UniverseTimelineEntryDto> Entries { get; set; } = [];
+    public IReadOnlyList<UniverseTimelineGroupDto> Groups { get; set; } = [];
 
-    /// <summary>Series present on the timeline with the colour used for their entries.</summary>
-    private List<(string Name, string Colour)> Legend => Entries
-        .Select(e => e.Book.SeriesName)
-        .Where(name => !string.IsNullOrWhiteSpace(name))
-        .Distinct()
-        .Select(name => (Name: name!, Colour: ColourFor(name)))
-        .ToList();
+    [Parameter, EditorRequired]
+    public IReadOnlyList<UniverseTimelineRowDto> Rows { get; set; } = [];
+
+    private static string RowColour(UniverseTimelineRowDto row) =>
+        row.SeriesId is null ? NoSeriesColour : ColourFor(row.Label);
 
     /// <summary>
     /// Derives a stable colour from the series name so the same series keeps its colour across

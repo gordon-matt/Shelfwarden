@@ -4,6 +4,7 @@ public class UniverseService(
     IUserContextService userContext,
     IRepository<Universe> universeRepository,
     IRepository<UniverseBook> universeBookRepository,
+    IRepository<TimelineDate> timelineDateRepository,
     IRepository<Series> seriesRepository,
     IRepository<Book> bookRepository,
     IRepository<ReadingList> readingListRepository,
@@ -38,7 +39,10 @@ public class UniverseService(
             new SearchOptions<UniverseBook>
             {
                 Query = ub => ids.Contains(ub.UniverseId),
-                OrderBy = q => q.OrderBy(ub => ub.TimelineOrder),
+                OrderBy = q => q
+                    .OrderBy(ub => ub.TimelineDateId == null)
+                    .ThenBy(ub => ub.TimelineDate!.Order)
+                    .ThenBy(ub => ub.Order),
                 CancellationToken = cancellationToken,
             },
             ub => new { ub.UniverseId, ub.BookId, ub.Book.CoverImagePath })).ToList();
@@ -159,11 +163,11 @@ public class UniverseService(
         }
 
         string trimmed = request.Name.Trim();
-        string normalised = Normalise(trimmed);
+        string normalized = Normalize(trimmed);
 
         var clash = await universeRepository.FindOneAsync(new SearchOptions<Universe>
         {
-            Query = u => u.NormalizedName == normalised,
+            Query = u => u.NormalizedName == normalized,
             CancellationToken = cancellationToken,
         });
         if (clash is not null)
@@ -174,7 +178,7 @@ public class UniverseService(
         var inserted = await universeRepository.InsertAsync(new Universe
         {
             Name = trimmed,
-            NormalizedName = normalised,
+            NormalizedName = normalized,
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
             CreatedAt = DateTime.UtcNow,
         });
@@ -205,11 +209,11 @@ public class UniverseService(
         }
 
         string trimmed = request.Name.Trim();
-        string normalised = Normalise(trimmed);
+        string normalized = Normalize(trimmed);
 
         var clash = await universeRepository.FindOneAsync(new SearchOptions<Universe>
         {
-            Query = u => u.NormalizedName == normalised && u.Id != id,
+            Query = u => u.NormalizedName == normalized && u.Id != id,
             CancellationToken = cancellationToken,
         });
         if (clash is not null)
@@ -218,7 +222,7 @@ public class UniverseService(
         }
 
         universe.Name = trimmed;
-        universe.NormalizedName = normalised;
+        universe.NormalizedName = normalized;
         universe.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
 
         var updated = await universeRepository.UpdateAsync(universe);
@@ -255,6 +259,7 @@ public class UniverseService(
             setters => setters.SetProperty(s => s.UniverseId, (int?)null));
 
         await universeBookRepository.DeleteAsync(ub => ub.UniverseId == id);
+        await timelineDateRepository.DeleteAsync(td => td.UniverseId == id);
         await readingListRepository.DeleteAsync(l => l.UniverseId == id);
 
         await universeRepository.DeleteAsync(universe);
@@ -304,14 +309,17 @@ public class UniverseService(
             return Result.Success(0);
         }
 
-        int maxOrder = await MaxTimelineOrderAsync(universeId, cancellationToken);
+        // Books arrive unscheduled: which point on the timeline they belong to is a judgement
+        // call, and guessing one here would just make every add something to undo.
+        int nextOrder = await NextGroupOrderAsync(universeId, null, cancellationToken);
 
         var toInsert = newBookIds
             .Select((bid, idx) => new UniverseBook
             {
                 UniverseId = universeId,
                 BookId = bid,
-                TimelineOrder = maxOrder + 1 + idx,
+                TimelineDateId = null,
+                Order = nextOrder + idx,
             })
             .ToList();
 
@@ -320,25 +328,6 @@ public class UniverseService(
     }
 
     public async Task<Result> RemoveBookAsync(int universeId, int bookId, CancellationToken cancellationToken = default)
-    {
-        if (!userContext.IsAdministrator())
-        {
-            return Result.Forbidden();
-        }
-
-        int removed = await universeBookRepository.DeleteAsync(
-            ub => ub.UniverseId == universeId && ub.BookId == bookId);
-
-        if (removed == 0)
-        {
-            return Result.NotFound();
-        }
-
-        await CompactTimelineOrderAsync(universeId, cancellationToken);
-        return Result.Success();
-    }
-
-    public async Task<Result> SetTimelineDateAsync(int universeId, int bookId, string? timelineDate, CancellationToken cancellationToken = default)
     {
         if (!userContext.IsAdministrator())
         {
@@ -355,13 +344,243 @@ public class UniverseService(
             return Result.NotFound();
         }
 
-        membership.TimelineDate = NormaliseTimelineDate(timelineDate);
-        await universeBookRepository.UpdateAsync(membership);
+        int? dateId = membership.TimelineDateId;
+        await universeBookRepository.DeleteAsync(membership);
+        await CompactGroupOrderAsync(universeId, dateId, cancellationToken);
         return Result.Success();
     }
 
-    public async Task<Result> ReorderTimelineAsync(
+    public async Task<Result<IReadOnlyList<UniverseTimelineDateDto>>> ListTimelineDatesAsync(
         int universeId,
+        CancellationToken cancellationToken = default)
+    {
+        var dates = (await timelineDateRepository.FindAsync(new SearchOptions<TimelineDate>
+        {
+            Query = td => td.UniverseId == universeId,
+            OrderBy = q => q.OrderBy(td => td.Order),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        if (dates.Count == 0)
+        {
+            return Result.Success<IReadOnlyList<UniverseTimelineDateDto>>([]);
+        }
+
+        var counts = await BookCountsByDateAsync(universeId, cancellationToken);
+
+        IReadOnlyList<UniverseTimelineDateDto> result = dates
+            .Select(td => new UniverseTimelineDateDto(td.Id, td.Date, td.Order, counts.GetValueOrDefault(td.Id, 0)))
+            .ToList();
+
+        return Result.Success(result);
+    }
+
+    public async Task<Result<UniverseTimelineDateDto>> CreateTimelineDateAsync(
+        int universeId,
+        string date,
+        CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        string? trimmed = NormalizeTimelineDate(date);
+        if (trimmed is null)
+        {
+            return Result.Invalid(new ValidationError(nameof(date), "Date is required."));
+        }
+
+        if (!await UniverseExistsAsync(universeId, cancellationToken))
+        {
+            return Result.NotFound("Universe not found.");
+        }
+
+        if (await FindDateByTextAsync(universeId, trimmed, cancellationToken) is not null)
+        {
+            return Result.Conflict($"This universe already has a timeline date called \"{trimmed}\".");
+        }
+
+        int maxOrder = await MaxDateOrderAsync(universeId, cancellationToken);
+        var inserted = await timelineDateRepository.InsertAsync(new TimelineDate
+        {
+            UniverseId = universeId,
+            Date = trimmed,
+            Order = maxOrder + 1,
+        });
+
+        return Result.Success(new UniverseTimelineDateDto(inserted.Id, inserted.Date, inserted.Order, 0));
+    }
+
+    public async Task<Result<UniverseTimelineDateDto>> RenameTimelineDateAsync(
+        int timelineDateId,
+        string date,
+        CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        string? trimmed = NormalizeTimelineDate(date);
+        if (trimmed is null)
+        {
+            return Result.Invalid(new ValidationError(nameof(date), "Date is required."));
+        }
+
+        var existing = await timelineDateRepository.FindOneAsync(new SearchOptions<TimelineDate>
+        {
+            Query = td => td.Id == timelineDateId,
+            CancellationToken = cancellationToken,
+        });
+        if (existing is null)
+        {
+            return Result.NotFound();
+        }
+
+        var clash = await FindDateByTextAsync(existing.UniverseId, trimmed, cancellationToken);
+        if (clash is not null && clash.Id != timelineDateId)
+        {
+            return Result.Conflict($"This universe already has a timeline date called \"{trimmed}\".");
+        }
+
+        existing.Date = trimmed;
+        var updated = await timelineDateRepository.UpdateAsync(existing);
+
+        int bookCount = await universeBookRepository.CountAsync(ub => ub.TimelineDateId == timelineDateId);
+        return Result.Success(new UniverseTimelineDateDto(updated.Id, updated.Date, updated.Order, bookCount));
+    }
+
+    public async Task<Result> DeleteTimelineDateAsync(int timelineDateId, CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var existing = await timelineDateRepository.FindOneAsync(new SearchOptions<TimelineDate>
+        {
+            Query = td => td.Id == timelineDateId,
+            CancellationToken = cancellationToken,
+        });
+        if (existing is null)
+        {
+            return Result.NotFound();
+        }
+
+        // Un-schedule the books explicitly rather than relying on the provider's SET NULL, so the
+        // outcome — and their position in the unscheduled bucket — is the same everywhere.
+        int unscheduledFrom = await NextGroupOrderAsync(existing.UniverseId, null, cancellationToken);
+        var orphaned = (await universeBookRepository.FindAsync(new SearchOptions<UniverseBook>
+        {
+            Query = ub => ub.TimelineDateId == timelineDateId,
+            OrderBy = q => q.OrderBy(ub => ub.Order),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        for (int i = 0; i < orphaned.Count; i++)
+        {
+            orphaned[i].TimelineDateId = null;
+            orphaned[i].TimelineDate = null;
+            orphaned[i].Order = unscheduledFrom + i;
+        }
+
+        if (orphaned.Count > 0)
+        {
+            await universeBookRepository.UpdateAsync(orphaned);
+        }
+
+        await timelineDateRepository.DeleteAsync(existing);
+        await CompactDateOrderAsync(existing.UniverseId, cancellationToken);
+        return Result.Success();
+    }
+
+    public async Task<Result> ReorderTimelineDatesAsync(
+        int universeId,
+        IReadOnlyList<int> orderedTimelineDateIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        if (!await UniverseExistsAsync(universeId, cancellationToken))
+        {
+            return Result.NotFound();
+        }
+
+        var dates = (await timelineDateRepository.FindAsync(new SearchOptions<TimelineDate>
+        {
+            Query = td => td.UniverseId == universeId,
+            OrderBy = q => q.OrderBy(td => td.Order),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        var ordered = ApplyRequestedOrder(dates, td => td.Id, orderedTimelineDateIds);
+
+        var toUpdate = new List<TimelineDate>();
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            if (ordered[i].Order != i)
+            {
+                ordered[i].Order = i;
+                toUpdate.Add(ordered[i]);
+            }
+        }
+
+        if (toUpdate.Count > 0)
+        {
+            await timelineDateRepository.UpdateAsync(toUpdate);
+        }
+
+        return Result.Success();
+    }
+
+    public async Task<Result> SetBookTimelineDateAsync(
+        int universeId,
+        int bookId,
+        int? timelineDateId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!userContext.IsAdministrator())
+        {
+            return Result.Forbidden();
+        }
+
+        var membership = await universeBookRepository.FindOneAsync(new SearchOptions<UniverseBook>
+        {
+            Query = ub => ub.UniverseId == universeId && ub.BookId == bookId,
+            CancellationToken = cancellationToken,
+        });
+        if (membership is null)
+        {
+            return Result.NotFound();
+        }
+
+        if (membership.TimelineDateId == timelineDateId)
+        {
+            return Result.Success();
+        }
+
+        if (timelineDateId is int targetDateId && !await DateBelongsToUniverseAsync(targetDateId, universeId, cancellationToken))
+        {
+            return Result.NotFound("Timeline date not found.");
+        }
+
+        int? previousDateId = membership.TimelineDateId;
+        membership.TimelineDateId = timelineDateId;
+        membership.TimelineDate = null;
+        membership.Order = await NextGroupOrderAsync(universeId, timelineDateId, cancellationToken);
+        await universeBookRepository.UpdateAsync(membership);
+
+        await CompactGroupOrderAsync(universeId, previousDateId, cancellationToken);
+        return Result.Success();
+    }
+
+    public async Task<Result> ReorderTimelineGroupAsync(
+        int universeId,
+        int? timelineDateId,
         IReadOnlyList<int> orderedUniverseBookIds,
         CancellationToken cancellationToken = default)
     {
@@ -377,27 +596,21 @@ public class UniverseService(
 
         var rows = (await universeBookRepository.FindAsync(new SearchOptions<UniverseBook>
         {
-            Query = ub => ub.UniverseId == universeId,
+            Query = ub => ub.UniverseId == universeId && ub.TimelineDateId == timelineDateId,
+            OrderBy = q => q.OrderBy(ub => ub.Order),
             CancellationToken = cancellationToken,
         })).ToList();
 
-        var byId = rows.ToDictionary(ub => ub.Id);
+        var ordered = ApplyRequestedOrder(rows, ub => ub.Id, orderedUniverseBookIds);
+
         var toUpdate = new List<UniverseBook>();
-        int order = 0;
-
-        foreach (int rowId in orderedUniverseBookIds)
+        for (int i = 0; i < ordered.Count; i++)
         {
-            if (!byId.TryGetValue(rowId, out var row))
+            if (ordered[i].Order != i)
             {
-                continue;
+                ordered[i].Order = i;
+                toUpdate.Add(ordered[i]);
             }
-
-            if (row.TimelineOrder != order)
-            {
-                row.TimelineOrder = order;
-                toUpdate.Add(row);
-            }
-            order++;
         }
 
         if (toUpdate.Count > 0)
@@ -413,7 +626,7 @@ public class UniverseService(
         var membership = await universeBookRepository.FindOneAsync(new SearchOptions<UniverseBook>
         {
             Query = ub => ub.BookId == bookId,
-            Include = q => q.Include(ub => ub.Universe),
+            Include = q => q.Include(ub => ub.Universe).Include(ub => ub.TimelineDate),
             OrderBy = q => q.OrderBy(ub => ub.UniverseId),
             CancellationToken = cancellationToken,
         });
@@ -423,14 +636,14 @@ public class UniverseService(
             : new UniverseMembershipDto(
                 membership.UniverseId,
                 membership.Universe.Name,
-                membership.TimelineDate,
-                membership.TimelineOrder));
+                membership.TimelineDateId,
+                membership.TimelineDate?.Date));
     }
 
     public async Task<Result> SetBookMembershipAsync(
         int bookId,
         int? universeId,
-        string? timelineDate,
+        int? timelineDateId,
         CancellationToken cancellationToken = default)
     {
         if (!userContext.IsAdministrator())
@@ -449,9 +662,9 @@ public class UniverseService(
             if (existing.Count > 0)
             {
                 await universeBookRepository.DeleteAsync(existing);
-                foreach (int affected in existing.Select(ub => ub.UniverseId).Distinct())
+                foreach (var affected in existing.Select(ub => (ub.UniverseId, ub.TimelineDateId)).Distinct())
                 {
-                    await CompactTimelineOrderAsync(affected, cancellationToken);
+                    await CompactGroupOrderAsync(affected.UniverseId, affected.TimelineDateId, cancellationToken);
                 }
             }
 
@@ -479,31 +692,32 @@ public class UniverseService(
         if (stale.Count > 0)
         {
             await universeBookRepository.DeleteAsync(stale);
-            foreach (int affected in stale.Select(ub => ub.UniverseId).Distinct())
+            foreach (var affected in stale.Select(ub => (ub.UniverseId, ub.TimelineDateId)).Distinct())
             {
-                await CompactTimelineOrderAsync(affected, cancellationToken);
+                await CompactGroupOrderAsync(affected.UniverseId, affected.TimelineDateId, cancellationToken);
             }
+        }
+
+        if (timelineDateId is int dateId && !await DateBelongsToUniverseAsync(dateId, targetId, cancellationToken))
+        {
+            return Result.NotFound("Timeline date not found.");
         }
 
         var current = existing.FirstOrDefault(ub => ub.UniverseId == targetId);
         if (current is null)
         {
-            int maxOrder = await MaxTimelineOrderAsync(targetId, cancellationToken);
             await universeBookRepository.InsertAsync(new UniverseBook
             {
                 UniverseId = targetId,
                 BookId = bookId,
-                TimelineDate = NormaliseTimelineDate(timelineDate),
-                TimelineOrder = maxOrder + 1,
+                TimelineDateId = timelineDateId,
+                Order = await NextGroupOrderAsync(targetId, timelineDateId, cancellationToken),
             });
-        }
-        else
-        {
-            current.TimelineDate = NormaliseTimelineDate(timelineDate);
-            await universeBookRepository.UpdateAsync(current);
+
+            return Result.Success();
         }
 
-        return Result.Success();
+        return await SetBookTimelineDateAsync(targetId, bookId, timelineDateId, cancellationToken);
     }
 
     public async Task<Result> SetSeriesUniverseAsync(
@@ -610,7 +824,10 @@ public class UniverseService(
             new SearchOptions<UniverseBook>
             {
                 Query = ub => ub.UniverseId == universeId,
-                OrderBy = q => q.OrderBy(ub => ub.TimelineOrder),
+                OrderBy = q => q
+                    .OrderBy(ub => ub.TimelineDateId == null)
+                    .ThenBy(ub => ub.TimelineDate!.Order)
+                    .ThenBy(ub => ub.Order),
                 CancellationToken = cancellationToken,
             },
             ub => ub.BookId)).ToList();
@@ -631,9 +848,19 @@ public class UniverseService(
             inserted.Id, inserted.Name, inserted.Description, timelineBookIds.Count));
     }
 
-    private static string Normalise(string name) => name.ToSortTitle().ToLowerInvariant();
+    private static string Normalize(string name) => name.ToSortTitle().ToLowerInvariant();
 
-    private static string? NormaliseTimelineDate(string? timelineDate) =>
+    /// <summary>Buckets entries by their date, in within-date order. Unscheduled ones are left out.</summary>
+    private static Dictionary<int, IReadOnlyList<UniverseTimelineEntryDto>> GroupByDate(
+        IEnumerable<UniverseTimelineEntryDto> entries) =>
+        entries
+            .Where(e => e.TimelineDateId.HasValue)
+            .GroupBy(e => e.TimelineDateId!.Value)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<UniverseTimelineEntryDto>)g.OrderBy(e => e.Order).ToList());
+
+    private static string? NormalizeTimelineDate(string? timelineDate) =>
         string.IsNullOrWhiteSpace(timelineDate) ? null : timelineDate.Trim();
 
     private static UniverseDto Map(
@@ -651,36 +878,129 @@ public class UniverseService(
             CancellationToken = cancellationToken,
         }) is not null;
 
-    private async Task<int> MaxTimelineOrderAsync(int universeId, CancellationToken cancellationToken) =>
+    private async Task<TimelineDate?> FindDateByTextAsync(int universeId, string date, CancellationToken cancellationToken) =>
+        (await timelineDateRepository.FindAsync(new SearchOptions<TimelineDate>
+        {
+            Query = td => td.UniverseId == universeId,
+            CancellationToken = cancellationToken,
+        })).FirstOrDefault(td => string.Equals(td.Date, date, StringComparison.OrdinalIgnoreCase));
+
+    private async Task<bool> DateBelongsToUniverseAsync(int timelineDateId, int universeId, CancellationToken cancellationToken) =>
+        await timelineDateRepository.FindOneAsync(new SearchOptions<TimelineDate>
+        {
+            Query = td => td.Id == timelineDateId && td.UniverseId == universeId,
+            CancellationToken = cancellationToken,
+        }) is not null;
+
+    private async Task<Dictionary<int, int>> BookCountsByDateAsync(int universeId, CancellationToken cancellationToken) =>
         (await universeBookRepository.FindAsync(
                 new SearchOptions<UniverseBook>
                 {
-                    Query = ub => ub.UniverseId == universeId,
+                    Query = ub => ub.UniverseId == universeId && ub.TimelineDateId != null,
                     CancellationToken = cancellationToken,
                 },
-                ub => ub.TimelineOrder))
+                ub => ub.TimelineDateId))
+            .Where(id => id.HasValue)
+            .GroupBy(id => id!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+    private async Task<int> MaxDateOrderAsync(int universeId, CancellationToken cancellationToken) =>
+        (await timelineDateRepository.FindAsync(
+                new SearchOptions<TimelineDate>
+                {
+                    Query = td => td.UniverseId == universeId,
+                    CancellationToken = cancellationToken,
+                },
+                td => td.Order))
             .DefaultIfEmpty(-1)
             .Max();
 
+    /// <summary>Position a book would take if it joined <paramref name="timelineDateId"/> right now.</summary>
+    private async Task<int> NextGroupOrderAsync(int universeId, int? timelineDateId, CancellationToken cancellationToken) =>
+        (await universeBookRepository.FindAsync(
+                new SearchOptions<UniverseBook>
+                {
+                    Query = ub => ub.UniverseId == universeId && ub.TimelineDateId == timelineDateId,
+                    CancellationToken = cancellationToken,
+                },
+                ub => ub.Order))
+            .DefaultIfEmpty(-1)
+            .Max() + 1;
+
     /// <summary>
-    /// Closes gaps left by removals so the order values stay a contiguous 0..n-1 run, which keeps
-    /// the up/down buttons on the timeline symmetrical.
+    /// Returns <paramref name="items"/> in the order the caller asked for, with anything they
+    /// didn't mention keeping its relative place at the end and unknown ids ignored.
     /// </summary>
-    private async Task CompactTimelineOrderAsync(int universeId, CancellationToken cancellationToken)
+    private static List<T> ApplyRequestedOrder<T>(
+        IReadOnlyList<T> items,
+        Func<T, int> idSelector,
+        IReadOnlyList<int> requestedIds)
+    {
+        var byId = items.ToDictionary(idSelector);
+        var seen = new HashSet<int>();
+        var ordered = new List<T>(items.Count);
+
+        foreach (int id in requestedIds)
+        {
+            if (byId.TryGetValue(id, out var item) && seen.Add(id))
+            {
+                ordered.Add(item);
+            }
+        }
+
+        foreach (var item in items)
+        {
+            if (seen.Add(idSelector(item)))
+            {
+                ordered.Add(item);
+            }
+        }
+
+        return ordered;
+    }
+
+    /// <summary>Closes gaps in the universe's date order so it stays a contiguous 0..n-1 run.</summary>
+    private async Task CompactDateOrderAsync(int universeId, CancellationToken cancellationToken)
+    {
+        var dates = (await timelineDateRepository.FindAsync(new SearchOptions<TimelineDate>
+        {
+            Query = td => td.UniverseId == universeId,
+            OrderBy = q => q.OrderBy(td => td.Order),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
+        var toUpdate = new List<TimelineDate>();
+        for (int i = 0; i < dates.Count; i++)
+        {
+            if (dates[i].Order != i)
+            {
+                dates[i].Order = i;
+                toUpdate.Add(dates[i]);
+            }
+        }
+
+        if (toUpdate.Count > 0)
+        {
+            await timelineDateRepository.UpdateAsync(toUpdate);
+        }
+    }
+
+    /// <summary>Same, for the books sharing one date (or the unscheduled bucket).</summary>
+    private async Task CompactGroupOrderAsync(int universeId, int? timelineDateId, CancellationToken cancellationToken)
     {
         var rows = (await universeBookRepository.FindAsync(new SearchOptions<UniverseBook>
         {
-            Query = ub => ub.UniverseId == universeId,
-            OrderBy = q => q.OrderBy(ub => ub.TimelineOrder),
+            Query = ub => ub.UniverseId == universeId && ub.TimelineDateId == timelineDateId,
+            OrderBy = q => q.OrderBy(ub => ub.Order),
             CancellationToken = cancellationToken,
         })).ToList();
 
         var toUpdate = new List<UniverseBook>();
         for (int i = 0; i < rows.Count; i++)
         {
-            if (rows[i].TimelineOrder != i)
+            if (rows[i].Order != i)
             {
-                rows[i].TimelineOrder = i;
+                rows[i].Order = i;
                 toUpdate.Add(rows[i]);
             }
         }
@@ -734,18 +1054,33 @@ public class UniverseService(
             .ToList();
     }
 
-    private async Task<IReadOnlyList<UniverseTimelineEntryDto>> LoadTimelineAsync(int universeId, CancellationToken cancellationToken)
+    private async Task<UniverseTimelineDto> LoadTimelineAsync(int universeId, CancellationToken cancellationToken)
     {
+        var dates = (await timelineDateRepository.FindAsync(new SearchOptions<TimelineDate>
+        {
+            Query = td => td.UniverseId == universeId,
+            OrderBy = q => q.OrderBy(td => td.Order),
+            CancellationToken = cancellationToken,
+        })).ToList();
+
         var memberships = (await universeBookRepository.FindAsync(new SearchOptions<UniverseBook>
         {
             Query = ub => ub.UniverseId == universeId,
-            OrderBy = q => q.OrderBy(ub => ub.TimelineOrder),
+            Include = q => q.Include(ub => ub.TimelineDate),
+            OrderBy = q => q
+                .OrderBy(ub => ub.TimelineDateId == null)
+                .ThenBy(ub => ub.TimelineDate!.Order)
+                .ThenBy(ub => ub.Order),
             CancellationToken = cancellationToken,
         })).ToList();
 
         if (memberships.Count == 0)
         {
-            return [];
+            IReadOnlyList<UniverseTimelineDateDto> emptyDates = dates
+                .Select(td => new UniverseTimelineDateDto(td.Id, td.Date, td.Order, 0))
+                .ToList();
+
+            return new UniverseTimelineDto(emptyDates, [], [], []);
         }
 
         var bookIds = memberships.Select(ub => ub.BookId).ToList();
@@ -761,14 +1096,72 @@ public class UniverseService(
         var progress = await BookProjections.LoadProgressPercentagesAsync(
             progressRepository, userContext.GetCurrentUserId(), bookIds, cancellationToken);
 
-        return memberships
+        var entries = memberships
             .Where(ub => booksById.ContainsKey(ub.BookId))
             .Select(ub => new UniverseTimelineEntryDto(
                 ub.Id,
-                ub.TimelineOrder,
-                ub.TimelineDate,
+                ub.TimelineDateId,
+                ub.Order,
+                ub.TimelineDate?.Date,
                 BookProjections.ToListItem(booksById[ub.BookId], progress.GetValueOrDefault(ub.BookId, 0))))
             .ToList();
+
+        var entriesByDate = GroupByDate(entries);
+
+        IReadOnlyList<UniverseTimelineDateDto> dateDtos = dates
+            .Select(td => new UniverseTimelineDateDto(
+                td.Id,
+                td.Date,
+                td.Order,
+                entriesByDate.TryGetValue(td.Id, out var onDate) ? onDate.Count : 0))
+            .ToList();
+
+        // One column per date, in timeline order, plus a trailing "unscheduled" column that only
+        // appears while something still needs placing.
+        var groups = dates
+            .Select(td => new UniverseTimelineGroupDto(
+                td.Id,
+                td.Date,
+                entriesByDate.GetValueOrDefault(td.Id, [])))
+            .ToList();
+
+        var unscheduled = entries.Where(e => e.TimelineDateId is null).OrderBy(e => e.Order).ToList();
+        if (unscheduled.Count > 0)
+        {
+            groups.Add(new UniverseTimelineGroupDto(null, "Unscheduled", unscheduled));
+        }
+
+        // One lane per series, plus a single shared lane for books with no series at all — that's
+        // what a plain GroupBy on a nullable key already gives us. Each lane then gets one cell
+        // per column so the view can render it as a straight matrix row.
+        var rows = entries
+            .GroupBy(e => booksById[e.Book.Id].SeriesId)
+            .Select(g =>
+            {
+                var laneEntries = g.ToList();
+                var laneByDate = GroupByDate(laneEntries);
+                var laneUnscheduled = laneEntries.Where(e => e.TimelineDateId is null).OrderBy(e => e.Order).ToList();
+
+                IReadOnlyList<UniverseTimelineCellDto> cells = groups
+                    .Select(col => new UniverseTimelineCellDto(
+                        col.TimelineDateId,
+                        col.TimelineDateId is int dateId
+                            ? laneByDate.GetValueOrDefault(dateId, [])
+                            : laneUnscheduled))
+                    .ToList();
+
+                return new UniverseTimelineRowDto(
+                    g.Key,
+                    g.Key is null ? "Standalone" : g.First().Book.SeriesName ?? "Standalone",
+                    cells);
+            })
+            // Series lanes first, in the order they debut on the timeline; standalone books last.
+            .OrderBy(r => r.SeriesId is null)
+            .ThenBy(r => r.Cells.TakeWhile(c => c.Entries.Count == 0).Count())
+            .ThenBy(r => r.Label)
+            .ToList();
+
+        return new UniverseTimelineDto(dateDtos, groups, rows, entries);
     }
 
     private async Task<IReadOnlyList<UniverseReadingListDto>> LoadReadingListsAsync(int universeId, CancellationToken cancellationToken)

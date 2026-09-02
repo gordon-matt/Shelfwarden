@@ -65,11 +65,11 @@ public class SeriesService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToSortTitle().ToLowerInvariant();
+        string normalized = trimmed.ToSortTitle().ToLowerInvariant();
 
         var existing = await seriesRepository.FindOneAsync(new SearchOptions<Series>
         {
-            Query = s => s.NormalizedName == normalised,
+            Query = s => s.NormalizedName == normalized,
         });
 
         if (existing is not null)
@@ -80,7 +80,7 @@ public class SeriesService(
         var created = await seriesRepository.InsertAsync(new Series
         {
             Name = trimmed,
-            NormalizedName = normalised,
+            NormalizedName = normalized,
         });
 
         return Result.Success(new SeriesDto(created.Id, created.Name, created.Description, BookCount: 0));
@@ -153,7 +153,7 @@ public class SeriesService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToSortTitle().ToLowerInvariant();
+        string normalized = trimmed.ToSortTitle().ToLowerInvariant();
 
         var series = await seriesRepository.FindOneAsync(new SearchOptions<Series>
         {
@@ -167,7 +167,7 @@ public class SeriesService(
 
         var clash = await seriesRepository.FindOneAsync(new SearchOptions<Series>
         {
-            Query = s => s.NormalizedName == normalised && s.Id != id,
+            Query = s => s.NormalizedName == normalized && s.Id != id,
             CancellationToken = cancellationToken,
         });
         if (clash is not null)
@@ -176,7 +176,7 @@ public class SeriesService(
         }
 
         series.Name = trimmed;
-        series.NormalizedName = normalised;
+        series.NormalizedName = normalized;
         var updated = await seriesRepository.UpdateAsync(series);
         int count = await bookRepository.CountAsync(b => b.SeriesId == id);
 

@@ -118,7 +118,7 @@ else
                     <div class="card h-100">
                         <div class="card-body">
                             <h5 class="card-title"><i class="bi bi-book me-1"></i> Books</h5>
-                            <p class="display-6 mb-0">@universe.Timeline.Count</p>
+                            <p class="display-6 mb-0">@universe.Timeline.Entries.Count</p>
                             <p class="text-body-secondary small mb-0">Books placed on the timeline.</p>
                         </div>
                     </div>
@@ -233,7 +233,7 @@ else
                 </Authorized>
             </AuthorizeView>
 
-            @if (universe.Timeline.Count == 0)
+            @if (universe.Timeline.Entries.Count == 0)
             {
                 <div class="empty-state">
                     <i class="bi bi-book empty-icon"></i>
@@ -244,7 +244,7 @@ else
             else
             {
                 <div class="book-grid">
-                    @foreach (var entry in universe.Timeline)
+                    @foreach (var entry in universe.Timeline.Entries)
                     {
                         <BookCard Book="entry.Book">
                             <ExtraMenuItems>
@@ -337,108 +337,263 @@ else
             break;
 
         case UniverseTab.Timeline:
-            @if (universe.Timeline.Count == 0)
-            {
-                <div class="empty-state">
-                    <i class="bi bi-clock-history empty-icon"></i>
-                    <h3>The timeline is empty</h3>
-                    <p>Add books to the universe first — every book you add lands at the end of the timeline.</p>
-                </div>
-            }
-            else if (!editingTimeline)
-            {
-                <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
-                    <p class="text-body-secondary small mb-0">
-                        Reading order runs left to right. Dates are free text and are shown as labels only —
-                        they never affect the order.
-                    </p>
-                    <AuthorizeView Roles="@Constants.Roles.Administrator">
-                        <Authorized>
+            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-3">
+                <p class="text-body-secondary small mb-0">
+                    @if (editingTimeline)
+                    {
+                        <text>
+                            <i class="bi bi-grip-vertical"></i> Drag a date to move it along the timeline, or a
+                            book to move it within its date. A book's date is picked from the list — add the
+                            ones this universe needs and assign books to them.
+                        </text>
+                    }
+                    else
+                    {
+                        <text>
+                            One column per in-universe date, one lane per series (standalone books share a
+                            lane). Dates are free text and are ordered by hand — they're never parsed.
+                        </text>
+                    }
+                </p>
+                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                    <Authorized>
+                        @if (editingTimeline)
+                        {
+                            <button class="btn btn-sm btn-primary" @onclick="() => editingTimeline = false">
+                                <i class="bi bi-check-lg"></i> Done
+                            </button>
+                        }
+                        else
+                        {
                             <button class="btn btn-sm btn-outline-secondary" @onclick="() => editingTimeline = true">
                                 <i class="bi bi-pencil"></i> Edit timeline
                             </button>
-                        </Authorized>
-                    </AuthorizeView>
-                </div>
-                <UniverseTimeline Entries="universe.Timeline" />
+                        }
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+
+            @if (!editingTimeline)
+            {
+                @if (universe.Timeline.Groups.Count == 0)
+                {
+                    <div class="empty-state">
+                        <i class="bi bi-clock-history empty-icon"></i>
+                        <h3>The timeline is empty</h3>
+                        <p>Add books to the universe, then edit the timeline to give it some dates.</p>
+                    </div>
+                }
+                else
+                {
+                    <UniverseTimeline Groups="universe.Timeline.Groups" Rows="universe.Timeline.Rows" />
+                }
             }
             else
             {
-                <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
-                    <p class="text-body-secondary small mb-0">
-                        <i class="bi bi-grip-vertical"></i> Drag a book by its handle to set the order it's
-                        presented in. Dates are free text and are never used for sorting.
-                    </p>
-                    <button class="btn btn-sm btn-primary" @onclick="() => editingTimeline = false">
-                        <i class="bi bi-check-lg"></i> Done
+                <div class="d-flex justify-content-end mb-3">
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenDateModal(null)">
+                        <i class="bi bi-plus-lg"></i> New date
                     </button>
                 </div>
-                <ol class="reading-list">
-                    @for (int i = 0; i < universe.Timeline.Count; i++)
-                    {
-                        var entry = universe.Timeline[i];
-                        int index = i;
-                        <li class="reading-list-item @(reorder.IsSource(index) ? "is-dragging" : null) @(reorder.IsDropTarget(index) ? "is-drop-target" : null)"
-                            @ondragover:preventDefault="true"
-                            @ondragenter="() => reorder.DragOver(index)"
-                            @ondragover="() => reorder.DragOver(index)"
-                            @ondrop="DropAsync">
-                            <button type="button" class="reorder-handle" draggable="true"
-                                    title="Drag to reorder" aria-label="Drag to reorder"
-                                    @ondragstart="() => reorder.Start(index)"
-                                    @ondragend="() => reorder.Cancel()">
-                                <i class="bi bi-grip-vertical"></i>
-                            </button>
-                            <div class="reading-list-cover">
-                                @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
-                                {
-                                    <img src="@($"covers/{entry.Book.Id}")" alt="@entry.Book.Title" loading="lazy" />
-                                }
-                                else
-                                {
-                                    <i class="bi bi-book"></i>
-                                }
-                            </div>
-                            <div class="reading-list-meta">
-                                <a class="fw-semibold text-reset text-decoration-none" href="@($"books/{entry.Book.Id}")">
-                                    @entry.Book.Title
-                                </a>
-                                @if (!string.IsNullOrEmpty(entry.Book.SeriesName))
-                                {
-                                    <div class="small text-body-secondary">
-                                        <i class="bi bi-collection"></i> @entry.Book.SeriesName
-                                        @if (entry.Book.NumberInSeries.HasValue) { <span> · #@entry.Book.NumberInSeries</span> }
-                                    </div>
-                                }
-                                <div class="input-group input-group-sm mt-1 universe-timeline-date-input">
-                                    <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
-                                    <input class="form-control" maxlength="50" placeholder="In-universe date"
-                                           value="@entry.TimelineDate"
-                                           @onchange="e => SaveTimelineDateAsync(entry.Book.Id, e.Value?.ToString())" />
-                                </div>
-                            </div>
-                            <div class="reading-list-actions d-flex flex-column gap-1">
-                                <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
-                                    <button class="btn btn-outline-secondary" title="Move to start"
-                                            disabled="@(index == 0 || reordering)"
-                                            @onclick="() => MoveAsync(index, 0)">
-                                        <i class="bi bi-chevron-double-up"></i>
-                                    </button>
-                                    <button class="btn btn-outline-secondary" title="Move to end"
-                                            disabled="@(index == universe.Timeline.Count - 1 || reordering)"
-                                            @onclick="() => MoveAsync(index, universe.Timeline.Count - 1)">
-                                        <i class="bi bi-chevron-double-down"></i>
-                                    </button>
-                                </div>
-                                <button class="btn btn-sm btn-outline-danger" title="Remove from universe"
-                                        @onclick="() => RemoveBookAsync(entry.Book.Id)">
-                                    <i class="bi bi-x-lg"></i>
+
+                @if (universe.Timeline.Groups.Count == 0)
+                {
+                    <div class="empty-state">
+                        <i class="bi bi-calendar-event empty-icon"></i>
+                        <h3>No dates yet</h3>
+                        <p>Add the points in time this universe's story happens at, then assign books to them.</p>
+                    </div>
+                }
+
+                @for (int gi = 0; gi < universe.Timeline.Groups.Count; gi++)
+                {
+                    var group = universe.Timeline.Groups[gi];
+                    int groupIndex = gi;
+                    int dateIndex = DateIndexOf(group.TimelineDateId);
+
+                    <div class="card mb-3 timeline-group @(dateReorder.IsSource(dateIndex) ? "is-dragging" : null) @(dateReorder.IsDropTarget(dateIndex) ? "is-drop-target" : null)"
+                         @ondragover:preventDefault="true"
+                         @ondragenter="() => dateReorder.DragOver(dateIndex)"
+                         @ondragover="() => dateReorder.DragOver(dateIndex)"
+                         @ondrop="DropDateAsync">
+                        <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+                            @if (group.TimelineDateId is int dragDateId)
+                            {
+                                <button type="button" class="reorder-handle" draggable="true"
+                                        title="Drag to move this date" aria-label="Drag to move this date"
+                                        @ondragstart="() => dateReorder.Start(dateIndex)"
+                                        @ondragend="() => dateReorder.Cancel()">
+                                    <i class="bi bi-grip-vertical"></i>
                                 </button>
-                            </div>
-                        </li>
-                    }
-                </ol>
+                                <span class="fw-semibold"><i class="bi bi-calendar-event me-1"></i> @group.Label</span>
+                            }
+                            else
+                            {
+                                <span class="fw-semibold text-body-secondary">
+                                    <i class="bi bi-inbox me-1"></i> @group.Label
+                                </span>
+                            }
+                            <span class="badge text-bg-secondary">@group.Entries.Count</span>
+
+                            @if (group.TimelineDateId is int dateId)
+                            {
+                                <div class="ms-auto d-flex gap-1">
+                                    <div class="btn-group btn-group-sm" role="group" aria-label="Move date">
+                                        <button class="btn btn-outline-secondary" title="Move to start of timeline"
+                                                disabled="@(dateIndex == 0 || reordering)"
+                                                @onclick="() => MoveDateAsync(dateIndex, 0)">
+                                            <i class="bi bi-chevron-double-up"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" title="Move to end of timeline"
+                                                disabled="@(dateIndex == universe.Timeline.Dates.Count - 1 || reordering)"
+                                                @onclick="() => MoveDateAsync(dateIndex, universe.Timeline.Dates.Count - 1)">
+                                            <i class="bi bi-chevron-double-down"></i>
+                                        </button>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary" title="Rename date"
+                                            @onclick="() => OpenDateModal(dateId)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" title="Delete date"
+                                            @onclick="() => DeleteDateAsync(dateId, group.Label, group.Entries.Count)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                        <div class="card-body">
+                            @if (group.Entries.Count == 0)
+                            {
+                                <p class="text-body-secondary small mb-0">
+                                    No books on this date yet — pick it from a book's date list below.
+                                </p>
+                            }
+                            else
+                            {
+                                <ol class="reading-list mb-0">
+                                    @for (int i = 0; i < group.Entries.Count; i++)
+                                    {
+                                        var entry = group.Entries[i];
+                                        int index = i;
+                                        <li class="reading-list-item @(IsBookSource(groupIndex, index) ? "is-dragging" : null) @(IsBookDropTarget(groupIndex, index) ? "is-drop-target" : null)"
+                                            @ondragover:preventDefault="true"
+                                            @ondragenter="() => BookDragOver(groupIndex, index)"
+                                            @ondragover="() => BookDragOver(groupIndex, index)"
+                                            @ondrop="() => DropBookAsync(groupIndex, group.TimelineDateId)"
+                                            @ondrop:stopPropagation="true">
+                                            <button type="button" class="reorder-handle" draggable="true"
+                                                    title="Drag to reorder within this date"
+                                                    aria-label="Drag to reorder within this date"
+                                                    @ondragstart="() => StartBookDrag(groupIndex, index)"
+                                                    @ondragend="() => bookReorder.Cancel()">
+                                                <i class="bi bi-grip-vertical"></i>
+                                            </button>
+                                            <div class="reading-list-cover">
+                                                @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
+                                                {
+                                                    <img src="@($"covers/{entry.Book.Id}")" alt="@entry.Book.Title" loading="lazy" />
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-book"></i>
+                                                }
+                                            </div>
+                                            <div class="reading-list-meta">
+                                                <a class="fw-semibold text-reset text-decoration-none" href="@($"books/{entry.Book.Id}")">
+                                                    @entry.Book.Title
+                                                </a>
+                                                @if (!string.IsNullOrEmpty(entry.Book.SeriesName))
+                                                {
+                                                    <div class="small text-body-secondary">
+                                                        <i class="bi bi-collection"></i> @entry.Book.SeriesName
+                                                        @if (entry.Book.NumberInSeries.HasValue) { <span> · #@entry.Book.NumberInSeries</span> }
+                                                    </div>
+                                                }
+                                                <div class="input-group input-group-sm mt-1 universe-timeline-date-input">
+                                                    <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                                                    <select class="form-select" disabled="@reordering"
+                                                            value="@(entry.TimelineDateId?.ToString() ?? string.Empty)"
+                                                            @onchange="e => MoveBookToDateAsync(entry.Book.Id, e.Value?.ToString())">
+                                                        <option value="">— Unscheduled —</option>
+                                                        @foreach (var d in universe.Timeline.Dates)
+                                                        {
+                                                            <option value="@d.Id">@d.Date</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="reading-list-actions d-flex flex-column gap-1">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
+                                                    <button class="btn btn-outline-secondary" title="Move to start of this date"
+                                                            disabled="@(index == 0 || reordering)"
+                                                            @onclick="() => MoveBookAsync(group, index, 0)">
+                                                        <i class="bi bi-chevron-double-up"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-secondary" title="Move to end of this date"
+                                                            disabled="@(index == group.Entries.Count - 1 || reordering)"
+                                                            @onclick="() => MoveBookAsync(group, index, group.Entries.Count - 1)">
+                                                        <i class="bi bi-chevron-double-down"></i>
+                                                    </button>
+                                                </div>
+                                                <button class="btn btn-sm btn-outline-danger" title="Remove from universe"
+                                                        @onclick="() => RemoveBookAsync(entry.Book.Id)">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </div>
+                                        </li>
+                                    }
+                                </ol>
+                            }
+                        </div>
+                    </div>
+                }
             }
             break;
+    }
+
+    @if (dateModalOpen)
+    {
+        <div class="modal modal-show d-block" tabindex="-1" style="background-color: rgba(0,0,0,.35); z-index: 1060;"
+             @onclick="CloseDateModal">
+            <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-calendar-event me-1"></i>
+                            @(dateModalId is null ? "New timeline date" : "Rename timeline date")
+                        </h5>
+                        <button type="button" class="btn-close" @onclick="CloseDateModal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label" for="timeline-date-text">Date</label>
+                        <input id="timeline-date-text" class="form-control" maxlength="50" autofocus
+                               placeholder="10,191 AG · Spring 1998 · Before the Fall"
+                               @bind="dateModalText" @bind:event="oninput"
+                               @onkeydown="DateModalKeyDownAsync" />
+                        <div class="form-text">
+                            Free text — books are assigned to it from a list, and you decide where it sits
+                            on the timeline.
+                        </div>
+                        @if (dateModalError is not null)
+                        {
+                            <div class="alert alert-warning mt-3 mb-0">@dateModalError</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseDateModal" disabled="@dateModalBusy">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" @onclick="SaveDateAsync"
+                                disabled="@(dateModalBusy || string.IsNullOrWhiteSpace(dateModalText))">
+                            @if (dateModalBusy)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            @(dateModalId is null ? "Add" : "Save")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     }
 }

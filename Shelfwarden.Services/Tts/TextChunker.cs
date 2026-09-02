@@ -13,7 +13,7 @@ public static class TextChunker
 
     /// <summary>
     /// Breaks <paramref name="text"/> on sentence-ending punctuation while preserving the
-    /// punctuation in the returned strings. Whitespace is normalised. Empty fragments are
+    /// punctuation in the returned strings. Whitespace is normalized. Empty fragments are
     /// dropped. The behaviour is deliberately simple — full NLP-grade segmentation isn't
     /// worth the dependency for TTS chunking.
     /// </summary>

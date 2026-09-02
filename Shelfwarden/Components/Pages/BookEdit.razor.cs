@@ -41,6 +41,17 @@ public partial class BookEdit : ComponentBase
 
     private IReadOnlyList<UniverseOptionDto> universeOptions = [];
 
+    // Timeline dates belong to the universe, so the list is reloaded whenever the universe
+    // selection changes. 0 means "unscheduled".
+    private int selectedTimelineDateId;
+
+    private IReadOnlyList<UniverseTimelineDateDto> timelineDates = [];
+    private bool loadingDates;
+    private bool dateModalBusy;
+    private string? dateModalError;
+    private bool dateModalOpen;
+    private string? dateModalText;
+
     [Parameter]
     public int Id { get; set; }
 
@@ -59,6 +70,8 @@ public partial class BookEdit : ComponentBase
         var membership = await membershipTask;
         var currentUniverse = membership.IsSuccess ? membership.Value : null;
         selectedUniverseId = currentUniverse?.UniverseId ?? 0;
+        selectedTimelineDateId = currentUniverse?.TimelineDateId ?? 0;
+        await LoadTimelineDatesAsync();
 
         var tagsLookup = await tagsTask;
         tagDirectory = tagsLookup.IsSuccess
@@ -85,7 +98,6 @@ public partial class BookEdit : ComponentBase
             Isbn = book.Isbn,
             PublishedOn = book.PublishedOn,
             NumberInSeries = book.NumberInSeries,
-            TimelineDate = currentUniverse?.TimelineDate,
         };
 
         selectedAuthors.Clear();
@@ -222,6 +234,92 @@ public partial class BookEdit : ComponentBase
 
     private void CloseMetadataModal() => showMetadataModal = false;
 
+    private async Task LoadTimelineDatesAsync()
+    {
+        if (selectedUniverseId <= 0)
+        {
+            timelineDates = [];
+            selectedTimelineDateId = 0;
+            return;
+        }
+
+        loadingDates = true;
+        try
+        {
+            var result = await UniverseService.ListTimelineDatesAsync(selectedUniverseId);
+            timelineDates = result.IsSuccess ? result.Value : [];
+
+            // A date from the universe the book just left can't be carried over to the new one.
+            if (timelineDates.All(d => d.Id != selectedTimelineDateId))
+            {
+                selectedTimelineDateId = 0;
+            }
+        }
+        finally
+        {
+            loadingDates = false;
+        }
+    }
+
+    private Task OnUniverseChangedAsync() => LoadTimelineDatesAsync();
+
+    private void OpenDateModal()
+    {
+        dateModalText = null;
+        dateModalError = null;
+        dateModalOpen = true;
+    }
+
+    private void CloseDateModal()
+    {
+        dateModalOpen = false;
+        dateModalBusy = false;
+        dateModalError = null;
+    }
+
+    private async Task DateModalKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CreateDateAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            CloseDateModal();
+        }
+    }
+
+    private async Task CreateDateAsync()
+    {
+        if (dateModalBusy || selectedUniverseId <= 0 || string.IsNullOrWhiteSpace(dateModalText))
+        {
+            return;
+        }
+
+        dateModalBusy = true;
+        dateModalError = null;
+        try
+        {
+            var result = await UniverseService.CreateTimelineDateAsync(selectedUniverseId, dateModalText);
+            if (result.IsSuccess)
+            {
+                dateModalOpen = false;
+                await LoadTimelineDatesAsync();
+                selectedTimelineDateId = result.Value.Id;
+            }
+            else
+            {
+                dateModalError = result.Errors.FirstOrDefault()
+                    ?? result.ValidationErrors.FirstOrDefault()?.ErrorMessage
+                    ?? "Could not add the date.";
+            }
+        }
+        finally
+        {
+            dateModalBusy = false;
+        }
+    }
+
     private async Task OnSeriesFocus()
     {
         showSeriesSuggestions = true;
@@ -320,7 +418,7 @@ public partial class BookEdit : ComponentBase
             var universeResult = await UniverseService.SetBookMembershipAsync(
                 Id,
                 selectedUniverseId > 0 ? selectedUniverseId : null,
-                form.TimelineDate);
+                selectedTimelineDateId > 0 ? selectedTimelineDateId : null);
             if (!universeResult.IsSuccess)
             {
                 errorMessage = universeResult.Errors.FirstOrDefault()
@@ -441,9 +539,6 @@ public partial class BookEdit : ComponentBase
 
         [StringLength(512)]
         public string? SortTitle { get; set; }
-
-        [StringLength(50)]
-        public string? TimelineDate { get; set; }
 
         [StringLength(512)]
         public string? Subtitle { get; set; }

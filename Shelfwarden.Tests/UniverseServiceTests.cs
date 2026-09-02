@@ -9,9 +9,10 @@ namespace Shelfwarden.Tests;
 
 /// <summary>
 /// Covers the rules that make universes different from collections / reading lists: the timeline
-/// is ordered by <see cref="UniverseBook.TimelineOrder"/> and never by the free-text date, book
-/// and series membership never sync themselves, and deleting a universe must not take any books
-/// or series with it.
+/// is a set of hand-ordered <see cref="TimelineDate"/>s that books are explicitly assigned to (so
+/// order never comes from the date text), books join unscheduled and are never evicted by date
+/// changes, book and series membership never sync themselves, and deleting a universe must not
+/// take any books or series with it.
 /// </summary>
 public class UniverseServiceTests : IClassFixture<TestDbFixture>
 {
@@ -23,31 +24,209 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
     }
 
     [Fact]
-    public async Task Timeline_is_ordered_by_TimelineOrder_not_by_TimelineDate()
+    public async Task Timeline_columns_follow_the_dates_own_order_not_their_text()
     {
         using var scope = _fixture.CreateScope();
         var service = BuildService(scope);
         int shelfId = await SeedShelfAsync(scope);
 
         int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Ordering Test" })).Value.Id;
-        int earlyDate = await SeedBookAsync(scope, shelfId, "Ten Thousand BC");
-        int lateDate = await SeedBookAsync(scope, shelfId, "Five Hundred BC");
 
-        await service.AddBooksAsync(universeId, [earlyDate, lateDate]);
+        // Dates whose text sorts the "wrong" way round on purpose — order must ignore it entirely.
+        int early = (await service.CreateTimelineDateAsync(universeId, "10,000 BC")).Value.Id;
+        int late = (await service.CreateTimelineDateAsync(universeId, "500 BC")).Value.Id;
 
-        // Dates that sort the "wrong" way round on purpose — the order must ignore them entirely.
-        await service.SetTimelineDateAsync(universeId, earlyDate, "10,000 BC");
-        await service.SetTimelineDateAsync(universeId, lateDate, "500 BC");
+        int earlyBook = await SeedBookAsync(scope, shelfId, "Ten Thousand BC");
+        int lateBook = await SeedBookAsync(scope, shelfId, "Five Hundred BC");
+        await service.AddBooksAsync(universeId, [earlyBook, lateBook]);
+        await service.SetBookTimelineDateAsync(universeId, earlyBook, early);
+        await service.SetBookTimelineDateAsync(universeId, lateBook, late);
 
         var detail = (await service.GetByIdAsync(universeId)).Value;
-        Assert.Equal(["Ten Thousand BC", "Five Hundred BC"], detail.Timeline.Select(t => t.Book.Title));
+        Assert.Equal(["10,000 BC", "500 BC"], detail.Timeline.Groups.Select(g => g.Label));
 
-        var reversed = detail.Timeline.Select(t => t.Id).Reverse().ToList();
-        await service.ReorderTimelineAsync(universeId, reversed);
+        await service.ReorderTimelineDatesAsync(universeId, [late, early]);
 
         detail = (await service.GetByIdAsync(universeId)).Value;
-        Assert.Equal(["Five Hundred BC", "Ten Thousand BC"], detail.Timeline.Select(t => t.Book.Title));
-        Assert.Equal([0, 1], detail.Timeline.Select(t => t.TimelineOrder));
+        Assert.Equal(["500 BC", "10,000 BC"], detail.Timeline.Groups.Select(g => g.Label));
+        Assert.Equal([0, 1], detail.Timeline.Dates.Select(d => d.Order));
+    }
+
+    [Fact]
+    public async Task Books_join_a_universe_unscheduled()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        var dates = scope.ServiceProvider.GetRequiredService<IRepository<TimelineDate>>();
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Unscheduled" })).Value.Id;
+        int first = await SeedBookAsync(scope, shelfId, "Arrives First");
+        int second = await SeedBookAsync(scope, shelfId, "Arrives Second");
+        await service.AddBooksAsync(universeId, [first, second]);
+
+        // Adding books must never invent dates — that's an explicit decision.
+        Assert.Equal(0, await dates.CountAsync(td => td.UniverseId == universeId));
+
+        var detail = (await service.GetByIdAsync(universeId)).Value;
+        var group = Assert.Single(detail.Timeline.Groups);
+        Assert.Null(group.TimelineDateId);
+        Assert.Equal("Unscheduled", group.Label);
+        Assert.Equal(["Arrives First", "Arrives Second"], group.Entries.Select(e => e.Book.Title));
+        Assert.Equal([0, 1], group.Entries.Select(e => e.Order));
+    }
+
+    [Fact]
+    public async Task Books_assigned_to_the_same_date_share_its_column_and_order_within_it()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Shared Date" })).Value.Id;
+        int moment = (await service.CreateTimelineDateAsync(universeId, "Same Moment")).Value.Id;
+
+        int a = await SeedBookAsync(scope, shelfId, "Book A");
+        int b = await SeedBookAsync(scope, shelfId, "Book B");
+        int c = await SeedBookAsync(scope, shelfId, "Book C");
+        await service.AddBooksAsync(universeId, [a, b, c]);
+        await service.SetBookTimelineDateAsync(universeId, a, moment);
+        await service.SetBookTimelineDateAsync(universeId, b, moment);
+
+        var detail = (await service.GetByIdAsync(universeId)).Value;
+        var shared = detail.Timeline.Groups.Single(g => g.TimelineDateId == moment);
+        Assert.Equal(["Book A", "Book B"], shared.Entries.Select(e => e.Book.Title));
+        Assert.Equal([0, 1], shared.Entries.Select(e => e.Order));
+
+        // Book C never got a date, so it stays in the trailing unscheduled column.
+        var unscheduled = detail.Timeline.Groups.Single(g => g.TimelineDateId is null);
+        Assert.Equal(["Book C"], unscheduled.Entries.Select(e => e.Book.Title));
+
+        // Reordering one date's books leaves every other column alone.
+        await service.ReorderTimelineGroupAsync(universeId, moment, shared.Entries.Select(e => e.Id).Reverse().ToList());
+
+        detail = (await service.GetByIdAsync(universeId)).Value;
+        shared = detail.Timeline.Groups.Single(g => g.TimelineDateId == moment);
+        Assert.Equal(["Book B", "Book A"], shared.Entries.Select(e => e.Book.Title));
+        Assert.Equal([0, 1], shared.Entries.Select(e => e.Order));
+    }
+
+    [Fact]
+    public async Task Moving_a_book_to_another_date_closes_the_gap_it_left()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Moving" })).Value.Id;
+        int before = (await service.CreateTimelineDateAsync(universeId, "Before")).Value.Id;
+        int after = (await service.CreateTimelineDateAsync(universeId, "After")).Value.Id;
+
+        int a = await SeedBookAsync(scope, shelfId, "Stays");
+        int b = await SeedBookAsync(scope, shelfId, "Moves");
+        int c = await SeedBookAsync(scope, shelfId, "Also Stays");
+        await service.AddBooksAsync(universeId, [a, b, c]);
+        foreach (int bookId in new[] { a, b, c })
+        {
+            await service.SetBookTimelineDateAsync(universeId, bookId, before);
+        }
+
+        await service.SetBookTimelineDateAsync(universeId, b, after);
+
+        var detail = (await service.GetByIdAsync(universeId)).Value;
+        var beforeGroup = detail.Timeline.Groups.Single(g => g.TimelineDateId == before);
+        Assert.Equal(["Stays", "Also Stays"], beforeGroup.Entries.Select(e => e.Book.Title));
+        Assert.Equal([0, 1], beforeGroup.Entries.Select(e => e.Order));
+
+        var afterGroup = detail.Timeline.Groups.Single(g => g.TimelineDateId == after);
+        Assert.Equal(["Moves"], afterGroup.Entries.Select(e => e.Book.Title));
+    }
+
+    [Fact]
+    public async Task Deleting_a_date_unschedules_its_books_rather_than_evicting_them()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Doomed Date" })).Value.Id;
+        int doomed = (await service.CreateTimelineDateAsync(universeId, "Doomed")).Value.Id;
+        int keeper = (await service.CreateTimelineDateAsync(universeId, "Keeper")).Value.Id;
+
+        int bookId = await SeedBookAsync(scope, shelfId, "Orphan");
+        await service.AddBooksAsync(universeId, [bookId]);
+        await service.SetBookTimelineDateAsync(universeId, bookId, doomed);
+
+        Assert.True((await service.DeleteTimelineDateAsync(doomed)).IsSuccess);
+
+        var detail = (await service.GetByIdAsync(universeId)).Value;
+        var entry = Assert.Single(detail.Timeline.Entries);
+        Assert.Equal("Orphan", entry.Book.Title);
+        Assert.Null(entry.TimelineDateId);
+
+        // The surviving date closes the gap the deleted one left behind.
+        var remaining = Assert.Single(detail.Timeline.Dates);
+        Assert.Equal(keeper, remaining.Id);
+        Assert.Equal(0, remaining.Order);
+    }
+
+    [Fact]
+    public async Task A_date_the_universe_already_has_is_rejected()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "No Dupes" })).Value.Id;
+        Assert.True((await service.CreateTimelineDateAsync(universeId, "Year One")).IsSuccess);
+
+        // Same text, different spacing/casing — two of these would be indistinguishable in a dropdown.
+        var duplicate = await service.CreateTimelineDateAsync(universeId, "  year one ");
+
+        Assert.False(duplicate.IsSuccess);
+        Assert.Equal(Ardalis.Result.ResultStatus.Conflict, duplicate.Status);
+        Assert.Single((await service.ListTimelineDatesAsync(universeId)).Value);
+    }
+
+    [Fact]
+    public async Task Each_series_keeps_its_own_lane_across_the_date_columns()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Rows Test" })).Value.Id;
+        int firstDate = (await service.CreateTimelineDateAsync(universeId, "Act One")).Value.Id;
+        int secondDate = (await service.CreateTimelineDateAsync(universeId, "Act Two")).Value.Id;
+
+        int seriesId = await SeedSeriesAsync(scope, "Lane Series");
+        int inSeries = await SeedBookAsync(scope, shelfId, "In Series", seriesId);
+        int standaloneOne = await SeedBookAsync(scope, shelfId, "Standalone One");
+        int standaloneTwo = await SeedBookAsync(scope, shelfId, "Standalone Two");
+        await service.AddBooksAsync(universeId, [inSeries, standaloneOne, standaloneTwo]);
+
+        await service.SetBookTimelineDateAsync(universeId, inSeries, firstDate);
+        await service.SetBookTimelineDateAsync(universeId, standaloneOne, firstDate);
+        await service.SetBookTimelineDateAsync(universeId, standaloneTwo, secondDate);
+
+        var detail = (await service.GetByIdAsync(universeId)).Value;
+
+        Assert.Equal(2, detail.Timeline.Rows.Count);
+        foreach (var row in detail.Timeline.Rows)
+        {
+            // Every lane spans the whole timeline so the view can render it as a matrix row.
+            Assert.Equal(
+                detail.Timeline.Groups.Select(g => g.TimelineDateId),
+                row.Cells.Select(c => c.TimelineDateId));
+        }
+
+        var seriesRow = detail.Timeline.Rows.Single(r => r.SeriesId == seriesId);
+        Assert.Equal(["In Series"], seriesRow.Cells[0].Entries.Select(e => e.Book.Title));
+        Assert.Empty(seriesRow.Cells[1].Entries);
+
+        var standaloneRow = detail.Timeline.Rows.Single(r => r.SeriesId is null);
+        Assert.Equal("Standalone", standaloneRow.Label);
+        Assert.Equal(["Standalone One"], standaloneRow.Cells[0].Entries.Select(e => e.Book.Title));
+        Assert.Equal(["Standalone Two"], standaloneRow.Cells[1].Entries.Select(e => e.Book.Title));
     }
 
     [Fact]
@@ -64,7 +243,7 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
         Assert.Equal(0, (await service.AddBooksAsync(universeId, [bookId])).Value);
 
         var detail = (await service.GetByIdAsync(universeId)).Value;
-        Assert.Single(detail.Timeline);
+        Assert.Single(detail.Timeline.Entries);
     }
 
     [Fact]
@@ -82,7 +261,7 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
 
         var detail = (await service.GetByIdAsync(universeId)).Value;
         Assert.Single(detail.Series);
-        Assert.Empty(detail.Timeline);
+        Assert.Empty(detail.Timeline.Entries);
     }
 
     [Fact]
@@ -100,7 +279,7 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
         await service.SetSeriesUniverseAsync(seriesId, universeId, addSeriesBooks: true);
 
         var detail = (await service.GetByIdAsync(universeId)).Value;
-        Assert.Equal(2, detail.Timeline.Count);
+        Assert.Equal(2, detail.Timeline.Entries.Count);
     }
 
     [Fact]
@@ -146,7 +325,8 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
         Assert.True((await service.RemoveBookAsync(universeId, middle)).IsSuccess);
 
         var detail = (await service.GetByIdAsync(universeId)).Value;
-        Assert.Equal([0, 1], detail.Timeline.Select(t => t.TimelineOrder));
+        Assert.Equal(["Gap First", "Gap Last"], detail.Timeline.Entries.Select(t => t.Book.Title));
+        Assert.Equal([0, 1], detail.Timeline.Entries.Select(t => t.Order));
 
         var books = scope.ServiceProvider.GetRequiredService<IRepository<Book>>();
         Assert.NotNull(await books.FindOneAsync(new SearchOptions<Book> { Query = b => b.Id == middle }));
@@ -238,6 +418,7 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
             BuildUserContext(isAdministrator),
             sp.GetRequiredService<IRepository<Universe>>(),
             sp.GetRequiredService<IRepository<UniverseBook>>(),
+            sp.GetRequiredService<IRepository<TimelineDate>>(),
             sp.GetRequiredService<IRepository<Series>>(),
             sp.GetRequiredService<IRepository<Book>>(),
             sp.GetRequiredService<IRepository<ReadingList>>(),

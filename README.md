@@ -18,7 +18,7 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 
 ### Books & metadata
 
-- Full metadata editor: title, sort title, subtitle, HTML description, language, publisher, ISBN, published date, series and number in series, authors, genres, tags, universe and timeline date.
+- Full metadata editor: title, sort title, subtitle, HTML description, language, publisher, ISBN, published date, series and number in series, authors, genres, tags, universe and its timeline date (picked from the universe's dates, with a shortcut for adding a new one).
 - **Online metadata lookup** across four providers in parallel — Google Books, Open Library, Amazon and Goodreads — ranked by ISBN match, title similarity, field completeness and provider priority. Use it interactively from the edit page, or let a shelf back-fill empty fields during import.
 - **Cover management:** pick a cover from an online candidate, or revert to the file's embedded cover.
 - **Batch edit** up to 100 books at once — set series, publisher and language across the selection, add / replace / remove authors, genres and tags, and edit titles, subtitles and series numbers row by row.
@@ -42,7 +42,8 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 ### Universes
 
 - Group the series and books that share a fictional world, with tabs for **Overview**, **Series**, **Books**, **Reading orders** and **Timeline**.
-- A **timeline** of books with a free-text in-universe date ("10,191 AG", "Spring 1998", "Before the Fall") and a manually controlled order — the date is descriptive and is never parsed or used for sorting. It's presented as a horizontal rail of covers colour-coded by series, with an **Edit timeline** mode for drag-and-drop reordering and date entry.
+- A **timeline** built from in-universe dates you define yourself ("10,191 AG", "Spring 1998", "Before the Fall") and arrange by hand — the text is descriptive and is never parsed or used for sorting. Books are assigned to a date from a list rather than typed against one, so several books can share a moment, and books with no date yet wait in an **Unscheduled** column.
+- The timeline reads as a grid: one column per date, one lane per series (standalone books share a lane), so each series' books sit in its own row. **Edit timeline** switches to a per-date editor for dragging dates along the timeline, dragging books within a date, and adding, renaming or deleting dates.
 - **Reading orders** are ordinary reading lists scoped to the universe (publication order, chronological order, and so on). A new one starts as the whole universe in timeline order, ready to be rearranged. They're shared with every reader and stay out of the personal reading lists page.
 - Series and book membership are tracked independently, so a book can sit in a universe whose series doesn't, and vice versa. Assigning a series to a universe can optionally add its current books to the timeline.
 

@@ -20,6 +20,9 @@ public class Universe : BaseEntity<int>
 
     public virtual ICollection<UniverseBook> UniverseBooks { get; set; } = [];
 
+    /// <summary>The universe's shared timeline slots. See <see cref="TimelineDate"/>.</summary>
+    public virtual ICollection<TimelineDate> TimelineDates { get; set; } = [];
+
     /// <summary>Reading orders scoped to this universe (publication order, chronological order, …).</summary>
     public virtual ICollection<ReadingList> ReadingLists { get; set; } = [];
 }

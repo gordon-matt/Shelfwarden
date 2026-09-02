@@ -57,11 +57,11 @@ public class AuthorService(
         }
 
         string trimmed = name.Trim();
-        string normalised = trimmed.ToLowerInvariant();
+        string normalized = trimmed.ToLowerInvariant();
 
         var existing = await authorRepository.FindOneAsync(new SearchOptions<Author>
         {
-            Query = a => a.NormalizedName == normalised,
+            Query = a => a.NormalizedName == normalized,
         });
         if (existing is not null)
         {
@@ -71,7 +71,7 @@ public class AuthorService(
         var created = await authorRepository.InsertAsync(new Author
         {
             Name = trimmed,
-            NormalizedName = normalised,
+            NormalizedName = normalized,
         });
         return Result.Success(new AuthorDto(created.Id, created.Name, created.Biography));
     }
@@ -914,12 +914,12 @@ public class AuthorService(
                 return Result.Invalid(new ValidationError(nameof(displayName), "Name cannot be empty."));
             }
 
-            string normalised = trimmedName.ToLowerInvariant();
-            if (!string.Equals(author.NormalizedName, normalised, StringComparison.Ordinal))
+            string normalized = trimmedName.ToLowerInvariant();
+            if (!string.Equals(author.NormalizedName, normalized, StringComparison.Ordinal))
             {
                 var nameTaken = await authorRepository.FindOneAsync(new SearchOptions<Author>
                 {
-                    Query = a => a.NormalizedName == normalised && a.Id != authorId,
+                    Query = a => a.NormalizedName == normalized && a.Id != authorId,
                     CancellationToken = cancellationToken,
                 });
                 if (nameTaken is not null)
@@ -928,7 +928,7 @@ public class AuthorService(
                 }
 
                 author.Name = trimmedName;
-                author.NormalizedName = normalised;
+                author.NormalizedName = normalized;
                 nameUpdated = true;
             }
         }

@@ -1130,104 +1130,130 @@ ol.reading-list {
         background-color: var(--bs-primary);
     }
 
-/* Universe timeline — editable mode reuses .reading-list, so the in-universe date input needs a
+/* Universe timeline — editable mode reuses .reading-list, so the in-universe date picker needs a
    width cap rather than stretching across the whole row. */
 .universe-timeline-date-input {
     max-width: 22rem;
 }
 
-/* Universe timeline — read-only "poster" mode. A horizontal rail of covers hanging off a single
-   axis, colour-coded by series. Position along the rail comes from TimelineOrder; the dates are
-   free text, so they're labels rather than coordinates. */
+/* Whole-date drag, mirroring the per-book feedback inside it. */
+.timeline-group.is-dragging {
+    opacity: 0.4;
+}
+
+.timeline-group.is-drop-target {
+    border-color: var(--bs-primary);
+    box-shadow: inset 0 0 0 1px var(--bs-primary);
+}
+
+/* Universe timeline — read-only "poster" mode: a matrix of series lanes (rows) against the
+   universe's dates (columns), so each series' books stay in its own lane at the date they
+   happen. The dates are free text and hand-ordered, so the columns are evenly spaced rather
+   than scaled to any parsed value. */
 .universe-timeline {
     background-color: var(--bs-tertiary-bg);
     border: 1px solid var(--bs-border-color);
     border-radius: var(--bs-border-radius-lg);
-    padding: 1.25rem 0;
-}
-
-.universe-timeline-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 1rem;
-    padding: 0 1.25rem 1rem;
-    font-size: 0.8125rem;
-    color: var(--bs-secondary-color);
-}
-
-.universe-timeline-legend-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
-.universe-timeline-swatch {
-    width: 0.85rem;
-    height: 0.85rem;
-    border-radius: 0.2rem;
-    background-color: var(--tl-colour);
+    padding: 1.25rem;
 }
 
 .universe-timeline-scroll {
     overflow-x: auto;
-    padding: 0 1.25rem;
 }
 
-.universe-timeline-rail {
-    position: relative;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    align-items: flex-start;
-    gap: 1.5rem;
+.universe-timeline-grid {
+    display: grid;
+    grid-template-columns: 11rem repeat(var(--tl-columns), minmax(7.5rem, 1fr));
+    gap: 0.5rem 0.75rem;
     min-width: min-content;
+    align-items: stretch;
 }
 
-    /* The axis itself, drawn behind the nodes at their vertical centre. */
-    .universe-timeline-rail::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 2.35rem;
-        height: 2px;
-        background-color: var(--bs-border-color);
+.universe-timeline-corner {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: var(--bs-tertiary-bg);
+}
+
+.universe-timeline-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    background-color: var(--bs-secondary-bg);
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    min-width: 0;
+}
+
+    .universe-timeline-head.is-unscheduled {
+        background-color: transparent;
+        border: 1px dashed var(--bs-border-color);
+        color: var(--bs-secondary-color);
     }
 
-.universe-timeline-entry {
-    position: relative;
-    width: 8.5rem;
+.universe-timeline-head-label {
+    min-width: 0;
+}
+
+.universe-timeline-head-count {
     flex: 0 0 auto;
-    text-align: center;
+    font-weight: 400;
+    color: var(--bs-secondary-color);
 }
 
-.universe-timeline-date {
-    display: inline-block;
-    max-width: 100%;
-    padding: 0.2rem 0.6rem;
-    margin-bottom: 0.5rem;
-    border-radius: 999px;
-    background-color: var(--tl-colour);
-    color: #fff;
-    font-size: 0.75rem;
+.universe-timeline-lane {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-right: 0.5rem;
+    background-color: var(--bs-tertiary-bg);
+    font-size: 0.8125rem;
     font-weight: 600;
-    line-height: 1.35;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+    min-width: 0;
 }
 
-.universe-timeline-date-empty {
-    opacity: 0.7;
-}
-
-.universe-timeline-node {
-    position: relative;
+.universe-timeline-lane-swatch {
+    flex: 0 0 auto;
     width: 0.7rem;
     height: 0.7rem;
-    margin: 0 auto 0.9rem;
-    border-radius: 50%;
+    border-radius: 0.2rem;
     background-color: var(--tl-colour);
-    box-shadow: 0 0 0 3px var(--bs-tertiary-bg);
+}
+
+.universe-timeline-lane-label {
+    min-width: 0;
+}
+
+/* Empty cells keep a faint rail so a lane reads as one continuous thread across the timeline. */
+.universe-timeline-cell {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: start;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    min-width: 0;
+}
+
+    .universe-timeline-cell.is-empty::before {
+        content: "";
+        position: absolute;
+        left: -0.75rem;
+        right: -0.75rem;
+        top: 50%;
+        border-top: 2px dotted var(--bs-border-color);
+    }
+
+.universe-timeline-cell .universe-timeline-card {
+    width: 5.25rem;
 }
 
 .universe-timeline-card {
@@ -1282,11 +1308,7 @@ ol.reading-list {
     font-size: 0.8125rem;
     font-weight: 600;
     line-height: 1.25;
-}
-
-.universe-timeline-series {
-    font-size: 0.75rem;
-    color: var(--bs-secondary-color);
+    text-align: center;
 }
 
 @media (max-width: 575.98px) {

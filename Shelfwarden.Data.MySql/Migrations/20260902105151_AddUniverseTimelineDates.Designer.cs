@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shelfwarden.Data.MySql;
 
@@ -10,9 +11,11 @@ using Shelfwarden.Data.MySql;
 namespace Shelfwarden.Data.MySql.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902105151_AddUniverseTimelineDates")]
+    partial class AddUniverseTimelineDates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1155,7 +1158,6 @@ namespace Shelfwarden.Data.MySql.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Date")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .IsUnicode(true)
                         .HasColumnType("varchar(50)");
@@ -1215,10 +1217,7 @@ namespace Shelfwarden.Data.MySql.Migrations
                     b.Property<int>("BookId")
                         .HasColumnType("int");
 
-                    b.Property<int>("Order")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TimelineDateId")
+                    b.Property<int>("TimelineDateId")
                         .HasColumnType("int");
 
                     b.Property<int>("UniverseId")
@@ -1228,7 +1227,7 @@ namespace Shelfwarden.Data.MySql.Migrations
 
                     b.HasIndex("BookId");
 
-                    b.HasIndex("TimelineDateId", "Order");
+                    b.HasIndex("TimelineDateId");
 
                     b.HasIndex("UniverseId", "BookId")
                         .IsUnique();
@@ -1622,7 +1621,8 @@ namespace Shelfwarden.Data.MySql.Migrations
                     b.HasOne("Shelfwarden.Data.Entities.TimelineDate", "TimelineDate")
                         .WithMany("UniverseBooks")
                         .HasForeignKey("TimelineDateId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("Shelfwarden.Data.Entities.Universe", "Universe")
                         .WithMany("UniverseBooks")

@@ -20,8 +20,8 @@ public sealed record PdfMarginPatterns(IReadOnlySet<string> Headers, IReadOnlySe
 /// PdfPig — like every raw PDF extractor — emits the header, body and footer as ordinary lines, so a
 /// TTS pass will happily read "MARBLEHEAD 15" before every chapter page. There is no reliable
 /// structural marker for a header in the PDF spec, so we infer it statistically: a line that appears
-/// in the same normalised form near the top (or bottom) of a large fraction of pages is a running
-/// head (or footer). Page numbers vary per page, but collapse to a single normalised form ("#") once
+/// in the same normalized form near the top (or bottom) of a large fraction of pages is a running
+/// head (or footer). Page numbers vary per page, but collapse to a single normalized form ("#") once
 /// digits are folded, so they're caught the same way. Pure and stateless so it is unit-testable.
 /// </summary>
 public static class PdfMarginFilter

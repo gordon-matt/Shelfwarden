@@ -4,7 +4,7 @@ public class Author : BaseEntity<int>
 {
     public required string Name { get; set; }
 
-    /// <summary>Lowercased / normalised version of <see cref="Name"/> for case-insensitive lookups.</summary>
+    /// <summary>Lowercased / normalized version of <see cref="Name"/> for case-insensitive lookups.</summary>
     public required string NormalizedName { get; set; }
 
     public string? Biography { get; set; }

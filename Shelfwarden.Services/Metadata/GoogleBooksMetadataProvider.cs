@@ -141,7 +141,7 @@ public sealed class GoogleBooksMetadataProvider(
     }
 
     /// <summary>
-    /// Picks the largest cover Google offers and normalises it: forces https, drops the page-curl
+    /// Picks the largest cover Google offers and normalizes it: forces https, drops the page-curl
     /// overlay, and bumps the zoom so the modal shows a crisp thumbnail rather than the tiny default.
     /// </summary>
     private static string? PickCoverUrl(GoogleImageLinks? links)

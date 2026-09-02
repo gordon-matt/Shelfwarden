@@ -1206,6 +1206,33 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.ToTable("Tags", "app");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.TimelineDate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Date")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(true)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UniverseId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UniverseId", "Order");
+
+                    b.ToTable("TimelineDates", "app");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Universe", b =>
                 {
                     b.Property<int>("Id")
@@ -1252,12 +1279,10 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Property<int>("BookId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("TimelineDate")
-                        .HasMaxLength(50)
-                        .IsUnicode(true)
-                        .HasColumnType("character varying(50)");
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
 
-                    b.Property<int>("TimelineOrder")
+                    b.Property<int?>("TimelineDateId")
                         .HasColumnType("integer");
 
                     b.Property<int>("UniverseId")
@@ -1267,10 +1292,10 @@ namespace Shelfwarden.Data.Npgsql.Migrations
 
                     b.HasIndex("BookId");
 
+                    b.HasIndex("TimelineDateId", "Order");
+
                     b.HasIndex("UniverseId", "BookId")
                         .IsUnique();
-
-                    b.HasIndex("UniverseId", "TimelineOrder");
 
                     b.ToTable("UniverseBooks", "app");
                 });
@@ -1639,6 +1664,17 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("Shelf");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.TimelineDate", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Universe", "Universe")
+                        .WithMany("TimelineDates")
+                        .HasForeignKey("UniverseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Universe");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.UniverseBook", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
@@ -1647,6 +1683,11 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Shelfwarden.Data.Entities.TimelineDate", "TimelineDate")
+                        .WithMany("UniverseBooks")
+                        .HasForeignKey("TimelineDateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Shelfwarden.Data.Entities.Universe", "Universe")
                         .WithMany("UniverseBooks")
                         .HasForeignKey("UniverseId")
@@ -1654,6 +1695,8 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .IsRequired();
 
                     b.Navigation("Book");
+
+                    b.Navigation("TimelineDate");
 
                     b.Navigation("Universe");
                 });
@@ -1744,11 +1787,18 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Navigation("BookTags");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.TimelineDate", b =>
+                {
+                    b.Navigation("UniverseBooks");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.Universe", b =>
                 {
                     b.Navigation("ReadingLists");
 
                     b.Navigation("Series");
+
+                    b.Navigation("TimelineDates");
 
                     b.Navigation("UniverseBooks");
                 });

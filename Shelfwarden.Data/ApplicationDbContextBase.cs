@@ -60,6 +60,8 @@ public abstract class ApplicationDbContextBase
 
     public DbSet<UniverseBook> UniverseBooks => Set<UniverseBook>();
 
+    public DbSet<TimelineDate> TimelineDates => Set<TimelineDate>();
+
     public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
 
     public DbSet<Audiobook> Audiobooks => Set<Audiobook>();

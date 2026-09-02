@@ -218,7 +218,7 @@ else
                     <div class="card-header"><strong>Universe</strong></div>
                     <div class="card-body">
                         <label class="form-label">Universe</label>
-                        <select class="form-select" @bind="selectedUniverseId">
+                        <select class="form-select" @bind="selectedUniverseId" @bind:after="OnUniverseChangedAsync">
                             <option value="0">— None —</option>
                             @foreach (var u in universeOptions)
                             {
@@ -233,11 +233,20 @@ else
                         @if (selectedUniverseId > 0)
                         {
                             <label class="form-label mt-3">Timeline date</label>
-                            <InputText class="form-control" @bind-Value="form.TimelineDate"
-                                       placeholder="10,191 AG · Spring 1998 · Before the Fall" />
-                            <div class="form-text">
-                                Free text — shown on the universe timeline but never used to sort it.
-                                Reorder the timeline from the universe page.
+                            <select class="form-select" @bind="selectedTimelineDateId" disabled="@loadingDates">
+                                <option value="0">— Unscheduled —</option>
+                                @foreach (var d in timelineDates)
+                                {
+                                    <option value="@d.Id">@d.Date</option>
+                                }
+                            </select>
+                            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                <div class="form-text mb-0">
+                                    The universe's dates, in timeline order. Reorder them from the universe page.
+                                </div>
+                                <button type="button" class="btn btn-link btn-sm px-0" @onclick="OpenDateModal">
+                                    <i class="bi bi-plus-lg"></i> New date&hellip;
+                                </button>
                             </div>
                         }
                     </div>
@@ -291,4 +300,47 @@ else
                        OnClose="CloseMetadataModal"
                        OnApply="ApplyExternalMetadataAsync"
                        OnUseCover="StageCoverFromUrl" />
+
+    @if (dateModalOpen)
+    {
+        <div class="modal modal-show d-block" tabindex="-1" style="background-color: rgba(0,0,0,.35); z-index: 1060;"
+             @onclick="CloseDateModal">
+            <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-calendar-event me-1"></i> New timeline date</h5>
+                        <button type="button" class="btn-close" @onclick="CloseDateModal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label" for="book-timeline-date-text">Date</label>
+                        <input id="book-timeline-date-text" class="form-control" maxlength="50" autofocus
+                               placeholder="10,191 AG · Spring 1998 · Before the Fall"
+                               @bind="dateModalText" @bind:event="oninput"
+                               @onkeydown="DateModalKeyDownAsync" />
+                        <div class="form-text">
+                            Added to the end of the universe's timeline and selected for this book. Reorder
+                            the universe's dates from its own page.
+                        </div>
+                        @if (dateModalError is not null)
+                        {
+                            <div class="alert alert-warning mt-3 mb-0">@dateModalError</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseDateModal" disabled="@dateModalBusy">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" @onclick="CreateDateAsync"
+                                disabled="@(dateModalBusy || string.IsNullOrWhiteSpace(dateModalText))">
+                            @if (dateModalBusy)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }

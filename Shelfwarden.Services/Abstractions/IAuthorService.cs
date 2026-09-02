@@ -10,7 +10,7 @@ public interface IAuthorService
 
     /// <summary>
     /// Returns the full /authors index with per-author book counts, ordered alphabetically by
-    /// normalised name. Authors with zero books (on the selected shelf, or overall when <paramref name="shelfId"/> is null) are omitted.
+    /// normalized name. Authors with zero books (on the selected shelf, or overall when <paramref name="shelfId"/> is null) are omitted.
     /// </summary>
     Task<Result<IReadOnlyList<AuthorListItemDto>>> ListAsync(string? query = null, int? shelfId = null, CancellationToken cancellationToken = default);
 

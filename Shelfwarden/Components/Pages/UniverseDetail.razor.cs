@@ -1,8 +1,18 @@
+using Microsoft.AspNetCore.Components.Web;
+
 namespace Shelfwarden.Components.Pages;
 
 public partial class UniverseDetail : ComponentBase
 {
+    private readonly ListReorderState bookReorder = new();
     private bool busy;
+    private readonly ListReorderState dateReorder = new();
+    private bool dateModalBusy;
+    private string? dateModalError;
+    private int? dateModalId;
+    private bool dateModalOpen;
+    private string? dateModalText;
+    private int? draggingGroupIndex;
     private bool editing;
     private EditModel editModel = new();
     private bool editingTimeline;
@@ -10,7 +20,6 @@ public partial class UniverseDetail : ComponentBase
     private string? listErrorMessage;
     private bool loading = true;
     private CreateListModel newList = new();
-    private readonly ListReorderState reorder = new();
     private bool reordering;
     private bool savingEdit;
     private CancellationTokenSource? searchCts;
@@ -29,7 +38,7 @@ public partial class UniverseDetail : ComponentBase
         [
             new(UniverseTab.Overview, "Overview", "bi-info-circle", 0),
             new(UniverseTab.Series, "Series", "bi-collection-fill", universe.Series.Count),
-            new(UniverseTab.Books, "Books", "bi-book", universe.Timeline.Count),
+            new(UniverseTab.Books, "Books", "bi-book", universe.Timeline.Entries.Count),
             new(UniverseTab.ReadingLists, "Reading orders", "bi-list-ol", universe.ReadingLists.Count),
             new(UniverseTab.Timeline, "Timeline", "bi-clock-history", 0),
         ];
@@ -114,21 +123,23 @@ public partial class UniverseDetail : ComponentBase
         }
     }
 
-    /// <summary>
-    /// Moves a timeline entry and sends the whole new ordering back, so the server stays the
-    /// source of truth for <c>TimelineOrder</c>.
-    /// </summary>
-    private Task MoveAsync(int fromIndex, int toIndex) =>
-        ApplyOrderAsync(universe is null
-            ? null
-            : ListReorderState.Move(universe.Timeline.Select(t => t.Id).ToList(), fromIndex, toIndex));
+    /// <summary>Index of a date in the universe's date list, or -1 for the unscheduled column.</summary>
+    private int DateIndexOf(int? timelineDateId) =>
+        timelineDateId is int id && universe is not null
+            ? universe.Timeline.Dates.ToList().FindIndex(d => d.Id == id)
+            : -1;
 
-    private Task DropAsync() =>
-        ApplyOrderAsync(universe is null
+    private Task MoveDateAsync(int fromIndex, int toIndex) =>
+        ApplyDateOrderAsync(universe is null
             ? null
-            : reorder.Complete(universe.Timeline.Select(t => t.Id).ToList()));
+            : ListReorderState.Move(universe.Timeline.Dates.Select(d => d.Id).ToList(), fromIndex, toIndex));
 
-    private async Task ApplyOrderAsync(List<int>? orderedIds)
+    private Task DropDateAsync() =>
+        ApplyDateOrderAsync(universe is null
+            ? null
+            : dateReorder.Complete(universe.Timeline.Dates.Select(d => d.Id).ToList()));
+
+    private async Task ApplyDateOrderAsync(List<int>? orderedIds)
     {
         if (orderedIds is null || reordering)
         {
@@ -138,7 +149,7 @@ public partial class UniverseDetail : ComponentBase
         reordering = true;
         try
         {
-            var result = await UniverseService.ReorderTimelineAsync(Id, orderedIds);
+            var result = await UniverseService.ReorderTimelineDatesAsync(Id, orderedIds);
             if (result.IsSuccess)
             {
                 await LoadAsync();
@@ -147,6 +158,173 @@ public partial class UniverseDetail : ComponentBase
         finally
         {
             reordering = false;
+        }
+    }
+
+    // Books are only ever dragged within their own date, so one drag state plus the group it
+    // started in is enough to keep the highlighting from bleeding across the other groups.
+    private void StartBookDrag(int groupIndex, int index)
+    {
+        draggingGroupIndex = groupIndex;
+        bookReorder.Start(index);
+    }
+
+    private void BookDragOver(int groupIndex, int index)
+    {
+        if (draggingGroupIndex == groupIndex)
+        {
+            bookReorder.DragOver(index);
+        }
+    }
+
+    private bool IsBookSource(int groupIndex, int index) =>
+        draggingGroupIndex == groupIndex && bookReorder.IsSource(index);
+
+    private bool IsBookDropTarget(int groupIndex, int index) =>
+        draggingGroupIndex == groupIndex && bookReorder.IsDropTarget(index);
+
+    private Task DropBookAsync(int groupIndex, int? timelineDateId)
+    {
+        if (universe is null || draggingGroupIndex != groupIndex)
+        {
+            bookReorder.Cancel();
+            return Task.CompletedTask;
+        }
+
+        draggingGroupIndex = null;
+        var ids = universe.Timeline.Groups[groupIndex].Entries.Select(e => e.Id).ToList();
+        return ApplyGroupOrderAsync(timelineDateId, bookReorder.Complete(ids));
+    }
+
+    private Task MoveBookAsync(UniverseTimelineGroupDto group, int fromIndex, int toIndex) =>
+        ApplyGroupOrderAsync(
+            group.TimelineDateId,
+            ListReorderState.Move(group.Entries.Select(e => e.Id).ToList(), fromIndex, toIndex));
+
+    private async Task ApplyGroupOrderAsync(int? timelineDateId, List<int>? orderedIds)
+    {
+        if (orderedIds is null || reordering)
+        {
+            return;
+        }
+
+        reordering = true;
+        try
+        {
+            var result = await UniverseService.ReorderTimelineGroupAsync(Id, timelineDateId, orderedIds);
+            if (result.IsSuccess)
+            {
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            reordering = false;
+        }
+    }
+
+    private async Task MoveBookToDateAsync(int bookId, string? rawTimelineDateId)
+    {
+        if (reordering)
+        {
+            return;
+        }
+
+        int? timelineDateId = int.TryParse(rawTimelineDateId, out int parsed) ? parsed : null;
+
+        reordering = true;
+        try
+        {
+            var result = await UniverseService.SetBookTimelineDateAsync(Id, bookId, timelineDateId);
+            if (result.IsSuccess)
+            {
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            reordering = false;
+        }
+    }
+
+    private void OpenDateModal(int? timelineDateId)
+    {
+        dateModalId = timelineDateId;
+        dateModalText = timelineDateId is int id
+            ? universe?.Timeline.Dates.FirstOrDefault(d => d.Id == id)?.Date
+            : null;
+        dateModalError = null;
+        dateModalOpen = true;
+    }
+
+    private void CloseDateModal()
+    {
+        dateModalOpen = false;
+        dateModalBusy = false;
+        dateModalError = null;
+    }
+
+    private async Task DateModalKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SaveDateAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            CloseDateModal();
+        }
+    }
+
+    private async Task SaveDateAsync()
+    {
+        if (dateModalBusy || string.IsNullOrWhiteSpace(dateModalText))
+        {
+            return;
+        }
+
+        dateModalBusy = true;
+        dateModalError = null;
+        try
+        {
+            var result = dateModalId is int id
+                ? (await UniverseService.RenameTimelineDateAsync(id, dateModalText)).Map(_ => 0)
+                : (await UniverseService.CreateTimelineDateAsync(Id, dateModalText)).Map(_ => 0);
+
+            if (result.IsSuccess)
+            {
+                dateModalOpen = false;
+                await LoadAsync();
+            }
+            else
+            {
+                dateModalError = result.Errors.FirstOrDefault()
+                    ?? result.ValidationErrors.FirstOrDefault()?.ErrorMessage
+                    ?? "Could not save the date.";
+            }
+        }
+        finally
+        {
+            dateModalBusy = false;
+        }
+    }
+
+    private async Task DeleteDateAsync(int timelineDateId, string label, int bookCount)
+    {
+        string question = bookCount == 0
+            ? $"Delete the timeline date \"{label}\"?"
+            : $"Delete the timeline date \"{label}\"? Its {bookCount} book{(bookCount == 1 ? "" : "s")} "
+              + "stay in the universe and go back to being unscheduled.";
+
+        if (!await JS.InvokeAsync<bool>("confirm", question))
+        {
+            return;
+        }
+
+        var result = await UniverseService.DeleteTimelineDateAsync(timelineDateId);
+        if (result.IsSuccess)
+        {
+            await LoadAsync();
         }
     }
 
@@ -177,7 +355,7 @@ public partial class UniverseDetail : ComponentBase
                 return;
             }
 
-            var existing = universe?.Timeline.Select(t => t.Book.Id).ToHashSet() ?? [];
+            var existing = universe?.Timeline.Entries.Select(t => t.Book.Id).ToHashSet() ?? [];
             searchResults = result.IsSuccess
                 ? result.Value.Items.Where(b => !existing.Contains(b.Id)).ToList()
                 : [];
@@ -244,15 +422,6 @@ public partial class UniverseDetail : ComponentBase
         finally
         {
             savingEdit = false;
-        }
-    }
-
-    private async Task SaveTimelineDateAsync(int bookId, string? timelineDate)
-    {
-        var result = await UniverseService.SetTimelineDateAsync(Id, bookId, timelineDate);
-        if (result.IsSuccess)
-        {
-            await LoadAsync();
         }
     }
 
