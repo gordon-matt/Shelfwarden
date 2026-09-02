@@ -475,7 +475,8 @@ else
                                     {
                                         var entry = group.Entries[i];
                                         int index = i;
-                                        <li class="reading-list-item @(IsBookSource(groupIndex, index) ? "is-dragging" : null) @(IsBookDropTarget(groupIndex, index) ? "is-drop-target" : null)"
+                                        <li @key="entry.Id"
+                                            class="reading-list-item @(IsBookSource(groupIndex, index) ? "is-dragging" : null) @(IsBookDropTarget(groupIndex, index) ? "is-drop-target" : null)"
                                             @ondragover:preventDefault="true"
                                             @ondragenter="() => BookDragOver(groupIndex, index)"
                                             @ondragover="() => BookDragOver(groupIndex, index)"

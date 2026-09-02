@@ -1,9 +1,9 @@
-@* Read-only "poster" view of a universe timeline: a matrix of series lanes (rows) against the
-   universe's timeline dates (columns). Each lane draws a colourful bar across the dates it
-   occupies, with that date's books as a horizontal strip underneath. *@
+@* Read-only "poster" view of a universe timeline: a matrix of series lanes against date columns.
+   Column widths are sized from the busiest cell in each date so headers stretch over their books
+   and adjacent dates stay separated by a gap. *@
 <div class="universe-timeline">
     <div class="universe-timeline-scroll">
-        <div class="universe-timeline-grid" style="--tl-columns: @Groups.Count;">
+        <div class="universe-timeline-grid" style="grid-template-columns: @GridTemplateColumns;">
             <div class="universe-timeline-corner"></div>
             @foreach (var group in Groups)
             {
@@ -26,13 +26,11 @@
                 {
                     var cell = row.Cells[ci];
                     bool inSpan = spanStart >= 0 && ci >= spanStart && ci <= spanEnd;
+                    // Occupied cells get a colourful pill; empty cells inside the span get a quieter
+                    // coloured rail so the lane still reads as continuous; outside the span stay faint.
                     string cellClass = "universe-timeline-cell"
-                        + (cell.Entries.Count == 0 ? " is-empty" : string.Empty)
-                        + (inSpan ? " is-span" : " is-rail")
-                        + (ci == spanStart ? " is-span-start" : string.Empty)
-                        + (ci == spanEnd ? " is-span-end" : string.Empty)
-                        + (ci == 0 ? " is-first-col" : string.Empty)
-                        + (ci == row.Cells.Count - 1 ? " is-last-col" : string.Empty);
+                        + (cell.Entries.Count == 0 ? " is-empty" : " is-occupied")
+                        + (inSpan ? " is-span" : " is-rail");
 
                     <div class="@cellClass" style="--tl-colour: @RowColour(row)">
                         <div class="universe-timeline-cell-bar"></div>
