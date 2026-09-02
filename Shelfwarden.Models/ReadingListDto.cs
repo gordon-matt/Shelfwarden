@@ -14,6 +14,7 @@ public record ReadingListDto(
     CardBannerPreview Banner);
 
 /// <summary>Reading list with items, ordered by Position ascending.</summary>
+/// <param name="UniverseId">Set when this list is a universe reading order rather than a personal queue.</param>
 public record ReadingListDetailDto(
     int Id,
     string Name,
@@ -21,7 +22,9 @@ public record ReadingListDetailDto(
     string OwnerUserId,
     DateTime CreatedAt,
     IReadOnlyList<ReadingListEntryDto> Items,
-    CardBannerSettingsDto BannerSettings);
+    CardBannerSettingsDto BannerSettings,
+    int? UniverseId = null,
+    string? UniverseName = null);
 
 /// <summary>Single entry inside a reading list. Holds the position so reorder UIs have something to bind to.</summary>
 public record ReadingListEntryDto(

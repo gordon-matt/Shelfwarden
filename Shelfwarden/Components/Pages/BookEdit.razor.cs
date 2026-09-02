@@ -35,6 +35,12 @@ public partial class BookEdit : ComponentBase
     private bool showSeriesSuggestions;
     private List<string> tagDirectory = [];
 
+    // Universe membership lives on UniverseBook, not on the book, so it saves through
+    // IUniverseService after the book itself has been persisted. 0 means "no universe".
+    private int selectedUniverseId;
+
+    private IReadOnlyList<UniverseOptionDto> universeOptions = [];
+
     [Parameter]
     public int Id { get; set; }
 
@@ -43,7 +49,16 @@ public partial class BookEdit : ComponentBase
         loading = true;
         var bookTask = BookService.GetByIdAsync(Id);
         var tagsTask = TagService.ListAsync();
-        await Task.WhenAll(bookTask, tagsTask);
+        var universesTask = UniverseService.SearchAsync();
+        var membershipTask = UniverseService.GetBookMembershipAsync(Id);
+        await Task.WhenAll(bookTask, tagsTask, universesTask, membershipTask);
+
+        var universesLookup = await universesTask;
+        universeOptions = universesLookup.IsSuccess ? universesLookup.Value : [];
+
+        var membership = await membershipTask;
+        var currentUniverse = membership.IsSuccess ? membership.Value : null;
+        selectedUniverseId = currentUniverse?.UniverseId ?? 0;
 
         var tagsLookup = await tagsTask;
         tagDirectory = tagsLookup.IsSuccess
@@ -70,6 +85,7 @@ public partial class BookEdit : ComponentBase
             Isbn = book.Isbn,
             PublishedOn = book.PublishedOn,
             NumberInSeries = book.NumberInSeries,
+            TimelineDate = currentUniverse?.TimelineDate,
         };
 
         selectedAuthors.Clear();
@@ -299,6 +315,19 @@ public partial class BookEdit : ComponentBase
                 return;
             }
 
+            // Universe membership isn't part of UpdateBookRequest — it lives on UniverseBook so the
+            // same book could sit in more than one universe later without changing the book row.
+            var universeResult = await UniverseService.SetBookMembershipAsync(
+                Id,
+                selectedUniverseId > 0 ? selectedUniverseId : null,
+                form.TimelineDate);
+            if (!universeResult.IsSuccess)
+            {
+                errorMessage = universeResult.Errors.FirstOrDefault()
+                    ?? "Saved, but the universe membership could not be updated.";
+                return;
+            }
+
             // Metadata is saved; now apply any staged cover change. These touch the filesystem, so a
             // failure here is surfaced (the metadata is already persisted) rather than rolled back.
             if (revertCoverToFile)
@@ -412,6 +441,9 @@ public partial class BookEdit : ComponentBase
 
         [StringLength(512)]
         public string? SortTitle { get; set; }
+
+        [StringLength(50)]
+        public string? TimelineDate { get; set; }
 
         [StringLength(512)]
         public string? Subtitle { get; set; }

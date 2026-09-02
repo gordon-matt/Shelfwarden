@@ -43,6 +43,7 @@ public class SeriesService(
         var series = await seriesRepository.FindOneAsync(new SearchOptions<Series>
         {
             Query = s => s.Id == id,
+            Include = query => query.Include(s => s.Universe),
         });
 
         if (series is null)
@@ -52,7 +53,8 @@ public class SeriesService(
 
         int count = await bookRepository.CountAsync(b => b.SeriesId == id);
 
-        return Result.Success(new SeriesDto(series.Id, series.Name, series.Description, count));
+        return Result.Success(new SeriesDto(
+            series.Id, series.Name, series.Description, count, series.UniverseId, series.Universe?.Name));
     }
 
     public async Task<Result<SeriesDto>> GetOrCreateAsync(string name, CancellationToken cancellationToken = default)
@@ -88,6 +90,7 @@ public class SeriesService(
     {
         var options = new SearchOptions<Series>
         {
+            Include = query => query.Include(s => s.Universe),
             OrderBy = query => query.OrderBy(s => s.NormalizedName),
             CancellationToken = cancellationToken,
         };
@@ -129,7 +132,8 @@ public class SeriesService(
                         r.Id,
                         r.CoverImagePath))
                     .ToList();
-                return new SeriesListItemDto(s.Id, s.Name, s.Description, rows.Count, covers);
+                return new SeriesListItemDto(
+                    s.Id, s.Name, s.Description, rows.Count, covers, s.UniverseId, s.Universe?.Name);
             })
             .ToList();
 
@@ -176,7 +180,8 @@ public class SeriesService(
         var updated = await seriesRepository.UpdateAsync(series);
         int count = await bookRepository.CountAsync(b => b.SeriesId == id);
 
-        return Result.Success(new SeriesDto(updated.Id, updated.Name, updated.Description, count));
+        return Result.Success(new SeriesDto(
+            updated.Id, updated.Name, updated.Description, count, updated.UniverseId));
     }
 
     public async Task<Result> DeleteAsync(int id, CancellationToken cancellationToken = default)

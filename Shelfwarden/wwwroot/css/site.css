@@ -1102,6 +1102,12 @@ ol.reading-list {
         background-color: var(--bs-primary);
     }
 
+/* Universe timeline reuses .reading-list; the in-universe date is free text, so cap its width
+   rather than letting it stretch across the whole row. */
+.universe-timeline-date {
+    max-width: 22rem;
+}
+
 @media (max-width: 575.98px) {
     .reading-list-item {
         grid-template-columns: auto 64px 1fr;

@@ -32,6 +32,13 @@ else
             <h1 class="mb-1">@series.Name</h1>
             <div class="text-secondary small">
                 @series.BookCount book@(series.BookCount == 1 ? "" : "s")
+                @if (series.UniverseId is int universeId)
+                {
+                    <span> · </span>
+                    <a class="text-decoration-none" href="@($"universes/{universeId}")">
+                        <i class="bi bi-stars"></i> @series.UniverseName
+                    </a>
+                }
             </div>
             @if (!string.IsNullOrWhiteSpace(series.Description))
             {

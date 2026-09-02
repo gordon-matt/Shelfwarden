@@ -4,22 +4,36 @@ namespace Shelfwarden.Components.Pages;
 
 public partial class SeriesIndex : ComponentBase
 {
+    private bool addSeriesBooksToUniverse;
+    private string? editError;
+    private bool editModalOpen;
+    private bool editSaving;
+    private int editSeriesId;
+    private string editSeriesName = string.Empty;
+
+    // 0 means "no universe" — <select> can't bind a nullable int cleanly.
+    private int editUniverseId;
+
+    private int originalUniverseId;
     private string query = string.Empty;
-    private string? renameError;
-    private bool renameModalOpen;
-    private bool renameSaving;
-    private int renameSeriesId;
-    private string renameSeriesName = string.Empty;
     private CancellationTokenSource? searchCts;
     private IReadOnlyList<SeriesListItemDto>? series;
+    private IReadOnlyList<UniverseOptionDto> universeOptions = [];
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-
-    private void CloseRenameModal()
+    protected override async Task OnInitializedAsync()
     {
-        renameModalOpen = false;
-        renameSaving = false;
-        renameError = null;
+        var universesTask = UniverseService.SearchAsync();
+        await LoadAsync();
+
+        var universes = await universesTask;
+        universeOptions = universes.IsSuccess ? universes.Value : [];
+    }
+
+    private void CloseEditModal()
+    {
+        editModalOpen = false;
+        editSaving = false;
+        editError = null;
     }
 
     private async Task ConfirmDeleteSeriesAsync(SeriesListItemDto s)
@@ -78,34 +92,49 @@ public partial class SeriesIndex : ComponentBase
         catch (TaskCanceledException) { }
     }
 
-    private void OpenRenameModal(SeriesListItemDto s)
+    private void OpenEditModal(SeriesListItemDto s)
     {
-        renameSeriesId = s.Id;
-        renameSeriesName = s.Name;
-        renameError = null;
-        renameModalOpen = true;
+        editSeriesId = s.Id;
+        editSeriesName = s.Name;
+        editUniverseId = s.UniverseId ?? 0;
+        originalUniverseId = editUniverseId;
+        addSeriesBooksToUniverse = false;
+        editError = null;
+        editModalOpen = true;
     }
 
-    private async Task SaveRenameAsync()
+    private async Task SaveEditAsync()
     {
-        renameSaving = true;
-        renameError = null;
+        editSaving = true;
+        editError = null;
         try
         {
-            var result = await SeriesService.UpdateAsync(renameSeriesId, renameSeriesName);
-            if (result.IsSuccess)
+            var result = await SeriesService.UpdateAsync(editSeriesId, editSeriesName);
+            if (!result.IsSuccess)
             {
-                CloseRenameModal();
-                await LoadAsync();
+                editError = result.Errors.FirstOrDefault() ?? "Could not rename the series.";
+                return;
             }
-            else
+
+            if (editUniverseId != originalUniverseId)
             {
-                renameError = result.Errors.FirstOrDefault() ?? "Could not rename the series.";
+                var universeResult = await UniverseService.SetSeriesUniverseAsync(
+                    editSeriesId,
+                    editUniverseId > 0 ? editUniverseId : null,
+                    addSeriesBooksToUniverse);
+                if (!universeResult.IsSuccess)
+                {
+                    editError = universeResult.Errors.FirstOrDefault() ?? "Could not set the universe.";
+                    return;
+                }
             }
+
+            CloseEditModal();
+            await LoadAsync();
         }
         finally
         {
-            renameSaving = false;
+            editSaving = false;
         }
     }
 }

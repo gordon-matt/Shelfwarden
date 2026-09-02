@@ -1,6 +1,7 @@
 @page "/series"
 @attribute [Authorize]
 @inject ISeriesService SeriesService
+@inject IUniverseService UniverseService
 @inject IJSRuntime JS
 
 <PageTitle>Series - Shelfwarden</PageTitle>
@@ -67,10 +68,10 @@ else
                                         <li><hr class="dropdown-divider" /></li>
                                         <li>
                                             <button type="button" class="dropdown-item"
-                                                    @onclick="() => OpenRenameModal(s)"
+                                                    @onclick="() => OpenEditModal(s)"
                                                     @onclick:stopPropagation="true"
                                                     @onclick:preventDefault="true">
-                                                <i class="bi bi-pencil me-1"></i> Rename
+                                                <i class="bi bi-pencil me-1"></i> Edit
                                             </button>
                                         </li>
                                         <li>
@@ -91,6 +92,12 @@ else
                         <div class="series-tile-count text-secondary small">
                             @s.BookCount book@(s.BookCount == 1 ? "" : "s")
                         </div>
+                        @if (!string.IsNullOrEmpty(s.UniverseName))
+                        {
+                            <div class="series-tile-count text-secondary small text-truncate">
+                                <i class="bi bi-stars"></i> @s.UniverseName
+                            </div>
+                        }
                     </div>
                 </a>
             </div>
@@ -98,27 +105,51 @@ else
     </div>
 }
 
-@if (renameModalOpen)
+@if (editModalOpen)
 {
     <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Rename series</h5>
-                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseRenameModal"></button>
+                    <h5 class="modal-title">Edit series</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseEditModal"></button>
                 </div>
                 <div class="modal-body">
-                    @if (renameError is not null)
+                    @if (editError is not null)
                     {
-                        <div class="alert alert-danger py-2">@renameError</div>
+                        <div class="alert alert-danger py-2">@editError</div>
                     }
                     <label class="form-label">Name</label>
-                    <input class="form-control" @bind="renameSeriesName" maxlength="256" />
+                    <input class="form-control" @bind="editSeriesName" maxlength="256" />
+
+                    <label class="form-label mt-3">Universe</label>
+                    <select class="form-select" @bind="editUniverseId">
+                        <option value="0">— None —</option>
+                        @foreach (var u in universeOptions)
+                        {
+                            <option value="@u.Id">@u.Name</option>
+                        }
+                    </select>
+
+                    @if (editUniverseId > 0 && editUniverseId != originalUniverseId)
+                    {
+                        <div class="form-check mt-3">
+                            <input class="form-check-input" type="checkbox" id="addSeriesBooksToUniverse"
+                                   @bind="addSeriesBooksToUniverse" />
+                            <label class="form-check-label" for="addSeriesBooksToUniverse">
+                                Also add this series' books to the universe timeline
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Book membership stays explicit after this — later additions to the series won't
+                            join the universe automatically.
+                        </div>
+                    }
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseRenameModal">Cancel</button>
-                    <button type="button" class="btn btn-primary" @onclick="SaveRenameAsync" disabled="@renameSaving">
-                        @if (renameSaving)
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseEditModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveEditAsync" disabled="@editSaving">
+                        @if (editSaving)
                         {
                             <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                         }

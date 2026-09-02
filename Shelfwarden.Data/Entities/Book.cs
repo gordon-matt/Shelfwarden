@@ -71,6 +71,9 @@ public class Book : BaseEntity<int>
 
     public virtual ICollection<ReadingListItem> ReadingListItems { get; set; } = [];
 
+    /// <summary>Rows placing this book inside a fictional universe's timeline (join entity).</summary>
+    public virtual ICollection<UniverseBook> UniverseBooks { get; set; } = [];
+
     public virtual ICollection<BookAdditionalContentItem> BookAdditionalContent { get; set; } = [];
 }
 

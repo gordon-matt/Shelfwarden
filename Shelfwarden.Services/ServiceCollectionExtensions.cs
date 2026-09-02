@@ -37,6 +37,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IBookUserService, BookUserService>();
             services.AddScoped<ICollectionService, CollectionService>();
             services.AddScoped<IReadingListService, ReadingListService>();
+            services.AddScoped<IUniverseService, UniverseService>();
             services.AddScoped<ISetupService, SetupService>();
             services.AddScoped<IAdditionalContentService, AdditionalContentService>();
             services.AddScoped<AuthorCleanupJob>();

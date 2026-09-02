@@ -116,4 +116,6 @@ public record SeriesListItemDto(
     string Name,
     string? Description,
     int BookCount,
-    IReadOnlyList<SeriesCoverDto> Covers);
+    IReadOnlyList<SeriesCoverDto> Covers,
+    int? UniverseId = null,
+    string? UniverseName = null);

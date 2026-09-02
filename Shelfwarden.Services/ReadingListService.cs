@@ -55,9 +55,11 @@ public class ReadingListService(
             }
         }
 
+        // Universe reading orders are deliberately absent here — they're created and managed from
+        // the universe page so they don't clutter the user's own queues.
         var rows = (await listRepository.FindAsync(new SearchOptions<ReadingList>
         {
-            Query = l => l.OwnerUserId == userId,
+            Query = l => l.OwnerUserId == userId && l.UniverseId == null,
             OrderBy = query => query.OrderBy(l => l.Name),
             CancellationToken = cancellationToken,
         })).ToList();
@@ -106,6 +108,7 @@ public class ReadingListService(
         var list = await listRepository.FindOneAsync(new SearchOptions<ReadingList>
         {
             Query = l => l.Id == id,
+            Include = query => query.Include(l => l.Universe),
             CancellationToken = cancellationToken,
         });
 
@@ -114,7 +117,7 @@ public class ReadingListService(
             return Result.NotFound();
         }
 
-        if (list.OwnerUserId != userId)
+        if (!CanRead(list, userId))
         {
             return Result.Forbidden();
         }
@@ -162,7 +165,8 @@ public class ReadingListService(
             storage);
 
         return Result.Success(new ReadingListDetailDto(
-            list.Id, list.Name, list.Description, list.OwnerUserId, list.CreatedAt, entries, settings));
+            list.Id, list.Name, list.Description, list.OwnerUserId, list.CreatedAt, entries, settings,
+            list.UniverseId, list.Universe?.Name));
     }
 
     public async Task<Result<ReadingListDto>> CreateAsync(CreateReadingListRequest request, CancellationToken cancellationToken = default)
@@ -176,7 +180,7 @@ public class ReadingListService(
         string trimmedName = request.Name.Trim();
         var clash = await listRepository.FindOneAsync(new SearchOptions<ReadingList>
         {
-            Query = l => l.OwnerUserId == userId && l.Name == trimmedName,
+            Query = l => l.OwnerUserId == userId && l.UniverseId == null && l.Name == trimmedName,
             CancellationToken = cancellationToken,
         });
         if (clash is not null)
@@ -222,7 +226,7 @@ public class ReadingListService(
             return Result.NotFound();
         }
 
-        if (list.OwnerUserId != userId)
+        if (!CanModify(list, userId))
         {
             return Result.Forbidden();
         }
@@ -285,7 +289,7 @@ public class ReadingListService(
             return Result.NotFound();
         }
 
-        if (list.OwnerUserId != userId)
+        if (!CanModify(list, userId))
         {
             return Result.Forbidden();
         }
@@ -319,7 +323,7 @@ public class ReadingListService(
             return Result.NotFound();
         }
 
-        if (list.OwnerUserId != userId)
+        if (!CanModify(list, userId))
         {
             return Result.Forbidden();
         }
@@ -377,7 +381,7 @@ public class ReadingListService(
             return Result.NotFound("Reading list not found.");
         }
 
-        if (list.OwnerUserId != userId)
+        if (!CanModify(list, userId))
         {
             return Result.Forbidden();
         }
@@ -443,7 +447,7 @@ public class ReadingListService(
             return Result.NotFound("Reading list not found.");
         }
 
-        if (list.OwnerUserId != userId)
+        if (!CanModify(list, userId))
         {
             return Result.Forbidden();
         }
@@ -512,7 +516,7 @@ public class ReadingListService(
             return Result.NotFound("Reading list not found.");
         }
 
-        if (list.OwnerUserId != userId)
+        if (!CanModify(list, userId))
         {
             return Result.Forbidden();
         }
@@ -550,7 +554,7 @@ public class ReadingListService(
             return Result.NotFound();
         }
 
-        if (list.OwnerUserId != userId)
+        if (!CanModify(list, userId))
         {
             return Result.Forbidden();
         }
@@ -591,7 +595,7 @@ public class ReadingListService(
             return Result.NotFound();
         }
 
-        if (list.OwnerUserId != userId)
+        if (!CanModify(list, userId))
         {
             return Result.Forbidden();
         }
@@ -655,6 +659,18 @@ public class ReadingListService(
 
     private static ReadingListDto Map(ReadingList l, int BookCount, CardBannerPreview preview) => new(
         l.Id, l.Name, l.Description, l.OwnerUserId, BookCount, l.CreatedAt, preview);
+
+    /// <summary>
+    /// Personal lists are private to their owner; universe reading orders are owned by the global
+    /// user so everyone browsing the universe can follow them.
+    /// </summary>
+    private static bool CanRead(ReadingList list, string userId) =>
+        list.OwnerUserId == userId || list.OwnerUserId == Constants.GlobalUserId;
+
+    /// <summary>Global (universe) lists are catalog data, so only administrators may change them.</summary>
+    private bool CanModify(ReadingList list, string userId) =>
+        list.OwnerUserId == userId
+        || (list.OwnerUserId == Constants.GlobalUserId && userContext.IsAdministrator());
 
     private async Task<Dictionary<int, List<CardBannerSupport.BookCoverSource>>> LoadReadingListBannerSourcesAsync(
         IReadOnlyList<int> listIds,

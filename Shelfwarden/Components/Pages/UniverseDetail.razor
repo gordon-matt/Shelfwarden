@@ -1,0 +1,402 @@
+@page "/universes/{Id:int}"
+@attribute [Authorize]
+@inject IUniverseService UniverseService
+@inject IBookService BookService
+@inject ISidebarNavRefreshService SidebarNavRefresh
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<PageTitle>@(universe?.Name ?? "Universe") - Shelfwarden</PageTitle>
+
+@if (loading)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading universe…</div>
+    </div>
+}
+else if (universe is null)
+{
+    <div class="empty-state">
+        <i class="bi bi-question-circle empty-icon"></i>
+        <h3>Universe not found</h3>
+        <p>It may have been deleted.</p>
+        <a class="btn btn-outline-secondary" href="universes">
+            <i class="bi bi-arrow-left"></i> Back to universes
+        </a>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+            <a href="universes" class="text-secondary text-decoration-none small">
+                <i class="bi bi-arrow-left"></i> All universes
+            </a>
+            <h1 class="mb-1 mt-1">@universe.Name</h1>
+            @if (!string.IsNullOrEmpty(universe.Description))
+            {
+                <p class="text-secondary mb-0">@universe.Description</p>
+            }
+        </div>
+        <AuthorizeView Roles="@Constants.Roles.Administrator">
+            <Authorized>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @onclick="() => editing = !editing">
+                        <i class="bi bi-pencil"></i> @(editing ? "Cancel" : "Edit")
+                    </button>
+                    <button class="btn btn-outline-danger" @onclick="DeleteAsync">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+
+    @if (editing)
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <EditForm Model="editModel" OnValidSubmit="SaveAsync" FormName="edit-universe">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <InputText class="form-control" @bind-Value="editModel.Name" />
+                            <ValidationMessage For="() => editModel.Name" class="text-danger small" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Description</label>
+                            <InputText class="form-control" @bind-Value="editModel.Description" />
+                        </div>
+                    </div>
+                    @if (errorMessage is not null)
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary" disabled="@savingEdit">
+                            <i class="bi bi-check-lg"></i> Save
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        @foreach (var t in Tabs)
+        {
+            <li class="nav-item" role="presentation">
+                <button type="button" role="tab" class="nav-link @(tab == t.Key ? "active" : null)"
+                        aria-selected="@(tab == t.Key ? "true" : "false")"
+                        @onclick="() => tab = t.Key">
+                    <i class="bi @t.Icon me-1"></i> @t.Label
+                    @if (t.Count > 0)
+                    {
+                        <span class="badge text-bg-secondary ms-1">@t.Count</span>
+                    }
+                </button>
+            </li>
+        }
+    </ul>
+
+    @switch (tab)
+    {
+        case UniverseTab.Overview:
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="bi bi-collection-fill me-1"></i> Series</h5>
+                            <p class="display-6 mb-0">@universe.Series.Count</p>
+                            <p class="text-body-secondary small mb-0">Series set in this universe.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="bi bi-book me-1"></i> Books</h5>
+                            <p class="display-6 mb-0">@universe.Timeline.Count</p>
+                            <p class="text-body-secondary small mb-0">Books placed on the timeline.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="bi bi-list-ol me-1"></i> Reading orders</h5>
+                            <p class="display-6 mb-0">@universe.ReadingLists.Count</p>
+                            <p class="text-body-secondary small mb-0">Publication, chronological, your own…</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            break;
+
+        case UniverseTab.Series:
+            @if (universe.Series.Count == 0)
+            {
+                <div class="empty-state">
+                    <i class="bi bi-collection-fill empty-icon"></i>
+                    <h3>No series in this universe</h3>
+                    <p>Assign a series to this universe from the series page, or from a series' Edit dialog.</p>
+                    <a class="btn btn-outline-secondary" href="series"><i class="bi bi-arrow-right"></i> Go to series</a>
+                </div>
+            }
+            else
+            {
+                <div class="book-grid">
+                    @foreach (var s in universe.Series)
+                    {
+                        <div class="series-tile-shell">
+                            <a class="series-tile" href="@($"series/{s.Id}")" title="@s.Name">
+                                <div class="series-tile-cover">
+                                    <SeriesCollage Covers="s.Covers" />
+                                </div>
+                                <div class="series-tile-body">
+                                    <div class="series-tile-name text-truncate">@s.Name</div>
+                                    <div class="series-tile-count text-secondary small">
+                                        @s.BookCount book@(s.BookCount == 1 ? "" : "s")
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    }
+                </div>
+            }
+            break;
+
+        case UniverseTab.Books:
+            <AuthorizeView Roles="@Constants.Roles.Administrator">
+                <Authorized>
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">Add a book</h5>
+                            <div class="position-relative">
+                                <input class="form-control" type="text" placeholder="Search books to add…"
+                                       value="@searchInput" @oninput="OnSearchInput" @onfocus="() => showSearch = true" />
+                                @if (showSearch && searchResults.Count > 0)
+                                {
+                                    <ul class="dropdown-menu d-block w-100 mt-1 shadow-sm"
+                                        style="position: absolute; max-height: 280px; overflow-y: auto; z-index: 50;">
+                                        @foreach (var b in searchResults)
+                                        {
+                                            <li>
+                                                <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                                                        @onclick="() => AddBookAsync(b)">
+                                                    <span class="fw-semibold">@b.Title</span>
+                                                    @if (!string.IsNullOrEmpty(b.PrimaryAuthor))
+                                                    {
+                                                        <span class="text-secondary small">— @b.PrimaryAuthor</span>
+                                                    }
+                                                </button>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                            <div class="form-text">
+                                Adding a book only creates its universe membership — the book itself is untouched.
+                            </div>
+                        </div>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+
+            @if (universe.Timeline.Count == 0)
+            {
+                <div class="empty-state">
+                    <i class="bi bi-book empty-icon"></i>
+                    <h3>No books in this universe</h3>
+                    <p>Search above to add the books that belong to this world.</p>
+                </div>
+            }
+            else
+            {
+                <div class="book-grid">
+                    @foreach (var entry in universe.Timeline)
+                    {
+                        <BookCard Book="entry.Book">
+                            <ExtraMenuItems>
+                                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                    <Authorized>
+                                        <li>
+                                            <button type="button" class="dropdown-item text-danger"
+                                                    @onclick="() => RemoveBookAsync(entry.Book.Id)"
+                                                    @onclick:stopPropagation="true"
+                                                    @onclick:preventDefault="true">
+                                                <i class="bi bi-x-lg me-1"></i> Remove from universe
+                                            </button>
+                                        </li>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </ExtraMenuItems>
+                        </BookCard>
+                    }
+                </div>
+            }
+            break;
+
+        case UniverseTab.ReadingLists:
+            <AuthorizeView Roles="@Constants.Roles.Administrator" Context="adminContext">
+                <Authorized>
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">New reading order</h5>
+                            <EditForm Model="newList" OnValidSubmit="CreateReadingListAsync" FormName="new-universe-list">
+                                <DataAnnotationsValidator />
+                                <div class="row g-3">
+                                    <div class="col-md-5">
+                                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                                        <InputText class="form-control" @bind-Value="newList.Name"
+                                                   placeholder="Chronological Order" />
+                                        <ValidationMessage For="() => newList.Name" class="text-danger small" />
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label">Description</label>
+                                        <InputText class="form-control" @bind-Value="newList.Description" />
+                                    </div>
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-primary w-100" disabled="@busy">
+                                            <i class="bi bi-plus-lg"></i> Add
+                                        </button>
+                                    </div>
+                                </div>
+                                @if (listErrorMessage is not null)
+                                {
+                                    <div class="alert alert-danger mt-3 mb-0">@listErrorMessage</div>
+                                }
+                            </EditForm>
+                            <div class="form-text mt-2">
+                                Universe reading orders are shared with everyone and don't show up on the
+                                normal Reading lists page.
+                            </div>
+                        </div>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+
+            @if (universe.ReadingLists.Count == 0)
+            {
+                <div class="empty-state">
+                    <i class="bi bi-list-ol empty-icon"></i>
+                    <h3>No reading orders yet</h3>
+                    <p>Add one per way of reading the universe — publication order, chronological order, and so on.</p>
+                </div>
+            }
+            else
+            {
+                <div class="list-group">
+                    @foreach (var l in universe.ReadingLists)
+                    {
+                        <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                           href="@($"reading-lists/{l.Id}")">
+                            <span>
+                                <span class="fw-semibold">@l.Name</span>
+                                @if (!string.IsNullOrEmpty(l.Description))
+                                {
+                                    <span class="text-body-secondary small d-block">@l.Description</span>
+                                }
+                            </span>
+                            <span class="chip"><i class="bi bi-book"></i> @l.BookCount book@(l.BookCount == 1 ? "" : "s")</span>
+                        </a>
+                    }
+                </div>
+            }
+            break;
+
+        case UniverseTab.Timeline:
+            @if (universe.Timeline.Count == 0)
+            {
+                <div class="empty-state">
+                    <i class="bi bi-clock-history empty-icon"></i>
+                    <h3>The timeline is empty</h3>
+                    <p>Add books to the universe first — every book you add lands at the end of the timeline.</p>
+                </div>
+            }
+            else
+            {
+                <p class="text-body-secondary small">
+                    Dates are free text and are never used for sorting — drag the arrows to set the order you
+                    want books presented in.
+                </p>
+                <ol class="reading-list">
+                    @for (int i = 0; i < universe.Timeline.Count; i++)
+                    {
+                        var entry = universe.Timeline[i];
+                        int index = i;
+                        <li class="reading-list-item">
+                            <div class="reading-list-cover">
+                                @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
+                                {
+                                    <img src="@($"covers/{entry.Book.Id}")" alt="@entry.Book.Title" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <i class="bi bi-book"></i>
+                                }
+                            </div>
+                            <div class="reading-list-meta">
+                                <a class="fw-semibold text-reset text-decoration-none" href="@($"books/{entry.Book.Id}")">
+                                    @entry.Book.Title
+                                </a>
+                                @if (!string.IsNullOrEmpty(entry.Book.SeriesName))
+                                {
+                                    <div class="small text-body-secondary">
+                                        <i class="bi bi-collection"></i> @entry.Book.SeriesName
+                                        @if (entry.Book.NumberInSeries.HasValue) { <span> · #@entry.Book.NumberInSeries</span> }
+                                    </div>
+                                }
+                                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                    <Authorized>
+                                        <div class="input-group input-group-sm mt-1 universe-timeline-date">
+                                            <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                                            <input class="form-control" maxlength="50" placeholder="In-universe date"
+                                                   value="@entry.TimelineDate"
+                                                   @onchange="e => SaveTimelineDateAsync(entry.Book.Id, e.Value?.ToString())" />
+                                        </div>
+                                    </Authorized>
+                                    <NotAuthorized>
+                                        @if (!string.IsNullOrEmpty(entry.TimelineDate))
+                                        {
+                                            <div class="small text-body-secondary">
+                                                <i class="bi bi-calendar-event"></i> @entry.TimelineDate
+                                            </div>
+                                        }
+                                    </NotAuthorized>
+                                </AuthorizeView>
+                            </div>
+                            <div class="reading-list-actions d-flex flex-column gap-1">
+                                <a class="btn btn-sm btn-primary" href="@($"read/{entry.Book.Id}")">
+                                    <i class="bi bi-book-half"></i> Read
+                                </a>
+                                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                    <Authorized>
+                                        <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
+                                            <button class="btn btn-outline-secondary" title="Move earlier"
+                                                    disabled="@(index == 0 || reordering)"
+                                                    @onclick="() => MoveAsync(index, index - 1)">
+                                                <i class="bi bi-arrow-up"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" title="Move later"
+                                                    disabled="@(index == universe.Timeline.Count - 1 || reordering)"
+                                                    @onclick="() => MoveAsync(index, index + 1)">
+                                                <i class="bi bi-arrow-down"></i>
+                                            </button>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-danger" title="Remove from universe"
+                                                @onclick="() => RemoveBookAsync(entry.Book.Id)">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </div>
+                        </li>
+                    }
+                </ol>
+            }
+            break;
+    }
+}

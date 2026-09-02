@@ -8,6 +8,11 @@ public class Series : BaseEntity<int>
 
     public string? Description { get; set; }
 
+    /// <summary>Optional fictional universe this series is set in. Most series don't belong to one.</summary>
+    public int? UniverseId { get; set; }
+
+    public virtual Universe? Universe { get; set; }
+
     public virtual ICollection<Book> Books { get; set; } = [];
 
     public virtual ICollection<SeriesAdditionalContentItem> SeriesAdditionalContent { get; set; } = [];
@@ -24,5 +29,12 @@ public class SeriesMap : IEntityTypeConfiguration<Series>
         builder.Property(m => m.Description).IsUnicode(true);
 
         builder.HasIndex(m => m.NormalizedName).IsUnique();
+        builder.HasIndex(m => m.UniverseId);
+
+        // Deleting a universe must never delete series — it just detaches them.
+        builder.HasOne(m => m.Universe)
+            .WithMany(m => m.Series)
+            .HasForeignKey(m => m.UniverseId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

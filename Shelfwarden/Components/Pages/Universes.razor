@@ -1,0 +1,111 @@
+@page "/universes"
+@attribute [Authorize]
+@inject IUniverseService UniverseService
+@inject ISidebarNavRefreshService SidebarNavRefresh
+@inject NavigationManager NavigationManager
+
+<PageTitle>Universes - Shelfwarden</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1 class="mb-0">Universes</h1>
+        <p class="text-secondary mb-0">Fictional worlds spanning several series, with their own timeline and reading orders.</p>
+    </div>
+    <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <Authorized>
+            <button class="btn btn-primary" @onclick="ShowCreate">
+                <i class="bi bi-plus-lg"></i> New universe
+            </button>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<div class="row g-2 mb-3">
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input class="form-control" placeholder="Search universes..." @bind="query" @bind:event="oninput"
+                   @onkeyup="OnQueryKeyUp" />
+        </div>
+    </div>
+</div>
+
+@if (creating)
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Create universe</h5>
+            <EditForm Model="newUniverse" OnValidSubmit="CreateAsync" FormName="new-universe">
+                <DataAnnotationsValidator />
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="newUniverse.Name" />
+                        <ValidationMessage For="() => newUniverse.Name" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Description</label>
+                        <InputText class="form-control" @bind-Value="newUniverse.Description" />
+                    </div>
+                </div>
+                @if (errorMessage is not null)
+                {
+                    <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                }
+                <div class="mt-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@busy">
+                        <i class="bi bi-check-lg"></i> Create
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelCreate">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (universes is null)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading universes…</div>
+    </div>
+}
+else if (universes.Count == 0)
+{
+    <div class="empty-state">
+        <i class="bi bi-stars empty-icon"></i>
+        <h3>No universes yet</h3>
+        <p>
+            A universe pulls together every series and book set in the same fictional world, and gives
+            you one timeline and as many reading orders as you like.
+        </p>
+        <AuthorizeView Roles="@Constants.Roles.Administrator">
+            <Authorized>
+                <button class="btn btn-primary" @onclick="ShowCreate">
+                    <i class="bi bi-plus-lg"></i> Create your first universe
+                </button>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+}
+else
+{
+    <div class="book-grid">
+        @foreach (var u in universes)
+        {
+            <div class="series-tile-shell">
+                <a class="series-tile" href="@($"universes/{u.Id}")" title="@u.Name">
+                    <div class="series-tile-cover">
+                        <SeriesCollage Covers="u.Covers" />
+                    </div>
+                    <div class="series-tile-body">
+                        <div class="series-tile-name text-truncate">@u.Name</div>
+                        <div class="series-tile-count text-secondary small">
+                            @u.SeriesCount series · @u.BookCount book@(u.BookCount == 1 ? "" : "s")
+                        </div>
+                    </div>
+                </a>
+            </div>
+        }
+    </div>
+}

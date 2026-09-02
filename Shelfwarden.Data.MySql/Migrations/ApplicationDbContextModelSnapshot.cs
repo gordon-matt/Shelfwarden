@@ -868,9 +868,14 @@ namespace Shelfwarden.Data.MySql.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("varchar(450)");
 
+                    b.Property<int?>("UniverseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("OwnerUserId", "Name")
+                    b.HasIndex("UniverseId");
+
+                    b.HasIndex("OwnerUserId", "UniverseId", "Name")
                         .IsUnique();
 
                     b.ToTable("ReadingLists", (string)null);
@@ -925,10 +930,15 @@ namespace Shelfwarden.Data.MySql.Migrations
                         .IsUnicode(true)
                         .HasColumnType("varchar(256)");
 
+                    b.Property<int?>("UniverseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedName")
                         .IsUnique();
+
+                    b.HasIndex("UniverseId");
 
                     b.ToTable("Series", (string)null);
                 });
@@ -1136,6 +1146,71 @@ namespace Shelfwarden.Data.MySql.Migrations
                         .IsUnique();
 
                     b.ToTable("Tags", (string)null);
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Universe", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Description")
+                        .IsUnicode(true)
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .IsUnicode(true)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .IsUnicode(true)
+                        .HasColumnType("varchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("Universes", (string)null);
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.UniverseBook", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("BookId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TimelineDate")
+                        .HasMaxLength(50)
+                        .IsUnicode(true)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int>("TimelineOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UniverseId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookId");
+
+                    b.HasIndex("UniverseId", "BookId")
+                        .IsUnique();
+
+                    b.HasIndex("UniverseId", "TimelineOrder");
+
+                    b.ToTable("UniverseBooks", (string)null);
                 });
 
             modelBuilder.Entity("ApplicationRoleApplicationUser", b =>
@@ -1411,6 +1486,16 @@ namespace Shelfwarden.Data.MySql.Migrations
                     b.Navigation("Collection");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.ReadingList", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Universe", "Universe")
+                        .WithMany("ReadingLists")
+                        .HasForeignKey("UniverseId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Universe");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.ReadingListItem", b =>
                 {
                     b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
@@ -1428,6 +1513,16 @@ namespace Shelfwarden.Data.MySql.Migrations
                     b.Navigation("Book");
 
                     b.Navigation("ReadingList");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Series", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Universe", "Universe")
+                        .WithMany("Series")
+                        .HasForeignKey("UniverseId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Universe");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.SeriesAdditionalContentItem", b =>
@@ -1482,6 +1577,25 @@ namespace Shelfwarden.Data.MySql.Migrations
                     b.Navigation("Shelf");
                 });
 
+            modelBuilder.Entity("Shelfwarden.Data.Entities.UniverseBook", b =>
+                {
+                    b.HasOne("Shelfwarden.Data.Entities.Book", "Book")
+                        .WithMany("UniverseBooks")
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shelfwarden.Data.Entities.Universe", "Universe")
+                        .WithMany("UniverseBooks")
+                        .HasForeignKey("UniverseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Book");
+
+                    b.Navigation("Universe");
+                });
+
             modelBuilder.Entity("Shelfwarden.Data.Entities.AdditionalContentItem", b =>
                 {
                     b.Navigation("AdditionalContentItemTags");
@@ -1526,6 +1640,8 @@ namespace Shelfwarden.Data.MySql.Migrations
                     b.Navigation("ReadingListItems");
 
                     b.Navigation("ReadingProgress");
+
+                    b.Navigation("UniverseBooks");
                 });
 
             modelBuilder.Entity("Shelfwarden.Data.Entities.Collection", b =>
@@ -1564,6 +1680,15 @@ namespace Shelfwarden.Data.MySql.Migrations
             modelBuilder.Entity("Shelfwarden.Data.Entities.Tag", b =>
                 {
                     b.Navigation("BookTags");
+                });
+
+            modelBuilder.Entity("Shelfwarden.Data.Entities.Universe", b =>
+                {
+                    b.Navigation("ReadingLists");
+
+                    b.Navigation("Series");
+
+                    b.Navigation("UniverseBooks");
                 });
 #pragma warning restore 612, 618
         }

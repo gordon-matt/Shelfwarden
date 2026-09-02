@@ -4,6 +4,7 @@
 @inject IBookCoverService BookCoverService
 @inject IAuthorService AuthorService
 @inject ISeriesService SeriesService
+@inject IUniverseService UniverseService
 @inject IGenreService GenreService
 @inject ITagService TagService
 @inject NavigationManager NavigationManager
@@ -209,6 +210,35 @@ else
                         {
                             <label class="form-label">Number in series</label>
                             <InputNumber class="form-control" @bind-Value="form.NumberInSeries" step="0.01" />
+                        }
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header"><strong>Universe</strong></div>
+                    <div class="card-body">
+                        <label class="form-label">Universe</label>
+                        <select class="form-select" @bind="selectedUniverseId">
+                            <option value="0">— None —</option>
+                            @foreach (var u in universeOptions)
+                            {
+                                <option value="@u.Id">@u.Name</option>
+                            }
+                        </select>
+                        <div class="form-text">
+                            A book's universe is stored separately from its series, so it stays put even if
+                            the series moves.
+                        </div>
+
+                        @if (selectedUniverseId > 0)
+                        {
+                            <label class="form-label mt-3">Timeline date</label>
+                            <InputText class="form-control" @bind-Value="form.TimelineDate"
+                                       placeholder="10,191 AG · Spring 1998 · Before the Fall" />
+                            <div class="form-text">
+                                Free text — shown on the universe timeline but never used to sort it.
+                                Reorder the timeline from the universe page.
+                            </div>
                         }
                     </div>
                 </div>

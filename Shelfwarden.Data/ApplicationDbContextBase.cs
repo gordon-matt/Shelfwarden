@@ -56,6 +56,10 @@ public abstract class ApplicationDbContextBase
 
     public DbSet<ReadingListItem> ReadingListItems => Set<ReadingListItem>();
 
+    public DbSet<Universe> Universes => Set<Universe>();
+
+    public DbSet<UniverseBook> UniverseBooks => Set<UniverseBook>();
+
     public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
 
     public DbSet<Audiobook> Audiobooks => Set<Audiobook>();

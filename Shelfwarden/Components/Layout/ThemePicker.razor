@@ -15,21 +15,42 @@
                     Your choice is saved in this browser only. Preview with a click; save with
                     <strong>OK</strong>, or <strong>Cancel</strong> / close to restore the previous theme.
                 </p>
-                <div class="list-group theme-picker-theme-list">
-                    @foreach (string t in Constants.BootswatchThemes.All)
-                    {
-                        bool isPreview = string.Equals(t, _previewTheme, StringComparison.OrdinalIgnoreCase);
-                        bool isSaved = string.Equals(t, _committedTheme, StringComparison.OrdinalIgnoreCase);
-                        <button type="button"
-                                class="list-group-item list-group-item-action d-flex align-items-center justify-content-between gap-2 @(isPreview ? "active" : null)"
-                                @onclick="() => PreviewThemeAsync(t)">
-                            <span>@TitleCase(t)</span>
-                            @if (isSaved)
-                            {
-                                <span class="badge rounded-pill ms-2">Saved</span>
-                            }
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button type="button" role="tab" aria-selected="@(_showDarkTab ? "true" : "false")"
+                                class="nav-link @(_showDarkTab ? "active" : null)"
+                                @onclick="() => _showDarkTab = true">
+                            Dark
                         </button>
-                    }
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button type="button" role="tab" aria-selected="@(_showDarkTab ? "false" : "true")"
+                                class="nav-link @(_showDarkTab ? null : "active")"
+                                @onclick="() => _showDarkTab = false">
+                            Light
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content pt-3">
+                    <div class="list-group theme-picker-theme-list" role="tabpanel">
+                        @foreach (string t in _showDarkTab
+                            ? Constants.BootswatchThemes.DarkThemes
+                            : Constants.BootswatchThemes.LightThemes)
+                        {
+                            bool isPreview = string.Equals(t, _previewTheme, StringComparison.OrdinalIgnoreCase);
+                            bool isSaved = string.Equals(t, _committedTheme, StringComparison.OrdinalIgnoreCase);
+                            <button type="button"
+                                    class="list-group-item list-group-item-action d-flex align-items-center justify-content-between gap-2 @(isPreview ? "active" : null)"
+                                    @onclick="() => PreviewThemeAsync(t)">
+                                <span>@TitleCase(t)</span>
+                                @if (isSaved)
+                                {
+                                    <span class="badge rounded-pill ms-2">Saved</span>
+                                }
+                            </button>
+                        }
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -50,6 +71,9 @@
     private string _previewTheme = Constants.ServerSettingDefaults.Theme;
 
     private bool _closedWithOk;
+
+    /// <summary>Which of the two tabs is showing. Follows the applied theme's color scheme.</summary>
+    private bool _showDarkTab = Constants.BootswatchThemes.IsDarkColorScheme(Constants.ServerSettingDefaults.Theme);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -97,12 +121,13 @@
 
     private async Task ApplyThemeToDomAsync(string theme)
     {
-        string colorScheme = Constants.BootswatchThemes.IsDarkColorScheme(theme) ? "dark" : "light";
+        bool isDark = Constants.BootswatchThemes.IsDarkColorScheme(theme);
         await JS.InvokeVoidAsync(
             "shelfwarden.setThemeHref",
             $"lib/bootswatch/dist/{theme}/bootstrap.min.css",
-            colorScheme);
+            isDark ? "dark" : "light");
         _previewTheme = theme;
+        _showDarkTab = isDark;
     }
 
     [JSInvokable]

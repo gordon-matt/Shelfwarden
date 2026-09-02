@@ -43,11 +43,12 @@ public partial class ReadingListDetail : ComponentBase
 
     private async Task DeleteAsync()
     {
+        int? universeId = list?.UniverseId;
         var result = await ReadingListService.DeleteAsync(Id);
         if (result.IsSuccess)
         {
             SidebarNavRefresh.NotifyNavigationDataChanged();
-            NavigationManager.NavigateTo("reading-lists");
+            NavigationManager.NavigateTo(universeId is int uid ? $"universes/{uid}" : "reading-lists");
         }
     }
 

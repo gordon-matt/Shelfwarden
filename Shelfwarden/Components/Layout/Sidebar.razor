@@ -3,6 +3,7 @@
 @inject IShelfService ShelfService
 @inject ICollectionService CollectionService
 @inject IReadingListService ReadingListService
+@inject IUniverseService UniverseService
 @inject ISidebarNavRefreshService SidebarNavRefresh
 
 <aside class="app-sidebar @(Open ? "open" : "")" id="appSidebar">
@@ -39,6 +40,16 @@
             <li>
                 <NavLink class="nav-link" href="series" @onclick="CloseOnNavigate">
                     <i class="bi bi-collection-fill"></i> Series
+                </NavLink>
+            </li>
+            <li>
+                <NavLink class="nav-link" href="universes" @onclick="CloseOnNavigate">
+                    <i class="bi bi-stars"></i>
+                    <span>Universes</span>
+                    @if (universes is { Count: > 0 })
+                    {
+                        <span class="badge text-bg-secondary ms-auto">@universes.Count</span>
+                    }
                 </NavLink>
             </li>
             <li>
@@ -188,6 +199,7 @@
     private List<ShelfDto>? shelves;
     private IReadOnlyList<CollectionDto>? collections;
     private IReadOnlyList<ReadingListDto>? readingLists;
+    private IReadOnlyList<UniverseDto>? universes;
 
     protected override void OnInitialized()
     {
@@ -208,7 +220,7 @@
         });
     }
 
-    /// <summary>Reloads shelves, collections, and reading lists shown in the sidebar.</summary>
+    /// <summary>Reloads shelves, universes, collections, and reading lists shown in the sidebar.</summary>
     private async Task LoadSidebarDataAsync()
     {
         // Best-effort: if the user isn't signed in (and these endpoints require auth) we just
@@ -218,11 +230,13 @@
             var libsTask = ShelfService.GetAllAsync();
             var collectionsTask = CollectionService.ListAsync();
             var listsTask = ReadingListService.ListAsync();
-            await Task.WhenAll(libsTask, collectionsTask, listsTask);
+            var universesTask = UniverseService.ListAsync();
+            await Task.WhenAll(libsTask, collectionsTask, listsTask, universesTask);
 
             if (libsTask.Result.IsSuccess) shelves = libsTask.Result.Value.ToList();
             if (collectionsTask.Result.IsSuccess) collections = collectionsTask.Result.Value;
             if (listsTask.Result.IsSuccess) readingLists = listsTask.Result.Value;
+            if (universesTask.Result.IsSuccess) universes = universesTask.Result.Value;
         }
         catch
         {
