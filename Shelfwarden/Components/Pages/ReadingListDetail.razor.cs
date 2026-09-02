@@ -12,6 +12,7 @@ public partial class ReadingListDetail : ComponentBase
 
     private ReadingListDetailDto? list;
     private bool loading = true;
+    private readonly ListReorderState reorder = new();
     private bool reordering;
     private bool savingEdit;
     private CancellationTokenSource? searchCts;
@@ -21,6 +22,13 @@ public partial class ReadingListDetail : ComponentBase
 
     [Parameter]
     public int Id { get; set; }
+
+    /// <summary>
+    /// Universe reading orders are shared catalog data that only administrators curate; everyone
+    /// else can follow them but not change them, so the editing controls are hidden rather than
+    /// left to fail against the service.
+    /// </summary>
+    private bool CanModify => list is not null && (list.UniverseId is null || UserContext.IsAdministrator());
 
     protected override async Task OnParametersSetAsync()
     {
@@ -80,8 +88,9 @@ public partial class ReadingListDetail : ComponentBase
     }
 
     /// <summary>
-    /// Reorder by swapping the two adjacent positions. We send the *new* full ordering to the
-    /// server so the back-end is the source of truth and a concurrent edit can't shear the list.
+    /// Lifts the entry out of <paramref name="fromIndex"/> and drops it at
+    /// <paramref name="toIndex"/>. We send the *new* full ordering to the server so the back-end
+    /// is the source of truth and a concurrent edit can't shear the list.
     /// </summary>
     private async Task MoveAsync(int fromIndex, int toIndex)
     {
@@ -90,7 +99,8 @@ public partial class ReadingListDetail : ComponentBase
             return;
         }
 
-        if (toIndex < 0 || toIndex >= list.Items.Count)
+        var ids = ListReorderState.Move(list.Items.Select(i => i.Id).ToList(), fromIndex, toIndex);
+        if (ids is null)
         {
             return;
         }
@@ -98,9 +108,6 @@ public partial class ReadingListDetail : ComponentBase
         reordering = true;
         try
         {
-            var ids = list.Items.Select(i => i.Id).ToList();
-            (ids[fromIndex], ids[toIndex]) = (ids[toIndex], ids[fromIndex]);
-
             var result = await ReadingListService.ReorderAsync(Id, ids);
             if (result.IsSuccess)
             {
@@ -112,6 +119,36 @@ public partial class ReadingListDetail : ComponentBase
             reordering = false;
         }
     }
+
+    private async Task DropAsync()
+    {
+        if (list is null)
+        {
+            return;
+        }
+
+        var ids = reorder.Complete(list.Items.Select(i => i.Id).ToList());
+        if (ids is null || reordering)
+        {
+            return;
+        }
+
+        reordering = true;
+        try
+        {
+            var result = await ReadingListService.ReorderAsync(Id, ids);
+            if (result.IsSuccess)
+            {
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            reordering = false;
+        }
+    }
+
+    private void OnDragEnd() => reorder.Cancel();
 
     private async Task OnSearchInput(ChangeEventArgs e)
     {
@@ -129,9 +166,12 @@ public partial class ReadingListDetail : ComponentBase
                 return;
             }
 
+            // A universe reading order can only re-order that universe, so the search never
+            // offers books from outside it.
             var result = await BookService.SearchAsync(new BookSearchRequest
             {
                 Query = searchInput,
+                UniverseId = list?.UniverseId,
                 Page = 1,
                 PageSize = 8,
             }, token);

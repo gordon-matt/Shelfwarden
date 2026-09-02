@@ -6,6 +6,7 @@ global using Microsoft.AspNetCore.Components;
 global using Microsoft.AspNetCore.Components.Forms;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.JSInterop;
+global using Shelfwarden.Components.Shared;
 global using Shelfwarden.Data;
 global using Shelfwarden.Data.Entities;
 global using Shelfwarden.Enums;

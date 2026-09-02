@@ -5,10 +5,12 @@ public partial class UniverseDetail : ComponentBase
     private bool busy;
     private bool editing;
     private EditModel editModel = new();
+    private bool editingTimeline;
     private string? errorMessage;
     private string? listErrorMessage;
     private bool loading = true;
     private CreateListModel newList = new();
+    private readonly ListReorderState reorder = new();
     private bool reordering;
     private bool savingEdit;
     private CancellationTokenSource? searchCts;
@@ -113,17 +115,22 @@ public partial class UniverseDetail : ComponentBase
     }
 
     /// <summary>
-    /// Swaps two adjacent timeline entries and sends the whole new ordering back, so the server
-    /// stays the source of truth for <c>TimelineOrder</c>.
+    /// Moves a timeline entry and sends the whole new ordering back, so the server stays the
+    /// source of truth for <c>TimelineOrder</c>.
     /// </summary>
-    private async Task MoveAsync(int fromIndex, int toIndex)
-    {
-        if (universe is null || reordering)
-        {
-            return;
-        }
+    private Task MoveAsync(int fromIndex, int toIndex) =>
+        ApplyOrderAsync(universe is null
+            ? null
+            : ListReorderState.Move(universe.Timeline.Select(t => t.Id).ToList(), fromIndex, toIndex));
 
-        if (toIndex < 0 || toIndex >= universe.Timeline.Count)
+    private Task DropAsync() =>
+        ApplyOrderAsync(universe is null
+            ? null
+            : reorder.Complete(universe.Timeline.Select(t => t.Id).ToList()));
+
+    private async Task ApplyOrderAsync(List<int>? orderedIds)
+    {
+        if (orderedIds is null || reordering)
         {
             return;
         }
@@ -131,10 +138,7 @@ public partial class UniverseDetail : ComponentBase
         reordering = true;
         try
         {
-            var ids = universe.Timeline.Select(t => t.Id).ToList();
-            (ids[fromIndex], ids[toIndex]) = (ids[toIndex], ids[fromIndex]);
-
-            var result = await UniverseService.ReorderTimelineAsync(Id, ids);
+            var result = await UniverseService.ReorderTimelineAsync(Id, orderedIds);
             if (result.IsSuccess)
             {
                 await LoadAsync();
@@ -186,6 +190,28 @@ public partial class UniverseDetail : ComponentBase
     private async Task RemoveBookAsync(int bookId)
     {
         var result = await UniverseService.RemoveBookAsync(Id, bookId);
+        if (result.IsSuccess)
+        {
+            await LoadAsync();
+        }
+    }
+
+    /// <summary>
+    /// Detaches the series only. Its books keep their own universe membership, because the two
+    /// relationships are deliberately independent.
+    /// </summary>
+    private async Task RemoveSeriesAsync(UniverseSeriesDto series)
+    {
+        bool ok = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"Remove \"{series.Name}\" from this universe? Its books stay on the timeline unless you "
+            + "remove them too.");
+        if (!ok)
+        {
+            return;
+        }
+
+        var result = await UniverseService.SetSeriesUniverseAsync(series.Id, null);
         if (result.IsSuccess)
         {
             await LoadAsync();

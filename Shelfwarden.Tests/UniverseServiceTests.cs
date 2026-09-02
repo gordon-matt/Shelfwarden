@@ -13,11 +13,11 @@ namespace Shelfwarden.Tests;
 /// and series membership never sync themselves, and deleting a universe must not take any books
 /// or series with it.
 /// </summary>
-public class UniverseServiceTests : IClassFixture<InMemoryDbFixture>
+public class UniverseServiceTests : IClassFixture<TestDbFixture>
 {
-    private readonly InMemoryDbFixture _fixture;
+    private readonly TestDbFixture _fixture;
 
-    public UniverseServiceTests(InMemoryDbFixture fixture)
+    public UniverseServiceTests(TestDbFixture fixture)
     {
         _fixture = fixture;
     }
@@ -184,6 +184,53 @@ public class UniverseServiceTests : IClassFixture<InMemoryDbFixture>
         Assert.Single(detail.ReadingLists);
     }
 
+    [Fact]
+    public async Task A_new_reading_order_starts_as_the_whole_timeline()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        var readingListService = BuildReadingListService(scope);
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Prefilled" })).Value.Id;
+        int first = await SeedBookAsync(scope, shelfId, "Prefilled One");
+        int second = await SeedBookAsync(scope, shelfId, "Prefilled Two");
+        await service.AddBooksAsync(universeId, [first, second]);
+
+        int listId = (await service.CreateReadingListAsync(
+            universeId,
+            new CreateReadingListRequest { Name = "Publication Order" })).Value.Id;
+
+        var list = (await readingListService.GetByIdAsync(listId)).Value;
+        Assert.Equal(["Prefilled One", "Prefilled Two"], list.Items.Select(i => i.Book.Title));
+    }
+
+    [Fact]
+    public async Task A_reading_order_refuses_books_from_outside_its_universe()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        var readingListService = BuildReadingListService(scope);
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Walled Garden" })).Value.Id;
+        int inside = await SeedBookAsync(scope, shelfId, "Inside The Universe");
+        int outside = await SeedBookAsync(scope, shelfId, "Some Other Book");
+        await service.AddBooksAsync(universeId, [inside]);
+
+        int listId = (await service.CreateReadingListAsync(
+            universeId,
+            new CreateReadingListRequest { Name = "Chronological" })).Value.Id;
+
+        Assert.False((await readingListService.AddBookAsync(listId, outside)).IsSuccess);
+
+        // The bulk path skips them silently rather than failing the whole call.
+        Assert.Equal(0, (await readingListService.AddBooksAsync(listId, [outside])).Value);
+
+        var list = (await readingListService.GetByIdAsync(listId)).Value;
+        Assert.Equal(["Inside The Universe"], list.Items.Select(i => i.Book.Title));
+    }
+
     private static UniverseService BuildService(IServiceScope scope, bool isAdministrator = true)
     {
         var sp = scope.ServiceProvider;
@@ -208,6 +255,7 @@ public class UniverseServiceTests : IClassFixture<InMemoryDbFixture>
             sp.GetRequiredService<IRepository<ReadingListItem>>(),
             sp.GetRequiredService<IRepository<Book>>(),
             sp.GetRequiredService<IRepository<BookProgress>>(),
+            sp.GetRequiredService<IRepository<UniverseBook>>(),
             storage.Object);
     }
 

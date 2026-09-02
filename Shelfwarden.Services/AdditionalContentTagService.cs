@@ -121,15 +121,7 @@ public class AdditionalContentTagService(
             return Result.NotFound();
         }
 
-        var joins = await itemTagRepository.FindAsync(new SearchOptions<AdditionalContentItemTag>
-        {
-            Query = it => it.TagId == id,
-            CancellationToken = cancellationToken,
-        });
-        if (joins.Any())
-        {
-            await itemTagRepository.DeleteAsync(joins);
-        }
+        await itemTagRepository.DeleteAsync(it => it.TagId == id);
 
         await tagRepository.DeleteAsync(entity);
         return Result.Success();
@@ -148,22 +140,10 @@ public class AdditionalContentTagService(
             return Result.Success(0);
         }
 
-        var entities = (await tagRepository.FindAsync(new SearchOptions<AdditionalContentTag>
-        {
-            Query = t => distinctIds.Contains(t.Id),
-            CancellationToken = cancellationToken,
-        })).ToList();
+        await itemTagRepository.DeleteAsync(it => distinctIds.Contains(it.TagId));
+        int deleted = await tagRepository.DeleteAsync(t => distinctIds.Contains(t.Id));
 
-        if (entities.Count == 0)
-        {
-            return Result.Success(0);
-        }
-
-        var tagIds = entities.Select(t => t.Id).ToList();
-        await itemTagRepository.DeleteAsync(it => tagIds.Contains(it.TagId));
-        await tagRepository.DeleteAsync(entities);
-
-        return Result.Success(entities.Count);
+        return Result.Success(deleted);
     }
 
     public async Task<Result<int>> DeleteUnusedAsync(CancellationToken cancellationToken = default)
@@ -173,19 +153,8 @@ public class AdditionalContentTagService(
             return Result.Forbidden();
         }
 
-        var unused = (await tagRepository.FindAsync(new SearchOptions<AdditionalContentTag>
-        {
-            Query = t => !t.AdditionalContentItemTags.Any(),
-            CancellationToken = cancellationToken,
-        })).ToList();
-
-        if (unused.Count == 0)
-        {
-            return Result.Success(0);
-        }
-
-        await tagRepository.DeleteAsync(unused);
-        return Result.Success(unused.Count);
+        int deleted = await tagRepository.DeleteAsync(t => !t.AdditionalContentItemTags.Any());
+        return Result.Success(deleted);
     }
 
     public async Task<Result> MergeAsync(

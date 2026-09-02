@@ -1,0 +1,66 @@
+@* Read-only poster view of a universe timeline: a horizontal rail of covers with each book's
+   in-universe date above it, colour-coded by series. Order comes from TimelineOrder alone —
+   the dates are free text and are never parsed. *@
+<div class="universe-timeline">
+    @if (Legend.Count > 1)
+    {
+        <div class="universe-timeline-legend">
+            @foreach (var (name, colour) in Legend)
+            {
+                <span class="universe-timeline-legend-item">
+                    <span class="universe-timeline-swatch" style="--tl-colour: @colour"></span>@name
+                </span>
+            }
+        </div>
+    }
+
+    <div class="universe-timeline-scroll">
+        <ol class="universe-timeline-rail">
+            @foreach (var entry in Entries)
+            {
+                <li class="universe-timeline-entry" style="--tl-colour: @ColourFor(entry.Book.SeriesName)">
+                    <div class="universe-timeline-date">
+                        @if (string.IsNullOrWhiteSpace(entry.TimelineDate))
+                        {
+                            <span class="universe-timeline-date-empty">&mdash;</span>
+                        }
+                        else
+                        {
+                            @entry.TimelineDate
+                        }
+                    </div>
+                    <div class="universe-timeline-node" aria-hidden="true"></div>
+                    <a class="universe-timeline-card" href="@($"books/{entry.Book.Id}")" title="@entry.Book.Title">
+                        <div class="universe-timeline-cover">
+                            @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
+                            {
+                                <img src="@($"covers/{entry.Book.Id}")" alt="@entry.Book.Title" loading="lazy" />
+                            }
+                            else
+                            {
+                                <i class="bi bi-book"></i>
+                            }
+                            @if (entry.Book.ProgressPercentage > 0)
+                            {
+                                <div class="universe-timeline-progress" role="progressbar"
+                                     aria-valuenow="@entry.Book.ProgressPercentage" aria-valuemin="0" aria-valuemax="100">
+                                    <div class="bar" style="width: @($"{entry.Book.ProgressPercentage:0}%")"></div>
+                                </div>
+                            }
+                        </div>
+                        <div class="universe-timeline-title">@entry.Book.Title</div>
+                        @if (!string.IsNullOrEmpty(entry.Book.SeriesName))
+                        {
+                            <div class="universe-timeline-series">
+                                @entry.Book.SeriesName@if (entry.Book.NumberInSeries.HasValue)
+                                {
+                                    <text> #@entry.Book.NumberInSeries</text>
+                                }
+                            </div>
+                        }
+                    </a>
+                </li>
+            }
+        </ol>
+    </div>
+</div>

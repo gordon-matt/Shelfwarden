@@ -248,45 +248,14 @@ public class UniverseService(
         }
 
         // Detach series rather than leaning on the provider's SET NULL, so the outcome is
-        // identical everywhere. A universe holds a handful of series and at most a few hundred
-        // timeline rows, so loading them beats needing provider-specific bulk operations.
-        var series = (await seriesRepository.FindAsync(new SearchOptions<Series>
-        {
-            Query = s => s.UniverseId == id,
-            CancellationToken = cancellationToken,
-        })).ToList();
+        // identical everywhere. Timeline rows and universe reading orders belong to the universe
+        // and go with it.
+        await seriesRepository.UpdateAsync(
+            s => s.UniverseId == id,
+            setters => setters.SetProperty(s => s.UniverseId, (int?)null));
 
-        if (series.Count > 0)
-        {
-            foreach (var s in series)
-            {
-                s.UniverseId = null;
-            }
-
-            await seriesRepository.UpdateAsync(series);
-        }
-
-        // Timeline rows and universe reading orders belong to the universe and go with it.
-        var memberships = (await universeBookRepository.FindAsync(new SearchOptions<UniverseBook>
-        {
-            Query = ub => ub.UniverseId == id,
-            CancellationToken = cancellationToken,
-        })).ToList();
-        
-        if (memberships.Count > 0)
-        {
-            await universeBookRepository.DeleteAsync(memberships);
-        }
-
-        var readingLists = (await readingListRepository.FindAsync(new SearchOptions<ReadingList>
-        {
-            Query = l => l.UniverseId == id,
-            CancellationToken = cancellationToken,
-        })).ToList();
-        if (readingLists.Count > 0)
-        {
-            await readingListRepository.DeleteAsync(readingLists);
-        }
+        await universeBookRepository.DeleteAsync(ub => ub.UniverseId == id);
+        await readingListRepository.DeleteAsync(l => l.UniverseId == id);
 
         await universeRepository.DeleteAsync(universe);
         return Result.Success();
@@ -357,17 +326,14 @@ public class UniverseService(
             return Result.Forbidden();
         }
 
-        var membership = await universeBookRepository.FindOneAsync(new SearchOptions<UniverseBook>
-        {
-            Query = ub => ub.UniverseId == universeId && ub.BookId == bookId,
-            CancellationToken = cancellationToken,
-        });
-        if (membership is null)
+        int removed = await universeBookRepository.DeleteAsync(
+            ub => ub.UniverseId == universeId && ub.BookId == bookId);
+
+        if (removed == 0)
         {
             return Result.NotFound();
         }
 
-        await universeBookRepository.DeleteAsync(membership);
         await CompactTimelineOrderAsync(universeId, cancellationToken);
         return Result.Success();
     }
@@ -637,7 +603,32 @@ public class UniverseService(
             CreatedAt = DateTime.UtcNow,
         });
 
-        return Result.Success(new UniverseReadingListDto(inserted.Id, inserted.Name, inserted.Description, BookCount: 0));
+        // A reading order is a re-ordering of the universe, not a subset to be assembled book by
+        // book, so it starts as the full timeline. Removing the odd book is easier than finding
+        // dozens of them one at a time.
+        var timelineBookIds = (await universeBookRepository.FindAsync(
+            new SearchOptions<UniverseBook>
+            {
+                Query = ub => ub.UniverseId == universeId,
+                OrderBy = q => q.OrderBy(ub => ub.TimelineOrder),
+                CancellationToken = cancellationToken,
+            },
+            ub => ub.BookId)).ToList();
+
+        if (timelineBookIds.Count > 0)
+        {
+            await readingListItemRepository.InsertAsync(timelineBookIds
+                .Select((bookId, index) => new ReadingListItem
+                {
+                    ReadingListId = inserted.Id,
+                    BookId = bookId,
+                    Position = index,
+                })
+                .ToList());
+        }
+
+        return Result.Success(new UniverseReadingListDto(
+            inserted.Id, inserted.Name, inserted.Description, timelineBookIds.Count));
     }
 
     private static string Normalise(string name) => name.ToSortTitle().ToLowerInvariant();

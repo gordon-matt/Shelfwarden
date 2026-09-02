@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inject IReadingListService ReadingListService
 @inject IBookService BookService
+@inject IUserContextService UserContext
 @inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 @using Microsoft.AspNetCore.Components.Forms
@@ -55,12 +56,15 @@ else
                     <i class="bi bi-book-half"></i> Read next
                 </a>
             }
-            <button class="btn btn-outline-secondary" @onclick="() => editing = !editing">
-                <i class="bi bi-pencil"></i> @(editing ? "Cancel" : "Rename")
-            </button>
-            <button class="btn btn-outline-danger" @onclick="DeleteAsync">
-                <i class="bi bi-trash"></i> Delete
-            </button>
+            @if (CanModify)
+            {
+                <button class="btn btn-outline-secondary" @onclick="() => editing = !editing">
+                    <i class="bi bi-pencil"></i> @(editing ? "Cancel" : "Rename")
+                </button>
+                <button class="btn btn-outline-danger" @onclick="DeleteAsync">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+            }
         </div>
     </div>
 
@@ -98,33 +102,40 @@ else
         </div>
     }
 
-    <div class="card mb-4">
-        <div class="card-body">
-            <h5 class="card-title">Add a book</h5>
-            <div class="position-relative">
-                <input class="form-control" type="text" placeholder="Search books to add…"
-                       value="@searchInput" @oninput="OnSearchInput" @onfocus="() => showSearch = true" />
-                @if (showSearch && searchResults.Count > 0)
+    @if (CanModify)
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Add a book</h5>
+                <div class="position-relative">
+                    <input class="form-control" type="text" placeholder="Search books to add…"
+                           value="@searchInput" @oninput="OnSearchInput" @onfocus="() => showSearch = true" />
+                    @if (showSearch && searchResults.Count > 0)
+                    {
+                        <ul class="dropdown-menu d-block w-100 mt-1 shadow-sm" style="position: absolute; max-height: 280px; overflow-y: auto; z-index: 50;">
+                            @foreach (var b in searchResults)
+                            {
+                                <li>
+                                    <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                                            @onclick="() => AddBookAsync(b)">
+                                        <span class="fw-semibold">@b.Title</span>
+                                        @if (!string.IsNullOrEmpty(b.PrimaryAuthor))
+                                        {
+                                            <span class="text-secondary small">— @b.PrimaryAuthor</span>
+                                        }
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+                @if (list.UniverseId is not null)
                 {
-                    <ul class="dropdown-menu d-block w-100 mt-1 shadow-sm" style="position: absolute; max-height: 280px; overflow-y: auto; z-index: 50;">
-                        @foreach (var b in searchResults)
-                        {
-                            <li>
-                                <button type="button" class="dropdown-item d-flex align-items-center gap-2"
-                                        @onclick="() => AddBookAsync(b)">
-                                    <span class="fw-semibold">@b.Title</span>
-                                    @if (!string.IsNullOrEmpty(b.PrimaryAuthor))
-                                    {
-                                        <span class="text-secondary small">— @b.PrimaryAuthor</span>
-                                    }
-                                </button>
-                            </li>
-                        }
-                    </ul>
+                    <div class="form-text">Only books in @list.UniverseName can be added to this order.</div>
                 }
             </div>
         </div>
-    </div>
+    }
 
     @if (list.Items.Count == 0)
     {
@@ -136,12 +147,35 @@ else
     }
     else
     {
+        @if (CanModify)
+        {
+            <p class="text-body-secondary small mb-2">
+                <i class="bi bi-grip-vertical"></i> Drag a book by its handle to reorder the list.
+            </p>
+        }
         <ol class="reading-list">
             @for (int i = 0; i < list.Items.Count; i++)
             {
                 var entry = list.Items[i];
                 int index = i;
-                <li class="reading-list-item">
+                <li class="reading-list-item @(reorder.IsSource(index) ? "is-dragging" : null) @(reorder.IsDropTarget(index) ? "is-drop-target" : null)"
+                    @ondragover:preventDefault="true"
+                    @ondragenter="() => reorder.DragOver(index)"
+                    @ondragover="() => reorder.DragOver(index)"
+                    @ondrop="() => DropAsync()">
+                    @if (CanModify)
+                    {
+                        <button type="button" class="reorder-handle" draggable="true"
+                                title="Drag to reorder" aria-label="Drag to reorder"
+                                @ondragstart="() => reorder.Start(index)"
+                                @ondragend="OnDragEnd">
+                            <i class="bi bi-grip-vertical"></i>
+                        </button>
+                    }
+                    else
+                    {
+                        <span></span>
+                    }
                     <div class="reading-list-cover">
                         @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
                         {
@@ -179,22 +213,25 @@ else
                         <a class="btn btn-sm btn-primary" href="@($"read/{entry.Book.Id}")">
                             <i class="bi bi-book-half"></i> Read
                         </a>
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
-                            <button class="btn btn-outline-secondary" title="Move up"
-                                    disabled="@(index == 0 || reordering)"
-                                    @onclick="() => MoveAsync(index, index - 1)">
-                                <i class="bi bi-arrow-up"></i>
+                        @if (CanModify)
+                        {
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
+                                <button class="btn btn-outline-secondary" title="Move to top"
+                                        disabled="@(index == 0 || reordering)"
+                                        @onclick="() => MoveAsync(index, 0)">
+                                    <i class="bi bi-chevron-double-up"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" title="Move to bottom"
+                                        disabled="@(index == list.Items.Count - 1 || reordering)"
+                                        @onclick="() => MoveAsync(index, list.Items.Count - 1)">
+                                    <i class="bi bi-chevron-double-down"></i>
+                                </button>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger" title="Remove from list"
+                                    @onclick="() => RemoveBookAsync(entry.Book.Id)">
+                                <i class="bi bi-x-lg"></i>
                             </button>
-                            <button class="btn btn-outline-secondary" title="Move down"
-                                    disabled="@(index == list.Items.Count - 1 || reordering)"
-                                    @onclick="() => MoveAsync(index, index + 1)">
-                                <i class="bi bi-arrow-down"></i>
-                            </button>
-                        </div>
-                        <button class="btn btn-sm btn-outline-danger" title="Remove from list"
-                                @onclick="() => RemoveBookAsync(entry.Book.Id)">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
+                        }
                     </div>
                 </li>
             }

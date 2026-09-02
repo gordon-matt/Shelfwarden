@@ -3,17 +3,11 @@ namespace Shelfwarden.Components.Pages;
 public partial class BookDetail : ComponentBase
 {
     private readonly List<BookmarkDto> bookmarks = [];
-    private string? addToError;
-    private string? addToFlash;
-    private bool addToLoaded;
     private AudiobookDto? audiobook;
     private bool audiobookActionBusy;
     private bool audiobookSupported;
     private BookDto? book;
     private IReadOnlyList<AdditionalContentItemDto>? bookExtraContent;
-    private IReadOnlyList<CollectionDto>? collections;
-    private bool creating;
-    private AddToTarget? creatingTarget;
     private List<BookSection>? detectedSections;
     private SectionDetectionQuality detectionQuality;
     private string? detectionWarning;
@@ -22,10 +16,8 @@ public partial class BookDetail : ComponentBase
     private string? generateError;
     private bool isAdministrator => UserContext.IsAdministrator();
     private bool loading = true;
-    private string newName = string.Empty;
     private string? pendingVoiceConfirmation;
     private Timer? pollTimer;
-    private IReadOnlyList<ReadingListDto>? readingLists;
     private bool sectionEditorOpen;
     private bool sectionsBusy;
     private bool showPlayer;
@@ -40,12 +32,6 @@ public partial class BookDetail : ComponentBase
     private string bookNotesDraft = string.Empty;
     private bool bookNotesSaving;
     private string? bookNotesFlash;
-
-    private enum AddToTarget
-    {
-        Collection,
-        ReadingList,
-    }
 
     private enum DetailTab
     {
@@ -262,22 +248,6 @@ public partial class BookDetail : ComponentBase
         _ => "text-bg-secondary",
     };
 
-    private async Task AddToCollectionAsync(CollectionDto c)
-    {
-        var result = await CollectionService.AddBookAsync(c.Id, Id);
-        FlashAddTo(result.IsSuccess
-            ? $"Added to collection \"{c.Name}\"."
-            : (result.Errors.FirstOrDefault() ?? "Could not add to collection."), result.IsSuccess);
-    }
-
-    private async Task AddToReadingListAsync(ReadingListDto l)
-    {
-        var result = await ReadingListService.AddBookAsync(l.Id, Id);
-        FlashAddTo(result.IsSuccess
-            ? $"Added to reading list \"{l.Name}\"."
-            : (result.Errors.FirstOrDefault() ?? "Could not add to reading list."), result.IsSuccess);
-    }
-
     private async Task CancelAudiobookGenerationAsync()
     {
         if (audiobook is null)
@@ -314,12 +284,6 @@ public partial class BookDetail : ComponentBase
         {
             audiobookActionBusy = false;
         }
-    }
-
-    private void CancelCreate()
-    {
-        creatingTarget = null;
-        addToError = null;
     }
 
     private void CancelGenerate()
@@ -364,67 +328,6 @@ public partial class BookDetail : ComponentBase
         finally
         {
             enqueuingGenerate = false;
-        }
-    }
-
-    private async Task CreateAndAddAsync()
-    {
-        if (creatingTarget is null || string.IsNullOrWhiteSpace(newName))
-        {
-            return;
-        }
-
-        creating = true;
-        addToError = null;
-        try
-        {
-            if (creatingTarget == AddToTarget.Collection)
-            {
-                var created = await CollectionService.CreateAsync(new CreateCollectionRequest { Name = newName });
-                if (!created.IsSuccess)
-                {
-                    addToError = created.Errors.FirstOrDefault() ?? "Could not create collection.";
-                    return;
-                }
-                var added = await CollectionService.AddBookAsync(created.Value.Id, Id);
-                if (!added.IsSuccess)
-                {
-                    addToError = added.Errors.FirstOrDefault() ?? "Created collection but could not add the book.";
-                    return;
-                }
-
-                SidebarNavRefresh.NotifyNavigationDataChanged();
-                // Refresh the dropdown so the new collection appears next time.
-                addToLoaded = false;
-                await EnsureAddToLoadedAsync();
-                creatingTarget = null;
-                FlashAddTo($"Created collection \"{created.Value.Name}\" and added this book.", success: true);
-            }
-            else
-            {
-                var created = await ReadingListService.CreateAsync(new CreateReadingListRequest { Name = newName });
-                if (!created.IsSuccess)
-                {
-                    addToError = created.Errors.FirstOrDefault() ?? "Could not create reading list.";
-                    return;
-                }
-                var added = await ReadingListService.AddBookAsync(created.Value.Id, Id);
-                if (!added.IsSuccess)
-                {
-                    addToError = added.Errors.FirstOrDefault() ?? "Created list but could not add the book.";
-                    return;
-                }
-
-                SidebarNavRefresh.NotifyNavigationDataChanged();
-                addToLoaded = false;
-                await EnsureAddToLoadedAsync();
-                creatingTarget = null;
-                FlashAddTo($"Created reading list \"{created.Value.Name}\" and added this book.", success: true);
-            }
-        }
-        finally
-        {
-            creating = false;
         }
     }
 
@@ -515,31 +418,6 @@ public partial class BookDetail : ComponentBase
     }
 
     /// <summary>
-    /// Lazy-load the collections / reading lists the first time the dropdown opens —
-    /// the typical book detail visit doesn't touch them at all, so eagerly fetching is wasted work.
-    /// </summary>
-    private async Task EnsureAddToLoadedAsync()
-    {
-        if (addToLoaded)
-        {
-            return;
-        }
-
-        addToLoaded = true;
-
-        var collectionsTask = CollectionService.ListAsync();
-        var listsTask = ReadingListService.ListAsync();
-        await Task.WhenAll(collectionsTask, listsTask);
-
-        var loadedCollections =
-            collectionsTask.Result.IsSuccess ? collectionsTask.Result.Value : [];
-        collections = isAdministrator
-            ? loadedCollections
-            : loadedCollections.Where(c => !c.IsGlobal).ToList();
-        readingLists = listsTask.Result.IsSuccess ? listsTask.Result.Value : [];
-    }
-
-    /// <summary>
     /// Start (or stop) the background poller depending on whether the current audiobook is in
     /// a non-terminal state. We use a Timer rather than a Task.Delay loop so the page is happy
     /// to be disposed without waiting for the next tick.
@@ -569,20 +447,6 @@ public partial class BookDetail : ComponentBase
         else if (!needsPolling && pollTimer is not null)
         {
             StopPolling();
-        }
-    }
-
-    private void FlashAddTo(string message, bool success)
-    {
-        if (success)
-        {
-            addToFlash = message;
-            addToError = null;
-        }
-        else
-        {
-            addToError = message;
-            addToFlash = null;
         }
     }
 
@@ -649,13 +513,6 @@ public partial class BookDetail : ComponentBase
         {
             bookmarks.Remove(bm);
         }
-    }
-
-    private void StartCreate(AddToTarget target)
-    {
-        creatingTarget = target;
-        newName = string.Empty;
-        addToError = null;
     }
 
     /// <summary>

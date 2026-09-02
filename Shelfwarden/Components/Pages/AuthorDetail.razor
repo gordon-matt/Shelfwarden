@@ -184,7 +184,7 @@ else
                                         <i class="bi bi-three-dots-vertical"></i>
                                     </button>
                                     <ul class="dropdown-menu">
-                                        <AddToReadingListAction SeriesId="s.SeriesId" />
+                                        <AddToActions SeriesId="s.SeriesId" SubjectName="@s.SeriesName" />
                                         <AuthorizeView Roles="@Constants.Roles.Administrator">
                                             <Authorized>
                                                 <li><hr class="dropdown-divider" /></li>

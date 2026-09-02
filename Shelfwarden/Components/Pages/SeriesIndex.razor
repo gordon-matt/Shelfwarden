@@ -62,7 +62,7 @@ else
                                 <i class="bi bi-three-dots-vertical"></i>
                             </button>
                             <ul class="dropdown-menu">
-                                <AddToReadingListAction SeriesId="s.Id" />
+                                <AddToActions SeriesId="s.Id" SubjectName="@s.Name" />
                                 <AuthorizeView Roles="@Constants.Roles.Administrator">
                                     <Authorized>
                                         <li><hr class="dropdown-divider" /></li>

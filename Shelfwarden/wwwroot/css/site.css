@@ -1051,7 +1051,7 @@ ol.reading-list {
 .reading-list-item {
     counter-increment: rl;
     display: grid;
-    grid-template-columns: auto 80px 1fr auto;
+    grid-template-columns: auto auto 80px 1fr auto;
     column-gap: 1rem;
     align-items: center;
     padding: 0.75rem 1rem;
@@ -1059,6 +1059,34 @@ ol.reading-list {
     border: 1px solid var(--bs-border-color);
     border-radius: var(--bs-border-radius);
 }
+
+    .reading-list-item.is-dragging {
+        opacity: 0.4;
+    }
+
+    /* Drawn on the row the pointer is over so the landing slot is obvious mid-drag. */
+    .reading-list-item.is-drop-target {
+        border-color: var(--bs-primary);
+        box-shadow: inset 0 0 0 1px var(--bs-primary);
+    }
+
+/* Only the handle is draggable, so text inside the row stays selectable. */
+.reorder-handle {
+    border: 0;
+    background: none;
+    padding: 0 0.15rem;
+    color: var(--bs-secondary-color);
+    cursor: grab;
+    line-height: 1;
+}
+
+    .reorder-handle:hover {
+        color: var(--bs-body-color);
+    }
+
+    .reorder-handle:active {
+        cursor: grabbing;
+    }
 
     .reading-list-item::before {
         content: counter(rl);
@@ -1102,15 +1130,168 @@ ol.reading-list {
         background-color: var(--bs-primary);
     }
 
-/* Universe timeline reuses .reading-list; the in-universe date is free text, so cap its width
-   rather than letting it stretch across the whole row. */
-.universe-timeline-date {
+/* Universe timeline — editable mode reuses .reading-list, so the in-universe date input needs a
+   width cap rather than stretching across the whole row. */
+.universe-timeline-date-input {
     max-width: 22rem;
+}
+
+/* Universe timeline — read-only "poster" mode. A horizontal rail of covers hanging off a single
+   axis, colour-coded by series. Position along the rail comes from TimelineOrder; the dates are
+   free text, so they're labels rather than coordinates. */
+.universe-timeline {
+    background-color: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius-lg);
+    padding: 1.25rem 0;
+}
+
+.universe-timeline-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    padding: 0 1.25rem 1rem;
+    font-size: 0.8125rem;
+    color: var(--bs-secondary-color);
+}
+
+.universe-timeline-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.universe-timeline-swatch {
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 0.2rem;
+    background-color: var(--tl-colour);
+}
+
+.universe-timeline-scroll {
+    overflow-x: auto;
+    padding: 0 1.25rem;
+}
+
+.universe-timeline-rail {
+    position: relative;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    min-width: min-content;
+}
+
+    /* The axis itself, drawn behind the nodes at their vertical centre. */
+    .universe-timeline-rail::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 2.35rem;
+        height: 2px;
+        background-color: var(--bs-border-color);
+    }
+
+.universe-timeline-entry {
+    position: relative;
+    width: 8.5rem;
+    flex: 0 0 auto;
+    text-align: center;
+}
+
+.universe-timeline-date {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0.2rem 0.6rem;
+    margin-bottom: 0.5rem;
+    border-radius: 999px;
+    background-color: var(--tl-colour);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.35;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.universe-timeline-date-empty {
+    opacity: 0.7;
+}
+
+.universe-timeline-node {
+    position: relative;
+    width: 0.7rem;
+    height: 0.7rem;
+    margin: 0 auto 0.9rem;
+    border-radius: 50%;
+    background-color: var(--tl-colour);
+    box-shadow: 0 0 0 3px var(--bs-tertiary-bg);
+}
+
+.universe-timeline-card {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+    .universe-timeline-card:hover .universe-timeline-cover {
+        transform: translateY(-3px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.25);
+    }
+
+.universe-timeline-cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    background-color: var(--bs-secondary-bg);
+    border-radius: var(--bs-border-radius-sm);
+    border-bottom: 4px solid var(--tl-colour);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-secondary-color);
+    font-size: 1.5rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+    .universe-timeline-cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+.universe-timeline-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background-color: rgba(0, 0, 0, 0.25);
+}
+
+    .universe-timeline-progress .bar {
+        height: 100%;
+        background-color: var(--bs-primary);
+    }
+
+.universe-timeline-title {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.universe-timeline-series {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
 }
 
 @media (max-width: 575.98px) {
     .reading-list-item {
-        grid-template-columns: auto 64px 1fr;
+        grid-template-columns: auto auto 64px 1fr;
         grid-template-rows: auto auto;
         row-gap: 0.5rem;
     }

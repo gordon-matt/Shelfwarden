@@ -178,15 +178,7 @@ public class GenreService(
             return Result.NotFound();
         }
 
-        var joins = await bookGenreRepository.FindAsync(new SearchOptions<BookGenre>
-        {
-            Query = bg => bg.GenreId == id,
-            CancellationToken = cancellationToken,
-        });
-        if (joins.Any())
-        {
-            await bookGenreRepository.DeleteAsync(joins);
-        }
+        await bookGenreRepository.DeleteAsync(bg => bg.GenreId == id);
 
         await genreRepository.DeleteAsync(entity);
         return Result.Success();
@@ -288,25 +280,12 @@ public class GenreService(
             return Result.Success(0);
         }
 
-        var entities = (await genreRepository.FindAsync(new SearchOptions<Genre>
-        {
-            Query = g => distinctIds.Contains(g.Id),
-            CancellationToken = cancellationToken,
-        })).ToList();
+        // Cascade is configured in the entity map, but we drop the joins explicitly so the
+        // operation succeeds across providers regardless of cascade configuration.
+        await bookGenreRepository.DeleteAsync(bg => distinctIds.Contains(bg.GenreId));
+        int deleted = await genreRepository.DeleteAsync(g => distinctIds.Contains(g.Id));
 
-        if (entities.Count == 0)
-        {
-            return Result.Success(0);
-        }
-
-        // Cascade is configured in the entity map but EF still wants the joins removed when
-        // we use a hard delete on the principal — drop them explicitly so the operation
-        // succeeds across providers regardless of cascade configuration.
-        var joinIds = entities.Select(g => g.Id).ToList();
-        await bookGenreRepository.DeleteAsync(bg => joinIds.Contains(bg.GenreId));
-        await genreRepository.DeleteAsync(entities);
-
-        return Result.Success(entities.Count);
+        return Result.Success(deleted);
     }
 
     public async Task<Result<int>> DeleteUnusedAsync(CancellationToken cancellationToken = default)
@@ -316,18 +295,7 @@ public class GenreService(
             return Result.Forbidden();
         }
 
-        var unused = (await genreRepository.FindAsync(new SearchOptions<Genre>
-        {
-            Query = g => !g.BookGenres.Any(),
-            CancellationToken = cancellationToken,
-        })).ToList();
-
-        if (unused.Count == 0)
-        {
-            return Result.Success(0);
-        }
-
-        await genreRepository.DeleteAsync(unused);
-        return Result.Success(unused.Count);
+        int deleted = await genreRepository.DeleteAsync(g => !g.BookGenres.Any());
+        return Result.Success(deleted);
     }
 }

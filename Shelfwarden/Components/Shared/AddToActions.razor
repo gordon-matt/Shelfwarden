@@ -1,0 +1,65 @@
+@if (AsButtons)
+{
+    <button type="button" class="btn btn-sm btn-outline-secondary" title="Add to collection"
+            @onclick="() => Open(AddToTarget.Collection)"
+            @onclick:stopPropagation="true"
+            @onclick:preventDefault="true">
+        <i class="bi bi-bookshelf"></i>@if (ShowLabels)
+        {
+            <span class="ms-1">Add to collection</span>
+        }
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" title="Add to reading list"
+            @onclick="() => Open(AddToTarget.ReadingList)"
+            @onclick:stopPropagation="true"
+            @onclick:preventDefault="true">
+        <i class="bi bi-list-ol"></i>@if (ShowLabels)
+        {
+            <span class="ms-1">Add to reading list</span>
+        }
+    </button>
+    <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <Authorized>
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="Add to universe"
+                    @onclick="() => Open(AddToTarget.Universe)"
+                    @onclick:stopPropagation="true"
+                    @onclick:preventDefault="true">
+                <i class="bi bi-stars"></i>@if (ShowLabels)
+                {
+                    <span class="ms-1">Add to universe</span>
+                }
+            </button>
+        </Authorized>
+    </AuthorizeView>
+}
+else
+{
+    <li>
+        <button type="button" class="dropdown-item"
+                @onclick="() => Open(AddToTarget.Collection)"
+                @onclick:stopPropagation="true"
+                @onclick:preventDefault="true">
+            <i class="bi bi-bookshelf me-1"></i> Add to collection&hellip;
+        </button>
+    </li>
+    <li>
+        <button type="button" class="dropdown-item"
+                @onclick="() => Open(AddToTarget.ReadingList)"
+                @onclick:stopPropagation="true"
+                @onclick:preventDefault="true">
+            <i class="bi bi-list-ol me-1"></i> Add to reading list&hellip;
+        </button>
+    </li>
+    <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <Authorized>
+            <li>
+                <button type="button" class="dropdown-item"
+                        @onclick="() => Open(AddToTarget.Universe)"
+                        @onclick:stopPropagation="true"
+                        @onclick:preventDefault="true">
+                    <i class="bi bi-stars me-1"></i> Add to universe&hellip;
+                </button>
+            </li>
+        </Authorized>
+    </AuthorizeView>
+}

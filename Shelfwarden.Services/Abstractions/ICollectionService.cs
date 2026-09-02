@@ -28,6 +28,10 @@ public interface ICollectionService
     /// <returns>Number of brand-new associations created.</returns>
     Task<Result<int>> AddBooksAsync(int collectionId, IReadOnlyCollection<int> bookIds, CancellationToken cancellationToken = default);
 
+    /// <summary>Adds every book in a series, in series order. Duplicates are skipped silently.</summary>
+    /// <returns>Number of brand-new associations created.</returns>
+    Task<Result<int>> AddSeriesAsync(int collectionId, int seriesId, CancellationToken cancellationToken = default);
+
     Task<Result> RemoveBookAsync(int collectionId, int bookId, CancellationToken cancellationToken = default);
 
     Task<Result> UploadCardBannerAsync(

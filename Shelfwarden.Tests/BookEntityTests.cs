@@ -5,14 +5,14 @@ namespace Shelfwarden.Tests;
 
 /// <summary>
 /// Smoke test that confirms the entity graph + repositories wire up correctly under the
-/// in-memory fixture. Real provider-specific behaviour (indexes, JSON columns, SQL Server
-/// max-length, etc.) is exercised in integration tests, not here.
+/// SQLite fixture. Behaviour specific to the other providers (JSON columns, SQL Server
+/// max-length, schemas, etc.) is exercised in integration tests, not here.
 /// </summary>
-public class BookEntityTests : IClassFixture<InMemoryDbFixture>
+public class BookEntityTests : IClassFixture<TestDbFixture>
 {
-    private readonly InMemoryDbFixture _fixture;
+    private readonly TestDbFixture _fixture;
 
-    public BookEntityTests(InMemoryDbFixture fixture)
+    public BookEntityTests(TestDbFixture fixture)
     {
         _fixture = fixture;
     }

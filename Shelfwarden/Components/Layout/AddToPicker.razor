@@ -1,0 +1,90 @@
+@* Wrap children so CascadingValue(this) is available before they render. *@
+<CascadingValue Value="this" IsFixed="true">
+    @ChildContent
+</CascadingValue>
+
+@* Modal host — openers are <AddToActions /> on book/series tiles and detail pages. *@
+@if (IsOpen)
+{
+    <div class="modal modal-show d-block" tabindex="-1" style="background-color: rgba(0,0,0,.35); z-index: 1060;"
+         @onclick="Close">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi @TargetIcon me-1"></i> @TargetTitle</h5>
+                    <button type="button" class="btn-close" @onclick="Close" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-body-secondary small">@SubjectSummary</p>
+
+                    @if (loading)
+                    {
+                        <div class="text-center text-secondary py-3">
+                            <span class="spinner-border spinner-border-sm me-1"></span> Loading&hellip;
+                        </div>
+                    }
+                    else if (loadError is not null)
+                    {
+                        <div class="alert alert-danger mb-0">@loadError</div>
+                    }
+                    else
+                    {
+                        @if (options.Count == 0)
+                        {
+                            <p class="text-secondary">@EmptyMessage</p>
+                        }
+                        else
+                        {
+                            <label class="form-label" for="add-to-picker-select">@TargetNoun</label>
+                            <select id="add-to-picker-select" class="form-select" @bind="selectedId" disabled="@creatingNew">
+                                @foreach (var option in options)
+                                {
+                                    <option value="@option.Id">@option.Name</option>
+                                }
+                            </select>
+                        }
+
+                        @if (creatingNew)
+                        {
+                            <label class="form-label mt-3" for="add-to-picker-new">New @TargetNoun.ToLowerInvariant()</label>
+                            <input id="add-to-picker-new" class="form-control" placeholder="Name&hellip;"
+                                   @bind="newName" @bind:event="oninput" />
+                        }
+                        else if (CanCreate)
+                        {
+                            <button type="button" class="btn btn-link btn-sm px-0 mt-2" @onclick="StartCreate">
+                                <i class="bi bi-plus-lg"></i> New @TargetNoun.ToLowerInvariant()&hellip;
+                            </button>
+                        }
+
+                        @if (Target == AddToTarget.Universe && SeriesId is not null)
+                        {
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="add-to-picker-series-books"
+                                       @bind="addSeriesBooksToTimeline" />
+                                <label class="form-check-label" for="add-to-picker-series-books">
+                                    Also add this series' books to the universe timeline
+                                </label>
+                            </div>
+                        }
+                    }
+
+                    @if (actionError is not null)
+                    {
+                        <div class="alert alert-warning mt-3 mb-0">@actionError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="Close" disabled="@busy">Cancel</button>
+                    <button type="button" class="btn btn-primary" disabled="@(busy || !CanConfirm)" @onclick="ConfirmAsync">
+                        @if (busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        @(creatingNew ? "Create & add" : "Add")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

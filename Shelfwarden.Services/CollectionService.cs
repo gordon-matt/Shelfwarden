@@ -429,6 +429,22 @@ public class CollectionService(
         return Result.Success(toInsert.Count);
     }
 
+    public async Task<Result<int>> AddSeriesAsync(int collectionId, int seriesId, CancellationToken cancellationToken = default)
+    {
+        var bookIds = (await bookRepository.FindAsync(
+            new SearchOptions<Book>
+            {
+                Query = b => b.SeriesId == seriesId,
+                OrderBy = query => query.OrderBy(b => b.NumberInSeries).ThenBy(b => b.SortTitle ?? b.Title),
+                CancellationToken = cancellationToken,
+            },
+            b => b.Id)).ToList();
+
+        return bookIds.Count == 0
+            ? Result.Success(0)
+            : await AddBooksAsync(collectionId, bookIds, cancellationToken);
+    }
+
     public async Task<Result> RemoveBookAsync(int collectionId, int bookId, CancellationToken cancellationToken = default)
     {
         string? userId = userContext.GetCurrentUserId();

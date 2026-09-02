@@ -154,6 +154,34 @@ else
                             <a class="series-tile" href="@($"series/{s.Id}")" title="@s.Name">
                                 <div class="series-tile-cover">
                                     <SeriesCollage Covers="s.Covers" />
+                                    <div class="series-tile-menu dropend">
+                                        <button type="button"
+                                                class="btn btn-sm series-tile-menu-toggle"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-config='{"popperConfig":{"strategy":"fixed"}}'
+                                                aria-expanded="false"
+                                                aria-label="Series actions"
+                                                @onclick:stopPropagation="true"
+                                                @onclick:preventDefault="true">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <AddToActions SeriesId="s.Id" SubjectName="@s.Name" />
+                                            <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                                <Authorized>
+                                                    <li><hr class="dropdown-divider" /></li>
+                                                    <li>
+                                                        <button type="button" class="dropdown-item text-danger"
+                                                                @onclick="() => RemoveSeriesAsync(s)"
+                                                                @onclick:stopPropagation="true"
+                                                                @onclick:preventDefault="true">
+                                                            <i class="bi bi-x-lg me-1"></i> Remove from universe
+                                                        </button>
+                                                    </li>
+                                                </Authorized>
+                                            </AuthorizeView>
+                                        </ul>
+                                    </div>
                                 </div>
                                 <div class="series-tile-body">
                                     <div class="series-tile-name text-truncate">@s.Name</div>
@@ -270,8 +298,9 @@ else
                                 }
                             </EditForm>
                             <div class="form-text mt-2">
-                                Universe reading orders are shared with everyone and don't show up on the
-                                normal Reading lists page.
+                                A new order starts with every book in the universe, in timeline order — reorder
+                                or remove from there. Universe reading orders are shared with everyone and don't
+                                show up on the normal Reading lists page.
                             </div>
                         </div>
                     </div>
@@ -316,18 +345,50 @@ else
                     <p>Add books to the universe first — every book you add lands at the end of the timeline.</p>
                 </div>
             }
+            else if (!editingTimeline)
+            {
+                <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+                    <p class="text-body-secondary small mb-0">
+                        Reading order runs left to right. Dates are free text and are shown as labels only —
+                        they never affect the order.
+                    </p>
+                    <AuthorizeView Roles="@Constants.Roles.Administrator">
+                        <Authorized>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => editingTimeline = true">
+                                <i class="bi bi-pencil"></i> Edit timeline
+                            </button>
+                        </Authorized>
+                    </AuthorizeView>
+                </div>
+                <UniverseTimeline Entries="universe.Timeline" />
+            }
             else
             {
-                <p class="text-body-secondary small">
-                    Dates are free text and are never used for sorting — drag the arrows to set the order you
-                    want books presented in.
-                </p>
+                <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+                    <p class="text-body-secondary small mb-0">
+                        <i class="bi bi-grip-vertical"></i> Drag a book by its handle to set the order it's
+                        presented in. Dates are free text and are never used for sorting.
+                    </p>
+                    <button class="btn btn-sm btn-primary" @onclick="() => editingTimeline = false">
+                        <i class="bi bi-check-lg"></i> Done
+                    </button>
+                </div>
                 <ol class="reading-list">
                     @for (int i = 0; i < universe.Timeline.Count; i++)
                     {
                         var entry = universe.Timeline[i];
                         int index = i;
-                        <li class="reading-list-item">
+                        <li class="reading-list-item @(reorder.IsSource(index) ? "is-dragging" : null) @(reorder.IsDropTarget(index) ? "is-drop-target" : null)"
+                            @ondragover:preventDefault="true"
+                            @ondragenter="() => reorder.DragOver(index)"
+                            @ondragover="() => reorder.DragOver(index)"
+                            @ondrop="DropAsync">
+                            <button type="button" class="reorder-handle" draggable="true"
+                                    title="Drag to reorder" aria-label="Drag to reorder"
+                                    @ondragstart="() => reorder.Start(index)"
+                                    @ondragend="() => reorder.Cancel()">
+                                <i class="bi bi-grip-vertical"></i>
+                            </button>
                             <div class="reading-list-cover">
                                 @if (!string.IsNullOrEmpty(entry.Book.CoverImagePath))
                                 {
@@ -349,49 +410,30 @@ else
                                         @if (entry.Book.NumberInSeries.HasValue) { <span> · #@entry.Book.NumberInSeries</span> }
                                     </div>
                                 }
-                                <AuthorizeView Roles="@Constants.Roles.Administrator">
-                                    <Authorized>
-                                        <div class="input-group input-group-sm mt-1 universe-timeline-date">
-                                            <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
-                                            <input class="form-control" maxlength="50" placeholder="In-universe date"
-                                                   value="@entry.TimelineDate"
-                                                   @onchange="e => SaveTimelineDateAsync(entry.Book.Id, e.Value?.ToString())" />
-                                        </div>
-                                    </Authorized>
-                                    <NotAuthorized>
-                                        @if (!string.IsNullOrEmpty(entry.TimelineDate))
-                                        {
-                                            <div class="small text-body-secondary">
-                                                <i class="bi bi-calendar-event"></i> @entry.TimelineDate
-                                            </div>
-                                        }
-                                    </NotAuthorized>
-                                </AuthorizeView>
+                                <div class="input-group input-group-sm mt-1 universe-timeline-date-input">
+                                    <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                                    <input class="form-control" maxlength="50" placeholder="In-universe date"
+                                           value="@entry.TimelineDate"
+                                           @onchange="e => SaveTimelineDateAsync(entry.Book.Id, e.Value?.ToString())" />
+                                </div>
                             </div>
                             <div class="reading-list-actions d-flex flex-column gap-1">
-                                <a class="btn btn-sm btn-primary" href="@($"read/{entry.Book.Id}")">
-                                    <i class="bi bi-book-half"></i> Read
-                                </a>
-                                <AuthorizeView Roles="@Constants.Roles.Administrator">
-                                    <Authorized>
-                                        <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
-                                            <button class="btn btn-outline-secondary" title="Move earlier"
-                                                    disabled="@(index == 0 || reordering)"
-                                                    @onclick="() => MoveAsync(index, index - 1)">
-                                                <i class="bi bi-arrow-up"></i>
-                                            </button>
-                                            <button class="btn btn-outline-secondary" title="Move later"
-                                                    disabled="@(index == universe.Timeline.Count - 1 || reordering)"
-                                                    @onclick="() => MoveAsync(index, index + 1)">
-                                                <i class="bi bi-arrow-down"></i>
-                                            </button>
-                                        </div>
-                                        <button class="btn btn-sm btn-outline-danger" title="Remove from universe"
-                                                @onclick="() => RemoveBookAsync(entry.Book.Id)">
-                                            <i class="bi bi-x-lg"></i>
-                                        </button>
-                                    </Authorized>
-                                </AuthorizeView>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
+                                    <button class="btn btn-outline-secondary" title="Move to start"
+                                            disabled="@(index == 0 || reordering)"
+                                            @onclick="() => MoveAsync(index, 0)">
+                                        <i class="bi bi-chevron-double-up"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary" title="Move to end"
+                                            disabled="@(index == universe.Timeline.Count - 1 || reordering)"
+                                            @onclick="() => MoveAsync(index, universe.Timeline.Count - 1)">
+                                        <i class="bi bi-chevron-double-down"></i>
+                                    </button>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger" title="Remove from universe"
+                                        @onclick="() => RemoveBookAsync(entry.Book.Id)">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
                             </div>
                         </li>
                     }

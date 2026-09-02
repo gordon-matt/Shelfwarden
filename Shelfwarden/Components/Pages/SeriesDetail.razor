@@ -46,7 +46,7 @@ else
             }
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <AddToReadingListAction SeriesId="series.Id" AsButton="true" ButtonLabel="Add to reading list" />
+            <AddToActions SeriesId="series.Id" SubjectName="@series.Name" AsButtons="true" ShowLabels="true" />
             <a class="btn btn-sm btn-outline-secondary" href="@($"books?series={series.Id}")">
                 <i class="bi bi-funnel me-1"></i> Browse books
             </a>

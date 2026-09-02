@@ -36,13 +36,14 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 - **Authors** get a detail page with photo, biography, external links, pseudonyms and their books grouped by series. Biographies and photos can be imported from Open Library, Wikidata or Goodreads. Admins can merge or delete authors in bulk, and a weekly job cleans up authors left with no books.
 - **Series** pages list books in reading order and roll up any related extra content.
 - **Collections** are arbitrary themed groupings, either personal or global (admin-created, visible to everyone).
-- **Reading lists** are per-user ordered queues with up/down reordering, a "Read next" button, and the ability to add a whole series at once.
+- **Reading lists** are per-user ordered queues with drag-and-drop reordering, move-to-top / move-to-bottom shortcuts, a "Read next" button, and the ability to add a whole series at once.
+- **Add to…** is a single dialog available from every book and series tile and detail page, covering collections, reading lists and universes, with create-and-add for a new one.
 
 ### Universes
 
 - Group the series and books that share a fictional world, with tabs for **Overview**, **Series**, **Books**, **Reading orders** and **Timeline**.
-- A **timeline** of books with a free-text in-universe date ("10,191 AG", "Spring 1998", "Before the Fall") and a manually controlled order — the date is descriptive and is never parsed or used for sorting.
-- **Reading orders** are ordinary reading lists scoped to the universe (publication order, chronological order, and so on). They're shared with every reader and stay out of the personal reading lists page.
+- A **timeline** of books with a free-text in-universe date ("10,191 AG", "Spring 1998", "Before the Fall") and a manually controlled order — the date is descriptive and is never parsed or used for sorting. It's presented as a horizontal rail of covers colour-coded by series, with an **Edit timeline** mode for drag-and-drop reordering and date entry.
+- **Reading orders** are ordinary reading lists scoped to the universe (publication order, chronological order, and so on). A new one starts as the whole universe in timeline order, ready to be rearranged. They're shared with every reader and stay out of the personal reading lists page.
 - Series and book membership are tracked independently, so a book can sit in a universe whose series doesn't, and vice versa. Assigning a series to a universe can optionally add its current books to the timeline.
 
 ### Reading

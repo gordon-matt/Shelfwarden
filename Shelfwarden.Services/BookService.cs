@@ -111,6 +111,11 @@ public class BookService(
             predicate = predicate.And(b => b.ReadingListItems.Any(i => i.ReadingListId == listId));
         }
 
+        if (request.UniverseId is int universeFilter && universeFilter > 0)
+        {
+            predicate = predicate.And(b => b.UniverseBooks.Any(ub => ub.UniverseId == universeFilter));
+        }
+
         var requestedTagIds = request.TagIds
             .Where(id => id > 0)
             .Distinct()

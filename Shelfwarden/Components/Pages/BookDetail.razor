@@ -4,12 +4,9 @@
 @inject IBookService BookService
 @inject IBookmarkService BookmarkService
 @inject IBookUserService BookUserService
-@inject ICollectionService CollectionService
-@inject IReadingListService ReadingListService
 @inject IAudiobookService AudiobookService
 @inject IAdditionalContentService ContentService
 @inject IUserContextService UserContext
-@inject ISidebarNavRefreshService SidebarNavRefresh
 @inject NavigationManager NavigationManager
 @inject IJSRuntime Js
 
@@ -301,71 +298,15 @@ else
                         </button>
                     }
                 }
+                @* Every "Add to…" goes through a modal — listing the targets inline made this
+                   menu unusable once a library had more than a handful of them. *@
                 <div class="dropdown">
                     <button class="btn btn-outline-secondary dropdown-toggle" type="button"
-                            data-bs-toggle="dropdown" aria-expanded="false" @onclick="EnsureAddToLoadedAsync">
+                            data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-plus-circle"></i> Add to&hellip;
                     </button>
-                    <ul class="dropdown-menu" style="min-width: 16rem;">
-                        <li><h6 class="dropdown-header">Collections</h6></li>
-                        @if (collections is null)
-                        {
-                            <li><span class="dropdown-item-text text-secondary small">Loading…</span></li>
-                        }
-                        else if (collections.Count == 0)
-                        {
-                            <li><span class="dropdown-item-text text-secondary small">No collections yet</span></li>
-                        }
-                        else
-                        {
-                            @foreach (var c in collections)
-                            {
-                                <li>
-                                    <button type="button" class="dropdown-item d-flex justify-content-between align-items-center"
-                                            @onclick="() => AddToCollectionAsync(c)">
-                                        <span><i class="bi bi-bookshelf"></i> @c.Name</span>
-                                        @if (c.IsGlobal)
-                                        {
-                                            <span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-globe"></i></span>
-                                        }
-                                    </button>
-                                </li>
-                            }
-                        }
-                        <li>
-                            <button type="button" class="dropdown-item text-primary"
-                                    @onclick="() => StartCreate(AddToTarget.Collection)">
-                                <i class="bi bi-plus-lg"></i> New collection&hellip;
-                            </button>
-                        </li>
-                        <li><hr class="dropdown-divider" /></li>
-                        <li><h6 class="dropdown-header">Reading lists</h6></li>
-                        @if (readingLists is null)
-                        {
-                            <li><span class="dropdown-item-text text-secondary small">Loading…</span></li>
-                        }
-                        else if (readingLists.Count == 0)
-                        {
-                            <li><span class="dropdown-item-text text-secondary small">No reading lists yet</span></li>
-                        }
-                        else
-                        {
-                            @foreach (var l in readingLists)
-                            {
-                                <li>
-                                    <button type="button" class="dropdown-item"
-                                            @onclick="() => AddToReadingListAsync(l)">
-                                        <i class="bi bi-list-ol"></i> @l.Name
-                                    </button>
-                                </li>
-                            }
-                        }
-                        <li>
-                            <button type="button" class="dropdown-item text-primary"
-                                    @onclick="() => StartCreate(AddToTarget.ReadingList)">
-                                <i class="bi bi-plus-lg"></i> New reading list&hellip;
-                            </button>
-                        </li>
+                    <ul class="dropdown-menu">
+                        <AddToActions BookId="book.Id" SubjectName="@book.Title" />
                     </ul>
                 </div>
                 <a class="btn btn-outline-secondary" href="@($"files/{book.Id}?download=true")">
@@ -559,37 +500,6 @@ else
                 </div>
             }
 
-            @if (creatingTarget is not null)
-            {
-                <div class="card mt-3">
-                    <div class="card-body">
-                        <h6 class="card-title">
-                            @(creatingTarget == AddToTarget.Collection ? "New collection" : "New reading list")
-                        </h6>
-                        <div class="d-flex gap-2 align-items-start flex-wrap">
-                            <input class="form-control" style="max-width: 24rem;"
-                                   placeholder="Name…" @bind="newName" @bind:event="oninput" />
-                            <button class="btn btn-primary" disabled="@(creating || string.IsNullOrWhiteSpace(newName))"
-                                    @onclick="CreateAndAddAsync">
-                                <i class="bi bi-check-lg"></i> Create &amp; add
-                            </button>
-                            <button class="btn btn-outline-secondary" @onclick="CancelCreate">
-                                Cancel
-                            </button>
-                        </div>
-                        @if (addToError is not null)
-                        {
-                            <div class="alert alert-danger mt-2 mb-0">@addToError</div>
-                        }
-                    </div>
-                </div>
-            }
-            else if (addToFlash is not null)
-            {
-                <div class="alert alert-success mt-3 mb-0 py-2 small d-flex align-items-center gap-2">
-                    <i class="bi bi-check-circle"></i> @addToFlash
-                </div>
-            }
         </div>
     </div>
 

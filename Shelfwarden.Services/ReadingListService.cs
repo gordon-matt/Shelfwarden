@@ -8,6 +8,7 @@ public class ReadingListService(
     IRepository<ReadingListItem> itemRepository,
     IRepository<Book> bookRepository,
     IRepository<BookProgress> progressRepository,
+    IRepository<UniverseBook> universeBookRepository,
     IStoragePathProvider storage) : IReadingListService
 {
     public async Task<Result<IReadOnlyList<ReadingListDto>>> ListAsync(int? shelfId = null, CancellationToken cancellationToken = default)
@@ -396,6 +397,11 @@ public class ReadingListService(
             return Result.NotFound("Book not found.");
         }
 
+        if (list.UniverseId is int universeId && !await IsInUniverseAsync(universeId, bookId, cancellationToken))
+        {
+            return Result.Error("A universe reading order can only contain books that are in the universe.");
+        }
+
         var existing = await itemRepository.FindOneAsync(new SearchOptions<ReadingListItem>
         {
             Query = i => i.ReadingListId == readingListId && i.BookId == bookId,
@@ -469,8 +475,14 @@ public class ReadingListService(
             },
             i => i.BookId)).ToHashSet();
 
+        // A universe reading order is an alternative route through that universe, so anything
+        // outside the universe is dropped rather than quietly widening the list's scope.
+        var inUniverse = await LoadUniverseBookIdsAsync(list, cancellationToken);
+
         var newBookIds = distinctBookIds
-            .Where(id => existingBookIds.Contains(id) && !alreadyLinked.Contains(id))
+            .Where(id => existingBookIds.Contains(id)
+                && !alreadyLinked.Contains(id)
+                && (inUniverse is null || inUniverse.Contains(id)))
             .ToList();
 
         if (newBookIds.Count == 0)
@@ -559,17 +571,13 @@ public class ReadingListService(
             return Result.Forbidden();
         }
 
-        var entry = await itemRepository.FindOneAsync(new SearchOptions<ReadingListItem>
-        {
-            Query = i => i.ReadingListId == readingListId && i.BookId == bookId,
-            CancellationToken = cancellationToken,
-        });
-        if (entry is null)
+        int removed = await itemRepository.DeleteAsync(
+            i => i.ReadingListId == readingListId && i.BookId == bookId);
+
+        if (removed == 0)
         {
             return Result.NotFound();
         }
-
-        await itemRepository.DeleteAsync(entry);
 
         // Compact positions so we don't develop holes (purely cosmetic — the OrderBy still
         // sorts correctly with gaps, but it makes Position values predictable for tests).
@@ -671,6 +679,33 @@ public class ReadingListService(
     private bool CanModify(ReadingList list, string userId) =>
         list.OwnerUserId == userId
         || (list.OwnerUserId == Constants.GlobalUserId && userContext.IsAdministrator());
+
+    private async Task<bool> IsInUniverseAsync(int universeId, int bookId, CancellationToken cancellationToken) =>
+        await universeBookRepository.FindOneAsync(new SearchOptions<UniverseBook>
+        {
+            Query = ub => ub.UniverseId == universeId && ub.BookId == bookId,
+            CancellationToken = cancellationToken,
+        }) is not null;
+
+    /// <summary>
+    /// The set of books a universe-scoped list is allowed to contain, or <c>null</c> for an
+    /// ordinary personal list, which may contain anything.
+    /// </summary>
+    private async Task<HashSet<int>?> LoadUniverseBookIdsAsync(ReadingList list, CancellationToken cancellationToken)
+    {
+        if (list.UniverseId is not int universeId)
+        {
+            return null;
+        }
+
+        return (await universeBookRepository.FindAsync(
+            new SearchOptions<UniverseBook>
+            {
+                Query = ub => ub.UniverseId == universeId,
+                CancellationToken = cancellationToken,
+            },
+            ub => ub.BookId)).ToHashSet();
+    }
 
     private async Task<Dictionary<int, List<CardBannerSupport.BookCoverSource>>> LoadReadingListBannerSourcesAsync(
         IReadOnlyList<int> listIds,
