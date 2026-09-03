@@ -6,7 +6,6 @@ public partial class UniverseDetail : ComponentBase
 {
     private readonly ListReorderState bookReorder = new();
     private bool busy;
-    private readonly ListReorderState dateReorder = new();
     private bool dateModalBusy;
     private string? dateModalError;
     private int? dateModalId;
@@ -133,11 +132,6 @@ public partial class UniverseDetail : ComponentBase
         ApplyDateOrderAsync(universe is null
             ? null
             : ListReorderState.Move(universe.Timeline.Dates.Select(d => d.Id).ToList(), fromIndex, toIndex));
-
-    private Task DropDateAsync() =>
-        ApplyDateOrderAsync(universe is null
-            ? null
-            : dateReorder.Complete(universe.Timeline.Dates.Select(d => d.Id).ToList()));
 
     private async Task ApplyDateOrderAsync(List<int>? orderedIds)
     {

@@ -1136,16 +1136,6 @@ ol.reading-list {
     max-width: 22rem;
 }
 
-/* Whole-date drag, mirroring the per-book feedback inside it. */
-.timeline-group.is-dragging {
-    opacity: 0.4;
-}
-
-.timeline-group.is-drop-target {
-    border-color: var(--bs-primary);
-    box-shadow: inset 0 0 0 1px var(--bs-primary);
-}
-
 /* Universe timeline — read-only "poster" mode: a matrix of series lanes (rows) against the
    universe's dates (columns). Track widths are set inline from book counts so each header
    stretches over its books and adjacent dates can't overlap. One outer horizontal scrollbar. */

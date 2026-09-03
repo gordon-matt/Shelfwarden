@@ -342,9 +342,10 @@ else
                     @if (editingTimeline)
                     {
                         <text>
-                            <i class="bi bi-grip-vertical"></i> Drag a date to move it along the timeline, or a
-                            book to move it within its date. A book's date is picked from the list — add the
-                            ones this universe needs and assign books to them.
+                            Use the arrows to move a date up or down the timeline.
+                            <i class="bi bi-grip-vertical"></i> Drag a book to reorder it within its date.
+                            A book's date is picked from the list — add the ones this universe needs and
+                            assign books to them.
                         </text>
                     }
                     else
@@ -411,20 +412,10 @@ else
                     int groupIndex = gi;
                     int dateIndex = DateIndexOf(group.TimelineDateId);
 
-                    <div class="card mb-3 timeline-group @(dateReorder.IsSource(dateIndex) ? "is-dragging" : null) @(dateReorder.IsDropTarget(dateIndex) ? "is-drop-target" : null)"
-                         @ondragover:preventDefault="true"
-                         @ondragenter="() => dateReorder.DragOver(dateIndex)"
-                         @ondragover="() => dateReorder.DragOver(dateIndex)"
-                         @ondrop="DropDateAsync">
+                    <div class="card mb-3 timeline-group">
                         <div class="card-header d-flex align-items-center gap-2 flex-wrap">
-                            @if (group.TimelineDateId is int dragDateId)
+                            @if (group.TimelineDateId is int)
                             {
-                                <button type="button" class="reorder-handle" draggable="true"
-                                        title="Drag to move this date" aria-label="Drag to move this date"
-                                        @ondragstart="() => dateReorder.Start(dateIndex)"
-                                        @ondragend="() => dateReorder.Cancel()">
-                                    <i class="bi bi-grip-vertical"></i>
-                                </button>
                                 <span class="fw-semibold"><i class="bi bi-calendar-event me-1"></i> @group.Label</span>
                             }
                             else
@@ -439,15 +430,15 @@ else
                             {
                                 <div class="ms-auto d-flex gap-1">
                                     <div class="btn-group btn-group-sm" role="group" aria-label="Move date">
-                                        <button class="btn btn-outline-secondary" title="Move to start of timeline"
-                                                disabled="@(dateIndex == 0 || reordering)"
-                                                @onclick="() => MoveDateAsync(dateIndex, 0)">
-                                            <i class="bi bi-chevron-double-up"></i>
+                                        <button class="btn btn-outline-secondary" title="Move up"
+                                                disabled="@(dateIndex <= 0 || reordering)"
+                                                @onclick="() => MoveDateAsync(dateIndex, dateIndex - 1)">
+                                            <i class="bi bi-chevron-up"></i>
                                         </button>
-                                        <button class="btn btn-outline-secondary" title="Move to end of timeline"
-                                                disabled="@(dateIndex == universe.Timeline.Dates.Count - 1 || reordering)"
-                                                @onclick="() => MoveDateAsync(dateIndex, universe.Timeline.Dates.Count - 1)">
-                                            <i class="bi bi-chevron-double-down"></i>
+                                        <button class="btn btn-outline-secondary" title="Move down"
+                                                disabled="@(dateIndex < 0 || dateIndex >= universe.Timeline.Dates.Count - 1 || reordering)"
+                                                @onclick="() => MoveDateAsync(dateIndex, dateIndex + 1)">
+                                            <i class="bi bi-chevron-down"></i>
                                         </button>
                                     </div>
                                     <button class="btn btn-sm btn-outline-secondary" title="Rename date"
