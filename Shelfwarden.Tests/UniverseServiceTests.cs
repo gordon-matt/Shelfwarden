@@ -171,6 +171,173 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
     }
 
     [Fact]
+    public async Task Numeric_years_override_hand_ordering_and_handle_negative_eras()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Numeric Ordering" })).Value.Id;
+
+        // Created in an order that would be wrong once numeric years take over, and one date (Order
+        // 0) never gets a year at all — it should trail behind every numeric date once any exist.
+        int textOnly = (await service.CreateTimelineDateAsync(universeId, "Sometime Later")).Value.Id;
+        int recent = (await service.CreateTimelineDateAsync(universeId, "35 AD", yearFrom: 35, yearTo: 35)).Value.Id;
+        int ancient = (await service.CreateTimelineDateAsync(universeId, "500 BC", yearFrom: -500, yearTo: -450)).Value.Id;
+
+        var detail = (await service.GetByIdAsync(universeId)).Value;
+
+        // -500 sorts before 35 (plain integer comparison), and the text-only date — which never got
+        // a year — trails behind both even though it was created first.
+        Assert.Equal([ancient, recent, textOnly], detail.Timeline.Dates.Select(d => d.Id));
+        Assert.Equal([-500, 35, null], detail.Timeline.Dates.Select(d => d.YearFrom));
+    }
+
+    [Fact]
+    public async Task A_date_without_a_numeric_year_is_rejected_when_from_is_after_to()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Backwards Range" })).Value.Id;
+
+        var result = await service.CreateTimelineDateAsync(universeId, "Impossible", yearFrom: 100, yearTo: 50);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(Ardalis.Result.ResultStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public async Task Lanes_order_by_their_earliest_numeric_year_once_the_universe_has_one()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Lane Ordering" })).Value.Id;
+        int earlyDate = (await service.CreateTimelineDateAsync(universeId, "Early", yearFrom: 100, yearTo: 100)).Value.Id;
+        int lateDate = (await service.CreateTimelineDateAsync(universeId, "Late", yearFrom: 900, yearTo: 900)).Value.Id;
+
+        int laterSeriesId = await SeedSeriesAsync(scope, "Zebra Series");
+        int earlierSeriesId = await SeedSeriesAsync(scope, "Aardvark Series");
+        int laterBook = await SeedBookAsync(scope, shelfId, "Later Book", laterSeriesId);
+        int earlierBook = await SeedBookAsync(scope, shelfId, "Earlier Book", earlierSeriesId);
+        await service.AddBooksAsync(universeId, [laterBook, earlierBook]);
+
+        // Deliberately assign the alphabetically-later series to the earlier date, so a name-first
+        // sort would get this backwards.
+        await service.SetBookTimelineDateAsync(universeId, laterBook, earlyDate);
+        await service.SetBookTimelineDateAsync(universeId, earlierBook, lateDate);
+
+        var detail = (await service.GetByIdAsync(universeId)).Value;
+
+        Assert.Equal(["Zebra Series", "Aardvark Series"], detail.Timeline.Rows.Select(r => r.Label));
+    }
+
+    [Fact]
+    public async Task A_universe_starts_named_and_switches_to_numeric_once_a_year_is_given()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Type Switching" })).Value.Id;
+        Assert.Equal(TimelineType.Named, (await service.GetByIdAsync(universeId)).Value.TimelineType);
+
+        await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 1998);
+        Assert.Equal(TimelineType.Numeric, (await service.GetByIdAsync(universeId)).Value.TimelineType);
+
+        // Adding a plain-text date afterwards is a deliberate switch back — same as picking the
+        // "Named" radio on the modal.
+        await service.CreateTimelineDateAsync(universeId, date: "Some Chapter");
+        Assert.Equal(TimelineType.Named, (await service.GetByIdAsync(universeId)).Value.TimelineType);
+    }
+
+    [Fact]
+    public async Task A_numeric_only_date_gets_an_auto_derived_label()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Auto Label" })).Value.Id;
+
+        var point = await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 1998);
+        Assert.Equal("1998", point.Value.Date);
+
+        var range = await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 2005, yearTo: 2008);
+        Assert.Equal("2005-2008", range.Value.Date);
+    }
+
+    [Fact]
+    public async Task Creating_a_date_without_text_or_a_year_is_rejected()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Nothing Given" })).Value.Id;
+
+        var result = await service.CreateTimelineDateAsync(universeId, date: null);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(Ardalis.Result.ResultStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public async Task A_lanes_overlapping_numeric_dates_merge_into_one_labelled_segment()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Merging Segments" })).Value.Id;
+        int seriesId = await SeedSeriesAsync(scope, "Overlapping Series");
+
+        // 2005-2008 and 2007-2012 overlap (2007 <= 2008), so on the same lane they must render as
+        // one 2005-2012 bar rather than two overlapping ones.
+        int first = (await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 2005, yearTo: 2008)).Value.Id;
+        int second = (await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 2007, yearTo: 2012)).Value.Id;
+
+        int bookA = await SeedBookAsync(scope, shelfId, "Book A", seriesId);
+        int bookB = await SeedBookAsync(scope, shelfId, "Book B", seriesId);
+        await service.AddBooksAsync(universeId, [bookA, bookB]);
+        await service.SetBookTimelineDateAsync(universeId, bookA, first);
+        await service.SetBookTimelineDateAsync(universeId, bookB, second);
+
+        var detail = (await service.GetByIdAsync(universeId)).Value;
+        var row = detail.Timeline.Rows.Single(r => r.SeriesId == seriesId);
+
+        var segment = Assert.Single(row.Segments);
+        Assert.Equal("2005-2012", segment.Label);
+        Assert.Equal(2005, segment.YearFrom);
+        Assert.Equal(2012, segment.YearTo);
+        Assert.Equal(["Book A", "Book B"], segment.Entries.Select(e => e.Book.Title));
+    }
+
+    [Fact]
+    public async Task A_lanes_non_overlapping_numeric_dates_stay_as_separate_segments()
+    {
+        using var scope = _fixture.CreateScope();
+        var service = BuildService(scope);
+        int shelfId = await SeedShelfAsync(scope);
+
+        int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Separate Segments" })).Value.Id;
+        int seriesId = await SeedSeriesAsync(scope, "Gapped Series");
+
+        // A genuine gap between 1999 and 2005 — these must stay two separate bars.
+        int first = (await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 1998, yearTo: 1999)).Value.Id;
+        int second = (await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 2005, yearTo: 2008)).Value.Id;
+
+        int bookA = await SeedBookAsync(scope, shelfId, "Book A", seriesId);
+        int bookB = await SeedBookAsync(scope, shelfId, "Book B", seriesId);
+        await service.AddBooksAsync(universeId, [bookA, bookB]);
+        await service.SetBookTimelineDateAsync(universeId, bookA, first);
+        await service.SetBookTimelineDateAsync(universeId, bookB, second);
+
+        var detail = (await service.GetByIdAsync(universeId)).Value;
+        var row = detail.Timeline.Rows.Single(r => r.SeriesId == seriesId);
+
+        Assert.Equal(["1998-1999", "2005-2008"], row.Segments.Select(s => s.Label));
+    }
+
+    [Fact]
     public async Task A_date_the_universe_already_has_is_rejected()
     {
         using var scope = _fixture.CreateScope();

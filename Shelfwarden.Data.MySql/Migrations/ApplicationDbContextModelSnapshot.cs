@@ -1166,6 +1166,12 @@ namespace Shelfwarden.Data.MySql.Migrations
                     b.Property<int>("UniverseId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("YearFrom")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("YearTo")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("UniverseId", "Order");
@@ -1197,6 +1203,9 @@ namespace Shelfwarden.Data.MySql.Migrations
                         .HasMaxLength(256)
                         .IsUnicode(true)
                         .HasColumnType("varchar(256)");
+
+                    b.Property<int>("TimelineType")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 

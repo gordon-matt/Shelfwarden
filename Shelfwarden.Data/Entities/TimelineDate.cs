@@ -13,7 +13,23 @@ public class TimelineDate : BaseEntity<int>
     /// <summary>Free-text in-universe date/range (e.g. "10,191 AG", "2350-2352"). Never parsed.</summary>
     public string Date { get; set; } = string.Empty;
 
-    /// <summary>Position on the universe timeline. Compacted to a contiguous 0..n-1 range.</summary>
+    /// <summary>
+    /// Optional numeric start year, for universes whose dates are (or can be approximated as)
+    /// real numbers rather than free text. When set — on any date in the universe — the timeline
+    /// switches from evenly-spaced columns to a proportional axis so overlapping ranges become
+    /// visible. Negative values (BC/BCE-style eras) sort correctly since they're plain integers.
+    /// Purely positional: <see cref="Date"/> remains the label shown to the user.
+    /// </summary>
+    public int? YearFrom { get; set; }
+
+    /// <summary>Optional numeric end year. Falls back to <see cref="YearFrom"/> for a point-in-time date.</summary>
+    public int? YearTo { get; set; }
+
+    /// <summary>
+    /// Position on the universe timeline. Compacted to a contiguous 0..n-1 range. Acts as the sort
+    /// key when no date in the universe has a numeric year, and as a tie-breaker between dates that
+    /// share the same <see cref="YearFrom"/>/<see cref="YearTo"/> otherwise.
+    /// </summary>
     public int Order { get; set; }
 
     public virtual Universe Universe { get; set; } = null!;

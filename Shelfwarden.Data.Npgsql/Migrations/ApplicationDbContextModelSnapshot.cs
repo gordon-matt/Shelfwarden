@@ -1226,6 +1226,12 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                     b.Property<int>("UniverseId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("YearFrom")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("YearTo")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("UniverseId", "Order");
@@ -1259,6 +1265,9 @@ namespace Shelfwarden.Data.Npgsql.Migrations
                         .HasMaxLength(256)
                         .IsUnicode(true)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<int>("TimelineType")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 

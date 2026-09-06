@@ -49,14 +49,40 @@ public interface IUniverseService
     Task<Result<IReadOnlyList<UniverseTimelineDateDto>>> ListTimelineDatesAsync(int universeId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Adds a date to the end of the universe's timeline. Dates are free text and never parsed;
-    /// re-using text that already exists in the universe is rejected, since two identical dates
-    /// would be indistinguishable in every dropdown.
+    /// Adds a date to the end of the universe's timeline, and syncs the universe's
+    /// <see cref="TimelineType"/> to match what was supplied. Re-using text that already exists
+    /// in the universe is rejected, since two identical dates would be indistinguishable in every
+    /// dropdown — that check only applies when <paramref name="date"/> is given explicitly.
     /// </summary>
-    Task<Result<UniverseTimelineDateDto>> CreateTimelineDateAsync(int universeId, string date, CancellationToken cancellationToken = default);
+    /// <param name="date">
+    /// Free text, never parsed. Leave <c>null</c>/blank when the universe uses
+    /// <see cref="TimelineType.Numeric"/> dates — a label is derived from <paramref name="yearFrom"/>/
+    /// <paramref name="yearTo"/> instead. At least one of <paramref name="date"/> or a year is required.
+    /// </param>
+    /// <param name="yearFrom">
+    /// Optional numeric start year. Supplying either year switches the universe to
+    /// <see cref="TimelineType.Numeric"/>; leaving both null (with <paramref name="date"/> set)
+    /// switches it back to <see cref="TimelineType.Named"/>.
+    /// </param>
+    /// <param name="yearTo">Optional numeric end year. Defaults to <paramref name="yearFrom"/> for a point in time.</param>
+    Task<Result<UniverseTimelineDateDto>> CreateTimelineDateAsync(
+        int universeId,
+        string? date,
+        int? yearFrom = null,
+        int? yearTo = null,
+        CancellationToken cancellationToken = default);
 
-    /// <summary>Renames a timeline date. Every book on it follows automatically.</summary>
-    Task<Result<UniverseTimelineDateDto>> RenameTimelineDateAsync(int timelineDateId, string date, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Renames a timeline date (and/or changes its numeric years), syncing the owning universe's
+    /// <see cref="TimelineType"/> the same way <see cref="CreateTimelineDateAsync"/> does. Every
+    /// book on it follows automatically.
+    /// </summary>
+    Task<Result<UniverseTimelineDateDto>> RenameTimelineDateAsync(
+        int timelineDateId,
+        string? date,
+        int? yearFrom = null,
+        int? yearTo = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes a timeline date. Books sitting on it aren't removed from the universe — they go

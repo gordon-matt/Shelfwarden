@@ -16,6 +16,14 @@ public class Universe : BaseEntity<int>
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// How this universe's <see cref="TimelineDate"/>s are interpreted. Defaults to
+    /// <see cref="TimelineType.Named"/> and switches automatically to
+    /// <see cref="TimelineType.Numeric"/> the moment a date is created or renamed with a numeric
+    /// year — see <c>UniverseService</c>.
+    /// </summary>
+    public TimelineType TimelineType { get; set; } = TimelineType.Named;
+
     public virtual ICollection<Series> Series { get; set; } = [];
 
     public virtual ICollection<UniverseBook> UniverseBooks { get; set; } = [];

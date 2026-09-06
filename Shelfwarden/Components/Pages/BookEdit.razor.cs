@@ -51,6 +51,12 @@ public partial class BookEdit : ComponentBase
     private string? dateModalError;
     private bool dateModalOpen;
     private string? dateModalText;
+    private TimelineType dateModalTimelineType;
+    private int? dateModalYearFrom;
+    private int? dateModalYearTo;
+
+    private TimelineType SelectedUniverseTimelineType =>
+        universeOptions.FirstOrDefault(u => u.Id == selectedUniverseId)?.TimelineType ?? TimelineType.Named;
 
     [Parameter]
     public int Id { get; set; }
@@ -266,9 +272,17 @@ public partial class BookEdit : ComponentBase
     private void OpenDateModal()
     {
         dateModalText = null;
+        dateModalYearFrom = null;
+        dateModalYearTo = null;
+        dateModalTimelineType = SelectedUniverseTimelineType;
         dateModalError = null;
         dateModalOpen = true;
     }
+
+    private bool DateModalCanSave =>
+        dateModalTimelineType == TimelineType.Named
+            ? !string.IsNullOrWhiteSpace(dateModalText)
+            : dateModalYearFrom.HasValue || dateModalYearTo.HasValue;
 
     private void CloseDateModal()
     {
@@ -291,16 +305,27 @@ public partial class BookEdit : ComponentBase
 
     private async Task CreateDateAsync()
     {
-        if (dateModalBusy || selectedUniverseId <= 0 || string.IsNullOrWhiteSpace(dateModalText))
+        if (dateModalBusy || selectedUniverseId <= 0 || !DateModalCanSave)
         {
             return;
         }
+
+        if (dateModalYearFrom is int yf && dateModalYearTo is int yt && yf > yt)
+        {
+            dateModalError = "Year from must not be after year to.";
+            return;
+        }
+
+        string? date = dateModalTimelineType == TimelineType.Named ? dateModalText : null;
+        int? yearFrom = dateModalTimelineType == TimelineType.Numeric ? dateModalYearFrom : null;
+        int? yearTo = dateModalTimelineType == TimelineType.Numeric ? dateModalYearTo : null;
 
         dateModalBusy = true;
         dateModalError = null;
         try
         {
-            var result = await UniverseService.CreateTimelineDateAsync(selectedUniverseId, dateModalText);
+            var result = await UniverseService.CreateTimelineDateAsync(
+                selectedUniverseId, date, yearFrom, yearTo);
             if (result.IsSuccess)
             {
                 dateModalOpen = false;

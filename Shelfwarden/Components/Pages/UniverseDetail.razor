@@ -348,28 +348,42 @@ else
                             assign books to them.
                         </text>
                     }
+                    else if (universe.TimelineType == TimelineType.Numeric)
+                    {
+                        <text>
+                            One lane per series (standalone books share a lane), positioned on a proportional
+                            axis from each date's numeric years — overlapping ranges line up for real.
+                            Click a lane's name for its series, or one of its bars for the books on it.
+                        </text>
+                    }
                     else
                     {
                         <text>
                             One column per in-universe date, one lane per series (standalone books share a
                             lane). Dates are free text and are ordered by hand — they're never parsed.
+                            Click a lane's name for its series, or a cell for the books on it.
                         </text>
                     }
                 </p>
                 <AuthorizeView Roles="@Constants.Roles.Administrator">
                     <Authorized>
-                        @if (editingTimeline)
-                        {
-                            <button class="btn btn-sm btn-primary" @onclick="() => editingTimeline = false">
-                                <i class="bi bi-check-lg"></i> Done
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenDateModal(null)">
+                                <i class="bi bi-plus-lg"></i> New date
                             </button>
-                        }
-                        else
-                        {
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => editingTimeline = true">
-                                <i class="bi bi-pencil"></i> Edit timeline
-                            </button>
-                        }
+                            @if (editingTimeline)
+                            {
+                                <button class="btn btn-sm btn-primary" @onclick="() => editingTimeline = false">
+                                    <i class="bi bi-check-lg"></i> Done
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => editingTimeline = true">
+                                    <i class="bi bi-pencil"></i> Edit timeline
+                                </button>
+                            }
+                        </div>
                     </Authorized>
                 </AuthorizeView>
             </div>
@@ -386,17 +400,11 @@ else
                 }
                 else
                 {
-                    <UniverseTimeline Groups="universe.Timeline.Groups" Rows="universe.Timeline.Rows" />
+                    <UniverseTimeline Groups="universe.Timeline.Groups" Rows="universe.Timeline.Rows" TimelineType="universe.TimelineType" />
                 }
             }
             else
             {
-                <div class="d-flex justify-content-end mb-3">
-                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenDateModal(null)">
-                        <i class="bi bi-plus-lg"></i> New date
-                    </button>
-                </div>
-
                 @if (universe.Timeline.Groups.Count == 0)
                 {
                     <div class="empty-state">
@@ -557,15 +565,50 @@ else
                         <button type="button" class="btn-close" @onclick="CloseDateModal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <label class="form-label" for="timeline-date-text">Date</label>
-                        <input id="timeline-date-text" class="form-control" maxlength="50" autofocus
-                               placeholder="10,191 AG · Spring 1998 · Before the Fall"
-                               @bind="dateModalText" @bind:event="oninput"
-                               @onkeydown="DateModalKeyDownAsync" />
-                        <div class="form-text">
-                            Free text — books are assigned to it from a list, and you decide where it sits
-                            on the timeline.
+                        <div class="btn-group w-100 mb-3" role="group" aria-label="Timeline type">
+                            <input type="radio" class="btn-check" name="timeline-date-type" id="timeline-date-type-named" autocomplete="off"
+                                   checked="@(dateModalTimelineType == TimelineType.Named)"
+                                   @onchange="() => dateModalTimelineType = TimelineType.Named" />
+                            <label class="btn btn-outline-secondary" for="timeline-date-type-named">Named</label>
+
+                            <input type="radio" class="btn-check" name="timeline-date-type" id="timeline-date-type-numeric" autocomplete="off"
+                                   checked="@(dateModalTimelineType == TimelineType.Numeric)"
+                                   @onchange="() => dateModalTimelineType = TimelineType.Numeric" />
+                            <label class="btn btn-outline-secondary" for="timeline-date-type-numeric">Numeric</label>
                         </div>
+
+                        @if (dateModalTimelineType == TimelineType.Named)
+                        {
+                            <label class="form-label" for="timeline-date-text">Date</label>
+                            <input id="timeline-date-text" class="form-control" maxlength="50" autofocus
+                                   placeholder="10,191 AG · Spring 1998 · Before the Fall"
+                                   @bind="dateModalText" @bind:event="oninput"
+                                   @onkeydown="DateModalKeyDownAsync" />
+                            <div class="form-text">
+                                Free text — books are assigned to it from a list, and you decide where it sits
+                                on the timeline using the arrows.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label class="form-label" for="timeline-date-year-from">Year from</label>
+                                    <input id="timeline-date-year-from" type="number" class="form-control" autofocus
+                                           @bind="dateModalYearFrom" @onkeydown="DateModalKeyDownAsync" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label" for="timeline-date-year-to">Year to <span class="text-body-secondary">(optional)</span></label>
+                                    <input id="timeline-date-year-to" type="number" class="form-control"
+                                           @bind="dateModalYearTo" @onkeydown="DateModalKeyDownAsync" />
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                Negative years work for BCE-style eras. The timeline renders on a real
+                                proportional axis and overlapping series ranges merge into one label.
+                            </div>
+                        }
+
                         @if (dateModalError is not null)
                         {
                             <div class="alert alert-warning mt-3 mb-0">@dateModalError</div>
@@ -576,7 +619,7 @@ else
                             Cancel
                         </button>
                         <button type="button" class="btn btn-primary" @onclick="SaveDateAsync"
-                                disabled="@(dateModalBusy || string.IsNullOrWhiteSpace(dateModalText))">
+                                disabled="@(dateModalBusy || !DateModalCanSave)">
                             @if (dateModalBusy)
                             {
                                 <span class="spinner-border spinner-border-sm me-1"></span>

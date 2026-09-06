@@ -12,10 +12,11 @@ public record UniverseDto(
     int BookCount,
     int ReadingListCount,
     DateTime CreatedAt,
-    IReadOnlyList<SeriesCoverDto> Covers);
+    IReadOnlyList<SeriesCoverDto> Covers,
+    TimelineType TimelineType);
 
 /// <summary>Minimal shape for universe dropdowns on the book / series edit forms.</summary>
-public record UniverseOptionDto(int Id, string Name);
+public record UniverseOptionDto(int Id, string Name, TimelineType TimelineType);
 
 /// <summary>Universe with everything the detail page's tabs need, in one round-trip.</summary>
 public record UniverseDetailDto(
@@ -23,6 +24,7 @@ public record UniverseDetailDto(
     string Name,
     string? Description,
     DateTime CreatedAt,
+    TimelineType TimelineType,
     IReadOnlyList<UniverseSeriesDto> Series,
     UniverseTimelineDto Timeline,
     IReadOnlyList<UniverseReadingListDto> ReadingLists);
@@ -36,9 +38,17 @@ public record UniverseSeriesDto(
 
 /// <summary>
 /// A date on a universe's timeline: the thing books are assigned to, and the thing administrators
-/// create, rename, reorder and delete. <paramref name="Order"/> is its left-to-right position.
+/// create, rename, reorder and delete. <paramref name="Order"/> is its left-to-right position when
+/// no date in the universe has a numeric year; once one does, <paramref name="YearFrom"/> /
+/// <paramref name="YearTo"/> take over and <paramref name="Order"/> only breaks ties.
 /// </summary>
-public record UniverseTimelineDateDto(int Id, string Date, int Order, int BookCount);
+public record UniverseTimelineDateDto(
+    int Id,
+    string Date,
+    int Order,
+    int? YearFrom,
+    int? YearTo,
+    int BookCount);
 
 /// <summary>
 /// One book on the universe timeline. <paramref name="Id"/> is the UniverseBook id, which is what
@@ -61,6 +71,8 @@ public record UniverseTimelineEntryDto(
 public record UniverseTimelineGroupDto(
     int? TimelineDateId,
     string Label,
+    int? YearFrom,
+    int? YearTo,
     IReadOnlyList<UniverseTimelineEntryDto> Entries);
 
 /// <summary>One lane's books at one date. Empty when that series has nothing at that date.</summary>
@@ -69,14 +81,28 @@ public record UniverseTimelineCellDto(
     IReadOnlyList<UniverseTimelineEntryDto> Entries);
 
 /// <summary>
+/// One merged bar on a lane's numeric axis. Adjacent/overlapping <see cref="TimelineDate"/> ranges
+/// the lane occupies are combined into a single segment so, e.g., dates "2005-2008" and "2007-2012"
+/// on the same lane become one "2005-2012" bar instead of two overlapping ones.
+/// </summary>
+public record UniverseTimelineSegmentDto(
+    string Label,
+    int YearFrom,
+    int YearTo,
+    IReadOnlyList<UniverseTimelineEntryDto> Entries);
+
+/// <summary>
 /// One lane of the timeline grid: a series, or the shared "Standalone" bucket for books with no
 /// series. <paramref name="Cells"/> lines up one-to-one with <see cref="UniverseTimelineDto.Groups"/>
 /// so the view can render the lane as a row of a matrix without re-grouping anything.
+/// <paramref name="Segments"/> is the same data pre-merged for numeric-axis rendering — see
+/// <see cref="UniverseTimelineSegmentDto"/>.
 /// </summary>
 public record UniverseTimelineRowDto(
     int? SeriesId,
     string Label,
-    IReadOnlyList<UniverseTimelineCellDto> Cells);
+    IReadOnlyList<UniverseTimelineCellDto> Cells,
+    IReadOnlyList<UniverseTimelineSegmentDto> Segments);
 
 /// <summary>
 /// The universe timeline in the shapes the UI needs. <paramref name="Dates"/> drives the date

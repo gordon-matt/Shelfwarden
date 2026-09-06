@@ -21,12 +21,14 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 - Full metadata editor: title, sort title, subtitle, HTML description, language, publisher, ISBN, published date, series and number in series, authors, genres, tags, universe and its timeline date (picked from the universe's dates, with a shortcut for adding a new one).
 - **Online metadata lookup** across four providers in parallel — Google Books, Open Library, Amazon and Goodreads — ranked by ISBN match, title similarity, field completeness and provider priority. Use it interactively from the edit page, or let a shelf back-fill empty fields during import.
 - **Cover management:** pick a cover from an online candidate, or revert to the file's embedded cover.
+- **Download** the original EPUB or PDF from the book detail page.
 - **Batch edit** up to 100 books at once — set series, publisher and language across the selection, add / replace / remove authors, genres and tags, and edit titles, subtitles and series numbers row by row.
 - **Bulk actions** from the books grid: add to a collection or reading list, or jump into batch edit.
 
 ### Browsing, search & filtering
 
-- Grid or list view with infinite scroll, plus an A–Z letter rail.
+- **Topbar search** for books, authors and series from anywhere in the app.
+- Grid or list view with infinite scroll, plus an A–Z letter rail. Cover tiles show format badges and your reading progress.
 - Filter by shelf, collection, author, series, genre, tag (with "None" options), read status, your own star rating, and "awaiting review" for books never edited since import.
 - Sort by title, date added, date updated or published date, ascending or descending.
 - **Dashboard** with server stats, a "Continue Reading" carousel of your in-progress books and a "Recently Added" carousel.
@@ -36,14 +38,14 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 - **Authors** get a detail page with photo, biography, external links, pseudonyms and their books grouped by series. Biographies and photos can be imported from Open Library, Wikidata or Goodreads. Admins can merge or delete authors in bulk, and a weekly job cleans up authors left with no books.
 - **Series** pages list books in reading order and roll up any related extra content.
 - **Collections** are arbitrary themed groupings, either personal or global (admin-created, visible to everyone).
-- **Reading lists** are per-user ordered queues with drag-and-drop reordering, move-to-top / move-to-bottom shortcuts, a "Read next" button, and the ability to add a whole series at once.
+- **Reading lists** are per-user ordered queues with drag-and-drop reordering, move-to-top / move-to-bottom shortcuts, a "Read next" button, and the ability to add a whole series at once. The sidebar also surfaces a "Reading next" quick list.
 - **Add to…** is a single dialog available from every book and series tile and detail page, covering collections, reading lists and universes, with create-and-add for a new one.
 
 ### Universes
 
 - Group the series and books that share a fictional world, with tabs for **Overview**, **Series**, **Books**, **Reading orders** and **Timeline**.
-- A **timeline** built from in-universe dates you define yourself ("10,191 AG", "Spring 1998", "Before the Fall") and arrange by hand — the text is descriptive and is never parsed or used for sorting. Books are assigned to a date from a list rather than typed against one, so several books can share a moment, and books with no date yet wait in an **Unscheduled** column.
-- The timeline reads as a grid: one column per date, one lane per series (standalone books share a lane), so each series' books sit in its own row. **Edit timeline** switches to a per-date editor for dragging dates along the timeline, dragging books within a date, and adding, renaming or deleting dates.
+- Each universe is either **Named** (dates are free text like "10,191 AG", "Spring 1998", "Before the Fall", arranged by hand) or **Numeric** (dates carry a year, or year range, instead) — picked with a couple of radio buttons the first time you add a date, and switchable later the same way. Books are assigned to a date from a list rather than typed against one, so several books can share a moment, and books with no date yet wait in an **Unscheduled** slot.
+- The timeline reads as one lane per series (standalone books share a lane). **Named** universes get an evenly-spaced column per date; **Numeric** ones get a proportional axis with tick marks, so two different dates with overlapping ranges visibly overlap across lanes — and overlapping (or touching) dates *on the same lane* merge into a single labelled bar spanning their combined years, rather than showing as separate overlapping bars. Book covers never clutter the chart itself: click a lane's own name to jump to its series page (or, for the shared "Standalone" lane, open a covers modal), or click one of its bars to open a covers modal for just the books on it. **Edit timeline** switches to a per-date editor — up/down arrows move dates along the timeline, drag-and-drop reorders books within a date, and dates (Named text, or Numeric years) can be added, renamed or deleted from either view.
 - **Reading orders** are ordinary reading lists scoped to the universe (publication order, chronological order, and so on). A new one starts as the whole universe in timeline order, ready to be rearranged. They're shared with every reader and stay out of the personal reading lists page.
 - Series and book membership are tracked independently, so a book can sit in a universe whose series doesn't, and vice versa. Assigning a series to a universe can optionally add its current books to the timeline.
 
@@ -58,9 +60,10 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 ### Audiobooks (text to speech)
 
 - Turn any book into an `.m4a` audiobook using KokoroSharp's neural TTS and FFmpeg for AAC encoding, on a dedicated Hangfire queue.
-- **Chapter detection** from EPUB navigation or PDF bookmarks / heading heuristics, with a section editor that auto-excludes front and back matter and can split the output into one file per chapter.
+- **Chapter detection** from EPUB navigation or PDF bookmarks / heading heuristics, with a section editor that auto-excludes front and back matter and can split the output into one file per chapter. Repeating PDF headers and footers are stripped before synthesis.
 - **Voice picker** with per-voice audio previews, grouped by language.
 - Stream the whole book, individual chapters, or download everything as a ZIP. Generation is resumable — a retry skips chunks and chapters already rendered.
+- An **Audiobooks** admin page lists every generation across the library with status and progress.
 
 ### Extra content
 

@@ -11,6 +11,9 @@ public partial class UniverseDetail : ComponentBase
     private int? dateModalId;
     private bool dateModalOpen;
     private string? dateModalText;
+    private TimelineType dateModalTimelineType;
+    private int? dateModalYearFrom;
+    private int? dateModalYearTo;
     private int? draggingGroupIndex;
     private bool editing;
     private EditModel editModel = new();
@@ -243,10 +246,17 @@ public partial class UniverseDetail : ComponentBase
 
     private void OpenDateModal(int? timelineDateId)
     {
-        dateModalId = timelineDateId;
-        dateModalText = timelineDateId is int id
-            ? universe?.Timeline.Dates.FirstOrDefault(d => d.Id == id)?.Date
+        var existing = timelineDateId is int id
+            ? universe?.Timeline.Dates.FirstOrDefault(d => d.Id == id)
             : null;
+
+        dateModalId = timelineDateId;
+        dateModalText = existing?.Date;
+        dateModalYearFrom = existing?.YearFrom;
+        dateModalYearTo = existing?.YearTo;
+        dateModalTimelineType = existing is { YearFrom: not null } or { YearTo: not null }
+            ? TimelineType.Numeric
+            : universe?.TimelineType ?? TimelineType.Named;
         dateModalError = null;
         dateModalOpen = true;
     }
@@ -270,20 +280,37 @@ public partial class UniverseDetail : ComponentBase
         }
     }
 
+    private bool DateModalCanSave =>
+        dateModalTimelineType == TimelineType.Named
+            ? !string.IsNullOrWhiteSpace(dateModalText)
+            : dateModalYearFrom.HasValue || dateModalYearTo.HasValue;
+
     private async Task SaveDateAsync()
     {
-        if (dateModalBusy || string.IsNullOrWhiteSpace(dateModalText))
+        if (dateModalBusy || !DateModalCanSave)
         {
             return;
         }
+
+        if (dateModalYearFrom is int yf && dateModalYearTo is int yt && yf > yt)
+        {
+            dateModalError = "Year from must not be after year to.";
+            return;
+        }
+
+        // Only send the fields the selected radio actually shows — the other pair stays null so
+        // the service can tell which mode the admin picked.
+        string? date = dateModalTimelineType == TimelineType.Named ? dateModalText : null;
+        int? yearFrom = dateModalTimelineType == TimelineType.Numeric ? dateModalYearFrom : null;
+        int? yearTo = dateModalTimelineType == TimelineType.Numeric ? dateModalYearTo : null;
 
         dateModalBusy = true;
         dateModalError = null;
         try
         {
             var result = dateModalId is int id
-                ? (await UniverseService.RenameTimelineDateAsync(id, dateModalText)).Map(_ => 0)
-                : (await UniverseService.CreateTimelineDateAsync(Id, dateModalText)).Map(_ => 0);
+                ? (await UniverseService.RenameTimelineDateAsync(id, date, yearFrom, yearTo)).Map(_ => 0)
+                : (await UniverseService.CreateTimelineDateAsync(Id, date, yearFrom, yearTo)).Map(_ => 0);
 
             if (result.IsSuccess)
             {

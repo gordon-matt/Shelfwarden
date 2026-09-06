@@ -1165,6 +1165,8 @@ ol.reading-list {
     position: sticky;
     left: 0;
     z-index: 2;
+    flex: 0 0 11rem;
+    width: 11rem;
     background-color: var(--bs-tertiary-bg);
 }
 
@@ -1205,16 +1207,17 @@ ol.reading-list {
     position: sticky;
     left: 0;
     z-index: 2;
+    flex: 0 0 11rem;
+    width: 11rem;
     display: flex;
     align-items: center;
     gap: 0.4rem;
     padding-right: 0.5rem;
-    /* Align with the bar row rather than the covers below it. */
-    padding-top: 0.35rem;
     background-color: var(--bs-tertiary-bg);
     font-size: 0.8125rem;
     font-weight: 600;
     min-width: 0;
+    box-sizing: border-box;
 }
 
 .universe-timeline-lane-swatch {
@@ -1225,26 +1228,160 @@ ol.reading-list {
     background-color: var(--tl-colour);
 }
 
+/* The lane's own name — an <a> to its series page, or a <button> opening a covers modal for the
+   shared "Standalone" lane, which has no page of its own to link to. Either way it looks like
+   plain bold text with a link-ish hover, not an obvious button. */
 .universe-timeline-lane-label {
     min-width: 0;
+    border: none;
+    background: none;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
 }
 
-.universe-timeline-cell {
+    .universe-timeline-lane-label:hover {
+        color: var(--bs-primary);
+        text-decoration: underline;
+    }
+
+/* Universe timeline — numeric axis mode: lanes positioned on a proportional year scale so
+   overlapping date ranges are visually apparent, rather than confined to discrete columns. */
+.universe-timeline-axis {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    width: max-content;
+    min-width: 100%;
+}
+
+.universe-timeline-axis-header {
+    display: flex;
+    align-items: stretch;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+.universe-timeline-ruler {
+    position: relative;
+    height: 1.75rem;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.universe-timeline-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-left: 1px dashed var(--bs-border-color);
+    padding-left: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+.universe-timeline-trailing-head {
+    position: absolute;
+    top: 0.15rem;
+    padding: 0.15rem 0.6rem;
+    background-color: var(--bs-secondary-bg);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+    .universe-timeline-trailing-head.is-unscheduled {
+        background-color: transparent;
+        border: 1px dashed var(--bs-border-color);
+        color: var(--bs-secondary-color);
+    }
+
+/* Dashed vertical rule marking where the proportional year axis ends and the trailing
+   (non-numeric / unscheduled) slots begin — keeps the last year tick from reading as part of
+   that separate scale. */
+.universe-timeline-axis-divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-left: 1px dashed var(--bs-border-color);
+    opacity: 0.6;
+}
+
+.universe-timeline-axis-row {
+    display: flex;
+    align-items: center;
+    min-height: 2.5rem;
+}
+
+.universe-timeline-track {
+    position: relative;
+    flex: 0 0 auto;
+    height: 1.75rem;
+}
+
+/* A bar is a <button> now (it opens a covers modal), so it needs the usual reset on top of its
+   pill styling. */
+.universe-timeline-pill {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 0.6rem;
+    border: none;
+    border-radius: 999px;
+    background-color: var(--tl-colour);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    transition: filter 0.1s ease;
+}
+
+    .universe-timeline-pill:hover {
+        filter: brightness(1.15);
+    }
+
+    .universe-timeline-pill.is-unscheduled {
+        color: inherit;
+        text-shadow: none;
+    }
+
+.universe-timeline-cell {
+    display: block;
     /* Never shrink below the track width — overflowing books into the next date was the bug. */
     min-width: 0;
     width: 100%;
     overflow: hidden;
+    border: none;
+    background: none;
+    padding: 0;
 }
 
-/* One pill per date. No negative margins — those were collapsing the grid tracks and letting
+    .universe-timeline-cell.is-occupied {
+        cursor: pointer;
+    }
+
+/* One bar per date. No negative margins — those were collapsing the grid tracks and letting
    covers spill into neighbouring dates. Gaps between dates stay visible as column-gap. */
 .universe-timeline-cell-bar {
+    display: block;
     height: 1.75rem;
     border-radius: 999px;
     background-color: var(--bs-secondary-bg);
+    transition: filter 0.1s ease;
 }
 
 .universe-timeline-cell.is-occupied .universe-timeline-cell-bar,
@@ -1256,16 +1393,22 @@ ol.reading-list {
     opacity: 0.45;
 }
 
-.universe-timeline-cell-books {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 0.5rem;
+.universe-timeline-cell.is-occupied:hover .universe-timeline-cell-bar {
+    filter: brightness(1.15);
 }
 
-.universe-timeline-cell-books .universe-timeline-card {
-    flex: 0 0 auto;
-    width: 5.25rem;
+/* Covers modal — a lane's bar (or its name, for the shared "Standalone" lane) opens this instead
+   of rendering covers inline on the chart. */
+.universe-timeline-covers-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
+
+    .universe-timeline-covers-grid .universe-timeline-card {
+        flex: 0 0 auto;
+        width: 6.5rem;
+    }
 
 .universe-timeline-card {
     display: block;

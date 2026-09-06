@@ -1,43 +1,165 @@
-@* Read-only "poster" view of a universe timeline: a matrix of series lanes against date columns.
-   Column widths are sized from the busiest cell in each date so headers stretch over their books
-   and adjacent dates stay separated by a gap. *@
+@* Read-only "poster" view of a universe timeline: one lane per series (plus a shared "Standalone"
+   lane). Book covers never render inline — click a lane's name to go to its series page, or one
+   of its bars to see the books on it in a modal.
+
+   Two rendering modes:
+   - Numeric axis (TimelineType.Numeric): bars sit at their real position/width from each date's
+     YearFrom/YearTo. Overlapping/touching dates on the same lane already arrive pre-merged into
+     one bar (see Rows[].Segments), so two different dates with overlapping ranges show as a
+     single combined bar rather than fighting for the same space.
+   - Grid (Named): evenly-spaced columns, one per date, in hand-picked order. *@
 <div class="universe-timeline">
     <div class="universe-timeline-scroll">
-        <div class="universe-timeline-grid" style="grid-template-columns: @GridTemplateColumns;">
-            <div class="universe-timeline-corner"></div>
-            @foreach (var group in Groups)
-            {
-                <div class="universe-timeline-head @(group.TimelineDateId is null ? "is-unscheduled" : null)">
-                    <span class="universe-timeline-head-label text-truncate" title="@group.Label">@group.Label</span>
-                    <span class="universe-timeline-head-count">@group.Entries.Count</span>
+        @if (IsNumeric)
+        {
+            <div class="universe-timeline-axis">
+                <div class="universe-timeline-axis-header">
+                    <div class="universe-timeline-corner"></div>
+                    <div class="universe-timeline-ruler" style="width: @(TotalAxisWidthRem)rem;">
+                        @foreach (var tick in AxisTicks())
+                        {
+                            <div class="universe-timeline-tick" style="left: @(tick.LeftRem)rem;">
+                                <span>@tick.Label</span>
+                            </div>
+                        }
+                        @if (TrailingGroups.Count > 0)
+                        {
+                            <div class="universe-timeline-axis-divider" style="left: @(AxisWidthRem + (TrailingGapRem / 2))rem;"></div>
+                        }
+                        @foreach (var g in TrailingGroups)
+                        {
+                            var idx = TrailingIndexByDateId[g.TimelineDateId ?? UnscheduledKey];
+                            <div class="universe-timeline-trailing-head text-truncate @(g.TimelineDateId is null ? "is-unscheduled" : null)"
+                                 style="left: @(TrailingLeftRem(idx))rem; width: @(TrailingSlotWidthRem)rem;"
+                                 title="@g.Label">
+                                @g.Label
+                            </div>
+                        }
+                    </div>
                 </div>
-            }
 
-            @foreach (var row in Rows)
-            {
-                var (spanStart, spanEnd) = OccupiedRange(row);
-
-                <div class="universe-timeline-lane" style="--tl-colour: @RowColour(row)">
-                    <span class="universe-timeline-lane-swatch"></span>
-                    <span class="universe-timeline-lane-label text-truncate" title="@row.Label">@row.Label</span>
-                </div>
-
-                @for (int ci = 0; ci < row.Cells.Count; ci++)
+                @foreach (var row in Rows)
                 {
-                    var cell = row.Cells[ci];
-                    bool inSpan = spanStart >= 0 && ci >= spanStart && ci <= spanEnd;
-                    // Occupied cells get a colourful pill; empty cells inside the span get a quieter
-                    // coloured rail so the lane still reads as continuous; outside the span stay faint.
-                    string cellClass = "universe-timeline-cell"
-                        + (cell.Entries.Count == 0 ? " is-empty" : " is-occupied")
-                        + (inSpan ? " is-span" : " is-rail");
+                    <div class="universe-timeline-axis-row">
+                        <div class="universe-timeline-lane" style="--tl-colour: @RowColour(row)">
+                            <span class="universe-timeline-lane-swatch"></span>
+                            @if (row.SeriesId is int seriesId)
+                            {
+                                <a class="universe-timeline-lane-label text-truncate" href="@($"series/{seriesId}")" title="@($"{row.Label} — go to series")">@row.Label</a>
+                            }
+                            else
+                            {
+                                <button type="button" class="universe-timeline-lane-label text-truncate" title="@($"{row.Label} — show books")"
+                                        @onclick="() => OpenLaneCovers(row)">
+                                    @row.Label
+                                </button>
+                            }
+                        </div>
+                        <div class="universe-timeline-track" style="width: @(TotalAxisWidthRem)rem;">
+                            @foreach (var seg in row.Segments)
+                            {
+                                var (leftRem, widthRem) = SegmentGeometry(seg);
+                                <button type="button" class="universe-timeline-pill" style="left: @(leftRem)rem; width: @(widthRem)rem; --tl-colour: @RowColour(row)"
+                                        title="@($"{seg.Label} · {seg.Entries.Count} book{(seg.Entries.Count == 1 ? "" : "s")}")"
+                                        @onclick="() => OpenSegmentCovers(row, seg)">
+                                    <span class="text-truncate">@seg.Label</span>
+                                </button>
+                            }
+                            @foreach (var t in TrailingCells(row))
+                            {
+                                <button type="button" class="universe-timeline-pill @(t.Group.TimelineDateId is null ? "is-unscheduled" : null)"
+                                        style="left: @(t.LeftRem)rem; width: @(TrailingSlotWidthRem)rem; --tl-colour: @RowColour(row)"
+                                        title="@($"{t.Group.Label} · {t.Cell.Entries.Count} book{(t.Cell.Entries.Count == 1 ? "" : "s")}")"
+                                        @onclick="() => OpenCellCovers(row, t.Group, t.Cell)">
+                                    <span class="text-truncate">@t.Group.Label</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="universe-timeline-grid" style="grid-template-columns: @GridTemplateColumns;">
+                <div class="universe-timeline-corner"></div>
+                @foreach (var group in Groups)
+                {
+                    <div class="universe-timeline-head @(group.TimelineDateId is null ? "is-unscheduled" : null)">
+                        <span class="universe-timeline-head-label text-truncate" title="@group.Label">@group.Label</span>
+                        <span class="universe-timeline-head-count">@group.Entries.Count</span>
+                    </div>
+                }
 
-                    <div class="@cellClass" style="--tl-colour: @RowColour(row)">
-                        <div class="universe-timeline-cell-bar"></div>
+                @foreach (var row in Rows)
+                {
+                    var (spanStart, spanEnd) = OccupiedRange(row);
+
+                    <div class="universe-timeline-lane" style="--tl-colour: @RowColour(row)">
+                        <span class="universe-timeline-lane-swatch"></span>
+                        @if (row.SeriesId is int seriesId)
+                        {
+                            <a class="universe-timeline-lane-label text-truncate" href="@($"series/{seriesId}")" title="@($"{row.Label} — go to series")">@row.Label</a>
+                        }
+                        else
+                        {
+                            <button type="button" class="universe-timeline-lane-label text-truncate" title="@($"{row.Label} — show books")"
+                                    @onclick="() => OpenLaneCovers(row)">
+                                @row.Label
+                            </button>
+                        }
+                    </div>
+
+                    @for (int ci = 0; ci < row.Cells.Count; ci++)
+                    {
+                        var cell = row.Cells[ci];
+                        var group = Groups[ci];
+                        bool inSpan = spanStart >= 0 && ci >= spanStart && ci <= spanEnd;
+                        // Occupied cells get a colourful, clickable pill; empty cells inside the span get a
+                        // quieter coloured rail so the lane still reads as continuous; outside the span stay faint.
+                        string cellClass = "universe-timeline-cell"
+                            + (cell.Entries.Count == 0 ? " is-empty" : " is-occupied")
+                            + (inSpan ? " is-span" : " is-rail");
+
                         @if (cell.Entries.Count > 0)
                         {
-                            <div class="universe-timeline-cell-books">
-                                @foreach (var entry in cell.Entries)
+                            <button type="button" class="@cellClass" style="--tl-colour: @RowColour(row)"
+                                    title="@($"{group.Label} · {cell.Entries.Count} book{(cell.Entries.Count == 1 ? "" : "s")}")"
+                                    @onclick="() => OpenCellCovers(row, group, cell)">
+                                <span class="universe-timeline-cell-bar"></span>
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="@cellClass">
+                                <span class="universe-timeline-cell-bar"></span>
+                            </div>
+                        }
+                    }
+                }
+            </div>
+        }
+    </div>
+
+    @if (coversModalTitle is not null)
+    {
+        <div class="modal modal-show d-block" tabindex="-1" style="background-color: rgba(0,0,0,.35); z-index: 1060;"
+             @onclick="CloseCoversModal">
+            <div class="modal-dialog modal-dialog-centered modal-lg" @onclick:stopPropagation="true">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-collection me-1"></i> @coversModalTitle</h5>
+                        <button type="button" class="btn-close" @onclick="CloseCoversModal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (coversModalEntries.Count == 0)
+                        {
+                            <p class="text-body-secondary mb-0">No books here yet.</p>
+                        }
+                        else
+                        {
+                            <div class="universe-timeline-covers-grid" style="--tl-colour: @coversModalColour">
+                                @foreach (var entry in coversModalEntries)
                                 {
                                     <a class="universe-timeline-card" href="@($"books/{entry.Book.Id}")" title="@entry.Book.Title">
                                         <div class="universe-timeline-cover">
@@ -63,8 +185,8 @@
                             </div>
                         }
                     </div>
-                }
-            }
+                </div>
+            </div>
         </div>
-    </div>
+    }
 </div>

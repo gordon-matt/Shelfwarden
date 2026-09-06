@@ -312,15 +312,50 @@ else
                         <button type="button" class="btn-close" @onclick="CloseDateModal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <label class="form-label" for="book-timeline-date-text">Date</label>
-                        <input id="book-timeline-date-text" class="form-control" maxlength="50" autofocus
-                               placeholder="10,191 AG · Spring 1998 · Before the Fall"
-                               @bind="dateModalText" @bind:event="oninput"
-                               @onkeydown="DateModalKeyDownAsync" />
-                        <div class="form-text">
-                            Added to the end of the universe's timeline and selected for this book. Reorder
-                            the universe's dates from its own page.
+                        <div class="btn-group w-100 mb-3" role="group" aria-label="Timeline type">
+                            <input type="radio" class="btn-check" name="book-timeline-date-type" id="book-timeline-date-type-named" autocomplete="off"
+                                   checked="@(dateModalTimelineType == TimelineType.Named)"
+                                   @onchange="() => dateModalTimelineType = TimelineType.Named" />
+                            <label class="btn btn-outline-secondary" for="book-timeline-date-type-named">Named</label>
+
+                            <input type="radio" class="btn-check" name="book-timeline-date-type" id="book-timeline-date-type-numeric" autocomplete="off"
+                                   checked="@(dateModalTimelineType == TimelineType.Numeric)"
+                                   @onchange="() => dateModalTimelineType = TimelineType.Numeric" />
+                            <label class="btn btn-outline-secondary" for="book-timeline-date-type-numeric">Numeric</label>
                         </div>
+
+                        @if (dateModalTimelineType == TimelineType.Named)
+                        {
+                            <label class="form-label" for="book-timeline-date-text">Date</label>
+                            <input id="book-timeline-date-text" class="form-control" maxlength="50" autofocus
+                                   placeholder="10,191 AG · Spring 1998 · Before the Fall"
+                                   @bind="dateModalText" @bind:event="oninput"
+                                   @onkeydown="DateModalKeyDownAsync" />
+                            <div class="form-text">
+                                Added to the end of the universe's timeline and selected for this book. Reorder
+                                the universe's dates from its own page.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label class="form-label" for="book-timeline-date-year-from">Year from</label>
+                                    <input id="book-timeline-date-year-from" type="number" class="form-control" autofocus
+                                           @bind="dateModalYearFrom" @onkeydown="DateModalKeyDownAsync" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label" for="book-timeline-date-year-to">Year to <span class="text-body-secondary">(optional)</span></label>
+                                    <input id="book-timeline-date-year-to" type="number" class="form-control"
+                                           @bind="dateModalYearTo" @onkeydown="DateModalKeyDownAsync" />
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                The universe's timeline renders on a real proportional axis, so overlapping
+                                series ranges merge into one label.
+                            </div>
+                        }
+
                         @if (dateModalError is not null)
                         {
                             <div class="alert alert-warning mt-3 mb-0">@dateModalError</div>
@@ -331,7 +366,7 @@ else
                             Cancel
                         </button>
                         <button type="button" class="btn btn-primary" @onclick="CreateDateAsync"
-                                disabled="@(dateModalBusy || string.IsNullOrWhiteSpace(dateModalText))">
+                                disabled="@(dateModalBusy || !DateModalCanSave)">
                             @if (dateModalBusy)
                             {
                                 <span class="spinner-border spinner-border-sm me-1"></span>
