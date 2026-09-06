@@ -50,24 +50,25 @@ public interface IUniverseService
 
     /// <summary>
     /// Adds a date to the end of the universe's timeline, and syncs the universe's
-    /// <see cref="TimelineType"/> to match what was supplied. Re-using text that already exists
+    /// <see cref="TimelineType"/> to match what was supplied. Re-using a name that already exists
     /// in the universe is rejected, since two identical dates would be indistinguishable in every
-    /// dropdown — that check only applies when <paramref name="date"/> is given explicitly.
+    /// dropdown — that check only applies when <paramref name="name"/> is given explicitly.
     /// </summary>
-    /// <param name="date">
-    /// Free text, never parsed. Leave <c>null</c>/blank when the universe uses
-    /// <see cref="TimelineType.Numeric"/> dates — a label is derived from <paramref name="yearFrom"/>/
-    /// <paramref name="yearTo"/> instead. At least one of <paramref name="date"/> or a year is required.
+    /// <param name="name">
+    /// Free-text label, never parsed. Leave <c>null</c>/blank when the universe uses
+    /// <see cref="TimelineType.Numeric"/> dates — those store no name and are labelled from
+    /// <paramref name="yearFrom"/>/<paramref name="yearTo"/> at display time. At least one of
+    /// <paramref name="name"/> or a year is required.
     /// </param>
     /// <param name="yearFrom">
     /// Optional numeric start year. Supplying either year switches the universe to
-    /// <see cref="TimelineType.Numeric"/>; leaving both null (with <paramref name="date"/> set)
+    /// <see cref="TimelineType.Numeric"/>; leaving both null (with <paramref name="name"/> set)
     /// switches it back to <see cref="TimelineType.Named"/>.
     /// </param>
     /// <param name="yearTo">Optional numeric end year. Defaults to <paramref name="yearFrom"/> for a point in time.</param>
     Task<Result<UniverseTimelineDateDto>> CreateTimelineDateAsync(
         int universeId,
-        string? date,
+        string? name,
         int? yearFrom = null,
         int? yearTo = null,
         CancellationToken cancellationToken = default);
@@ -79,7 +80,7 @@ public interface IUniverseService
     /// </summary>
     Task<Result<UniverseTimelineDateDto>> RenameTimelineDateAsync(
         int timelineDateId,
-        string? date,
+        string? name,
         int? yearFrom = null,
         int? yearTo = null,
         CancellationToken cancellationToken = default);

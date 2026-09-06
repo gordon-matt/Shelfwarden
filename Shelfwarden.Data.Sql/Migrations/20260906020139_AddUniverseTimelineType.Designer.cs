@@ -12,7 +12,7 @@ using Shelfwarden.Data.Sql;
 namespace Shelfwarden.Data.Sql.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260906013447_AddUniverseTimelineType")]
+    [Migration("20260906020139_AddUniverseTimelineType")]
     partial class AddUniverseTimelineType
     {
         /// <inheritdoc />
@@ -1220,8 +1220,7 @@ namespace Shelfwarden.Data.Sql.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Date")
-                        .IsRequired()
+                    b.Property<string>("Name")
                         .HasMaxLength(50)
                         .IsUnicode(true)
                         .HasColumnType("nvarchar(50)");

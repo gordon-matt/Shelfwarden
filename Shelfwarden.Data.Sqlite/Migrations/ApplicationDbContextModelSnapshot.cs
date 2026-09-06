@@ -1154,8 +1154,7 @@ namespace Shelfwarden.Data.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Date")
-                        .IsRequired()
+                    b.Property<string>("Name")
                         .HasMaxLength(50)
                         .IsUnicode(true)
                         .HasColumnType("TEXT");

@@ -44,11 +44,22 @@ public record UniverseSeriesDto(
 /// </summary>
 public record UniverseTimelineDateDto(
     int Id,
-    string Date,
+    string? Name,
     int Order,
     int? YearFrom,
     int? YearTo,
-    int BookCount);
+    int BookCount)
+{
+    /// <summary>
+    /// What dropdowns and the editor show: the named label, or a year-range derived from
+    /// <see cref="YearFrom"/>/<see cref="YearTo"/> when this date is numeric.
+    /// </summary>
+    public string Label => !string.IsNullOrWhiteSpace(Name)
+        ? Name
+        : YearFrom is int from && YearTo is int to && from != to
+            ? $"{from}-{to}"
+            : (YearFrom ?? YearTo)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+}
 
 /// <summary>
 /// One book on the universe timeline. <paramref name="Id"/> is the UniverseBook id, which is what
@@ -132,8 +143,8 @@ public record UniverseMembershipDto(
 
 public record CreateTimelineDateRequest
 {
-    [Required, StringLength(50)]
-    public required string Date { get; init; }
+    [StringLength(50)]
+    public string? Name { get; init; }
 }
 
 public record CreateUniverseRequest

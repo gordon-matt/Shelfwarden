@@ -1214,8 +1214,7 @@ namespace Shelfwarden.Data.Npgsql.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Date")
-                        .IsRequired()
+                    b.Property<string>("Name")
                         .HasMaxLength(50)
                         .IsUnicode(true)
                         .HasColumnType("character varying(50)");

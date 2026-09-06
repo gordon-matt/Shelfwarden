@@ -10,15 +10,18 @@ public class TimelineDate : BaseEntity<int>
 {
     public int UniverseId { get; set; }
 
-    /// <summary>Free-text in-universe date/range (e.g. "10,191 AG", "2350-2352"). Never parsed.</summary>
-    public string Date { get; set; } = string.Empty;
+    /// <summary>
+    /// Free-text in-universe label (e.g. "10,191 AG", "Before the Fall"). Used when the universe
+    /// is <see cref="TimelineType.Named"/>. Null on numeric dates — those are labelled from
+    /// <see cref="YearFrom"/>/<see cref="YearTo"/> instead.
+    /// </summary>
+    public string? Name { get; set; }
 
     /// <summary>
     /// Optional numeric start year, for universes whose dates are (or can be approximated as)
-    /// real numbers rather than free text. When set — on any date in the universe — the timeline
-    /// switches from evenly-spaced columns to a proportional axis so overlapping ranges become
-    /// visible. Negative values (BC/BCE-style eras) sort correctly since they're plain integers.
-    /// Purely positional: <see cref="Date"/> remains the label shown to the user.
+    /// real numbers rather than free text. When set, the universe is <see cref="TimelineType.Numeric"/>
+    /// and the timeline renders on a proportional axis so overlapping ranges become visible.
+    /// Negative values (BC/BCE-style eras) sort correctly since they're plain integers.
     /// </summary>
     public int? YearFrom { get; set; }
 
@@ -27,8 +30,8 @@ public class TimelineDate : BaseEntity<int>
 
     /// <summary>
     /// Position on the universe timeline. Compacted to a contiguous 0..n-1 range. Acts as the sort
-    /// key when no date in the universe has a numeric year, and as a tie-breaker between dates that
-    /// share the same <see cref="YearFrom"/>/<see cref="YearTo"/> otherwise.
+    /// key when the universe is <see cref="TimelineType.Named"/>, and as a tie-breaker between
+    /// dates that share the same <see cref="YearFrom"/>/<see cref="YearTo"/> otherwise.
     /// </summary>
     public int Order { get; set; }
 
@@ -43,7 +46,7 @@ public class TimelineDateMap : IEntityTypeConfiguration<TimelineDate>
     {
         builder.ToTable("TimelineDates", Constants.Schemas.App);
         builder.HasKey(m => m.Id);
-        builder.Property(m => m.Date).HasMaxLength(50).IsUnicode(true).IsRequired();
+        builder.Property(m => m.Name).HasMaxLength(50).IsUnicode(true);
 
         builder.HasOne(m => m.Universe)
             .WithMany(m => m.TimelineDates)

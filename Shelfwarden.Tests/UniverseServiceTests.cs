@@ -242,12 +242,12 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
         int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Type Switching" })).Value.Id;
         Assert.Equal(TimelineType.Named, (await service.GetByIdAsync(universeId)).Value.TimelineType);
 
-        await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 1998);
+        await service.CreateTimelineDateAsync(universeId, name: null, yearFrom: 1998);
         Assert.Equal(TimelineType.Numeric, (await service.GetByIdAsync(universeId)).Value.TimelineType);
 
         // Adding a plain-text date afterwards is a deliberate switch back — same as picking the
         // "Named" radio on the modal.
-        await service.CreateTimelineDateAsync(universeId, date: "Some Chapter");
+        await service.CreateTimelineDateAsync(universeId, name: "Some Chapter");
         Assert.Equal(TimelineType.Named, (await service.GetByIdAsync(universeId)).Value.TimelineType);
     }
 
@@ -259,11 +259,13 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
 
         int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Auto Label" })).Value.Id;
 
-        var point = await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 1998);
-        Assert.Equal("1998", point.Value.Date);
+        var point = await service.CreateTimelineDateAsync(universeId, name: null, yearFrom: 1998);
+        Assert.Null(point.Value.Name);
+        Assert.Equal("1998", point.Value.Label);
 
-        var range = await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 2005, yearTo: 2008);
-        Assert.Equal("2005-2008", range.Value.Date);
+        var range = await service.CreateTimelineDateAsync(universeId, name: null, yearFrom: 2005, yearTo: 2008);
+        Assert.Null(range.Value.Name);
+        Assert.Equal("2005-2008", range.Value.Label);
     }
 
     [Fact]
@@ -274,7 +276,7 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
 
         int universeId = (await service.CreateAsync(new CreateUniverseRequest { Name = "Nothing Given" })).Value.Id;
 
-        var result = await service.CreateTimelineDateAsync(universeId, date: null);
+        var result = await service.CreateTimelineDateAsync(universeId, name: null);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(Ardalis.Result.ResultStatus.Invalid, result.Status);
@@ -292,8 +294,8 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
 
         // 2005-2008 and 2007-2012 overlap (2007 <= 2008), so on the same lane they must render as
         // one 2005-2012 bar rather than two overlapping ones.
-        int first = (await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 2005, yearTo: 2008)).Value.Id;
-        int second = (await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 2007, yearTo: 2012)).Value.Id;
+        int first = (await service.CreateTimelineDateAsync(universeId, name: null, yearFrom: 2005, yearTo: 2008)).Value.Id;
+        int second = (await service.CreateTimelineDateAsync(universeId, name: null, yearFrom: 2007, yearTo: 2012)).Value.Id;
 
         int bookA = await SeedBookAsync(scope, shelfId, "Book A", seriesId);
         int bookB = await SeedBookAsync(scope, shelfId, "Book B", seriesId);
@@ -322,8 +324,8 @@ public class UniverseServiceTests : IClassFixture<TestDbFixture>
         int seriesId = await SeedSeriesAsync(scope, "Gapped Series");
 
         // A genuine gap between 1999 and 2005 — these must stay two separate bars.
-        int first = (await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 1998, yearTo: 1999)).Value.Id;
-        int second = (await service.CreateTimelineDateAsync(universeId, date: null, yearFrom: 2005, yearTo: 2008)).Value.Id;
+        int first = (await service.CreateTimelineDateAsync(universeId, name: null, yearFrom: 1998, yearTo: 1999)).Value.Id;
+        int second = (await service.CreateTimelineDateAsync(universeId, name: null, yearFrom: 2005, yearTo: 2008)).Value.Id;
 
         int bookA = await SeedBookAsync(scope, shelfId, "Book A", seriesId);
         int bookB = await SeedBookAsync(scope, shelfId, "Book B", seriesId);

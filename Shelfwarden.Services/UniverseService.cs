@@ -389,7 +389,7 @@ public class UniverseService(
 
     public async Task<Result<UniverseTimelineDateDto>> CreateTimelineDateAsync(
         int universeId,
-        string? date,
+        string? name,
         int? yearFrom = null,
         int? yearTo = null,
         CancellationToken cancellationToken = default)
@@ -404,11 +404,11 @@ public class UniverseService(
             return Result.Invalid(new ValidationError(nameof(yearFrom), "Year from must not be after year to."));
         }
 
-        string? explicitText = NormalizeTimelineDate(date);
+        string? trimmedName = NormalizeTimelineName(name);
         bool hasYears = yearFrom.HasValue || yearTo.HasValue;
-        if (explicitText is null && !hasYears)
+        if (trimmedName is null && !hasYears)
         {
-            return Result.Invalid(new ValidationError(nameof(date), "Provide a date, or a year."));
+            return Result.Invalid(new ValidationError(nameof(name), "Provide a name, or a year."));
         }
 
         var universe = await universeRepository.FindOneAsync(new SearchOptions<Universe>
@@ -421,19 +421,18 @@ public class UniverseService(
             return Result.NotFound("Universe not found.");
         }
 
-        // Only reject a duplicate when the caller actually typed a label — an auto-derived
-        // numeric label ("2005-2008") legitimately repeating across unrelated dates is fine.
-        string resolvedText = explicitText ?? FormatYearRange(yearFrom, yearTo);
-        if (explicitText is not null && await FindDateByTextAsync(universeId, explicitText, cancellationToken) is not null)
+        // Only reject a duplicate when the caller actually typed a name — numeric dates have no
+        // stored name, so two "2005-2008" ranges are allowed to coexist.
+        if (trimmedName is not null && await FindDateByNameAsync(universeId, trimmedName, cancellationToken) is not null)
         {
-            return Result.Conflict($"This universe already has a timeline date called \"{explicitText}\".");
+            return Result.Conflict($"This universe already has a timeline date called \"{trimmedName}\".");
         }
 
         int maxOrder = await MaxDateOrderAsync(universeId, cancellationToken);
         var inserted = await timelineDateRepository.InsertAsync(new TimelineDate
         {
             UniverseId = universeId,
-            Date = resolvedText,
+            Name = trimmedName,
             YearFrom = yearFrom,
             YearTo = yearTo,
             Order = maxOrder + 1,
@@ -446,7 +445,7 @@ public class UniverseService(
 
     public async Task<Result<UniverseTimelineDateDto>> RenameTimelineDateAsync(
         int timelineDateId,
-        string? date,
+        string? name,
         int? yearFrom = null,
         int? yearTo = null,
         CancellationToken cancellationToken = default)
@@ -461,11 +460,11 @@ public class UniverseService(
             return Result.Invalid(new ValidationError(nameof(yearFrom), "Year from must not be after year to."));
         }
 
-        string? explicitText = NormalizeTimelineDate(date);
+        string? trimmedName = NormalizeTimelineName(name);
         bool hasYears = yearFrom.HasValue || yearTo.HasValue;
-        if (explicitText is null && !hasYears)
+        if (trimmedName is null && !hasYears)
         {
-            return Result.Invalid(new ValidationError(nameof(date), "Provide a date, or a year."));
+            return Result.Invalid(new ValidationError(nameof(name), "Provide a name, or a year."));
         }
 
         var existing = await timelineDateRepository.FindOneAsync(new SearchOptions<TimelineDate>
@@ -478,17 +477,16 @@ public class UniverseService(
             return Result.NotFound();
         }
 
-        string resolvedText = explicitText ?? FormatYearRange(yearFrom, yearTo);
-        if (explicitText is not null)
+        if (trimmedName is not null)
         {
-            var clash = await FindDateByTextAsync(existing.UniverseId, explicitText, cancellationToken);
+            var clash = await FindDateByNameAsync(existing.UniverseId, trimmedName, cancellationToken);
             if (clash is not null && clash.Id != timelineDateId)
             {
-                return Result.Conflict($"This universe already has a timeline date called \"{explicitText}\".");
+                return Result.Conflict($"This universe already has a timeline date called \"{trimmedName}\".");
             }
         }
 
-        existing.Date = resolvedText;
+        existing.Name = trimmedName;
         existing.YearFrom = yearFrom;
         existing.YearTo = yearTo;
         var updated = await timelineDateRepository.UpdateAsync(existing);
@@ -693,7 +691,7 @@ public class UniverseService(
                 membership.UniverseId,
                 membership.Universe.Name,
                 membership.TimelineDateId,
-                membership.TimelineDate?.Date));
+                membership.TimelineDate is null ? null : ToDateDto(membership.TimelineDate, 0).Label));
     }
 
     public async Task<Result> SetBookMembershipAsync(
@@ -931,8 +929,8 @@ public class UniverseService(
                 g => g.Key,
                 g => (IReadOnlyList<UniverseTimelineEntryDto>)g.OrderBy(e => e.Order).ToList());
 
-    private static string? NormalizeTimelineDate(string? timelineDate) =>
-        string.IsNullOrWhiteSpace(timelineDate) ? null : timelineDate.Trim();
+    private static string? NormalizeTimelineName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? null : name.Trim();
 
     /// <summary>Auto-derived label for a numeric-only date, e.g. <c>1998</c> or <c>1998-2003</c>.</summary>
     private static string FormatYearRange(int? yearFrom, int? yearTo)
@@ -946,7 +944,7 @@ public class UniverseService(
     }
 
     private static UniverseTimelineDateDto ToDateDto(TimelineDate td, int bookCount) =>
-        new(td.Id, td.Date, td.Order, td.YearFrom, td.YearTo, bookCount);
+        new(td.Id, td.Name, td.Order, td.YearFrom, td.YearTo, bookCount);
 
     /// <summary>
     /// Keeps <see cref="Universe.TimelineType"/> in sync with whichever fields a timeline date's
@@ -998,12 +996,12 @@ public class UniverseService(
             CancellationToken = cancellationToken,
         }) is not null;
 
-    private async Task<TimelineDate?> FindDateByTextAsync(int universeId, string date, CancellationToken cancellationToken) =>
+    private async Task<TimelineDate?> FindDateByNameAsync(int universeId, string name, CancellationToken cancellationToken) =>
         (await timelineDateRepository.FindAsync(new SearchOptions<TimelineDate>
         {
             Query = td => td.UniverseId == universeId,
             CancellationToken = cancellationToken,
-        })).FirstOrDefault(td => string.Equals(td.Date, date, StringComparison.OrdinalIgnoreCase));
+        })).FirstOrDefault(td => string.Equals(td.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private async Task<bool> DateBelongsToUniverseAsync(int timelineDateId, int universeId, CancellationToken cancellationToken) =>
         await timelineDateRepository.FindOneAsync(new SearchOptions<TimelineDate>
@@ -1231,7 +1229,7 @@ public class UniverseService(
                 ub.Id,
                 ub.TimelineDateId,
                 ub.Order,
-                ub.TimelineDate?.Date,
+                ub.TimelineDate is null ? null : ToDateDto(ub.TimelineDate, 0).Label,
                 BookProjections.ToListItem(booksById[ub.BookId], progress.GetValueOrDefault(ub.BookId, 0))))
             .ToList();
 
@@ -1246,7 +1244,7 @@ public class UniverseService(
         var groups = dates
             .Select(td => new UniverseTimelineGroupDto(
                 td.Id,
-                td.Date,
+                ToDateDto(td, 0).Label,
                 td.YearFrom,
                 td.YearTo,
                 entriesByDate.GetValueOrDefault(td.Id, [])))

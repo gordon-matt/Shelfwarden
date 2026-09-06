@@ -251,7 +251,7 @@ public partial class UniverseDetail : ComponentBase
             : null;
 
         dateModalId = timelineDateId;
-        dateModalText = existing?.Date;
+        dateModalText = existing?.Name;
         dateModalYearFrom = existing?.YearFrom;
         dateModalYearTo = existing?.YearTo;
         dateModalTimelineType = existing is { YearFrom: not null } or { YearTo: not null }
