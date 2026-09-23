@@ -96,6 +96,125 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 - **Docker Compose** setup with PostgreSQL and an optional Keycloak container.
 - **ElectronNET desktop build** that forces SQLite + None auth so non-technical users can just install and run it.
 
+## Installation
+
+The recommended self-hosted setup is **Docker Compose + PostgreSQL**. Run Postgres (and optionally pgAdmin) as its own stack on a shared Docker network, then attach Shelfwarden to that network. The same Postgres instance can be reused by other stacks, which saves RAM and disk compared with a dedicated database container per app.
+
+Volume paths below (`/volume1/docker/...`) are Synology-style examples — change them to wherever you keep Docker data.
+
+### 1. Create the shared network
+
+```bash
+docker network create postgres-net
+```
+
+### 2. PostgreSQL (+ pgAdmin)
+
+```yaml
+version: "3.9"
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your db password
+    volumes:
+      - /volume1/docker/postgresql/data:/var/lib/postgresql:rw
+    ports:
+      - "7001:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - postgres-net
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: you@example.com
+      PGADMIN_DEFAULT_PASSWORD: your pgadmin password
+    ports:
+      - "7002:80"
+    volumes:
+      - /volume1/docker/postgresql/pgadmin:/var/lib/pgadmin:rw
+      - /volume1/docker/postgresql/backups:/var/lib/pgadmin/storage/you_example.com/backups:rw
+    restart: unless-stopped
+    networks:
+      - postgres-net
+
+networks:
+  postgres-net:
+    external: true
+```
+
+Replace the passwords (and the pgAdmin email) before you bring the stack up.
+
+The backups bind-mount uses `you_example.com` — that is the same address as `PGADMIN_DEFAULT_EMAIL`, with `@` replaced by `_`. If you sign in as `you@example.com`, pgAdmin stores user files under `you_example.com`.
+
+Then create a `shelfwarden` database in pgAdmin (or `psql`). The official Postgres image only auto-creates a database matching `POSTGRES_USER` (`postgres`), not `shelfwarden`.
+
+### 3. Shelfwarden
+
+```yaml
+version: "3.9"
+
+services:
+  app:
+    image: ghcr.io/gordon-matt/shelfwarden:latest
+    container_name: Shelfwarden
+    ports:
+      - "7008:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Database__Provider: Npgsql
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=shelfwarden;Username=postgres;Password=<your db password>"
+      Storage__CoversPath: /app/data/covers
+      Storage__AudiobooksPath: /app/data/audiobooks
+      Storage__AuthorPhotosPath: /app/data/author-photos
+      Storage__CardBannersPath: /app/data/card-banners
+      Storage__ExtrasPath: /app/data/extras
+      Storage__TtsCachePath: /app/data/tts-cache
+      BulkEditMaxBookCount: 100
+    volumes:
+      - /volume1/docker/shelfwarden/library:/app/data/library
+      - /volume1/docker/shelfwarden/audiobooks:/app/data/audiobooks
+      - /volume1/docker/shelfwarden/author-photos:/app/data/author-photos
+      - /volume1/docker/shelfwarden/card-banners:/app/data/card-banners
+      - /volume1/docker/shelfwarden/covers:/app/data/covers
+      - /volume1/docker/shelfwarden/extras:/app/data/extras
+      - /volume1/docker/shelfwarden/tts-cache:/app/data/tts-cache
+      - /volume1/docker/shelfwarden/logs:/app/data/logs
+    networks:
+      - postgres-net
+    restart: unless-stopped
+
+networks:
+  postgres-net:
+    external: true
+```
+
+Use the same database password as in the Postgres stack. Shelfwarden reaches Postgres by the `db` hostname because both containers share `postgres-net`.
+
+Open the app at `http://<host>:7008` and complete the first-run wizard. Point each shelf at a folder under `/app/data/library` (the bind-mounted library path). Covers, author photos, audiobooks and the Kokoro / FFmpeg cache persist on the host under the other `/volume1/docker/shelfwarden/...` mounts.
+
+Any other stack can join `postgres-net` the same way and share this Postgres instance.
+
+### Desktop (Windows)
+
+For a single-user install without Docker, build the NSIS installer from a machine with the .NET 10 SDK and Node.js 22+:
+
+```powershell
+.\create-installer-win.ps1
+```
+
+The installer is written to `Shelfwarden.Desktop\publish\Release\net10.0\win-x64\Shelfwarden-Setup-1.0.0.exe`. The desktop build forces SQLite + no-login auth. Application data (database, covers, author photos, audiobooks, TTS cache) lives under `%LOCALAPPDATA%\Shelfwarden\desktop`, not next to the program files.
+
 ## Quick start
 
 ### Prerequisites
@@ -112,7 +231,9 @@ dotnet run --project Shelfwarden
 
 Open <https://localhost:5001>. Default admin: `admin@shelfwarden.local` / `Admin@123` (override via `SeedAdmin:Email` / `SeedAdmin:Password` in user secrets).
 
-### Run with Docker (PostgreSQL + optional Keycloak)
+### Run with the in-repo Compose file (PostgreSQL + optional Keycloak)
+
+For production, prefer the [recommended Installation](#installation) (shared `postgres-net`, published image, bind-mounted storage). For a quick local stack from this repo:
 
 ```powershell
 copy .env.example .env
