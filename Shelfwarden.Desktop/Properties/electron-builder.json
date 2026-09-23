@@ -8,12 +8,20 @@
     "output": "bin/Desktop"
   },
   "win": {
+    "icon": ".electron/icon.ico",
     "target": [
       {
-        "target": "portable",
+        "target": "nsis",
         "arch": "x64"
       }
-    ]
+    ],
+    "artifactName": "${productName}-Setup-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
   },
   "linux": {
     "target": [

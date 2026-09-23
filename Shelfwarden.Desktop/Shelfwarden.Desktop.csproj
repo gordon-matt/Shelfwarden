@@ -21,6 +21,15 @@
 		<RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
 	</PropertyGroup>
 
+	<!--
+		Windows exe / installer icon. ElectronNET copies this file into the publish
+		folder as .electron/icon.ico, which electron-builder.json points at.
+		Must live inside this project — electron-builder rejects parent-path references.
+	-->
+	<PropertyGroup Label="ElectronNetCommon">
+		<ElectronIcon>Assets\icon.ico</ElectronIcon>
+	</PropertyGroup>
+
 	<!-- Same package set as the main web project, minus Identity UI (None auth has no UI). -->
 	<ItemGroup>
 		<PackageReference Include="Ardalis.Result" Version="10.1.0" />

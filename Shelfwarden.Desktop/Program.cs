@@ -19,11 +19,19 @@ using Shelfwarden.Infrastructure;
 //   • Authentication:Provider is forced to None (single local user, no login UI).
 //   • The DB and Hangfire SQLite files live under the per-user app data folder
 //     (LocalApplicationData) so a non-admin install can write to them.
+//   • An installed build keeps its database under LocalApplicationData\Shelfwarden\desktop.
+//     `dotnet run` keeps using LocalApplicationData\Shelfwarden, so a test library
+//     does not show up in the installer. Book folders are shelf rows in that
+//     database, not appsettings.
 // ────────────────────────────────────────────────────────────────────────────────
 
-string appDataDir = Path.Combine(
+string appDataRoot = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
     "Shelfwarden");
+// Published output includes wwwroot next to the executable. `dotnet run` does not
+// (wwwroot is linked from the web project and only copied on publish).
+bool isInstalledBuild = File.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot", "css", "site.css"));
+string appDataDir = isInstalledBuild ? Path.Combine(appDataRoot, "desktop") : appDataRoot;
 Directory.CreateDirectory(appDataDir);
 
 // Hardcode the database / auth choices before configuration is read so that an
@@ -59,6 +67,11 @@ Log.Logger = new LoggerConfiguration()
     .WriteToShelfwardenDatabase(builder.Configuration)
     .CreateLogger();
 
+Log.Information(
+    "Shelfwarden data directory: {AppDataDir} (installed build: {Installed})",
+    appDataDir,
+    isInstalledBuild);
+
 builder.Host.UseSerilog();
 builder.Host.UseSejil(writeToProviders: true);
 
@@ -93,11 +106,18 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 app.UseStaticFiles();
+// Required in Production for Blazor's @Assets[...] (logo, theme-init.js, and the other
+// fingerprinted scripts in App.razor). Those URLs are not served by UseStaticFiles.
+app.MapStaticAssets();
+
 app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseSejil();
+
+// Fresh installs have no shelves yet. The wizard is where the user picks book folders.
+app.UseMiddleware<SetupRedirectMiddleware>();
 
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
@@ -105,7 +125,8 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 });
 
 app.MapRazorComponents<Shelfwarden.Components.App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .WithStaticAssets();
 
 app.MapControllers();
 
@@ -123,7 +144,7 @@ app.Run();
 // Electron callback — invoked by ElectronNET.Core once the host is ready. Opens
 // the main browser window pointed at the in-process ASP.NET Core server.
 // ──────────────────────────────────────────────────────────────────────────────
-static async Task OnElectronAppReadyAsync()
+async Task OnElectronAppReadyAsync()
 {
     var options = new BrowserWindowOptions
     {
@@ -133,6 +154,12 @@ static async Task OnElectronAppReadyAsync()
         Title = "Shelfwarden",
         IsRunningBlazor = true,
     };
+
+    string iconPath = Path.Combine(webRootPath, "img", "Icon.png");
+    if (File.Exists(iconPath))
+    {
+        options.Icon = iconPath;
+    }
 
     if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
     {
