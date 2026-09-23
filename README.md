@@ -4,6 +4,48 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 
 > See [CONTEXT.md](./CONTEXT.md) for the full architecture, conventions and roadmap. Cursor / AI assistants should read it first.
 
+## Screenshots
+
+### Home Page:
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Home.JPG" alt="Home" />
+
+### Book Details:
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Book Details.JPG" alt="Home" />
+
+### Shelves:
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Shelves.JPG" alt="Shelves" />
+
+### Series:
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Series.JPG" alt="Series" />
+
+### Universes:
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Universes.png" alt="Universes" />
+
+### Reader (Epub and PDF):
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Reader_Epub.JPG" alt="Reader (Epub)" />
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Reader_PDF.JPG" alt="Reader (PDF)" />
+
+### Authors:
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Author Select.JPG" alt="Authors: Match metadata" />
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Author Merge.JPG" alt="Authors: Merge" />
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Author Details_1.png" alt="Author: Details_1" />
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Author Details_2.png" alt="Author: Details_2" />
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Author Details_3.png" alt="Author: Details_3" />
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Author Details_4.png" alt="Author: Details_4" />
+
 ## Features
 
 ### Shelves & scanning
