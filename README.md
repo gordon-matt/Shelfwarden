@@ -12,7 +12,11 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 
 ### Book Details:
 
-<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Book Details.JPG" alt="Home" />
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Book Details.JPG" alt="Book: Details" />
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Book_Metadata.JPG" alt="Book: Match Metadata" />
+
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Screenshots/Generate Audio.JPG" alt="Book: Generate Audio" />
 
 ### Shelves:
 
