@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using Shelfwarden.Services.Storage;
 using RouteAttribute = Microsoft.AspNetCore.Mvc.RouteAttribute;
 
@@ -20,12 +21,17 @@ public class AuthorPhotosController(
     IRepository<Author> authorRepository) : ControllerBase
 {
     [HttpGet("{authorId:int}")]
-    [ResponseCache(Duration = 60 * 60 * 24 * 7, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> Get(int authorId, CancellationToken cancellationToken)
     {
         string? fullPath = await ResolveAuthorPhotoPathAsync(authorId, cancellationToken);
         if (fullPath is null || !System.IO.File.Exists(fullPath))
         {
+            // Never let a "no photo yet" 404 get cached. A 404 is cacheable by default per
+            // RFC 7231, and Electron/Chromium's HTTP disk cache persists across app restarts.
+            // Without this, the very first request for a not-yet-uploaded photo (?v=0) gets
+            // permanently cached, so an uploaded photo never actually loads once one exists —
+            // it looks like the photo was "lost" after closing and reopening the app.
+            Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue { NoStore = true };
             return NotFound();
         }
 
@@ -33,6 +39,11 @@ public class AuthorPhotosController(
 
         var lastModified = System.IO.File.GetLastWriteTimeUtc(fullPath);
         Response.GetTypedHeaders().LastModified = lastModified;
+        Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue
+        {
+            Public = true,
+            MaxAge = TimeSpan.FromDays(7),
+        };
 
         var stream = System.IO.File.OpenRead(fullPath);
         return File(stream, contentType, enableRangeProcessing: false);

@@ -53,6 +53,15 @@
 		<!-- Electron host -->
 		<PackageReference Include="ElectronNET.Core" Version="0.4.1" />
 		<PackageReference Include="ElectronNET.Core.AspNet" Version="0.4.1" />
+
+		<!--
+			KokoroSharp.CPU (referenced transitively via Shelfwarden.Services) only copies its
+			"voices" content into $(OutputPath) via a raw AfterTargets="Build" <Copy> task, which
+			does not flow into `dotnet publish` output. Referencing the base KokoroSharp package
+			directly here (GeneratePathProperty) gives us $(PkgKokoroSharp) so we can publish the
+			voices ourselves below, the same way wwwroot is handled.
+		-->
+		<PackageReference Include="KokoroSharp" Version="0.6.7" GeneratePathProperty="true" />
 	</ItemGroup>
 
 	<!--
@@ -103,6 +112,21 @@
 	</ItemGroup>
 	<ItemGroup>
 	  <Folder Include="wwwroot\" />
+	</ItemGroup>
+
+	<!--
+		KokoroSharp voice files (see KokoroEngineProvider.EnsureVoicesLoaded, which reads from
+		AppContext.BaseDirectory + "voices"). Published explicitly as Content so they land next
+		to Shelfwarden.Desktop.exe in the packaged Electron app, not just in the build bin folder.
+
+		The "espeak" folder is also required — KokoroSharp's integrated phonemization (text ->
+		phonemes, needed for every supported language including English) only works through the
+		bundled eSpeak NG backend. Without it, synthesis fails (voice previews / audiobook
+		generation error out) even though the voice list itself loads fine.
+	-->
+	<ItemGroup Condition="'$(PkgKokoroSharp)' != ''">
+		<Content Include="$(PkgKokoroSharp)\content\voices\**\*" Link="voices\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+		<Content Include="$(PkgKokoroSharp)\content\espeak\**\*" Link="espeak\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 	</ItemGroup>
 
 </Project>
