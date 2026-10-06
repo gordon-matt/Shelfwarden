@@ -58,7 +58,7 @@ public class BookFilesController(
         // into memory. epub.js also uses ranged requests for big EPUBs (downloads a chapter
         // at a time).
         var stream = System.IO.File.OpenRead(book.FilePath);
-        string downloadName = BuildDownloadFileName(book);
+        string downloadName = BookFileNames.BuildDownloadFileName(book.Id, book.Title, book.FilePath, book.FileFormat);
 
         if (download)
         {
@@ -70,33 +70,5 @@ public class BookFilesController(
         }
 
         return File(stream, contentType, downloadName, enableRangeProcessing: true);
-    }
-
-    private static string BuildDownloadFileName(Book book)
-    {
-        string ext = Path.GetExtension(book.FilePath);
-        if (string.IsNullOrEmpty(ext))
-        {
-            ext = book.FileFormat switch
-            {
-                EbookFormat.Epub => ".epub",
-                EbookFormat.Pdf => ".pdf",
-                _ => string.Empty,
-            };
-        }
-
-        string baseName = string.IsNullOrWhiteSpace(book.Title)
-            ? Path.GetFileNameWithoutExtension(book.FilePath)
-            : book.Title;
-
-        // Strip filesystem-illegal characters so this round-trips into Save-As cleanly.
-        char[] invalid = Path.GetInvalidFileNameChars();
-        string sanitised = new string([.. baseName.Where(c => !invalid.Contains(c))]).Trim();
-        if (string.IsNullOrEmpty(sanitised))
-        {
-            sanitised = $"book-{book.Id}";
-        }
-
-        return sanitised + ext;
     }
 }

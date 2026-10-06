@@ -34,6 +34,7 @@
 		<ProjectReference Include="..\Shelfwarden.Data.Sqlite\Shelfwarden.Data.Sqlite.csproj" />
 		<ProjectReference Include="..\Shelfwarden.Models\Shelfwarden.Models.csproj" />
 		<ProjectReference Include="..\Shelfwarden.Services\Shelfwarden.Services.csproj" />
+		<ProjectReference Include="..\Shelfwarden\Shelfwarden.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

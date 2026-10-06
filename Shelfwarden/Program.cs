@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Sejil;
 using Serilog;
+using Serilog.Events;
 using Shelfwarden.Components;
 using Shelfwarden.Infrastructure;
+using Shelfwarden.Infrastructure.Opds;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,13 +57,24 @@ switch (authProvider)
         break;
 }
 
+builder.Services.AddShelfwardenOpds(builder.Configuration);
 builder.Services.AddShelfwardenHangfire(builder.Configuration);
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 var app = builder.Build();
 
-app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging(options =>
+{
+    // Same properties as Serilog's default, but with OPDS keys masked out of key-in-URL paths.
+    options.GetMessageTemplateProperties = (httpContext, requestPath, elapsedMs, statusCode) =>
+    [
+        new LogEventProperty("RequestMethod", new ScalarValue(httpContext.Request.Method)),
+        new LogEventProperty("RequestPath", new ScalarValue(OpdsLogRedaction.RedactPath(requestPath))),
+        new LogEventProperty("StatusCode", new ScalarValue(statusCode)),
+        new LogEventProperty("Elapsed", new ScalarValue(elapsedMs)),
+    ];
+});
 
 if (!app.Environment.IsDevelopment())
 {

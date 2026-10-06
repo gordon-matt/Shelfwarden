@@ -1,0 +1,164 @@
+@page "/settings/opds"
+@attribute [Authorize]
+@using Shelfwarden.Models.Opds
+@using Shelfwarden.Services.Opds
+@inject IOpdsCredentialService CredentialService
+@inject IServerSettingsService ServerSettings
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>E-reader access (OPDS) - Shelfwarden</PageTitle>
+
+<div class="mb-3">
+    <h1 class="mb-0">E-reader access (OPDS)</h1>
+    <p class="text-secondary mb-0">
+        Browse and download your books from reading apps such as KOReader, Thorium, Moon+ Reader or Librera.
+    </p>
+</div>
+
+@if (!string.IsNullOrEmpty(bannerError))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @bannerError
+        <button type="button" class="btn-close" @onclick="@(() => bannerError = null)" aria-label="Close"></button>
+    </div>
+}
+
+@if (loading)
+{
+    <div class="text-center text-secondary py-5">
+        <div class="spinner-border" role="status"></div>
+        <div class="mt-2">Loading…</div>
+    </div>
+}
+else
+{
+    @if (isAdministrator)
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="form-check form-switch">
+                    <input id="opds-enabled" class="form-check-input" type="checkbox" role="switch"
+                           checked="@opdsEnabled" disabled="@saving" @onchange="ToggleEnabledAsync" />
+                    <label class="form-check-label fw-semibold" for="opds-enabled">Enable the OPDS catalogue</label>
+                </div>
+                <div class="form-text">
+                    Off by default. While off, every <code>/opds</code> address answers 404, even with a valid key.
+                    Serve Shelfwarden over HTTPS before enabling it: reading apps send the key with every request.
+                </div>
+            </div>
+        </div>
+    }
+    else if (!opdsEnabled)
+    {
+        <div class="alert alert-info">
+            The OPDS catalogue is switched off on this server. An administrator can enable it; you can still create a key now.
+        </div>
+    }
+
+    @if (issuedKey is not null)
+    {
+        <div class="alert alert-success">
+            <h5 class="alert-heading"><i class="bi bi-key"></i> Your new OPDS key</h5>
+            <p class="mb-2">Copy it now; it won't be shown again. Generate a new one if you lose it.</p>
+            <div class="input-group mb-2">
+                <input class="form-control font-monospace" readonly value="@issuedKey.Key" aria-label="OPDS key" />
+                <button type="button" class="btn btn-outline-secondary" @onclick="@(() => CopyAsync(issuedKey.Key))">
+                    <i class="bi bi-clipboard"></i> Copy
+                </button>
+            </div>
+            <div class="small mb-1">Or, for apps that can't ask for a user name and password, use this address (it contains the key):</div>
+            <div class="input-group">
+                <input class="form-control font-monospace" readonly value="@KeyFeedUrl(issuedKey.CompactKey)" aria-label="Feed address with key" />
+                <button type="button" class="btn btn-outline-secondary" @onclick="@(() => CopyAsync(KeyFeedUrl(issuedKey.CompactKey)))">
+                    <i class="bi bi-clipboard"></i> Copy
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="card mb-3">
+        <div class="card-header fw-semibold">Your key</div>
+        <div class="card-body">
+            @if (credential is null)
+            {
+                <p class="mb-3">You don't have an OPDS key yet. Reading apps sign in with your user name and this key, not your password.</p>
+                <button type="button" class="btn btn-primary" disabled="@saving" @onclick="GenerateAsync">
+                    <i class="bi bi-key"></i> Generate key
+                </button>
+            }
+            else
+            {
+                <dl class="row mb-3">
+                    <dt class="col-sm-3">Feed address</dt>
+                    <dd class="col-sm-9">
+                        <code>@FeedUrl</code>
+                        <button type="button" class="btn btn-sm btn-link p-0 ms-2" @onclick="@(() => CopyAsync(FeedUrl))" title="Copy">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </dd>
+                    <dt class="col-sm-3">User name</dt>
+                    <dd class="col-sm-9"><code>@credential.UserName</code></dd>
+                    <dt class="col-sm-3">Password</dt>
+                    <dd class="col-sm-9">Your OPDS key (starts <code>@credential.KeyPrefix</code>…)</dd>
+                    <dt class="col-sm-3">Created</dt>
+                    <dd class="col-sm-9">@credential.CreatedAt.ToLocalTime().ToString("g")</dd>
+                    <dt class="col-sm-3">Last used</dt>
+                    <dd class="col-sm-9">@(credential.LastUsedAt?.ToLocalTime().ToString("g") ?? "Never")</dd>
+                </dl>
+                <button type="button" class="btn btn-outline-primary me-2" disabled="@saving" @onclick="GenerateAsync">
+                    <i class="bi bi-arrow-repeat"></i> Regenerate
+                </button>
+                <button type="button" class="btn btn-outline-danger" disabled="@saving" @onclick="RevokeAsync">
+                    <i class="bi bi-x-circle"></i> Revoke
+                </button>
+                <div class="form-text mt-2">Regenerating or revoking signs out every app using the current key within a minute.</div>
+            }
+        </div>
+    </div>
+
+    @if (isAdministrator && allCredentials is not null)
+    {
+        <div class="card">
+            <div class="card-header fw-semibold">All OPDS keys</div>
+            @if (allCredentials.Count == 0)
+            {
+                <div class="card-body text-secondary">No one has an OPDS key.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">User</th>
+                                <th scope="col">Key</th>
+                                <th scope="col">Created</th>
+                                <th scope="col">Last used</th>
+                                <th scope="col" class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in allCredentials)
+                            {
+                                <tr>
+                                    <td>@c.UserName</td>
+                                    <td><code>@c.KeyPrefix…</code></td>
+                                    <td>@c.CreatedAt.ToLocalTime().ToString("g")</td>
+                                    <td>@(c.LastUsedAt?.ToLocalTime().ToString("g") ?? "Never")</td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger" disabled="@saving"
+                                                @onclick="@(() => RevokeForUserAsync(c))">
+                                            <i class="bi bi-x-circle"></i><span class="d-none d-md-inline"> Revoke</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+}

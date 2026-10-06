@@ -1,5 +1,6 @@
 using System.Net;
 using Hangfire;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -11,6 +12,8 @@ using Shelfwarden.Data.MySql;
 using Shelfwarden.Data.Npgsql;
 using Shelfwarden.Data.Sql;
 using Shelfwarden.Data.Sqlite;
+using Shelfwarden.Infrastructure.Opds;
+using Shelfwarden.Services.Opds;
 
 namespace Shelfwarden.Infrastructure;
 
@@ -39,6 +42,20 @@ internal static class ServiceCollectionExtensions
                     $"Unknown Database:Provider '{provider}'. Valid values: " +
                     "Sqlite, SqlServer, Npgsql, MySql.")
             };
+        }
+
+        /// <summary>
+        /// OPDS catalogue: binds <see cref="OpdsOptions"/> from the <c>Opds</c> section and adds the
+        /// <see cref="OpdsAuthenticationHandler"/> scheme alongside whichever interactive auth mode is active.
+        /// Whether the catalogue answers at all is the admin-controlled <c>opds.enabled</c> server setting.
+        /// </summary>
+        public IServiceCollection AddShelfwardenOpds(IConfiguration configuration)
+        {
+            services.Configure<OpdsOptions>(configuration.GetSection(OpdsOptions.SectionName));
+            services.AddSingleton<OpdsAuthThrottle>();
+            services.AddAuthentication()
+                .AddScheme<AuthenticationSchemeOptions, OpdsAuthenticationHandler>(OpdsAuthenticationHandler.SchemeName, _ => { });
+            return services;
         }
 
         /// <summary>

@@ -12,6 +12,9 @@ public record ServerSettingsDto
 
     /// <summary>True once the first-run wizard has completed.</summary>
     public bool SetupComplete { get; init; }
+
+    /// <summary>True when the OPDS catalogue is served. Off until an administrator turns it on.</summary>
+    public bool OpdsEnabled { get; init; }
 }
 
 public record UpdateThemeRequest

@@ -55,7 +55,8 @@ public class AspNetIdentityUserInfoService(
                 user.UserName ?? user.Id,
                 user.Email,
                 user.DisplayName ?? user.UserName,
-                roles.ToList()));
+                roles.ToList(),
+                IsDisabled: user.LockoutEnd is { } lockoutEnd && lockoutEnd > DateTimeOffset.UtcNow));
         }
 
         return result;

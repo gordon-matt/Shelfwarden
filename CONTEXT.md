@@ -80,6 +80,12 @@ The host (`Shelfwarden`) reads these at startup:
   "SeedAdmin": {
     "Email": "admin@shelfwarden.local",
     "Password": "Admin@123"
+  },
+  "Opds": {                  // all optional; whether OPDS is served at all is the opds.enabled server setting
+    "PageSize": 50,
+    "MaxFailedAuthAttempts": 10,
+    "FailedAuthWindow": "00:15:00",
+    "ThumbnailSize": 300
   }
 }
 ```
@@ -117,6 +123,7 @@ The model is intentionally simpler than Kavita's `Series → Volume → Chapter 
 | `ReadingList` / `ReadingListItem` | Ordered list of books with reading order. Nullable `ReadingList.UniverseId` marks a list as a universe reading order (hidden from `/reading-lists`). |
 | `Universe` / `UniverseBook` / `TimelineDate` | Fictional universe grouping series + books. `Series.UniverseId` is a nullable FK; book membership lives on the `UniverseBook` join entity. `Universe.TimelineType` (`Named` default / `Numeric`) picks how the universe's dates are interpreted — see below. `TimelineDate` is a universe-owned, admin-maintained point on the timeline (`Name` nullable nvarchar(50) for `Named` dates, `Order` int, optional `YearFrom`/`YearTo` nullable ints — `Name` is null on numeric dates and the label is derived at display time); `UniverseBook.TimelineDateId` is nullable (null = unscheduled, FK `SetNull`) and `UniverseBook.Order` sequences the books sharing one date. |
 | `ServerSetting` | Key/value store for first-run wizard, scan settings, theme, etc. |
+| `OpdsCredential` | One OPDS key per user: `UserId` (unique, no FK so Keycloak users work), `UserName` and comma-separated `Roles` snapshot, `KeyHash` (SHA-256 hex, unique), `KeyPrefix` (first 5 chars, for display), `CreatedAt`, `LastUsedAt`. |
 | `Audiobook` | Per-`Book` text-to-speech generation tracking (status, voice name, chunk progress, output file). At most one row per book — regenerating reuses the same row. Hangfire-driven. |
 
 All entity classes inherit `BaseEntity<int>` from `Extenso.Data.Entity` (which exposes `Id` + `KeyValues`). The Identity entities use `string` IDs (Identity default).
@@ -140,6 +147,21 @@ All entity classes inherit `BaseEntity<int>` from `Extenso.Data.Entity` (which e
 - `"None"` → custom `NoneAuthenticationHandler` that always authenticates as `_default` with role `Administrator`. `IUserInfoService` → `NoneUserInfoService`.
 
 `IAuthProviderService` exposes the active mode to UI layers (e.g. to hide login menu when mode is `None`).
+
+## OPDS catalogue
+
+OPDS 1.2 (Atom XML) for e-reader apps, served by `OpdsController` at `/opds/...` and, identically, at `/opds/key/{apiKey}/...`.
+
+- **Feeds:** `IOpdsFeedService` builds `OpdsFeed` objects (`Shelfwarden.Models/Opds`, `XmlSerializer` attributes) and `OpdsXmlSerializer` writes them with Extenso's `XmlSerialize`. Every book query filters by `IShelfAccessService` shelf ids, pages in the database (`Opds:PageSize`, page numbers clamped) and projects only the columns a feed needs, with authors, genres and tags fetched in the same query. Text goes through `OpdsTextSanitizer` (drops XML-illegal characters, keeps emoji).
+- **Links** come from `OpdsLinkBuilder`. They are host-relative (`/base/opds/...`), so they're correct behind any proxy without trusting forwarded headers and can never leak an internal host. They keep the key-in-URL prefix when the client used it.
+- **Domain fit:** one `Book` is one file, so each entry has exactly one acquisition link. Collections and reading lists aren't exposed yet; shelves are.
+- **Pseudonyms:** listed as separate authors, as in the web UI. Author feeds hold books credited to that exact name. Search on a primary author's name also matches their pseudonyms' books.
+- **Auth:** `OpdsAuthenticationHandler` (scheme `Opds`, registered in every auth mode) accepts HTTP Basic (user name + OPDS key) or the `apiKey` route value. `IOpdsCredentialService` validates keys by SHA-256 hash, caching results for a minute.
+  - Identity mode re-checks the live user, so disabled or deleted accounts are rejected and role changes apply.
+  - Keycloak and None use the roles captured when the key was issued, refreshed whenever the user opens the OPDS page. Disabling a Keycloak user therefore doesn't revoke their key; an admin should revoke it on the OPDS page.
+  - The handler gives `404` while `opds.enabled` is off, `429` once `OpdsAuthThrottle` (in-memory, per address + user name) trips, and otherwise `401` with `WWW-Authenticate: Basic realm="Shelfwarden OPDS"`.
+- **Secrets:** keys are shown once (`/settings/opds`) and never logged. `OpdsLogRedaction` masks `/opds/key/{key}` in Serilog request logs. `/opds` is exempt from `SetupRedirectMiddleware`.
+- **Files:** downloads use `PhysicalFile` with range processing. ASP.NET writes `Content-Disposition` with both `filename` and an RFC 5987 `filename*` (names from `BookFileNames`). Thumbnails are generated on demand by `CoverThumbnailService` into `{Covers}/_thumbs/{bookId}_{size}.jpg`, and regenerated when the cover is newer.
 
 ## Background jobs
 

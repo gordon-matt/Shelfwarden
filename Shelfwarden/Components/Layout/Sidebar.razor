@@ -158,6 +158,9 @@
                     <i class="bi bi-person-circle fs-5 text-secondary"></i>
                     <div class="flex-grow-1 text-truncate">
                         <div class="text-truncate small fw-semibold">@context.User.Identity?.Name</div>
+                        <a class="small text-decoration-none d-block" href="settings/opds" @onclick="CloseOnNavigate">
+                            <i class="bi bi-tablet"></i> E-reader access
+                        </a>
                         @if (AuthProvider.Provider != Shelfwarden.Services.Auth.AuthProvider.None)
                         {
                             @* POST avoids Identity UI's GET /Identity/Account/Logout confirmation ("Click here to log out"). *@

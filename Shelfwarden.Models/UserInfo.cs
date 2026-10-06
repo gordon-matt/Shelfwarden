@@ -6,7 +6,8 @@ public record UserInfo(
     string UserName,
     string? Email,
     string? DisplayName,
-    IReadOnlyList<string> Roles)
+    IReadOnlyList<string> Roles,
+    bool IsDisabled = false)
 {
     public bool IsInRole(string role) => Roles.Contains(role, StringComparer.OrdinalIgnoreCase);
 }

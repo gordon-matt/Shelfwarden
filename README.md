@@ -102,6 +102,7 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 - **Bookmarks** with optional notes, captured at the current EPUB location or PDF page, with jump-to from the reader drawer.
 - Reading progress is per user; a book counts as finished at 99%.
 - Both reader libraries are self-hosted — no CDN calls at runtime.
+- **OPDS 1.2 catalogue** for e-reader apps (KOReader, Thorium, Moon+ Reader, Librera…): browse by recent, title, author, series and shelf, search, and download, each user seeing only their own shelves. See [E-reader apps (OPDS)](#e-reader-apps-opds).
 
 ### Audiobooks (text to speech)
 
@@ -315,8 +316,49 @@ All settings can be overridden via `appsettings.json`, user secrets, or environm
 | `Database:Provider` | `Sqlite`, `SqlServer`, `Npgsql`, `MySql` | `Sqlite` |
 | `ConnectionStrings:DefaultConnection` | provider-specific connection string | `Data Source=shelfwarden.db` |
 | `Authentication:Provider` | `Identity`, `Keycloak`, `None` | `Identity` |
+| `Opds:PageSize` | entries per OPDS feed page (1–500) | `50` |
+| `Opds:MaxFailedAuthAttempts` | failed OPDS sign-ins per client address + user name before blocking | `10` |
+| `Opds:FailedAuthWindow` | how long failures are remembered / a client is blocked (`hh:mm:ss`) | `00:15:00` |
+| `Opds:ThumbnailSize` | longest edge of generated cover thumbnails, in pixels | `300` |
 
 See [CONTEXT.md](./CONTEXT.md) for full configuration details, including Keycloak.
+
+## E-reader apps (OPDS)
+
+Shelfwarden serves an [OPDS 1.2](https://specs.opds.io/opds-1.2) catalogue at `/opds`, so reading apps can browse and download books directly.
+
+**It is off by default.** An administrator turns it on under **E-reader access** (link in the sidebar footer, or `/settings/opds`). While off, every `/opds` address answers `404`.
+
+**Serve Shelfwarden over HTTPS before enabling it.** Reading apps send credentials with every request, and HTTP Basic is only base64, not encryption.
+
+### Signing in
+
+Apps don't use your Shelfwarden password (Keycloak accounts don't have one Shelfwarden knows). Each user generates an **OPDS key** on the E-reader access page instead. The key is shown once, stored only as a SHA-256 hash, and can be regenerated or revoked at any time. Admins can see and revoke everyone's keys on the same page.
+
+- **Feed URL:** `https://your-server/opds` (include any sub-path you host under, e.g. `https://example.com/shelfwarden/opds`)
+- **User name:** your Shelfwarden user name (Identity mode also accepts your email)
+- **Password:** your OPDS key (hyphens and case don't matter)
+
+For apps that can't send a user name and password, the page also shows a URL with the key embedded, `https://your-server/opds/key/<key>`. Treat that URL like a password: anyone holding it can browse and download your books. Keys are masked in Shelfwarden's request logs, but a reverse proxy in front of it may log full URLs.
+
+After repeated failed sign-ins from one address for one user name, Shelfwarden answers `429 Too Many Requests` for a while (see `Opds:*` above).
+
+### Client setup
+
+| App | Where to add it |
+|-----|-----------------|
+| **KOReader** | Search (magnifier) → OPDS catalog → `+` → enter the feed URL, user name and key. |
+| **Thorium Reader** | Catalogs → Add OPDS feed → feed URL; it prompts for the user name and key on first open. |
+| **Moon+ Reader** | My shelf → Net library → Add → feed URL, user name and key. |
+| **Librera** | Library menu → Network (OPDS) → `+` → feed URL; enter the user name and key when asked. |
+
+### What's in the catalogue
+
+- **Recently added**, **All books**, **Authors**, **Series** and **Shelves**, paged 50 at a time with first / previous / next / last links.
+- **Search** by title, series or author (OpenSearch at `/opds/opensearch.xml`).
+- **Pseudonyms** are listed as authors in their own right, as on the web Authors page, and each entry notes the link ("Pseudonym of …" / "Also writes as …"). Searching a real name also finds books published under that author's pseudonyms.
+- Each book offers its file for download (EPUB or PDF, with resumable range requests), plus a cover and a small JPEG thumbnail when it has a cover.
+- Access follows shelf permissions: users only ever see, search or download books on shelves they can access.
 
 ## Project structure
 

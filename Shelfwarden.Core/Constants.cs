@@ -135,6 +135,7 @@ public static class Constants
     /// </summary>
     public static class ServerSettingKeys
     {
+        public const string OpdsEnabled = "opds.enabled";
         public const string SetupComplete = "setup.complete";
         public const string Theme = "ui.theme";
     }

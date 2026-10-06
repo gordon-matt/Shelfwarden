@@ -32,6 +32,8 @@ public class SetupRedirectMiddleware(RequestDelegate next, ILogger<SetupRedirect
         "/sejil",
         "/error",
         "/access-denied",
+        // Feed readers can't follow a redirect to the wizard; the OPDS handler answers 404 until enabled.
+        "/opds",
     ];
 
     public async Task InvokeAsync(HttpContext context, IServerSettingsService serverSettings)

@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shelfwarden.Services.Jobs;
 using Shelfwarden.Services.Metadata;
 using Shelfwarden.Services.Metadata.Authors;
+using Shelfwarden.Services.Opds;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
 using Shelfwarden.Services.Tts;
@@ -41,6 +43,14 @@ public static class ServiceCollectionExtensions
             services.AddScoped<ISetupService, SetupService>();
             services.AddScoped<IAdditionalContentService, AdditionalContentService>();
             services.AddScoped<AuthorCleanupJob>();
+
+            // OPDS catalogue. Options are bound to configuration by the host.
+            services.AddMemoryCache();
+            services.TryAddSingleton(TimeProvider.System);
+            services.AddOptions<OpdsOptions>();
+            services.AddScoped<IOpdsFeedService, OpdsFeedService>();
+            services.AddScoped<IOpdsCredentialService, OpdsCredentialService>();
+            services.AddSingleton<ICoverThumbnailService, CoverThumbnailService>();
 
             // Storage + scanner. The metadata extractors are stateless so they can be singletons;
             // ScannerService itself is scoped because it pulls in EF Core repositories.

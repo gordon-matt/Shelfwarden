@@ -64,6 +64,8 @@ public abstract class ApplicationDbContextBase
 
     public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
 
+    public DbSet<OpdsCredential> OpdsCredentials => Set<OpdsCredential>();
+
     public DbSet<Audiobook> Audiobooks => Set<Audiobook>();
 
     public DbSet<AdditionalContentItem> AdditionalContentItems => Set<AdditionalContentItem>();

@@ -36,6 +36,7 @@ public class ServerSettingsService(
         {
             Theme = NullIfWhitespace(GetCached(Constants.ServerSettingKeys.Theme)) ?? Constants.ServerSettingDefaults.Theme,
             SetupComplete = bool.TryParse(GetCached(Constants.ServerSettingKeys.SetupComplete), out bool b) && b,
+            OpdsEnabled = bool.TryParse(GetCached(Constants.ServerSettingKeys.OpdsEnabled), out bool opds) && opds,
         };
 
         return Result.Success(dto);
