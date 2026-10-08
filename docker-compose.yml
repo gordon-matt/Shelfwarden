@@ -90,6 +90,13 @@ services:
       # Seed__Admin__UserName: ""
       # Seed__Admin__Password: "Admin123!"
 
+      # OPDS catalogue tuning. Turning the catalogue on is the in-app opds.enabled setting
+      # (E-reader access at /settings/opds), not an environment variable. While off, /opds answers 404.
+      # Opds__PageSize: 50
+      # Opds__MaxFailedAuthAttempts: 10
+      # Opds__FailedAuthWindow: "00:15:00"
+      # Opds__ThumbnailSize: 300
+
       # Storage paths (relative paths resolve under the app base directory; container layout uses /app/data/...)
       # Storage__CoversPath: covers
       # Storage__AuthorPhotosPath: ""

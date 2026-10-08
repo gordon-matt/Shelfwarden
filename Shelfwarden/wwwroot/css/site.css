@@ -289,7 +289,7 @@ html[data-bs-theme="dark"] .app-sidebar-brand-logo-dark {
     }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Book card — Kavita-style: cover-dominant, hover overlay, progress bar
+   Book card: cover-dominant, hover overlay, progress bar
    ────────────────────────────────────────────────────────────────────────── */
 
 .book-card {
@@ -1528,7 +1528,7 @@ ol.reading-list {
    Misc utility tweaks
    ────────────────────────────────────────────────────────────────────────── */
 
-/* Slimmer scrollbars to match Kavita's denser feel */
+/* Slimmer scrollbars */
 ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
