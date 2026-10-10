@@ -1,7 +1,8 @@
 using ElectronNET.API;
 using ElectronNET.API.Entities;
 using Hangfire;
-using Sejil;
+using LogVue;
+using Microsoft.AspNetCore.Authorization;
 using Serilog;
 using Shelfwarden;
 using Shelfwarden.Desktop;
@@ -10,7 +11,7 @@ using Shelfwarden.Infrastructure;
 // ────────────────────────────────────────────────────────────────────────────────
 // Desktop entry point. This is the Electron-wrapped variant of Shelfwarden.
 // The web/Docker entry point (Shelfwarden/Program.cs) stays separate; shared infra
-// (e.g. SerilogShelfwardenExtensions) lives under Shelfwarden/Infrastructure.
+// lives under Shelfwarden/Infrastructure.
 // All Razor components, services and static assets are shared via linked items
 // in Shelfwarden.Desktop.csproj (Compile Include / Content Include).
 //
@@ -39,8 +40,8 @@ Directory.CreateDirectory(appDataDir);
 // switch the desktop app to Postgres or Identity.
 var overrides = new Dictionary<string, string?>
 {
-    ["Database:Provider"] = Constants.DatabaseProviders.Sqlite,
-    ["Authentication:Provider"] = Constants.AuthProviders.None,
+    ["Database:Provider"] = Shelfwarden.Constants.DatabaseProviders.Sqlite,
+    ["Authentication:Provider"] = Shelfwarden.Constants.AuthProviders.None,
     ["ConnectionStrings:DefaultConnection"] = $"Data Source={Path.Combine(appDataDir, "shelfwarden.db")}",
     ["Hangfire:SqlitePath"] = Path.Combine(appDataDir, "hangfire.db"),
     ["Storage:CoversPath"] = Path.Combine(appDataDir, "covers"),
@@ -58,13 +59,12 @@ builder.Configuration.AddInMemoryCollection(overrides);
 
 Directory.CreateDirectory(Path.Combine(appDataDir, "logs"));
 
+string logFile = Path.Combine(appDataDir, "logs", "shelfwarden-.log");
+
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
-    .ReadFrom.Configuration(builder.Configuration)
-    .Enrich.FromLogContext()
     .WriteTo.Console()
-    .WriteTo.File(Path.Combine(appDataDir, "logs", "shelfwarden-.log"), rollingInterval: RollingInterval.Day)
-    .WriteToShelfwardenDatabase(builder.Configuration)
+    .WriteTo.File(logFile, rollingInterval: RollingInterval.Day)
     .CreateLogger();
 
 Log.Information(
@@ -72,8 +72,16 @@ Log.Information(
     appDataDir,
     isInstalledBuild);
 
-builder.Host.UseSerilog();
-builder.Host.UseSejil(writeToProviders: true);
+builder.Services.AddLogVue(options =>
+    builder.Configuration.GetSection(LogVueOptions.SectionName).Bind(options));
+
+builder.Services.AddSerilog((services, configuration) => configuration
+    .MinimumLevel.Information()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File(logFile, rollingInterval: RollingInterval.Day)
+    .WriteTo.LogVue(services));
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -89,10 +97,6 @@ builder.Services.AddShelfwardenRepositories();
 builder.Services.AddShelfwardenServices();
 builder.Services.AddScoped<ISidebarNavRefreshService, SidebarNavRefreshService>();
 var authProvider = builder.Services.AddShelfwardenAuthentication(builder.Configuration);
-
-// Desktop forces Authentication:Provider=None — synthetic principal uses this scheme.
-builder.Services.ConfigureSejil(options =>
-    options.AuthenticationScheme = NoneAuthenticationHandler.SchemeName);
 
 builder.Services.AddShelfwardenHangfire(builder.Configuration);
 
@@ -114,7 +118,10 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseSejil();
+app.MapLogVue().RequireAuthorization(new AuthorizeAttribute
+{
+    Roles = Shelfwarden.Constants.Roles.Administrator
+});
 
 // Fresh installs have no shelves yet. The wizard is where the user picks book folders.
 app.UseMiddleware<SetupRedirectMiddleware>();

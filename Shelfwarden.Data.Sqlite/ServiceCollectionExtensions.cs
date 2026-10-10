@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
+using LogVue.Data.Sqlite;
+
 namespace Shelfwarden.Data.Sqlite;
 
 public static class ServiceCollectionExtensions
@@ -37,6 +39,9 @@ public static class ServiceCollectionExtensions
 
             services.AddScoped<ApplicationDbContextBase>(sp => sp.GetRequiredService<ApplicationDbContext>());
             services.AddSingleton<IDbContextFactory, ApplicationDbContextFactory>();
+
+            // LogVue keeps its own LogVue_ tables and migration history, so it can share this database.
+            services.AddLogVueSqlite(connectionString);
 
             return services;
         }

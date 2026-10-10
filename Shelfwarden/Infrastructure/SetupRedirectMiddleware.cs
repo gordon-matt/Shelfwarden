@@ -29,7 +29,7 @@ public class SetupRedirectMiddleware(RequestDelegate next, ILogger<SetupRedirect
         "/_vs",
         "/favicon",
         "/hangfire",
-        "/sejil",
+        "/logvue",
         "/error",
         "/access-denied",
         // Feed readers can't follow a redirect to the wizard; the OPDS handler answers 404 until enabled.

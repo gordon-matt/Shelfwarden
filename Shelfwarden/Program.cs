@@ -1,8 +1,7 @@
 using Hangfire;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using LogVue;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Identity;
-using Sejil;
 using Serilog;
 using Serilog.Events;
 using Shelfwarden.Components;
@@ -11,17 +10,15 @@ using Shelfwarden.Infrastructure.Opds;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Serilog: console + relational Log table (provider-specific sink matches Database:Provider), like MyVideoArchive.
-Log.Logger = new LoggerConfiguration()
+builder.Services.AddLogVue(options =>
+    builder.Configuration.GetSection(LogVueOptions.SectionName).Bind(options));
+
+builder.Services.AddSerilog((services, configuration) => configuration
     .MinimumLevel.Information()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
     .WriteTo.Console()
-    .WriteToShelfwardenDatabase(builder.Configuration)
-    .CreateLogger();
-
-builder.Host.UseSerilog();
-builder.Host.UseSejil(writeToProviders: true);
+    .WriteTo.LogVue(services));
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -38,24 +35,6 @@ builder.Services.AddShelfwardenRepositories();
 builder.Services.AddShelfwardenServices();
 builder.Services.AddScoped<ISidebarNavRefreshService, SidebarNavRefreshService>();
 var authProvider = builder.Services.AddShelfwardenAuthentication(builder.Configuration);
-
-switch (authProvider)
-{
-    case AuthProvider.Keycloak:
-        builder.Services.ConfigureSejil(options =>
-            options.AuthenticationScheme = CookieAuthenticationDefaults.AuthenticationScheme);
-        break;
-
-    case AuthProvider.Identity:
-        builder.Services.ConfigureSejil(options =>
-            options.AuthenticationScheme = IdentityConstants.ApplicationScheme);
-        break;
-
-    case AuthProvider.None:
-        builder.Services.ConfigureSejil(options =>
-            options.AuthenticationScheme = NoneAuthenticationHandler.SchemeName);
-        break;
-}
 
 builder.Services.AddShelfwardenOpds(builder.Configuration);
 builder.Services.AddShelfwardenHangfire(builder.Configuration);
@@ -102,7 +81,10 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseSejil();
+app.MapLogVue().RequireAuthorization(new AuthorizeAttribute
+{
+    Roles = Shelfwarden.Constants.Roles.Administrator
+});
 
 // Bounce every non-exempt request to /setup until the first-run wizard is done. Runs after
 // auth so the wizard can render an authoritative "you're signed in as X" if needed, and

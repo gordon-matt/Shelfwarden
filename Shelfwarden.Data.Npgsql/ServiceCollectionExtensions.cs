@@ -3,6 +3,8 @@ using Hangfire.PostgreSql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
+using LogVue.Data.Npgsql;
+
 namespace Shelfwarden.Data.Npgsql;
 
 public static class ServiceCollectionExtensions
@@ -28,6 +30,11 @@ public static class ServiceCollectionExtensions
 
             services.AddScoped<ApplicationDbContextBase>(sp => sp.GetRequiredService<ApplicationDbContext>());
             services.AddSingleton<IDbContextFactory, ApplicationDbContextFactory>();
+
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                services.AddLogVueNpgsql(connectionString);
+            }
 
             return services;
         }

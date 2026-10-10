@@ -44,7 +44,7 @@ public sealed class BlazorAwareUserContextService(
         }
 
         // Interactive Blazor: circuit dispatch — HttpContext is frequently unset here even though
-        // Hangfire/Sejil (plain HTTP requests) still see the authenticated user on HttpContext.
+        // Hangfire and the log dashboard (plain HTTP requests) still see the authenticated user on HttpContext.
         try
         {
             var user = Task.Run(async () =>

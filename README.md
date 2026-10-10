@@ -127,7 +127,7 @@ Self-hosted ebook library manager — a Kavita-style server, but for ebooks only
 - **User management** for Identity mode (create, edit, delete, assign roles, lock out). Keycloak users are listed read-only.
 - **Shelf access control** per user and per role — an unrestricted shelf is visible to everyone signed in, and admins always see everything.
 - **Metadata admin** for genres, book tags and extra-content tags: search, create, merge, delete, and remove unused entries.
-- **Hangfire dashboard** at `/hangfire` and a **Sejil log viewer** at `/sejil`, both admin-only.
+- **Hangfire dashboard** at `/hangfire` and a **LogVue log dashboard** at `/logvue`, both admin-only.
 - **First-run wizard** at `/setup` that creates the admin account, adds your first shelf and kicks off the initial scan.
 
 ### Look & feel
