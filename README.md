@@ -1,6 +1,6 @@
-# Shelfwarden
+<img src="https://github.com/gordon-matt/Shelfwarden/blob/master/_Misc/Logo.png" alt="Logo" width="300" />
 
-Self-hosted ebook library manager — a Kavita-style server, but for ebooks only, with a flexible file layout, multiple database providers, and three auth modes (ASP.NET Identity, Keycloak, or None).
+Shelfwarden is a self-hosted ebook library manager — a Kavita-style server, but for ebooks only, with a flexible file layout, multiple database providers, and three auth modes (ASP.NET Identity, Keycloak, or None).
 
 > See [CONTEXT.md](./CONTEXT.md) for the full architecture, conventions and roadmap. Cursor / AI assistants should read it first.
 
