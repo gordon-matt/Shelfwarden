@@ -2,9 +2,9 @@
 @attribute [Authorize]
 @inject IUniverseService UniverseService
 @inject IBookService BookService
-@inject ISidebarNavRefreshService SidebarNavRefresh
+@inject SidebarRefresh SidebarRefresh
 @inject NavigationManager NavigationManager
-@inject IJSRuntime JS
+@inject DialogService Dialogs
 
 <PageTitle>@(universe?.Name ?? "Universe") - Shelfwarden</PageTitle>
 
@@ -39,7 +39,7 @@ else
                 <p class="text-secondary mb-0">@universe.Description</p>
             }
         </div>
-        <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <AuthorizeView Roles="@WellKnownRoles.Administrator">
             <Authorized>
                 <div class="d-flex gap-2">
                     <button class="btn btn-outline-secondary" @onclick="() => editing = !editing">
@@ -167,7 +167,7 @@ else
                                         </button>
                                         <ul class="dropdown-menu">
                                             <AddToActions SeriesId="s.Id" SubjectName="@s.Name" />
-                                            <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                            <AuthorizeView Roles="@WellKnownRoles.Administrator">
                                                 <Authorized>
                                                     <li><hr class="dropdown-divider" /></li>
                                                     <li>
@@ -197,7 +197,7 @@ else
             break;
 
         case UniverseTab.Books:
-            <AuthorizeView Roles="@Constants.Roles.Administrator">
+            <AuthorizeView Roles="@WellKnownRoles.Administrator">
                 <Authorized>
                     <div class="card mb-4">
                         <div class="card-body">
@@ -248,7 +248,7 @@ else
                     {
                         <BookCard Book="entry.Book">
                             <ExtraMenuItems>
-                                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                <AuthorizeView Roles="@WellKnownRoles.Administrator">
                                     <Authorized>
                                         <li>
                                             <button type="button" class="dropdown-item text-danger"
@@ -268,7 +268,7 @@ else
             break;
 
         case UniverseTab.ReadingLists:
-            <AuthorizeView Roles="@Constants.Roles.Administrator" Context="adminContext">
+            <AuthorizeView Roles="@WellKnownRoles.Administrator" Context="adminContext">
                 <Authorized>
                     <div class="card mb-4">
                         <div class="card-body">
@@ -365,7 +365,7 @@ else
                         </text>
                     }
                 </p>
-                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                <AuthorizeView Roles="@WellKnownRoles.Administrator">
                     <Authorized>
                         <div class="d-flex gap-2">
                             <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenDateModal(null)">

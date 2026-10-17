@@ -1,37 +1,8 @@
 @inherits LayoutComponentBase
+@layout ShellLayout
 
-<div class="app-shell">
-    <Sidebar Open="sidebarOpen" OnRequestClose="CloseSidebar" />
-
-    <div class="app-sidebar-backdrop @(sidebarOpen ? "show" : "")" @onclick="CloseSidebar"></div>
-
-    <div class="app-main">
-        <Topbar OnToggleSidebar="ToggleSidebar" />
-
-        @* Theme modal lives here (not inside .app-topbar) so it stacks above Bootstrap's body backdrop. *@
-        <ThemePicker />
-
-        <AddToPicker>
-            <main class="app-content">
-                @Body
-            </main>
-        </AddToPicker>
-
-        <footer class="app-footer">
-            Shelfwarden &middot; <a class="text-decoration-none" href="https://github.com" target="_blank" rel="noopener">GitHub</a>
-        </footer>
-    </div>
-</div>
-
-<div id="blazor-error-ui" class="alert alert-danger m-3 d-none">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
-</div>
-
-@code {
-    private bool sidebarOpen;
-
-    private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
-    private void CloseSidebar() => sidebarOpen = false;
-}
+@* The package shell (sidebar, topbar, theme picker, dialogs) with the "add to..." picker hosted
+   around the page, so AddToActions anywhere on a page can open it. *@
+<AddToPicker>
+    @Body
+</AddToPicker>

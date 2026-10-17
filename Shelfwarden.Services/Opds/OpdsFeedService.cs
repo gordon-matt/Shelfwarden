@@ -374,12 +374,9 @@ public class OpdsFeedService(
     private static string DescribeAuthor(AuthorRow row)
     {
         string text = CountBooks(row.BookCount);
-        if (row.PrimaryAuthorName is not null)
-        {
-            return $"{text}. Pseudonym of {OpdsTextSanitizer.Clean(row.PrimaryAuthorName)}.";
-        }
-
-        return row.PseudonymNames.Count > 0
+        return row.PrimaryAuthorName is not null
+            ? $"{text}. Pseudonym of {OpdsTextSanitizer.Clean(row.PrimaryAuthorName)}."
+            : row.PseudonymNames.Count > 0
             ? $"{text}. Also writes as {string.Join(", ", row.PseudonymNames.Select(OpdsTextSanitizer.Clean))}."
             : text;
     }

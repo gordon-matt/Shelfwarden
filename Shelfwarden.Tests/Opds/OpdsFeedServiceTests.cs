@@ -289,8 +289,10 @@ public class OpdsFeedServiceTests : IClassFixture<TestDbFixture>
         var service = BuildService(scope, [shelfId]);
         var links = new OpdsLinkBuilder();
 
-        async Task<string[]> TitlesFor(string query) =>
-            [.. (await service.SearchAsync(links, query, 1)).Value.Entries.Select(e => e.Title).Order()];
+        async Task<string[]> TitlesFor(string query)
+        {
+            return [.. (await service.SearchAsync(links, query, 1)).Value.Entries.Select(e => e.Title).Order()];
+        }
 
         Assert.Equal([$"Title Hit {token}"], await TitlesFor($"TITLE hit {token}"));
         Assert.Equal(["Written Under Pen Name"], await TitlesFor($"pen name {token}"));

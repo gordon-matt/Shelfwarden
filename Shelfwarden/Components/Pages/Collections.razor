@@ -2,7 +2,7 @@
 @attribute [Authorize]
 @inject ICollectionService CollectionService
 @inject IShelfService ShelfService
-@inject ISidebarNavRefreshService SidebarNavRefresh
+@inject SidebarRefresh SidebarRefresh
 @inject NavigationManager NavigationManager
 
 <PageTitle>Collections - Shelfwarden</PageTitle>
@@ -67,7 +67,7 @@
                         <label class="form-label">Description</label>
                         <InputText class="form-control" @bind-Value="newCollection.Description" />
                     </div>
-                    <AuthorizeView Roles="@Constants.Roles.Administrator" Context="adminCtx">
+                    <AuthorizeView Roles="@WellKnownRoles.Administrator" Context="adminCtx">
                         <Authorized>
                             <div class="col-12">
                                 <div class="form-check form-switch">

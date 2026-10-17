@@ -8,20 +8,28 @@
 *@
 @inject IServerSettingsService ServerSettings
 @{
-    string theme = Constants.ServerSettingDefaults.Theme;
+    string theme = BootswatchThemes.Default;
     var themeResult = await ServerSettings.GetAsync(Context.RequestAborted);
     if (themeResult.IsSuccess)
     {
         theme = themeResult.Value.Theme;
     }
+    string colorScheme = BootswatchThemes.IsDarkColorScheme(theme) ? "dark" : "light";
 }
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="@colorScheme">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Shelfwarden</title>
-    <link rel="stylesheet" href="~/lib/bootswatch/dist/@(theme)/bootstrap.min.css" />
+    @* Same id and storage key as ForgeHostPage, so the shared theme-init.js carries the visitor's chosen
+       theme onto the sign-in page; the server theme is only the default. The stylesheet format is
+       root-relative because this page is not served from "/". *@
+    <link id="theme-stylesheet" rel="stylesheet" href="~/lib/bootswatch/dist/@(theme)/bootstrap.min.css" />
+    <script src="~/_content/Heroicsoft.NetForge.Components.Bootstrap/js/theme-init.js"
+            data-theme-key="@Constants.ClientThemeLocalStorageKey"
+            data-default-theme="@theme"
+            data-stylesheet-format="/lib/bootswatch/dist/{0}/bootstrap.min.css"></script>
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/site.css" />
     <link rel="icon" type="image/png" href="~/favicon.png" />

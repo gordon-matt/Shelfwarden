@@ -1,6 +1,10 @@
 global using System.ComponentModel.DataAnnotations;
 global using Ardalis.Result;
 global using Extenso.Data.Entity;
+global using Heroicsoft.NetForge.Abstractions.Auth;
+global using Heroicsoft.NetForge.Authentication;
+global using Heroicsoft.NetForge.Components.Services;
+global using Heroicsoft.NetForge.Components.Shell;
 global using Microsoft.AspNetCore.Authorization;
 global using Microsoft.AspNetCore.Components;
 global using Microsoft.AspNetCore.Components.Forms;

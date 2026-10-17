@@ -78,7 +78,7 @@ public sealed partial class EpubSectionParser(ILogger<EpubSectionParser> logger)
             // Keep the first title seen per spine index (top-most nav level), ordered by spine position.
             var orderedEntries = navEntries
                 .GroupBy(e => e.Index)
-                .Select(g => (Title: g.First().Title, Index: g.Key))
+                .Select(g => (g.First().Title, Index: g.Key))
                 .OrderBy(e => e.Index)
                 .ToList();
 
@@ -193,7 +193,7 @@ public sealed partial class EpubSectionParser(ILogger<EpubSectionParser> logger)
         try
         {
             var readingOrder = await bookRef.GetReadingOrderAsync() ?? [];
-            IEnumerable<int> indices = sections is { Count: > 0 }
+            var indices = sections is { Count: > 0 }
                 ? sections.SelectMany(s => s.ReadingOrderIndices)
                 : Enumerable.Range(0, readingOrder.Count);
 

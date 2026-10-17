@@ -59,7 +59,7 @@ public partial class CollectionDetail : ComponentBase
         var result = await CollectionService.DeleteAsync(Id);
         if (result.IsSuccess)
         {
-            SidebarNavRefresh.NotifyNavigationDataChanged();
+            SidebarRefresh.NotifyChanged();
             NavigationManager.NavigateTo("collections");
         }
     }
@@ -174,7 +174,7 @@ public partial class CollectionDetail : ComponentBase
             if (result.IsSuccess)
             {
                 editing = false;
-                SidebarNavRefresh.NotifyNavigationDataChanged();
+                SidebarRefresh.NotifyChanged();
                 await LoadAsync();
             }
         }

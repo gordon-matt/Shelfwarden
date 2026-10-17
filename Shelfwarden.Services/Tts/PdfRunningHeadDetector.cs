@@ -78,12 +78,7 @@ public static class PdfRunningHeadDetector
             }
         }
 
-        if (start > end)
-        {
-            return string.Empty;
-        }
-
-        return string.Join('\n', lines.GetRange(start, end - start + 1).Select(l => l.Text));
+        return start > end ? string.Empty : string.Join('\n', lines.GetRange(start, end - start + 1).Select(l => l.Text));
     }
 
     private static bool IsHeader(IReadOnlyList<TextLine> lines, double pageHeight)

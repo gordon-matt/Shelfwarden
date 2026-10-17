@@ -51,7 +51,11 @@ public partial class Metadata : ComponentBase
         }
 
         string targetName = genreMergeCandidates.First(c => c.Id == genreMergeTargetId).Name;
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Merge into \"{targetName}\"? Other selected genres will be deleted."))
+        if (!await Dialogs.ConfirmAsync(
+                "Merge genres",
+                $"Merge into \"{targetName}\"? Other selected genres will be deleted.",
+                "Merge",
+                isDestructive: true))
         {
             return;
         }
@@ -71,7 +75,11 @@ public partial class Metadata : ComponentBase
 
     private async Task DeleteGenreAsync(GenreDto genre)
     {
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Delete genre \"{genre.Name}\"? This cannot be undone."))
+        if (!await Dialogs.ConfirmAsync(
+                "Delete genre",
+                $"Delete genre \"{genre.Name}\"? This cannot be undone.",
+                "Delete",
+                isDestructive: true))
         {
             return;
         }
@@ -95,7 +103,11 @@ public partial class Metadata : ComponentBase
             return;
         }
 
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", $"Delete {selectedGenreIds.Count} selected genre(s)? This cannot be undone."))
+        if (!await Dialogs.ConfirmAsync(
+                "Delete genres",
+                $"Delete {selectedGenreIds.Count} selected genre(s)? This cannot be undone.",
+                "Delete",
+                isDestructive: true))
         {
             return;
         }
@@ -154,7 +166,7 @@ public partial class Metadata : ComponentBase
 
     private async Task OpenGenreCreateAsync()
     {
-        string? name = await JSRuntime.InvokeAsync<string?>("prompt", "New genre name:");
+        string? name = await Dialogs.PromptAsync("New genre", "Genre name", confirmLabel: "Create");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
@@ -195,7 +207,7 @@ public partial class Metadata : ComponentBase
 
     private async Task OpenGenreRenameAsync(GenreDto genre)
     {
-        string? name = await JSRuntime.InvokeAsync<string?>("prompt", "Rename genre:", genre.Name);
+        string? name = await Dialogs.PromptAsync("Rename genre", "Genre name", genre.Name, "Rename");
         if (string.IsNullOrWhiteSpace(name) || string.Equals(name.Trim(), genre.Name, StringComparison.Ordinal))
         {
             return;
@@ -214,8 +226,11 @@ public partial class Metadata : ComponentBase
 
     private async Task RemoveUnusedGenresAsync()
     {
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                "Remove all genres not assigned to any book? This cannot be undone."))
+        if (!await Dialogs.ConfirmAsync(
+                "Remove unused genres",
+                "Remove all genres not assigned to any book? This cannot be undone.",
+                "Remove",
+                isDestructive: true))
         {
             return;
         }

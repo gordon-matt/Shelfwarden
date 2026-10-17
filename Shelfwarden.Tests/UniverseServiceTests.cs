@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Shelfwarden.Models;
 using Shelfwarden.Services;
-using Shelfwarden.Services.Auth;
 using Shelfwarden.Tests.Infrastructure;
 
 namespace Shelfwarden.Tests;

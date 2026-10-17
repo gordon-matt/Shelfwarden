@@ -77,7 +77,7 @@ public static class DbInitializer
     private static async Task SeedRolesAsync(IServiceProvider services, ILogger logger)
     {
         var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
-        foreach (string? role in new[] { Constants.Roles.Administrator, Constants.Roles.User })
+        foreach (string? role in new[] { WellKnownRoles.Administrator, WellKnownRoles.User })
         {
             if (!await roleManager.RoleExistsAsync(role))
             {
@@ -123,7 +123,7 @@ public static class DbInitializer
             return;
         }
 
-        await userManager.AddToRoleAsync(admin, Constants.Roles.Administrator);
+        await userManager.AddToRoleAsync(admin, WellKnownRoles.Administrator);
         if (logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation("Seeded default administrator '{UserName}'", userName);

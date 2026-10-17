@@ -1,5 +1,3 @@
-using System.Net.Http;
-using System.Text;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Shelfwarden.Models.Metadata;
@@ -210,12 +208,9 @@ public sealed partial class AmazonMetadataProvider(
     {
         var nodes = root.SelectNodes("//*[@id='bylineInfo_feature_div']//*[contains(concat(' ', normalize-space(@class), ' '), ' author ')]//a")
             ?? root.SelectNodes("//*[contains(concat(' ', normalize-space(@class), ' '), ' author ')]//a");
-        if (nodes is null)
-        {
-            return [];
-        }
-
-        return nodes
+        return nodes is null
+            ? []
+            : (IReadOnlyList<string>)nodes
             .Select(n => HtmlEntity.DeEntitize(n.InnerText)?.Trim())
             .Where(t => !string.IsNullOrWhiteSpace(t) && !string.Equals(t, "Follow", StringComparison.OrdinalIgnoreCase))
             .Select(t => t!)
@@ -232,12 +227,9 @@ public sealed partial class AmazonMetadataProvider(
         }
 
         var noscript = root.SelectSingleNode("//*[@id='bookDescription_feature_div']//noscript");
-        if (noscript is not null)
-        {
-            return noscript.InnerHtml;
-        }
-
-        return root.SelectSingleNode("//div[contains(concat(' ', normalize-space(@class), ' '), ' product-description ')]")?.InnerHtml;
+        return noscript is not null
+            ? noscript.InnerHtml
+            : (root.SelectSingleNode("//div[contains(concat(' ', normalize-space(@class), ' '), ' product-description ')]")?.InnerHtml);
     }
 
     private static string? ParseIsbn(HtmlNode root, string type)
@@ -342,12 +334,9 @@ public sealed partial class AmazonMetadataProvider(
     private static IReadOnlyList<string> ParseCategories(HtmlNode root)
     {
         var nodes = root.SelectNodes("//*[@id='detailBullets_feature_div']//*[contains(concat(' ', normalize-space(@class), ' '), ' zg_hrsr ')]//a");
-        if (nodes is null)
-        {
-            return [];
-        }
-
-        return nodes
+        return nodes is null
+            ? []
+            : (IReadOnlyList<string>)nodes
             .Select(n => HtmlEntity.DeEntitize(n.InnerText)?.Replace("(Books)", string.Empty).Trim())
             .Where(c => !string.IsNullOrWhiteSpace(c))
             .Select(c => c!)

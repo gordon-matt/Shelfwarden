@@ -167,20 +167,9 @@ public partial class AdditionalContentGrid : ComponentBase
 
     private void ActivateTab(string tab) => activeTab = tab;
 
-    private IEnumerable<AdditionalContentItemDto> ApplyTagFilter(IReadOnlyList<AdditionalContentItemDto> source)
-    {
-        if (tagFilterId == 0)
-        {
-            return source;
-        }
-
-        if (tagFilterId == -1)
-        {
-            return source.Where(i => i.Tags.Count == 0);
-        }
-
-        return source.Where(i => i.Tags.Any(t => t.Id == tagFilterId));
-    }
+    private IEnumerable<AdditionalContentItemDto> ApplyTagFilter(IReadOnlyList<AdditionalContentItemDto> source) => tagFilterId == 0
+            ? source
+            : tagFilterId == -1 ? source.Where(i => i.Tags.Count == 0) : source.Where(i => i.Tags.Any(t => t.Id == tagFilterId));
 
     private void CloseRename()
     {
@@ -199,8 +188,11 @@ public partial class AdditionalContentGrid : ComponentBase
 
     private async Task ConfirmDeleteAsync(AdditionalContentItemDto item)
     {
-        if (!await JS.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                $"Delete '{item.FileName}'? The file will be permanently removed from disk."))
+        if (!await Dialogs.ConfirmAsync(
+                "Delete file",
+                $"Delete '{item.FileName}'? The file will be permanently removed from disk.",
+                "Delete",
+                isDestructive: true))
         {
             return;
         }

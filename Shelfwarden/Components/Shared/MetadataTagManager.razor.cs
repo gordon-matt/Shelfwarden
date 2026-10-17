@@ -25,7 +25,7 @@ public partial class MetadataTagManager : ComponentBase
     private string EntityPlural => Kind == TagKind.Book ? "tags" : "extra content tags";
     private string EntitySingular => Kind == TagKind.Book ? "tag" : "extra content tag";
     [Inject] private IAdditionalContentTagService ExtraContentTagService { get; set; } = null!;
-    [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
+    [Inject] private DialogService Dialogs { get; set; } = null!;
     private string MergeRadioName => Kind == TagKind.Book ? "mergePrimaryBookTag" : "mergePrimaryExtraContentTag";
 
     protected override async Task OnParametersSetAsync()
@@ -79,8 +79,11 @@ public partial class MetadataTagManager : ComponentBase
         }
 
         string targetName = tagMergeCandidates.First(c => c.Id == tagMergeTargetId).Name;
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                $"Merge into \"{targetName}\"? Other selected {EntityPlural} will be deleted."))
+        if (!await Dialogs.ConfirmAsync(
+                "Merge",
+                $"Merge into \"{targetName}\"? Other selected {EntityPlural} will be deleted.",
+                "Merge",
+                isDestructive: true))
         {
             return;
         }
@@ -117,8 +120,11 @@ public partial class MetadataTagManager : ComponentBase
             return;
         }
 
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
-            $"Delete {selectedTagIds.Count} selected {EntityPlural}? This cannot be undone."))
+        if (!await Dialogs.ConfirmAsync(
+            "Delete",
+            $"Delete {selectedTagIds.Count} selected {EntityPlural}? This cannot be undone.",
+            "Delete",
+            isDestructive: true))
         {
             return;
         }
@@ -149,8 +155,11 @@ public partial class MetadataTagManager : ComponentBase
 
     private async Task DeleteTagAsync(TagDto tag)
     {
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog",
-            $"Delete {EntitySingular} \"{tag.Name}\"? This cannot be undone."))
+        if (!await Dialogs.ConfirmAsync(
+            "Delete",
+            $"Delete {EntitySingular} \"{tag.Name}\"? This cannot be undone.",
+            "Delete",
+            isDestructive: true))
         {
             return;
         }
@@ -229,7 +238,7 @@ public partial class MetadataTagManager : ComponentBase
 
     private async Task OpenTagCreateAsync()
     {
-        string? name = await JSRuntime.InvokeAsync<string?>("prompt", $"New {EntitySingular} name:");
+        string? name = await Dialogs.PromptAsync($"New {EntitySingular}", $"{char.ToUpperInvariant(EntitySingular[0])}{EntitySingular[1..]} name", confirmLabel: "Create");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
@@ -282,7 +291,7 @@ public partial class MetadataTagManager : ComponentBase
 
     private async Task OpenTagRenameAsync(TagDto tag)
     {
-        string? name = await JSRuntime.InvokeAsync<string?>("prompt", $"Rename {EntitySingular}:", tag.Name);
+        string? name = await Dialogs.PromptAsync($"Rename {EntitySingular}", $"{char.ToUpperInvariant(EntitySingular[0])}{EntitySingular[1..]} name", tag.Name, "Rename");
         if (string.IsNullOrWhiteSpace(name) || string.Equals(name.Trim(), tag.Name, StringComparison.Ordinal))
         {
             return;
@@ -317,7 +326,7 @@ public partial class MetadataTagManager : ComponentBase
             ? "Remove all tags not assigned to any book? This cannot be undone."
             : "Remove all extra content tags not assigned to any item? This cannot be undone.";
 
-        if (!await JSRuntime.InvokeAsync<bool>("shelfwarden.confirmDialog", message))
+        if (!await Dialogs.ConfirmAsync("Remove unused", message, "Remove", isDestructive: true))
         {
             return;
         }

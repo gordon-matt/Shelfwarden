@@ -72,17 +72,11 @@ public partial class AuthorDetail : ComponentBase
         }
     }
 
-    private static string GetLinkDisplayName(AuthorLinkDto link)
-    {
-        if (!string.IsNullOrWhiteSpace(link.Name))
-        {
-            return link.Name;
-        }
-
-        return Uri.TryCreate(link.Url, UriKind.Absolute, out Uri? uri)
+    private static string GetLinkDisplayName(AuthorLinkDto link) => !string.IsNullOrWhiteSpace(link.Name)
+            ? link.Name
+            : Uri.TryCreate(link.Url, UriKind.Absolute, out var uri)
             ? uri.Host
             : link.Url;
-    }
 
     private async Task AddPseudonymAsync(int pseudonymId)
     {
@@ -157,7 +151,11 @@ public partial class AuthorDetail : ComponentBase
 
     private void OnContentItemRenamed(AdditionalContentItemDto renamed)
     {
-        if (extraContent is null) return;
+        if (extraContent is null)
+        {
+            return;
+        }
+
         extraContent = extraContent
             .Select(i => i.Id == renamed.Id ? renamed : i)
             .ToList();

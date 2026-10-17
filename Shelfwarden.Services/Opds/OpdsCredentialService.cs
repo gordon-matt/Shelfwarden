@@ -188,12 +188,9 @@ public class OpdsCredentialService(
             await TouchAsync(credential);
         }
 
-        if (userName is not null && !resolved.AcceptedUserNames.Contains(userName.Trim(), StringComparer.OrdinalIgnoreCase))
-        {
-            return Result.Unauthorized();
-        }
-
-        return Result.Success(resolved.Identity);
+        return userName is not null && !resolved.AcceptedUserNames.Contains(userName.Trim(), StringComparer.OrdinalIgnoreCase)
+            ? (Result<OpdsIdentity>)Result.Unauthorized()
+            : Result.Success(resolved.Identity);
     }
 
     private static string CacheKey(string hash) => $"opds-key:{hash}";

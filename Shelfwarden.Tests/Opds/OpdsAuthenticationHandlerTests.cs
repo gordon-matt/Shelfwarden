@@ -36,7 +36,7 @@ public class OpdsAuthenticationHandlerTests
         credentials.Setup(x => x.ValidateAsync(It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<OpdsIdentity>.Unauthorized());
         credentials.Setup(x => x.ValidateAsync(It.Is<string?>(u => u == null || u == UserName), GoodKey, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(new OpdsIdentity("user-1", UserName, [Constants.Roles.User])));
+            .ReturnsAsync(Result.Success(new OpdsIdentity("user-1", UserName, [WellKnownRoles.User])));
 
         throttle = new OpdsAuthThrottle(
             new MemoryCache(new MemoryCacheOptions()),
@@ -63,7 +63,7 @@ public class OpdsAuthenticationHandlerTests
         var principal = result.Principal!;
         Assert.Equal("user-1", principal.FindFirstValue(ClaimTypes.NameIdentifier));
         Assert.Equal(UserName, principal.Identity?.Name);
-        Assert.True(principal.IsInRole(Constants.Roles.User));
+        Assert.True(principal.IsInRole(WellKnownRoles.User));
         Assert.Equal(OpdsAuthenticationHandler.SchemeName, principal.Identity?.AuthenticationType);
     }
 
@@ -167,10 +167,7 @@ public class OpdsAuthenticationHandlerTests
     [InlineData("/opds/key/secret?page=2", "/opds/key/***?page=2")]
     [InlineData("/opds/recent", "/opds/recent")]
     [InlineData("/books/key/notopds", "/books/key/notopds")]
-    public void Keys_in_paths_are_redacted_from_logs(string path, string expected)
-    {
-        Assert.Equal(expected, OpdsLogRedaction.RedactPath(path));
-    }
+    public void Keys_in_paths_are_redacted_from_logs(string path, string expected) => Assert.Equal(expected, OpdsLogRedaction.RedactPath(path));
 
     private static string Basic(string user, string password) =>
         "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{password}"));

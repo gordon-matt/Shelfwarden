@@ -18,7 +18,7 @@
             <span class="ms-1">Add to reading list</span>
         }
     </button>
-    <AuthorizeView Roles="@Constants.Roles.Administrator">
+    <AuthorizeView Roles="@WellKnownRoles.Administrator">
         <Authorized>
             <button type="button" class="btn btn-sm btn-outline-secondary" title="Add to universe"
                     @onclick="() => Open(AddToTarget.Universe)"
@@ -50,7 +50,7 @@ else
             <i class="bi bi-list-ol me-1"></i> Add to reading list&hellip;
         </button>
     </li>
-    <AuthorizeView Roles="@Constants.Roles.Administrator">
+    <AuthorizeView Roles="@WellKnownRoles.Administrator">
         <Authorized>
             <li>
                 <button type="button" class="dropdown-item"

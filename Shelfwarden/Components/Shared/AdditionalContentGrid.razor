@@ -1,4 +1,4 @@
-@inject IJSRuntime JS
+@inject DialogService Dialogs
 @inject IAdditionalContentService ContentService
 
 @if (Items is { Count: > 0 })
@@ -160,7 +160,7 @@
                                 title="Download" @onclick="() => DownloadItem(item.Id)">
                             <i class="bi bi-download"></i>
                         </button>
-                        <AuthorizeView Roles="@Constants.Roles.Administrator">
+                        <AuthorizeView Roles="@WellKnownRoles.Administrator">
                             <Authorized>
                                 <button type="button" class="btn btn-sm btn-outline-secondary"
                                         title="Tags" @onclick="() => OpenTagsModal(item)">

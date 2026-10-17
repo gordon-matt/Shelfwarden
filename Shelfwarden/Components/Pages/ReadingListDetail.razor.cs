@@ -55,7 +55,7 @@ public partial class ReadingListDetail : ComponentBase
         var result = await ReadingListService.DeleteAsync(Id);
         if (result.IsSuccess)
         {
-            SidebarNavRefresh.NotifyNavigationDataChanged();
+            SidebarRefresh.NotifyChanged();
             NavigationManager.NavigateTo(universeId is int uid ? $"universes/{uid}" : "reading-lists");
         }
     }
@@ -214,7 +214,7 @@ public partial class ReadingListDetail : ComponentBase
             if (result.IsSuccess)
             {
                 editing = false;
-                SidebarNavRefresh.NotifyNavigationDataChanged();
+                SidebarRefresh.NotifyChanged();
                 await LoadAsync();
             }
         }

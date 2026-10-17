@@ -1,12 +1,3 @@
-@using Microsoft.AspNetCore.Components.Authorization
-
-<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
-            <NotAuthorized>
-                <RedirectToLogin />
-            </NotAuthorized>
-        </AuthorizeRouteView>
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-</Router>
+<ForgeRouter AppAssembly="typeof(App).Assembly"
+             NotFoundPage="typeof(Pages.NotFound)"
+             DefaultLayout="typeof(MainLayout)" />

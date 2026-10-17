@@ -35,7 +35,7 @@ public partial class Universes : ComponentBase
             if (result.IsSuccess)
             {
                 creating = false;
-                SidebarNavRefresh.NotifyNavigationDataChanged();
+                SidebarRefresh.NotifyChanged();
                 NavigationManager.NavigateTo($"universes/{result.Value.Id}");
             }
             else

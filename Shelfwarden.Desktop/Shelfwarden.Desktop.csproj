@@ -39,13 +39,17 @@
 	<!-- Same package set as the main web project, minus Identity UI (None auth has no UI). -->
 	<ItemGroup>
 		<PackageReference Include="Ardalis.Result" Version="10.1.0" />
+		<PackageReference Include="Heroicsoft.NetForge.Authentication" Version="1.0.3-beta" />
+		<PackageReference Include="Heroicsoft.NetForge.Components.Bootstrap" Version="1.0.3-beta" />
+		<PackageReference Include="Heroicsoft.NetForge.Hangfire" Version="1.0.3-beta" />
+		<PackageReference Include="Heroicsoft.NetForge.Results" Version="1.0.3-beta" />
 		<PackageReference Include="Autofac" Version="9.1.0" />
 		<PackageReference Include="Autofac.Extensions.DependencyInjection" Version="11.0.0" />
 		<PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.7" />
-		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.7" />
-		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.7" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.7">
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.12" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.12" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.12">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>

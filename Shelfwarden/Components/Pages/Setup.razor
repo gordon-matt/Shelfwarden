@@ -1,5 +1,5 @@
 @page "/setup"
-@layout SetupLayout
+@layout EmptyLayout
 @using Microsoft.AspNetCore.WebUtilities
 @using Shelfwarden.Infrastructure
 @inject IAuthProviderService AuthProvider
@@ -13,6 +13,15 @@
    even created an admin account yet. Each mutating action goes through the SetupController
    so it has an HttpContext (for SignIn) and so the redirect-after-POST keeps Blazor's
    circuit state out of the picture. *@
+
+@* A minimal centred shell rather than the app layout, so a half-configured server can't render
+   NavLinks pointing at shelves that don't exist yet. *@
+<div class="setup-shell">
+<div class="setup-card">
+<div class="setup-brand">
+    <i class="bi bi-shield-shaded"></i>
+    <span class="ms-2">Shelfwarden</span>
+</div>
 
 @if (status is null)
 {
@@ -107,7 +116,7 @@ else
             break;
 
         case "shelf":
-            @if (status.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Keycloak)
+            @if (status.AuthProvider == nameof(Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Keycloak)
                  && !status.CallerIsAdministrator)
             {
                 <h1 class="h3 mb-2">Sign in as an administrator</h1>
@@ -210,3 +219,6 @@ else
             break;
     }
 }
+
+</div>
+</div>

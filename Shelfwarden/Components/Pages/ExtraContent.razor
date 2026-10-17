@@ -1,5 +1,5 @@
 @page "/extra-content"
-@attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@attribute [Authorize(Roles = WellKnownRoles.Administrator)]
 @implements IAsyncDisposable
 @inject IAdditionalContentService ContentService
 @inject IAuthorService AuthorService

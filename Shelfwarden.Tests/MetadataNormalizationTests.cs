@@ -9,28 +9,19 @@ public class MetadataNormalizationTests
     [InlineData("0 8044 2957 X", "080442957X")]
     [InlineData("080442957x", "080442957X")]
     [InlineData("", "")]
-    public void NormalizeIsbn_strips_formatting(string input, string expected)
-    {
-        Assert.Equal(expected, MetadataNormalization.NormalizeIsbn(input));
-    }
+    public void NormalizeIsbn_strips_formatting(string input, string expected) => Assert.Equal(expected, MetadataNormalization.NormalizeIsbn(input));
 
     [Theory]
     [InlineData("<p>Hello <b>world</b></p>", "Hello world")]
     [InlineData("Tom &amp; Jerry", "Tom & Jerry")]
     [InlineData("Line<br/>break", "Line break")]
-    public void StripHtml_removes_tags_and_decodes_entities(string input, string expected)
-    {
-        Assert.Equal(expected, MetadataNormalization.StripHtml(input));
-    }
+    public void StripHtml_removes_tags_and_decodes_entities(string input, string expected) => Assert.Equal(expected, MetadataNormalization.StripHtml(input));
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
-    public void StripHtml_returns_null_for_blank(string? input)
-    {
-        Assert.Null(MetadataNormalization.StripHtml(input));
-    }
+    public void StripHtml_returns_null_for_blank(string? input) => Assert.Null(MetadataNormalization.StripHtml(input));
 
     [Fact]
     public void ParseDate_handles_full_date()
@@ -52,8 +43,5 @@ public class MetadataNormalizationTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("not a date")]
-    public void ParseDate_returns_null_for_unparseable(string? input)
-    {
-        Assert.Null(MetadataNormalization.ParseDate(input));
-    }
+    public void ParseDate_returns_null_for_unparseable(string? input) => Assert.Null(MetadataNormalization.ParseDate(input));
 }

@@ -101,7 +101,10 @@ public partial class AssignContentModal : ComponentBase
 
     private async Task AssociateSelectedAsync()
     {
-        if (selectedIds.Count == 0) return;
+        if (selectedIds.Count == 0)
+        {
+            return;
+        }
 
         saving = true;
         error = null;
@@ -109,24 +112,17 @@ public partial class AssignContentModal : ComponentBase
         {
             foreach (int itemId in selectedIds)
             {
-                Result result;
-                if (EntityType == "series")
-                {
-                    result = await ContentService.AssociateWithSeriesAsync(new AssociateContentRequest
+                var result = EntityType == "series"
+                    ? await ContentService.AssociateWithSeriesAsync(new AssociateContentRequest
+                    {
+                        ItemId = itemId,
+                        Ids = [EntityId],
+                    })
+                    : await ContentService.AssociateWithBooksAsync(new AssociateContentRequest
                     {
                         ItemId = itemId,
                         Ids = [EntityId],
                     });
-                }
-                else
-                {
-                    result = await ContentService.AssociateWithBooksAsync(new AssociateContentRequest
-                    {
-                        ItemId = itemId,
-                        Ids = [EntityId],
-                    });
-                }
-
                 if (!result.IsSuccess)
                 {
                     error = result.Errors.FirstOrDefault() ?? "Could not associate content.";
@@ -151,7 +147,7 @@ public partial class AssignContentModal : ComponentBase
         error = null;
         try
         {
-            Result<IReadOnlyList<AdditionalContentItemDto>> result = SourceSeriesId.HasValue
+            var result = SourceSeriesId.HasValue
                 ? await ContentService.GetForSeriesAsync(SourceSeriesId.Value)
                 : await ContentService.GetForAuthorAsync(AuthorId);
 
@@ -173,7 +169,13 @@ public partial class AssignContentModal : ComponentBase
 
     private void ToggleItem(int id, bool include)
     {
-        if (include) selectedIds.Add(id);
-        else selectedIds.Remove(id);
+        if (include)
+        {
+            selectedIds.Add(id);
+        }
+        else
+        {
+            selectedIds.Remove(id);
+        }
     }
 }

@@ -1,5 +1,5 @@
 @page "/books/{Id:int}/edit"
-@attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@attribute [Authorize(Roles = WellKnownRoles.Administrator)]
 @inject IBookService BookService
 @inject IBookCoverService BookCoverService
 @inject IAuthorService AuthorService

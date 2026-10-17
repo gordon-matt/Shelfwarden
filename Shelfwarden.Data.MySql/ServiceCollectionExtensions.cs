@@ -1,10 +1,9 @@
 using System.Transactions;
 using Hangfire;
 using Hangfire.Storage.MySql;
+using LogVue.Data.MySql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-
-using LogVue.Data.MySql;
 
 namespace Shelfwarden.Data.MySql;
 

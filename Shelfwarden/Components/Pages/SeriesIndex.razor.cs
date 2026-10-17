@@ -38,9 +38,11 @@ public partial class SeriesIndex : ComponentBase
 
     private async Task ConfirmDeleteSeriesAsync(SeriesListItemDto s)
     {
-        bool ok = await JS.InvokeAsync<bool>(
-            "confirm",
-            $"Delete series \"{s.Name}\"? Books stay in the library but are removed from this series.");
+        bool ok = await Dialogs.ConfirmAsync(
+            "Delete series",
+            $"Delete series \"{s.Name}\"? Books stay in the library but are removed from this series.",
+            "Delete",
+            isDestructive: true);
         if (!ok)
         {
             return;

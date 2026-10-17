@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
@@ -90,17 +89,11 @@ public sealed partial class GoodreadsMetadataProvider(
         }
     }
 
-    private static string? BuildSearchTerm(BookMetadataQuery query)
-    {
-        if (string.IsNullOrWhiteSpace(query.Title))
-        {
-            return string.IsNullOrWhiteSpace(query.Author) ? null : query.Author.Trim();
-        }
-
-        return string.IsNullOrWhiteSpace(query.Author)
+    private static string? BuildSearchTerm(BookMetadataQuery query) => string.IsNullOrWhiteSpace(query.Title)
+            ? string.IsNullOrWhiteSpace(query.Author) ? null : query.Author.Trim()
+            : string.IsNullOrWhiteSpace(query.Author)
             ? query.Title.Trim()
             : $"{query.Title.Trim()} {query.Author.Trim()}";
-    }
 
     private async Task<ExternalBookMetadataDto?> FetchByIsbnAsync(string isbn, CancellationToken cancellationToken)
     {
@@ -330,28 +323,22 @@ public sealed partial class GoodreadsMetadataProvider(
         }
     }
 
-    private static string? NormalizeLanguage(string? language)
-    {
-        if (string.IsNullOrWhiteSpace(language))
-        {
-            return null;
-        }
-
-        return language.Trim().ToLowerInvariant() switch
-        {
-            "english" => "en",
-            "french" => "fr",
-            "german" => "de",
-            "spanish" => "es",
-            "italian" => "it",
-            "portuguese" => "pt",
-            "dutch" => "nl",
-            "japanese" => "ja",
-            "chinese" => "zh",
-            "russian" => "ru",
-            _ => language.Trim(),
-        };
-    }
+    private static string? NormalizeLanguage(string? language) => string.IsNullOrWhiteSpace(language)
+            ? null
+            : language.Trim().ToLowerInvariant() switch
+            {
+                "english" => "en",
+                "french" => "fr",
+                "german" => "de",
+                "spanish" => "es",
+                "italian" => "it",
+                "portuguese" => "pt",
+                "dutch" => "nl",
+                "japanese" => "ja",
+                "chinese" => "zh",
+                "russian" => "ru",
+                _ => language.Trim(),
+            };
 
     private static string? GetString(JsonElement element, string property)
         => element.ValueKind == JsonValueKind.Object
@@ -360,20 +347,14 @@ public sealed partial class GoodreadsMetadataProvider(
             ? value.GetString()
             : null;
 
-    private static int? GetInt(JsonElement element, string property)
-    {
-        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(property, out var value))
-        {
-            return null;
-        }
-
-        return value.ValueKind switch
-        {
-            JsonValueKind.Number when value.TryGetInt32(out int n) => n,
-            JsonValueKind.String when int.TryParse(value.GetString(), out int n) => n,
-            _ => null,
-        };
-    }
+    private static int? GetInt(JsonElement element, string property) => element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(property, out var value)
+            ? null
+            : value.ValueKind switch
+            {
+                JsonValueKind.Number when value.TryGetInt32(out int n) => n,
+                JsonValueKind.String when int.TryParse(value.GetString(), out int n) => n,
+                _ => null,
+            };
 
     [GeneratedRegex(@"/book/show/(\d+)", RegexOptions.Compiled)]
     private static partial Regex BookShowIdRegex();

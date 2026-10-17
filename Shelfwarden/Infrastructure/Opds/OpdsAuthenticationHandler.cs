@@ -30,7 +30,8 @@ public sealed class OpdsAuthenticationHandler(
     public const string Realm = "Shelfwarden OPDS";
     public const string ApiKeyRouteValue = "apiKey";
 
-    private enum Outcome { None, Disabled, Throttled }
+    private enum Outcome
+    { None, Disabled, Throttled }
 
     private Outcome outcome;
     private TimeSpan retryAfter;

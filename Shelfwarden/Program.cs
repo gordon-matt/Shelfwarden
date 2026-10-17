@@ -1,6 +1,9 @@
 using Hangfire;
+using Heroicsoft.NetForge.Abstractions.Navigation;
+using Heroicsoft.NetForge.Abstractions.Setup;
+using Heroicsoft.NetForge.Components.Bootstrap;
+using Heroicsoft.NetForge.Hangfire;
 using LogVue;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Events;
@@ -29,11 +32,29 @@ builder.Services.AddHttpClient();
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthorization();
+builder.Services.AddNetForgeBootstrapComponents(ui => ui.ThemeStorageKey = Shelfwarden.Constants.ClientThemeLocalStorageKey);
+builder.Services.Configure<ForgeShellOptions>(shell =>
+{
+    shell.Brand = "Shelfwarden";
+    shell.LogoUrl = "img/Logo.png";
+    shell.LogoDarkUrl = "img/Logo_Light.png";
+    shell.MarkUrl = "img/Icon.png";
+    shell.SearchPlaceholder = "Search books, authors, series...";
+    shell.UserMenuItems.Add(new ForgeNavItem { Title = "E-reader access", Href = "/settings/opds", Icon = "bi-tablet" });
+});
+
+// The sidebar is data (counts, shelves, reading lists), so it is supplied per circuit rather than
+// as static sections.
+builder.Services.AddScoped<IShellNavigation, ShelfwardenNavigation>();
+
+// Bounces every non-exempt request to /setup until the first-run wizard is done. Feed readers can't
+// follow a redirect to the wizard, so /opds is exempt (its handler answers 404 until enabled).
+builder.Services.AddNetForgeSetupGate(gate => gate.ExemptPrefixes.Add("/opds"));
+builder.Services.AddScoped<ISetupStatus, ServerSettingsSetupStatus>();
 
 builder.Services.AddShelfwardenDatabase(builder.Configuration);
 builder.Services.AddShelfwardenRepositories();
 builder.Services.AddShelfwardenServices();
-builder.Services.AddScoped<ISidebarNavRefreshService, SidebarNavRefreshService>();
 var authProvider = builder.Services.AddShelfwardenAuthentication(builder.Configuration);
 
 builder.Services.AddShelfwardenOpds(builder.Configuration);
@@ -44,7 +65,6 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 var app = builder.Build();
 
 app.UseSerilogRequestLogging(options =>
-{
     // Same properties as Serilog's default, but with OPDS keys masked out of key-in-URL paths.
     options.GetMessageTemplateProperties = (httpContext, requestPath, elapsedMs, statusCode) =>
     [
@@ -52,8 +72,7 @@ app.UseSerilogRequestLogging(options =>
         new LogEventProperty("RequestPath", new ScalarValue(OpdsLogRedaction.RedactPath(requestPath))),
         new LogEventProperty("StatusCode", new ScalarValue(statusCode)),
         new LogEventProperty("Elapsed", new ScalarValue(elapsedMs)),
-    ];
-});
+    ]);
 
 if (!app.Environment.IsDevelopment())
 {
@@ -83,17 +102,16 @@ app.UseAuthorization();
 
 app.MapLogVue().RequireAuthorization(new AuthorizeAttribute
 {
-    Roles = Shelfwarden.Constants.Roles.Administrator
+    Roles = WellKnownRoles.Administrator
 });
 
-// Bounce every non-exempt request to /setup until the first-run wizard is done. Runs after
-// auth so the wizard can render an authoritative "you're signed in as X" if needed, and
+// Runs after auth so the wizard can render an authoritative "you're signed in as X" if needed, and
 // before MapRazorComponents/MapControllers so it can short-circuit Blazor and MVC routes.
-app.UseMiddleware<SetupRedirectMiddleware>();
+app.UseNetForgeSetupGate();
 
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
-    Authorization = [new HangfireAuthorizationFilter()],
+    Authorization = [new AdministratorDashboardAuthorizationFilter()],
 });
 
 app.MapRazorComponents<App>()

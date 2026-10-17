@@ -63,12 +63,7 @@ public class AuthorPhotosController(
             CancellationToken = cancellationToken,
         });
 
-        if (author?.PrimaryAuthorId is int primaryId)
-        {
-            return storage.FindAuthorPhotoPath(primaryId);
-        }
-
-        return null;
+        return author?.PrimaryAuthorId is int primaryId ? storage.FindAuthorPhotoPath(primaryId) : null;
     }
 
     private static string MimeFromExtension(string extension) => extension.ToLowerInvariant() switch

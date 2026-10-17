@@ -364,7 +364,7 @@ After repeated failed sign-ins from one address for one user name, Shelfwarden a
 
 See [CONTEXT.md](./CONTEXT.md). Briefly:
 
-- `Shelfwarden` — Blazor Server host
+- `Shelfwarden` — Blazor Server host (UI shell, auth, setup gate and Hangfire come from the shared `Heroicsoft.NetForge.*` packages)
 - `Shelfwarden.Core` — shared constants / cross-cutting
 - `Shelfwarden.Data` — entities + provider-agnostic mappings
 - `Shelfwarden.Data.{Sqlite,Sql,Npgsql,MySql}` — provider-specific DbContext + migrations

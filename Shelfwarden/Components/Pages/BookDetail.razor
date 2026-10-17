@@ -8,7 +8,7 @@
 @inject IAdditionalContentService ContentService
 @inject IUserContextService UserContext
 @inject NavigationManager NavigationManager
-@inject IJSRuntime Js
+@inject DialogService Dialogs
 
 <PageTitle>@(book?.Title ?? "Book") - Shelfwarden</PageTitle>
 
@@ -313,14 +313,14 @@ else
                     <i class="bi bi-download"></i> Download
                 </a>
 
-                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                <AuthorizeView Roles="@WellKnownRoles.Administrator">
                     <Authorized>
                         <a class="btn btn-outline-secondary" href="@($"books/{book.Id}/edit")">
                             <i class="bi bi-pencil"></i> Edit
                         </a>
                     </Authorized>
                 </AuthorizeView>
-                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                <AuthorizeView Roles="@WellKnownRoles.Administrator">
                     <Authorized>
                         <button class="btn btn-outline-danger" @onclick="DeleteAsync">
                             <i class="bi bi-trash"></i> Delete

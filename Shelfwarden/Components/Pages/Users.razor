@@ -1,11 +1,11 @@
 @page "/users"
-@attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@attribute [Authorize(Roles = WellKnownRoles.Administrator)]
 @using Shelfwarden.Models
 @using Shelfwarden.Services.Auth
 @inject IAuthProviderService AuthProvider
 @inject IUserInfoService UserInfoService
 @inject IServiceProvider Services
-@inject IJSRuntime JS
+@inject DialogService Dialogs
 
 <PageTitle>Users - Shelfwarden</PageTitle>
 
@@ -15,19 +15,19 @@
         <p class="text-secondary mb-0">
             @switch (AuthProvider.Provider)
             {
-                case Shelfwarden.Services.Auth.AuthProvider.Identity:
+                case Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Identity:
                     <text>Manage local accounts (ASP.NET Identity).</text>
                     break;
-                case Shelfwarden.Services.Auth.AuthProvider.Keycloak:
+                case Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Keycloak:
                     <text>Users are provisioned in Keycloak; this list is read-only.</text>
                     break;
-                case Shelfwarden.Services.Auth.AuthProvider.None:
+                case Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.None:
                     <text>Authentication is disabled — only the synthetic local user exists.</text>
                     break;
             }
         </p>
     </div>
-    @if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Identity && adminUsers is not null)
+    @if (AuthProvider.Provider == Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Identity && adminUsers is not null)
     {
         <button type="button" class="btn btn-primary" @onclick="OpenCreateModal">
             <i class="bi bi-person-plus"></i> New user
@@ -43,7 +43,7 @@
     </div>
 }
 
-@if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Identity && adminUsers is not null)
+@if (AuthProvider.Provider == Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Identity && adminUsers is not null)
 {
     @if (identityLoading)
     {

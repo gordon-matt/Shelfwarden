@@ -2,7 +2,7 @@
 @attribute [Authorize]
 @inject ISeriesService SeriesService
 @inject IUniverseService UniverseService
-@inject IJSRuntime JS
+@inject DialogService Dialogs
 
 <PageTitle>Series - Shelfwarden</PageTitle>
 
@@ -63,7 +63,7 @@ else
                             </button>
                             <ul class="dropdown-menu">
                                 <AddToActions SeriesId="s.Id" SubjectName="@s.Name" />
-                                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                <AuthorizeView Roles="@WellKnownRoles.Administrator">
                                     <Authorized>
                                         <li><hr class="dropdown-divider" /></li>
                                         <li>

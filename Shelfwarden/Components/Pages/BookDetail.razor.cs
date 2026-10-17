@@ -258,7 +258,7 @@ public partial class BookDetail : ComponentBase
         string msg = audiobook.State == AudiobookState.Failed
             ? "Remove this failed attempt so you can try again? Partial files will be deleted."
             : "Cancel audiobook generation? The job will stop and partial files will be removed.";
-        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog", msg))
+        if (!await Dialogs.ConfirmAsync("Audiobook generation", msg, "Remove", isDestructive: true))
         {
             return;
         }
@@ -349,8 +349,11 @@ public partial class BookDetail : ComponentBase
 
         var chapter = audiobook.Chapters?.FirstOrDefault(c => c.Index == chapterIndex);
         string label = chapter is not null ? chapter.Title : $"chapter {chapterIndex + 1}";
-        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                $"Remove \"{label}\" from disk? The other chapters will be kept."))
+        if (!await Dialogs.ConfirmAsync(
+                "Remove chapter",
+                $"Remove \"{label}\" from disk? The other chapters will be kept.",
+                "Remove",
+                isDestructive: true))
         {
             return;
         }
@@ -388,8 +391,11 @@ public partial class BookDetail : ComponentBase
             return;
         }
 
-        if (!await Js.InvokeAsync<bool>("shelfwarden.confirmDialog",
-                "Delete this audiobook file from disk? You can generate again with any voice."))
+        if (!await Dialogs.ConfirmAsync(
+                "Delete audiobook",
+                "Delete this audiobook file from disk? You can generate again with any voice.",
+                "Delete",
+                isDestructive: true))
         {
             return;
         }
@@ -452,7 +458,11 @@ public partial class BookDetail : ComponentBase
 
     private void OnContentItemRenamed(AdditionalContentItemDto renamed)
     {
-        if (bookExtraContent is null) return;
+        if (bookExtraContent is null)
+        {
+            return;
+        }
+
         bookExtraContent = bookExtraContent
             .Select(i => i.Id == renamed.Id ? renamed : i)
             .ToList();

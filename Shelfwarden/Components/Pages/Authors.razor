@@ -3,7 +3,8 @@
 @inject IAuthorService AuthorService
 @inject IShelfService ShelfService
 @inject NavigationManager NavigationManager
-@inject IJSRuntime JSRuntime
+@inject DialogService Dialogs
+@inject ToastService Toasts
 
 <PageTitle>Authors - Shelfwarden</PageTitle>
 
@@ -20,7 +21,7 @@
                 }
             </span>
         }
-        <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <AuthorizeView Roles="@WellKnownRoles.Administrator">
             <Authorized>
                 <button type="button"
                         class="btn btn-sm @(selectMode ? "btn-primary" : "btn-outline-secondary")"
@@ -43,7 +44,7 @@
 
 @if (selectMode)
 {
-    <AuthorizeView Roles="@Constants.Roles.Administrator">
+    <AuthorizeView Roles="@WellKnownRoles.Administrator">
         <Authorized>
             <div class="selection-toolbar mb-3 d-flex flex-wrap align-items-center gap-2">
                 <span class="text-secondary small">
@@ -170,7 +171,7 @@ else
                         @a.BookCount book@(a.BookCount == 1 ? "" : "s")
                     </div>
                 </a>
-                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                <AuthorizeView Roles="@WellKnownRoles.Administrator">
                     <Authorized>
                         @if (!selectMode)
                         {

@@ -22,7 +22,7 @@ public partial class BulkBookActions : ComponentBase
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        isAdministrator = auth.User.IsInRole(Constants.Roles.Administrator);
+        isAdministrator = auth.User.IsInRole(WellKnownRoles.Administrator);
     }
 
     private void CloseCollectionModal()

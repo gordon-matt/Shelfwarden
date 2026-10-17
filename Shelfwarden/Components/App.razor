@@ -1,32 +1,14 @@
-@inject IAuthProviderService AuthProvider
-
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="@(Constants.BootswatchThemes.IsDarkColorScheme(theme) ? "dark" : "light")">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <base href="/" />
-    <title>Shelfwarden</title>
-    <link id="theme-stylesheet" rel="stylesheet" href="@($"lib/bootswatch/dist/{theme}/bootstrap.min.css")" />
-    <script src="@Assets["js/theme-init.js"]"></script>
-    <link rel="stylesheet" href="lib/bootstrap-icons/font/bootstrap-icons.min.css" />
-    <link rel="stylesheet" href="Shelfwarden.styles.css" />
-    <link rel="stylesheet" href="css/site.css" />
-    <link rel="stylesheet" href="css/file-picker.css" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <HeadOutlet @rendermode="InteractiveServer" />
-</head>
-<body>
-    <Routes @rendermode="InteractiveServer" />
-    <script src="_framework/blazor.web.js"></script>
-    <script src="lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="@Assets["js/shelfwarden.js"]"></script>
-    <script src="@Assets["js/reader.js"]"></script>
-    <script src="@Assets["js/chapterPicker.js"]"></script>
-</body>
-</html>
-
-@code {
-    /// <summary>Fallback before <c>theme-init.js</c> reads <see cref="Constants.ClientThemeLocalStorageKey"/>.</summary>
-    private string theme = Constants.ServerSettingDefaults.Theme;
-}
+<ForgeHostPage Title="Shelfwarden" IconHref="img/Icon.png" AppStylesheet="@Assets["css/site.css"]">
+    <AdditionalHead>
+        <script src="@Assets["js/reader-init.js"]"></script>
+        <link rel="stylesheet" href="@Assets["css/file-picker.css"]" />
+    </AdditionalHead>
+    <ChildContent>
+        <Routes @rendermode="InteractiveServer" />
+    </ChildContent>
+    <AdditionalBody>
+        <script src="@Assets["js/shelfwarden.js"]"></script>
+        <script src="@Assets["js/reader.js"]"></script>
+        <script src="@Assets["js/chapterPicker.js"]"></script>
+    </AdditionalBody>
+</ForgeHostPage>

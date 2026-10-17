@@ -1,5 +1,3 @@
-using Shelfwarden.Models;
-
 namespace Shelfwarden.Services;
 
 public interface IAdditionalContentService

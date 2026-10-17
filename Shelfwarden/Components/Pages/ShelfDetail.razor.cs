@@ -142,7 +142,7 @@ public partial class ShelfDetail : ComponentBase
         var result = await ShelfService.DeleteAsync(Id);
         if (result.IsSuccess)
         {
-            SidebarNavRefresh.NotifyNavigationDataChanged();
+            SidebarRefresh.NotifyChanged();
             NavigationManager.NavigateTo("shelves");
         }
     }

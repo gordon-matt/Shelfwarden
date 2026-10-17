@@ -1,11 +1,11 @@
 @page "/shelves/new"
 @page "/shelves/{Id:int}/edit"
-@attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@attribute [Authorize(Roles = WellKnownRoles.Administrator)]
 @using Shelfwarden.Infrastructure
 @inject IShelfService ShelfService
 @inject IUserInfoService UserInfoService
-@inject Shelfwarden.Services.Auth.IAuthProviderService AuthProvider
-@inject ISidebarNavRefreshService SidebarNavRefresh
+@inject IAuthProviderService AuthProvider
+@inject SidebarRefresh SidebarRefresh
 @inject NavigationManager NavigationManager
 @inject ILogger<ShelfEdit> ShelfEditLogger
 @inject IBookService BookService
@@ -122,11 +122,11 @@
                 <div class="border rounded p-3 bg-body-secondary bg-opacity-10">
                     <div class="form-check">
                         <InputCheckbox class="form-check-input" id="role-admin" @bind-Value="allowRoleAdministrator" />
-                        <label class="form-check-label" for="role-admin">@Constants.Roles.Administrator</label>
+                        <label class="form-check-label" for="role-admin">@WellKnownRoles.Administrator</label>
                     </div>
                     <div class="form-check">
                         <InputCheckbox class="form-check-input" id="role-user" @bind-Value="allowRoleUser" />
-                        <label class="form-check-label" for="role-user">@Constants.Roles.User</label>
+                        <label class="form-check-label" for="role-user">@WellKnownRoles.User</label>
                     </div>
                 </div>
             </div>
@@ -138,7 +138,7 @@
                 }
                 else if (catalogUsers.Count == 0)
                 {
-                    @if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Keycloak)
+                    @if (AuthProvider.Provider == Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Keycloak)
                     {
                         <p class="text-secondary small mb-0">
                             No users returned from Keycloak. Listing realm users requires a confidential client

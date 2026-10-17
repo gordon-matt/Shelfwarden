@@ -10,7 +10,9 @@ public sealed class EbookSectionParserFactory : IEbookSectionParserFactory
     private readonly Dictionary<EbookFormat, IEbookSectionParser> byFormat;
 
     public EbookSectionParserFactory(IEnumerable<IEbookSectionParser> parsers)
-        => byFormat = parsers.ToDictionary(p => p.Format);
+    {
+        byFormat = parsers.ToDictionary(p => p.Format);
+    }
 
     public IEbookSectionParser? GetFor(string filePath)
     {

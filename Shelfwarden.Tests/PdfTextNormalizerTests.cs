@@ -62,10 +62,7 @@ public class PdfTextNormalizerTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   \n  ")]
-    public void Returns_empty_for_blank_input(string? input)
-    {
-        Assert.Equal(string.Empty, PdfTextNormalizer.Normalize(input));
-    }
+    public void Returns_empty_for_blank_input(string? input) => Assert.Equal(string.Empty, PdfTextNormalizer.Normalize(input));
 
     [Fact]
     public void Does_not_join_when_hyphen_follows_non_letter()

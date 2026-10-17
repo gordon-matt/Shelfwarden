@@ -228,7 +228,7 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
     {
         foreach (string imageKey in EnumerateCoverManifestImageKeys(book))
         {
-            EbookCoverImage? cover = TryLoadCoverImageBytes(book, imageKey);
+            var cover = TryLoadCoverImageBytes(book, imageKey);
             if (cover is not null)
             {
                 return cover;
@@ -270,7 +270,7 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
         }
 
         metaCoverRef = metaCoverRef.Trim();
-        EpubManifestItem? manifestItem = items.FirstOrDefault(i => string.Equals(i.Id, metaCoverRef, StringComparison.OrdinalIgnoreCase))
+        var manifestItem = items.FirstOrDefault(i => string.Equals(i.Id, metaCoverRef, StringComparison.OrdinalIgnoreCase))
             ?? items.FirstOrDefault(i => string.Equals(i.Href, metaCoverRef, StringComparison.OrdinalIgnoreCase))
             ?? items.FirstOrDefault(i => metaCoverRef.EndsWith('/' + i.Href, StringComparison.OrdinalIgnoreCase))
             ?? items.FirstOrDefault(i => metaCoverRef.EndsWith(i.Href, StringComparison.OrdinalIgnoreCase));
@@ -307,7 +307,7 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
                 continue;
             }
 
-            EbookCoverImage? cover = TryLoadCoverImageBytes(book, imageKey, htmlKey);
+            var cover = TryLoadCoverImageBytes(book, imageKey, htmlKey);
             if (cover is not null)
             {
                 return cover;
@@ -317,20 +317,11 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
         return null;
     }
 
-    private static EbookCoverImage? TryLoadCoverImageBytes(EpubBook book, string imageKey, string? htmlManifestKey = null)
-    {
-        if (TryGetImageFileByKey(book, imageKey) is { Content: { Length: > 0 } bytes })
-        {
-            return new EbookCoverImage(bytes, GuessImageExtension(bytes, imageKey));
-        }
-
-        if (TryReadImageBytesFromEpubZip(book, imageKey, htmlManifestKey) is { Length: > 0 } zipBytes)
-        {
-            return new EbookCoverImage(zipBytes, GuessImageExtension(zipBytes, imageKey));
-        }
-
-        return null;
-    }
+    private static EbookCoverImage? TryLoadCoverImageBytes(EpubBook book, string imageKey, string? htmlManifestKey = null) => TryGetImageFileByKey(book, imageKey) is { Content: { Length: > 0 } bytes }
+            ? new EbookCoverImage(bytes, GuessImageExtension(bytes, imageKey))
+            : TryReadImageBytesFromEpubZip(book, imageKey, htmlManifestKey) is { Length: > 0 } zipBytes
+            ? new EbookCoverImage(zipBytes, GuessImageExtension(zipBytes, imageKey))
+            : null;
 
     private static byte[]? TryReadImageBytesFromEpubZip(EpubBook book, string imageManifestKey, string? htmlManifestKey = null)
     {
@@ -350,7 +341,7 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
         try
         {
             using var archive = ZipFile.OpenRead(epubPath);
-            ZipArchiveEntry? entry = archive.Entries.FirstOrDefault(e =>
+            var entry = archive.Entries.FirstOrDefault(e =>
                 e.FullName.Replace('\\', '/').Equals(zipEntryPath, StringComparison.OrdinalIgnoreCase));
             if (entry is null)
             {
@@ -402,17 +393,11 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
         return null;
     }
 
-    private static string? GetPrefixFromFilePathAndKey(string? filePath, string? manifestKey)
-    {
-        if (string.IsNullOrEmpty(filePath) || string.IsNullOrEmpty(manifestKey))
-        {
-            return null;
-        }
-
-        return filePath.EndsWith(manifestKey, StringComparison.OrdinalIgnoreCase)
+    private static string? GetPrefixFromFilePathAndKey(string? filePath, string? manifestKey) => string.IsNullOrEmpty(filePath) || string.IsNullOrEmpty(manifestKey)
+            ? null
+            : filePath.EndsWith(manifestKey, StringComparison.OrdinalIgnoreCase)
             ? filePath[..^manifestKey.Length]
             : null;
-    }
 
     private static IEnumerable<string> EnumerateCoverHtmlManifestKeys(EpubBook book)
     {

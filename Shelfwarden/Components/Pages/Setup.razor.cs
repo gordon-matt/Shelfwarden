@@ -97,7 +97,7 @@ public partial class Setup : ComponentBase
         steps.Add(new StepDescriptor("welcome", 1, "Welcome"));
 
         int n = 2;
-        if (status?.AuthProvider == nameof(Shelfwarden.Services.Auth.AuthProvider.Identity))
+        if (status?.AuthProvider == nameof(Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Identity))
         {
             steps.Add(new StepDescriptor("admin", n++, "Administrator"));
         }
@@ -152,13 +152,13 @@ public partial class Setup : ComponentBase
         }
     }
 
-    private string NextLinkAfterWelcome() => status?.AuthProvider == nameof(Services.Auth.AuthProvider.Identity)
+    private string NextLinkAfterWelcome() => status?.AuthProvider == nameof(Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Identity)
         ? "/setup?step=admin"
         : "/setup?step=shelf";
 
     private void OnSetupFolderPickerConfirm(string path)
     {
-        var existing = shelfFolders.Trim();
+        string existing = shelfFolders.Trim();
         shelfFolders = string.IsNullOrEmpty(existing) ? path : $"{existing}\n{path}";
         _showSetupFolderPicker = false;
     }

@@ -1,5 +1,3 @@
-using Microsoft.JSInterop;
-
 namespace Shelfwarden.Components.Pages;
 
 public partial class Audiobooks : ComponentBase, IDisposable
@@ -11,7 +9,7 @@ public partial class Audiobooks : ComponentBase, IDisposable
     private int? playingBookId;
     private Timer? pollTimer;
     [Inject] private IAudiobookService AudiobookService { get; set; } = default!;
-    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private DialogService Dialogs { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -75,7 +73,7 @@ public partial class Audiobooks : ComponentBase, IDisposable
     private async Task CancelAsync(AudiobookSummaryDto item)
     {
         string verb = item.State == AudiobookState.Failed ? "clear this failed generation" : "cancel this generation";
-        if (!await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to {verb} for \"{item.BookTitle}\"?"))
+        if (!await Dialogs.ConfirmAsync("Audiobook generation", $"Are you sure you want to {verb} for \"{item.BookTitle}\"?", "Yes", isDestructive: true))
         {
             return;
         }
@@ -104,8 +102,11 @@ public partial class Audiobooks : ComponentBase, IDisposable
 
     private async Task DeleteAsync(AudiobookSummaryDto item)
     {
-        if (!await JS.InvokeAsync<bool>("confirm",
-            $"Delete the generated audiobook for \"{item.BookTitle}\"? This cannot be undone."))
+        if (!await Dialogs.ConfirmAsync(
+            "Delete audiobook",
+            $"Delete the generated audiobook for \"{item.BookTitle}\"? This cannot be undone.",
+            "Delete",
+            isDestructive: true))
         {
             return;
         }

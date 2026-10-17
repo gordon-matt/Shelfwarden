@@ -11,8 +11,5 @@ public class ShelfScanFileFilterTests
     [InlineData(@"D:\Library\.calnotes\Author\Title\book.epub", false)]
     [InlineData(@"D:\Library\Author\.caltrash\book.epub", false)]
     [InlineData(@"D:\Library\Author\.CALTRASH\book.pdf", false)]
-    public void ShouldInclude_skips_calibre_hidden_folders(string path, bool expected)
-    {
-        Assert.Equal(expected, ShelfScanFileFilter.ShouldInclude(path));
-    }
+    public void ShouldInclude_skips_calibre_hidden_folders(string path, bool expected) => Assert.Equal(expected, ShelfScanFileFilter.ShouldInclude(path));
 }

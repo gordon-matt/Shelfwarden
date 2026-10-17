@@ -13,10 +13,10 @@ namespace Shelfwarden.Desktop;
 internal static class SharedAssetLocator
 {
     /// <summary>
-/// Returns the absolute path that should be used as ASP.NET Core's WebRoot.
-/// A published build has <c>wwwroot</c> next to the executable; that wins so an
-/// install on a dev machine does not keep reading the git checkout. <c>dotnet run</c>
-/// does not copy wwwroot, so it still uses the shared folder under Shelfwarden.
+    /// Returns the absolute path that should be used as ASP.NET Core's WebRoot.
+    /// A published build has <c>wwwroot</c> next to the executable; that wins so an
+    /// install on a dev machine does not keep reading the git checkout. <c>dotnet run</c>
+    /// does not copy wwwroot, so it still uses the shared folder under Shelfwarden.
     /// </summary>
     public static string ResolveWebRoot()
     {

@@ -21,17 +21,12 @@ public class SectionClassifierTests
     [InlineData("The Lighthouse", SectionKind.Chapter)]
     [InlineData("", SectionKind.Chapter)]
     [InlineData(null, SectionKind.Chapter)]
-    public void Classify_maps_titles_to_kinds(string? title, SectionKind expected)
-    {
-        Assert.Equal(expected, SectionClassifier.Classify(title));
-    }
+    public void Classify_maps_titles_to_kinds(string? title, SectionKind expected) => Assert.Equal(expected, SectionClassifier.Classify(title));
 
     [Fact]
-    public void Classify_does_not_treat_a_single_keyword_inside_a_longer_word_as_a_match()
-    {
+    public void Classify_does_not_treat_a_single_keyword_inside_a_longer_word_as_a_match() =>
         // "indexing" contains "index" but is not an index section.
         Assert.Equal(SectionKind.Chapter, SectionClassifier.Classify("Indexing the Web"));
-    }
 
     [Theory]
     [InlineData("Chapter 1", true)]
@@ -43,10 +38,7 @@ public class SectionClassifierTests
     [InlineData("Epilogue", true)]
     [InlineData("Just some body text that wraps onto the page", false)]
     [InlineData("", false)]
-    public void LooksLikeChapterHeading_detects_headings(string text, bool expected)
-    {
-        Assert.Equal(expected, SectionClassifier.LooksLikeChapterHeading(text));
-    }
+    public void LooksLikeChapterHeading_detects_headings(string text, bool expected) => Assert.Equal(expected, SectionClassifier.LooksLikeChapterHeading(text));
 
     [Fact]
     public void ApplyDefaults_includes_only_body_chapters()

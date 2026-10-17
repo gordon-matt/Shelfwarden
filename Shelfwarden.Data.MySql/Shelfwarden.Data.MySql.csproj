@@ -18,7 +18,7 @@
 		-->
 		<PackageReference Include="LogVue.Data.MySql" Version="1.0.0" />
 		<PackageReference Include="MySql.EntityFrameworkCore" Version="10.0.7" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7">
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>

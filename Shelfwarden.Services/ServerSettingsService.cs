@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Heroicsoft.NetForge.Abstractions.Theming;
 
 namespace Shelfwarden.Services;
 
@@ -34,7 +35,7 @@ public class ServerSettingsService(
 
         var dto = new ServerSettingsDto
         {
-            Theme = NullIfWhitespace(GetCached(Constants.ServerSettingKeys.Theme)) ?? Constants.ServerSettingDefaults.Theme,
+            Theme = NullIfWhitespace(GetCached(Constants.ServerSettingKeys.Theme)) ?? BootswatchThemes.Default,
             SetupComplete = bool.TryParse(GetCached(Constants.ServerSettingKeys.SetupComplete), out bool b) && b,
             OpdsEnabled = bool.TryParse(GetCached(Constants.ServerSettingKeys.OpdsEnabled), out bool opds) && opds,
         };
@@ -95,11 +96,10 @@ public class ServerSettingsService(
     }
 
     public Task<Result> SetThemeAsync(string theme, CancellationToken cancellationToken = default) =>
-        string.IsNullOrWhiteSpace(theme) ||
-        !Constants.BootswatchThemes.All.Contains(theme, StringComparer.OrdinalIgnoreCase)
-            ? Task.FromResult<Result>(Result.Invalid(
-                new ValidationError(nameof(theme), $"'{theme}' is not a known Bootswatch theme.")))
-            : SetAsync(Constants.ServerSettingKeys.Theme, theme.ToLowerInvariant(), cancellationToken);
+        BootswatchThemes.TryNormalize(theme, out string normalized)
+            ? SetAsync(Constants.ServerSettingKeys.Theme, normalized, cancellationToken)
+            : Task.FromResult<Result>(Result.Invalid(
+                new ValidationError(nameof(theme), $"'{theme}' is not a known Bootswatch theme.")));
 
     private async Task EnsureLoadedAsync(CancellationToken cancellationToken)
     {

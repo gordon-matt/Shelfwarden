@@ -8,7 +8,7 @@ public class TextChunkerTests
     public void ChunkContinuous_joins_sentence_split_across_blocks()
     {
         // Page 1 ends mid-sentence (no terminal punctuation); page 2 completes it.
-        var blocks = new[]
+        string[] blocks = new[]
         {
             "The morning was cold and the harbour was still. She walked to the edge of the water and",
             "looked out at the grey horizon. Then she turned back home.",
@@ -24,7 +24,7 @@ public class TextChunkerTests
     [Fact]
     public void ChunkContinuous_keeps_break_when_block_ends_a_sentence()
     {
-        var blocks = new[]
+        string[] blocks = new[]
         {
             "First complete sentence.",
             "Second complete sentence.",
@@ -41,7 +41,7 @@ public class TextChunkerTests
     [Fact]
     public void ChunkContinuous_flushes_trailing_incomplete_sentence()
     {
-        var blocks = new[] { "A dangling final line with no period" };
+        string[] blocks = new[] { "A dangling final line with no period" };
 
         var chunks = TextChunker.ChunkContinuous(blocks).ToList();
 

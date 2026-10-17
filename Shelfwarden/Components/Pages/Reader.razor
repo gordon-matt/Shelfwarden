@@ -12,7 +12,7 @@
 @* Full-viewport shell: fixed chrome (toolbar + bottom bar) + flex main row (optional bookmarks
    sidebar + document viewport). Zoom/transform never applies to chrome — only pdf.js canvas scale
    or epub.js typography inside `.reader-document-content`. *@
-@* Reader dark mode lives as a `reader-dark` class on <html> (set pre-paint by theme-init.js and
+@* Reader dark mode lives as a `reader-dark` class on <html> (set pre-paint by reader-init.js and
    toggled via JS), not here — that's what stops the light→dark flash when the reader opens. *@
 <div class="reader-shell" @key="Id">
     <header class="reader-topbar reader-toolbar">
@@ -69,7 +69,7 @@
 
                 @* Icon + "active" look are driven entirely by CSS off the ancestor `.reader-dark`
                    class (see site.css) instead of a Blazor-tracked bool — that class is already
-                   applied pre-paint by theme-init.js, so this button never needs a JS round-trip
+                   applied pre-paint by reader-init.js, so this button never needs a JS round-trip
                    + re-render on mount just to know which icon to show (that extra render was a
                    source of visible flicker on mobile). *@
                 <button type="button"

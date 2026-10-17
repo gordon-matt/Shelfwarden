@@ -121,15 +121,51 @@ public sealed class BookMetadataService(
     private static int Completeness(ExternalBookMetadataDto c)
     {
         int score = 0;
-        if (!string.IsNullOrWhiteSpace(c.Description)) score += 2;
-        if (c.Authors.Count > 0) score++;
-        if (!string.IsNullOrWhiteSpace(c.Publisher)) score++;
-        if (c.PublishedOn is not null) score++;
-        if (!string.IsNullOrWhiteSpace(c.Isbn)) score++;
-        if (c.PageCount is not null) score++;
-        if (!string.IsNullOrWhiteSpace(c.Language)) score++;
-        if (c.Genres.Count > 0 || c.Tags.Count > 0) score++;
-        if (!string.IsNullOrWhiteSpace(c.Subtitle)) score++;
+        if (!string.IsNullOrWhiteSpace(c.Description))
+        {
+            score += 2;
+        }
+
+        if (c.Authors.Count > 0)
+        {
+            score++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(c.Publisher))
+        {
+            score++;
+        }
+
+        if (c.PublishedOn is not null)
+        {
+            score++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(c.Isbn))
+        {
+            score++;
+        }
+
+        if (c.PageCount is not null)
+        {
+            score++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(c.Language))
+        {
+            score++;
+        }
+
+        if (c.Genres.Count > 0 || c.Tags.Count > 0)
+        {
+            score++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(c.Subtitle))
+        {
+            score++;
+        }
+
         return score;
     }
 
@@ -195,10 +231,14 @@ public sealed class BookMetadataService(
         var rest = ranked.Skip(1).ToList();
 
         string? FirstNonBlank(Func<ExternalBookMetadataDto, string?> selector, string? current)
-            => !string.IsNullOrWhiteSpace(current) ? current : rest.Select(selector).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+        {
+            return !string.IsNullOrWhiteSpace(current) ? current : rest.Select(selector).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+        }
 
         IReadOnlyList<string> FirstNonEmpty(Func<ExternalBookMetadataDto, IReadOnlyList<string>> selector, IReadOnlyList<string> current)
-            => current.Count > 0 ? current : rest.Select(selector).FirstOrDefault(v => v.Count > 0) ?? [];
+        {
+            return current.Count > 0 ? current : rest.Select(selector).FirstOrDefault(v => v.Count > 0) ?? [];
+        }
 
         return top with
         {

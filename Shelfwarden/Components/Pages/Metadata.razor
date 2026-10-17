@@ -1,7 +1,7 @@
 @page "/metadata"
-@attribute [Authorize(Roles = Constants.Roles.Administrator)]
+@attribute [Authorize(Roles = WellKnownRoles.Administrator)]
 @inject IGenreService GenreService
-@inject IJSRuntime JSRuntime
+@inject DialogService Dialogs
 
 <PageTitle>Metadata - Shelfwarden</PageTitle>
 

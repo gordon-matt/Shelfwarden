@@ -41,12 +41,9 @@ public static partial class SectionClassifier
 
         // Match on whole-word boundaries where the keyword is a single token so a chapter
         // literally titled "Notes on a Scandal" isn't mistaken for an endnotes section.
-        if (FrontMatterKeywords.Any(k => ContainsKeyword(t, k)))
-        {
-            return SectionKind.FrontMatter;
-        }
-
-        return BackMatterKeywords.Any(k => ContainsKeyword(t, k))
+        return FrontMatterKeywords.Any(k => ContainsKeyword(t, k))
+            ? SectionKind.FrontMatter
+            : BackMatterKeywords.Any(k => ContainsKeyword(t, k))
             ? SectionKind.BackMatter
             : SectionKind.Chapter;
     }
@@ -65,27 +62,14 @@ public static partial class SectionClassifier
     }
 
     /// <summary>True when <paramref name="text"/> reads like a chapter / part heading.</summary>
-    public static bool LooksLikeChapterHeading(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return false;
-        }
+    public static bool LooksLikeChapterHeading(string text) => !string.IsNullOrWhiteSpace(text) && ChapterHeadingRegex().IsMatch(text.Trim());
 
-        return ChapterHeadingRegex().IsMatch(text.Trim());
-    }
-
-    private static bool ContainsKeyword(string loweredTitle, string keyword)
-    {
+    private static bool ContainsKeyword(string loweredTitle, string keyword) =>
         // Multi-word keywords ("table of contents") are matched as substrings; single tokens
         // ("index", "notes") require a word boundary so they don't trip on longer words.
-        if (keyword.Contains(' '))
-        {
-            return loweredTitle.Contains(keyword, StringComparison.Ordinal);
-        }
-
-        return Regex.IsMatch(loweredTitle, $@"\b{Regex.Escape(keyword)}\b");
-    }
+        keyword.Contains(' ')
+            ? loweredTitle.Contains(keyword, StringComparison.Ordinal)
+            : Regex.IsMatch(loweredTitle, $@"\b{Regex.Escape(keyword)}\b");
 
     [GeneratedRegex(
         @"^(chapter|part|book|section)\s+(\d+|[ivxlcdm]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b|^\d{1,3}[\.\):]\s+\w|^prologue|^epilogue|^introduction\b",

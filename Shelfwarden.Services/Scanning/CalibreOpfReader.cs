@@ -108,7 +108,7 @@ public sealed class CalibreOpfReader(ILogger<CalibreOpfReader> logger) : ICalibr
                 .ToList();
 
             string? isbn = ExtractIsbn(metadata);
-            DateTime? publishedOn = ExtractPublishedOn(metadata);
+            var publishedOn = ExtractPublishedOn(metadata);
             var (seriesName, numberInSeries) = ExtractSeries(metadata);
             var cover = await TryLoadCoverAsync(doc, opfPath, cancellationToken);
 

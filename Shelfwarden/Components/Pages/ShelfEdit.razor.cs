@@ -52,9 +52,9 @@ public partial class ShelfEdit : ComponentBase
                 }
 
                 allowRoleAdministrator = dto.AllowedRoleNames.Any(r =>
-                    string.Equals(r, Constants.Roles.Administrator, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(r, WellKnownRoles.Administrator, StringComparison.OrdinalIgnoreCase));
                 allowRoleUser = dto.AllowedRoleNames.Any(r =>
-                    string.Equals(r, Constants.Roles.User, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(r, WellKnownRoles.User, StringComparison.OrdinalIgnoreCase));
 
                 shelfBannerSettings = dto.BannerSettings;
                 if (shelfBannerSettings is not null)
@@ -104,12 +104,12 @@ public partial class ShelfEdit : ComponentBase
         var list = new List<string>();
         if (allowRoleAdministrator)
         {
-            list.Add(Constants.Roles.Administrator);
+            list.Add(WellKnownRoles.Administrator);
         }
 
         if (allowRoleUser)
         {
-            list.Add(Constants.Roles.User);
+            list.Add(WellKnownRoles.User);
         }
 
         return list;
@@ -161,7 +161,10 @@ public partial class ShelfEdit : ComponentBase
     private void OnFolderPickerConfirm(string path)
     {
         if (_pickerTargetIndex >= 0 && _pickerTargetIndex < folders.Count)
+        {
             folders[_pickerTargetIndex] = path;
+        }
+
         _showFolderPicker = false;
     }
 
@@ -218,7 +221,7 @@ public partial class ShelfEdit : ComponentBase
                 });
                 if (result.IsSuccess)
                 {
-                    SidebarNavRefresh.NotifyNavigationDataChanged();
+                    SidebarRefresh.NotifyChanged();
                     NavigationManager.NavigateTo("shelves");
                 }
                 else
@@ -247,7 +250,7 @@ public partial class ShelfEdit : ComponentBase
                 });
                 if (result.IsSuccess)
                 {
-                    SidebarNavRefresh.NotifyNavigationDataChanged();
+                    SidebarRefresh.NotifyChanged();
                     NavigationManager.NavigateTo("shelves");
                 }
                 else

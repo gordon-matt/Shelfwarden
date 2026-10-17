@@ -23,7 +23,7 @@ public partial class Users : ComponentBase
     {
         adminUsers = Services.GetService<IAdminUserManagementService>();
 
-        if (AuthProvider.Provider == Shelfwarden.Services.Auth.AuthProvider.Identity && adminUsers is not null)
+        if (AuthProvider.Provider == Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Identity && adminUsers is not null)
         {
             await LoadIdentityGridAsync();
         }
@@ -54,7 +54,7 @@ public partial class Users : ComponentBase
             return;
         }
 
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete user \"{u.Email}\"? This cannot be undone."))
+        if (!await Dialogs.ConfirmAsync("Delete user", $"Delete user \"{u.Email}\"? This cannot be undone.", "Delete", isDestructive: true))
         {
             return;
         }
@@ -103,7 +103,7 @@ public partial class Users : ComponentBase
         if (rolesResult.IsSuccess)
         {
             assignableRoles = rolesResult.Value;
-            modalRole ??= assignableRoles.FirstOrDefault(r => r.Name == Constants.Roles.User)?.Name
+            modalRole ??= assignableRoles.FirstOrDefault(r => r.Name == WellKnownRoles.User)?.Name
                 ?? assignableRoles.FirstOrDefault()?.Name;
         }
 
@@ -116,7 +116,7 @@ public partial class Users : ComponentBase
         editingUserId = null;
         modalEmail = "";
         modalPassword = "";
-        modalRole = assignableRoles?.FirstOrDefault(r => r.Name == Constants.Roles.User)?.Name
+        modalRole = assignableRoles?.FirstOrDefault(r => r.Name == WellKnownRoles.User)?.Name
             ?? assignableRoles?.FirstOrDefault()?.Name;
         modalError = null;
         showUserModal = true;
@@ -128,7 +128,7 @@ public partial class Users : ComponentBase
         editingUserId = u.Id;
         modalEmail = u.Email ?? "";
         modalPassword = "";
-        modalRole = u.Roles.FirstOrDefault() ?? Constants.Roles.User;
+        modalRole = u.Roles.FirstOrDefault() ?? WellKnownRoles.User;
         modalError = null;
         showUserModal = true;
     }
@@ -198,7 +198,7 @@ public partial class Users : ComponentBase
         }
 
         string actionWord = u.IsActive ? "disable" : "enable";
-        if (!await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to {actionWord} this user?"))
+        if (!await Dialogs.ConfirmAsync($"{char.ToUpperInvariant(actionWord[0])}{actionWord[1..]} user", $"Are you sure you want to {actionWord} this user?", char.ToUpperInvariant(actionWord[0]) + actionWord[1..]))
         {
             return;
         }

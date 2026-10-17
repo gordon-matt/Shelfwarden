@@ -101,7 +101,7 @@ else
                     <span> · @author.SeriesGroups.Count series</span>
                 }
             </div>
-            <AuthorizeView Roles="@Constants.Roles.Administrator">
+            <AuthorizeView Roles="@WellKnownRoles.Administrator">
                 <Authorized>
                     <div class="mb-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenAuthorEditModal">
@@ -185,7 +185,7 @@ else
                                     </button>
                                     <ul class="dropdown-menu">
                                         <AddToActions SeriesId="s.SeriesId" SubjectName="@s.SeriesName" />
-                                        <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                        <AuthorizeView Roles="@WellKnownRoles.Administrator">
                                             <Authorized>
                                                 <li><hr class="dropdown-divider" /></li>
                                                 <li>
@@ -263,7 +263,7 @@ else
                                   IsSelected="selectedBookIds.Contains(b.Id)"
                                   OnSelectionToggled="checkedNow => ToggleSelection(b.Id, checkedNow)">
                             <ExtraMenuItems>
-                                <AuthorizeView Roles="@Constants.Roles.Administrator">
+                                <AuthorizeView Roles="@WellKnownRoles.Administrator">
                                     <Authorized>
                                         <li>
                                             <button type="button" class="dropdown-item"

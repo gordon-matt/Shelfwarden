@@ -51,12 +51,7 @@ public sealed class ListReorderState
         int? to = TargetIndex;
         Cancel();
 
-        if (from is not int source || to is not int target || source == target)
-        {
-            return null;
-        }
-
-        return Move(ids, source, target);
+        return from is not int source || to is not int target || source == target ? null : Move(ids, source, target);
     }
 
     /// <summary>

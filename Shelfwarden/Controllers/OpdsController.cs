@@ -166,12 +166,7 @@ public class OpdsController(
             },
             b => new BookFileRow(b.Id, b.Title, b.FilePath, b.FileFormat, b.CoverImagePath, b.ShelfId));
 
-        if (book is null || !await shelfAccessService.CanAccessShelfAsync(book.ShelfId, cancellationToken))
-        {
-            return null;
-        }
-
-        return book;
+        return book is null || !await shelfAccessService.CanAccessShelfAsync(book.ShelfId, cancellationToken) ? null : book;
     }
 
     private async Task<string?> FindCoverPathAsync(int bookId, CancellationToken cancellationToken)

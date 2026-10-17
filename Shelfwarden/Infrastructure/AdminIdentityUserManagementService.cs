@@ -12,8 +12,8 @@ public sealed class AdminIdentityUserManagementService(
 {
     private static readonly HashSet<string> AssignableRoles =
     [
-        Constants.Roles.Administrator,
-        Constants.Roles.User,
+        WellKnownRoles.Administrator,
+        WellKnownRoles.User,
     ];
 
     public async Task<Result<IReadOnlyList<AdminUserListItem>>> ListUsersAsync(
@@ -80,7 +80,7 @@ public sealed class AdminIdentityUserManagementService(
             return Result.Invalid(new ValidationError(nameof(request.Password), "Password is required."));
         }
 
-        string role = string.IsNullOrWhiteSpace(request.Role) ? Constants.Roles.User : request.Role!;
+        string role = string.IsNullOrWhiteSpace(request.Role) ? WellKnownRoles.User : request.Role!;
         if (!AssignableRoles.Contains(role))
         {
             return Result.Invalid(new ValidationError(nameof(request.Role), $"Role must be one of: {string.Join(", ", AssignableRoles)}."));
@@ -134,7 +134,7 @@ public sealed class AdminIdentityUserManagementService(
             return Result.Invalid(new ValidationError(nameof(request.Email), "Email is required."));
         }
 
-        string role = string.IsNullOrWhiteSpace(request.Role) ? Constants.Roles.User : request.Role!;
+        string role = string.IsNullOrWhiteSpace(request.Role) ? WellKnownRoles.User : request.Role!;
         if (!AssignableRoles.Contains(role))
         {
             return Result.Invalid(new ValidationError(nameof(request.Role), $"Role must be one of: {string.Join(", ", AssignableRoles)}."));

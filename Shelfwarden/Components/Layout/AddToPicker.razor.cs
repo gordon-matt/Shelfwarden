@@ -278,8 +278,10 @@ public partial class AddToPicker : ComponentBase
             _ => Outcome(await UniverseService.AddBooksAsync(targetId, [bookId])),
         };
 
-        static (bool, string?) Outcome<T>(Result<T> result) =>
-            (result.IsSuccess, result.Errors.FirstOrDefault());
+        static (bool, string?) Outcome<T>(Result<T> result)
+        {
+            return (result.IsSuccess, result.Errors.FirstOrDefault());
+        }
     }
 
     private sealed record Option(int Id, string Name);

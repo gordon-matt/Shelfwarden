@@ -12,10 +12,7 @@ public class ShelfwardenImportMergerTests
     [InlineData(false, false, false)]
     [InlineData(false, null, false)]
     public void ResolveUseFileNameForTitle_sidecar_overrides_shelf_default(
-        bool shelfDefault, bool? sidecarValue, bool expected)
-    {
-        Assert.Equal(expected, ShelfwardenImportMerger.ResolveUseFileNameForTitle(shelfDefault, sidecarValue));
-    }
+        bool shelfDefault, bool? sidecarValue, bool expected) => Assert.Equal(expected, ShelfwardenImportMerger.ResolveUseFileNameForTitle(shelfDefault, sidecarValue));
 
     [Fact]
     public void MergeList_sidecar_replace_overrides_shelf_cleared_authors()
@@ -46,8 +43,5 @@ public class ShelfwardenImportMergerTests
     }
 
     [Fact]
-    public void MergeCollection_returns_trimmed_name_for_sidecar_override()
-    {
-        Assert.Equal("Curated", ShelfwardenImportMerger.MergeCollection("  Curated  "));
-    }
+    public void MergeCollection_returns_trimmed_name_for_sidecar_override() => Assert.Equal("Curated", ShelfwardenImportMerger.MergeCollection("  Curated  "));
 }

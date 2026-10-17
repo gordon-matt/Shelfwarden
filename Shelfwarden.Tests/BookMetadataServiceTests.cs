@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Shelfwarden.Models.Metadata;
-using Shelfwarden.Services.Auth;
 using Shelfwarden.Services.Metadata;
 
 namespace Shelfwarden.Tests;

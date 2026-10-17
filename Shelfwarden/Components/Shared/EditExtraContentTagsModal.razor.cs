@@ -1,5 +1,3 @@
-using Shelfwarden.Models;
-
 namespace Shelfwarden.Components.Shared;
 
 public partial class EditExtraContentTagsModal : ComponentBase

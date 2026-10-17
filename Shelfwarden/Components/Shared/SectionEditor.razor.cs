@@ -1,6 +1,3 @@
-using Microsoft.AspNetCore.Components.Web;
-using Microsoft.JSInterop;
-
 namespace Shelfwarden.Components.Shared;
 
 public partial class SectionEditor : ComponentBase, IAsyncDisposable
@@ -213,7 +210,7 @@ public partial class SectionEditor : ComponentBase, IAsyncDisposable
 
         // Seed markers from any auto-detected chapter starts (page >= 2) so the user starts from
         // the parser's best guess instead of a blank slate.
-        var initial = (Sections ?? [])
+        int[] initial = (Sections ?? [])
             .Where(s => s.StartPage is >= 2)
             .Select(s => s.StartPage!.Value)
             .Distinct()

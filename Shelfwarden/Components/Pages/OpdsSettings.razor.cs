@@ -21,7 +21,7 @@ public partial class OpdsSettings : ComponentBase
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        isAdministrator = auth.User.IsInRole(Constants.Roles.Administrator);
+        isAdministrator = auth.User.IsInRole(WellKnownRoles.Administrator);
 
         await LoadAsync();
         loading = false;
@@ -75,7 +75,7 @@ public partial class OpdsSettings : ComponentBase
     private async Task GenerateAsync()
     {
         if (credential is not null
-            && !await JS.InvokeAsync<bool>("confirm", "Replace your OPDS key? Apps using the current key will need the new one."))
+            && !await Dialogs.ConfirmAsync("Replace key", "Replace your OPDS key? Apps using the current key will need the new one.", "Replace", isDestructive: true))
         {
             return;
         }
@@ -102,7 +102,7 @@ public partial class OpdsSettings : ComponentBase
 
     private async Task RevokeAsync()
     {
-        if (!await JS.InvokeAsync<bool>("confirm", "Revoke your OPDS key? Reading apps will stop working until you generate a new one."))
+        if (!await Dialogs.ConfirmAsync("Revoke key", "Revoke your OPDS key? Reading apps will stop working until you generate a new one.", "Revoke", isDestructive: true))
         {
             return;
         }
@@ -129,7 +129,7 @@ public partial class OpdsSettings : ComponentBase
 
     private async Task RevokeForUserAsync(OpdsCredentialDto target)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Revoke the OPDS key for \"{target.UserName}\"?"))
+        if (!await Dialogs.ConfirmAsync("Revoke key", $"Revoke the OPDS key for \"{target.UserName}\"?", "Revoke", isDestructive: true))
         {
             return;
         }

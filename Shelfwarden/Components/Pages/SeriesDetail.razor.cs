@@ -60,7 +60,11 @@ public partial class SeriesDetail : ComponentBase
 
     private void OnItemRenamed(AdditionalContentItemDto renamed)
     {
-        if (extraContent is null) return;
+        if (extraContent is null)
+        {
+            return;
+        }
+
         extraContent = extraContent
             .Select(i => i.Id == renamed.Id ? renamed : i)
             .ToList();

@@ -51,7 +51,7 @@ public class SetupController(
 
         // Reuse the seeded admin if present so we don't end up with two admin users — the
         // typical flow is install → seed creates `admin@shelfwarden.local` → wizard updates it.
-        var existingAdmins = await userManager.GetUsersInRoleAsync(Constants.Roles.Administrator);
+        var existingAdmins = await userManager.GetUsersInRoleAsync(WellKnownRoles.Administrator);
         var admin = existingAdmins.FirstOrDefault();
 
         if (admin is null)
@@ -70,7 +70,7 @@ public class SetupController(
                 return RedirectWithError("admin", string.Join(" ", createResult.Errors.Select(e => e.Description)));
             }
 
-            await userManager.AddToRoleAsync(admin, Constants.Roles.Administrator);
+            await userManager.AddToRoleAsync(admin, WellKnownRoles.Administrator);
         }
         else
         {

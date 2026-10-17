@@ -1,13 +1,8 @@
 using System.Net;
 using Hangfire;
+using Heroicsoft.NetForge.Abstractions.Data;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
-using Microsoft.IdentityModel.Tokens;
 using Shelfwarden.Data.MySql;
 using Shelfwarden.Data.Npgsql;
 using Shelfwarden.Data.Sql;
@@ -24,23 +19,24 @@ internal static class ServiceCollectionExtensions
         /// <summary>
         /// Wires up the database provider selected by <c>Database:Provider</c> in configuration.
         /// Defaults to SQLite. The provider must match one of the values in
-        /// <see cref="Constants.DatabaseProviders"/>. The matching <c>Shelfwarden.Data.{Provider}</c>
+        /// <see cref="DatabaseProviders"/>. The matching <c>Shelfwarden.Data.{Provider}</c>
         /// project is responsible for registering the concrete <c>ApplicationDbContext</c>,
         /// the <see cref="IDbContextFactory"/>, and the abstract <see cref="ApplicationDbContextBase"/>.
         /// </summary>
         public IServiceCollection AddShelfwardenDatabase(IConfiguration configuration)
         {
-            string provider = configuration["Database:Provider"] ?? Constants.DatabaseProviders.Sqlite;
+            string provider = DatabaseProviders.Resolve(
+                configuration[DatabaseProviders.ConfigurationKey],
+                DatabaseProviders.Sqlite,
+                [.. DatabaseProviders.All]);
 
             return provider switch
             {
-                Constants.DatabaseProviders.Sqlite => services.AddShelfwardenSqlite(configuration),
-                Constants.DatabaseProviders.SqlServer => services.AddShelfwardenSqlServer(configuration),
-                Constants.DatabaseProviders.Npgsql => services.AddShelfwardenNpgsql(configuration),
-                Constants.DatabaseProviders.MySql => services.AddShelfwardenMySql(configuration),
-                _ => throw new InvalidOperationException(
-                    $"Unknown Database:Provider '{provider}'. Valid values: " +
-                    "Sqlite, SqlServer, Npgsql, MySql.")
+                DatabaseProviders.Sqlite => services.AddShelfwardenSqlite(configuration),
+                DatabaseProviders.SqlServer => services.AddShelfwardenSqlServer(configuration),
+                DatabaseProviders.Npgsql => services.AddShelfwardenNpgsql(configuration),
+                DatabaseProviders.MySql => services.AddShelfwardenMySql(configuration),
+                _ => throw new InvalidOperationException($"Unknown {DatabaseProviders.ConfigurationKey} '{provider}'."),
             };
         }
 
@@ -67,7 +63,10 @@ internal static class ServiceCollectionExtensions
         /// </summary>
         public IServiceCollection AddShelfwardenHangfire(IConfiguration configuration)
         {
-            string provider = configuration["Database:Provider"] ?? Constants.DatabaseProviders.Sqlite;
+            string provider = DatabaseProviders.Resolve(
+                configuration[DatabaseProviders.ConfigurationKey],
+                DatabaseProviders.Sqlite,
+                [.. DatabaseProviders.All]);
             string? hangfireExplicit = configuration.GetConnectionString("Hangfire");
             string? connectionString = string.IsNullOrWhiteSpace(hangfireExplicit)
                 ? configuration.GetConnectionString("DefaultConnection")
@@ -75,11 +74,11 @@ internal static class ServiceCollectionExtensions
 
             switch (provider)
             {
-                case Constants.DatabaseProviders.Sqlite:
+                case DatabaseProviders.Sqlite:
                     services.AddShelfwardenSqliteHangfire(configuration["Hangfire:SqlitePath"]);
                     break;
 
-                case Constants.DatabaseProviders.SqlServer:
+                case DatabaseProviders.SqlServer:
                     if (string.IsNullOrEmpty(connectionString))
                     {
                         throw new InvalidOperationException("Hangfire requires a connection string when using SqlServer.");
@@ -88,7 +87,7 @@ internal static class ServiceCollectionExtensions
                     services.AddShelfwardenSqlServerHangfire(connectionString);
                     break;
 
-                case Constants.DatabaseProviders.Npgsql:
+                case DatabaseProviders.Npgsql:
                     if (string.IsNullOrEmpty(connectionString))
                     {
                         throw new InvalidOperationException("Hangfire requires a connection string when using Npgsql.");
@@ -97,7 +96,7 @@ internal static class ServiceCollectionExtensions
                     services.AddShelfwardenNpgsqlHangfire(connectionString);
                     break;
 
-                case Constants.DatabaseProviders.MySql:
+                case DatabaseProviders.MySql:
                     if (string.IsNullOrEmpty(connectionString))
                     {
                         throw new InvalidOperationException("Hangfire requires a connection string when using MySql.");
@@ -145,152 +144,44 @@ internal static class ServiceCollectionExtensions
         /// </summary>
         public AuthProvider AddShelfwardenAuthentication(IConfiguration configuration)
         {
-            string providerName = configuration["Authentication:Provider"] ?? Constants.AuthProviders.Identity;
+            var provider = services.AddNetForgeAuthentication<ApplicationUser, ApplicationRole, ApplicationDbContextBase>(
+                configuration,
+                options =>
+                {
+                    options.Keycloak.RequireHttpsMetadata = false;
+                    options.Keycloak.CorrelationCookieSameSite = SameSiteMode.None;
+                    options.Keycloak.CorrelationCookieSecurePolicy = CookieSecurePolicy.Always;
+                    options.Keycloak.RedirectBrowserToPublicAuthority = true;
+                    options.RemoteFailurePath = "/error";
+                });
 
-            switch (providerName)
+            switch (provider)
             {
-                case Constants.AuthProviders.Identity:
-                    services.AddSingleton<IAuthProviderService>(new AuthProviderService(AuthProvider.Identity, null));
-                    services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
-                        {
-                            options.Password.RequireDigit = false;
-                            options.Password.RequireLowercase = false;
-                            options.Password.RequireUppercase = false;
-                            options.Password.RequireNonAlphanumeric = false;
-                            options.Password.RequiredLength = 6;
-                        })
-                        .AddEntityFrameworkStores<ApplicationDbContextBase>()
-                        .AddDefaultTokenProviders()
-                        .AddDefaultUI();
+                case AuthProvider.Identity:
                     services.AddScoped<IUserInfoService, AspNetIdentityUserInfoService>();
                     services.AddScoped<IAdminUserManagementService, AdminIdentityUserManagementService>();
-                    return AuthProvider.Identity;
+                    break;
 
-                case Constants.AuthProviders.Keycloak:
-                    AddKeycloak(services, configuration);
+                case AuthProvider.Keycloak:
                     services.AddScoped<IUserInfoService, KeycloakUserInfoService>();
-                    return AuthProvider.Keycloak;
+                    services.Configure<ForwardedHeadersOptions>(options =>
+                    {
+                        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                            | ForwardedHeaders.XForwardedProto
+                            | ForwardedHeaders.XForwardedHost;
+                        options.KnownProxies.Clear();
+                        options.KnownProxies.Add(IPAddress.Parse("127.0.0.1"));
+                        options.KnownProxies.Add(IPAddress.Parse("::1"));
+                        options.KnownProxies.Add(IPAddress.Parse("172.17.0.1"));
+                    });
+                    break;
 
-                case Constants.AuthProviders.None:
-                    services.AddSingleton<IAuthProviderService>(new AuthProviderService(AuthProvider.None, null));
-                    services.AddAuthentication(NoneAuthenticationHandler.SchemeName)
-                        .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, NoneAuthenticationHandler>(
-                            NoneAuthenticationHandler.SchemeName, _ => { });
-                    services.AddAuthorization();
-
-                    // Replace the HTTP-bound IUserContextService with the synthetic one.
-                    services.RemoveAll<IUserContextService>();
-                    services.AddSingleton<IUserContextService, NoneUserContextService>();
+                case AuthProvider.None:
                     services.AddSingleton<IUserInfoService, NoneUserInfoService>();
-                    return AuthProvider.None;
-
-                default:
-                    throw new InvalidOperationException(
-                        $"Unknown Authentication:Provider '{providerName}'. Valid values: " +
-                        "Identity, Keycloak, None.");
+                    break;
             }
+
+            return provider;
         }
-    }
-
-    private static void AddKeycloak(IServiceCollection services, IConfiguration configuration)
-    {
-        string? authority = configuration["Authentication:Keycloak:Authority"];
-        string? backchannelBase = configuration["Authentication:Keycloak:BackchannelBaseUrl"];
-
-        services.AddSingleton<IAuthProviderService>(new AuthProviderService(AuthProvider.Keycloak, authority));
-
-        services.AddAuthentication(options =>
-        {
-            options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-        })
-        .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
-        {
-            options.LoginPath = "/auth/login";
-            options.AccessDeniedPath = "/access-denied";
-        })
-        .AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
-        {
-            options.Authority = authority;
-            if (!string.IsNullOrWhiteSpace(backchannelBase) && !string.IsNullOrWhiteSpace(authority))
-            {
-                options.BackchannelHttpHandler = new KeycloakBackchannelHandler(authority, backchannelBase);
-            }
-
-            options.ClientId = configuration["Authentication:Keycloak:ClientId"];
-            options.ClientSecret = configuration["Authentication:Keycloak:ClientSecret"];
-            options.ResponseType = OpenIdConnectResponseType.Code;
-            options.SaveTokens = true;
-            options.GetClaimsFromUserInfoEndpoint = true;
-
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                NameClaimType = "preferred_username",
-            };
-
-            options.Scope.Clear();
-            options.Scope.Add("openid");
-            options.Scope.Add("profile");
-            options.Scope.Add("email");
-
-            options.RequireHttpsMetadata = false;
-            options.CorrelationCookie.SameSite = SameSiteMode.None;
-            options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-            options.NonceCookie.SameSite = SameSiteMode.None;
-            options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
-            options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.Disable;
-
-            string? publicOrigin = configuration["Authentication:Keycloak:PublicOrigin"];
-            bool useBackchannel = !string.IsNullOrWhiteSpace(backchannelBase);
-            if (!string.IsNullOrWhiteSpace(publicOrigin) || useBackchannel)
-            {
-                publicOrigin = publicOrigin?.TrimEnd('/');
-                options.Events.OnRedirectToIdentityProvider = context =>
-                {
-                    if (!string.IsNullOrWhiteSpace(publicOrigin))
-                    {
-                        context.ProtocolMessage.RedirectUri = publicOrigin + "/signin-oidc";
-                    }
-
-                    if (useBackchannel && !string.IsNullOrEmpty(authority))
-                    {
-                        string fullUrl = context.ProtocolMessage.CreateAuthenticationRequestUrl();
-                        int queryIndex = fullUrl.IndexOf('?');
-                        string query = queryIndex >= 0 ? fullUrl[queryIndex..] : string.Empty;
-                        string authUrl = authority.TrimEnd('/') + "/protocol/openid-connect/auth" + query;
-                        context.Response.Redirect(authUrl);
-                        context.HandleResponse();
-                    }
-                    return Task.CompletedTask;
-                };
-
-                if (!string.IsNullOrWhiteSpace(publicOrigin))
-                {
-                    options.Events.OnRedirectToIdentityProviderForSignOut = context =>
-                    {
-                        context.ProtocolMessage.PostLogoutRedirectUri = publicOrigin + "/signout-callback-oidc";
-                        return Task.CompletedTask;
-                    };
-                }
-            }
-
-            options.Events.OnRemoteFailure = context =>
-            {
-                context.Response.Redirect("/error");
-                context.HandleResponse();
-                return Task.CompletedTask;
-            };
-        });
-
-        services.Configure<ForwardedHeadersOptions>(options =>
-        {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
-                | ForwardedHeaders.XForwardedProto
-                | ForwardedHeaders.XForwardedHost;
-            options.KnownProxies.Clear();
-            options.KnownProxies.Add(IPAddress.Parse("127.0.0.1"));
-            options.KnownProxies.Add(IPAddress.Parse("::1"));
-            options.KnownProxies.Add(IPAddress.Parse("172.17.0.1"));
-        });
     }
 }

@@ -145,10 +145,7 @@ public class OpdsXmlTests
     [InlineData("Bell\u0007 and form\u000C feed", "Bell and form feed")]
     [InlineData("Tabs\tand\nnewlines\rstay", "Tabs\tand\nnewlines\rstay")]
     [InlineData("Non-characters \uFFFE\uFFFF gone", "Non-characters  gone")]
-    public void Sanitiser_removes_only_characters_xml_cannot_hold(string input, string expected)
-    {
-        Assert.Equal(expected, OpdsTextSanitizer.Clean(input));
-    }
+    public void Sanitiser_removes_only_characters_xml_cannot_hold(string input, string expected) => Assert.Equal(expected, OpdsTextSanitizer.Clean(input));
 
     // Not an InlineData case: xUnit's theory serialisation turns lone surrogates into U+FFFD.
     [Fact]
@@ -180,10 +177,7 @@ public class OpdsXmlTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("  \0  ")]
-    public void CleanOrNull_treats_blank_as_missing(string? input)
-    {
-        Assert.Null(OpdsTextSanitizer.CleanOrNull(input));
-    }
+    public void CleanOrNull_treats_blank_as_missing(string? input) => Assert.Null(OpdsTextSanitizer.CleanOrNull(input));
 
     [Fact]
     public void Html_descriptions_become_plain_paragraphs()

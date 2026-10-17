@@ -1,10 +1,13 @@
 using ElectronNET.API;
 using ElectronNET.API.Entities;
 using Hangfire;
+using Heroicsoft.NetForge.Abstractions.Data;
+using Heroicsoft.NetForge.Abstractions.Navigation;
+using Heroicsoft.NetForge.Abstractions.Setup;
+using Heroicsoft.NetForge.Components.Bootstrap;
+using Heroicsoft.NetForge.Hangfire;
 using LogVue;
-using Microsoft.AspNetCore.Authorization;
 using Serilog;
-using Shelfwarden;
 using Shelfwarden.Desktop;
 using Shelfwarden.Infrastructure;
 
@@ -40,8 +43,8 @@ Directory.CreateDirectory(appDataDir);
 // switch the desktop app to Postgres or Identity.
 var overrides = new Dictionary<string, string?>
 {
-    ["Database:Provider"] = Shelfwarden.Constants.DatabaseProviders.Sqlite,
-    ["Authentication:Provider"] = Shelfwarden.Constants.AuthProviders.None,
+    ["Database:Provider"] = DatabaseProviders.Sqlite,
+    ["Authentication:Provider"] = AuthProviderNames.None,
     ["ConnectionStrings:DefaultConnection"] = $"Data Source={Path.Combine(appDataDir, "shelfwarden.db")}",
     ["Hangfire:SqlitePath"] = Path.Combine(appDataDir, "hangfire.db"),
     ["Storage:CoversPath"] = Path.Combine(appDataDir, "covers"),
@@ -91,11 +94,28 @@ builder.Services.AddHttpClient();
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthorization();
+builder.Services.AddNetForgeBootstrapComponents(ui => ui.ThemeStorageKey = Shelfwarden.Constants.ClientThemeLocalStorageKey);
+builder.Services.Configure<ForgeShellOptions>(shell =>
+{
+    shell.Brand = "Shelfwarden";
+    shell.LogoUrl = "img/Logo.png";
+    shell.LogoDarkUrl = "img/Logo_Light.png";
+    shell.MarkUrl = "img/Icon.png";
+    shell.SearchPlaceholder = "Search books, authors, series...";
+    shell.UserMenuItems.Add(new ForgeNavItem { Title = "E-reader access", Href = "/settings/opds", Icon = "bi-tablet" });
+});
+
+// The sidebar is data (counts, shelves, reading lists), so it is supplied per circuit rather than
+// as static sections.
+builder.Services.AddScoped<IShellNavigation, ShelfwardenNavigation>();
+
+// Fresh installs have no shelves yet. The wizard is where the user picks book folders.
+builder.Services.AddNetForgeSetupGate();
+builder.Services.AddScoped<ISetupStatus, ServerSettingsSetupStatus>();
 
 builder.Services.AddShelfwardenDatabase(builder.Configuration);
 builder.Services.AddShelfwardenRepositories();
 builder.Services.AddShelfwardenServices();
-builder.Services.AddScoped<ISidebarNavRefreshService, SidebarNavRefreshService>();
 var authProvider = builder.Services.AddShelfwardenAuthentication(builder.Configuration);
 
 builder.Services.AddShelfwardenHangfire(builder.Configuration);
@@ -110,7 +130,7 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 app.UseStaticFiles();
-// Required in Production for Blazor's @Assets[...] (logo, theme-init.js, and the other
+// Required in Production for Blazor's @Assets[...] (logo and the other
 // fingerprinted scripts in App.razor). Those URLs are not served by UseStaticFiles.
 app.MapStaticAssets();
 
@@ -120,15 +140,14 @@ app.UseAuthorization();
 
 app.MapLogVue().RequireAuthorization(new AuthorizeAttribute
 {
-    Roles = Shelfwarden.Constants.Roles.Administrator
+    Roles = WellKnownRoles.Administrator
 });
 
-// Fresh installs have no shelves yet. The wizard is where the user picks book folders.
-app.UseMiddleware<SetupRedirectMiddleware>();
+app.UseNetForgeSetupGate();
 
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
-    Authorization = [new HangfireAuthorizationFilter()],
+    Authorization = [new AdministratorDashboardAuthorizationFilter()],
 });
 
 app.MapRazorComponents<Shelfwarden.Components.App>()

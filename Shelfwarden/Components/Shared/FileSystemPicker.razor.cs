@@ -6,6 +6,7 @@ public partial class FileSystemPicker : ComponentBase
 {
     // Sentinel path when on Windows with no explicit RootPath — "This PC" drive list view.
     private const string WindowsVirtualRoot = "\x00DRIVES";
+
     private readonly List<Breadcrumb> _breadcrumbs = [];
     private readonly List<FileSystemEntry> _entries = [];
     private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -142,10 +143,7 @@ public partial class FileSystemPicker : ComponentBase
         }
     }
 
-    private void ClearMultiSelection()
-    {
-        _selectedPaths.Clear();
-    }
+    private void ClearMultiSelection() => _selectedPaths.Clear();
 
     private void Confirm()
     {
@@ -209,15 +207,7 @@ public partial class FileSystemPicker : ComponentBase
 
     private void HandleOverlayClick() => Cancel();
 
-    private bool IsEntrySelected(FileSystemEntry entry)
-    {
-        if (IsMultiFile && !entry.IsDirectory)
-        {
-            return _selectedPaths.Contains(entry.FullPath);
-        }
-
-        return _selectedPath == entry.FullPath;
-    }
+    private bool IsEntrySelected(FileSystemEntry entry) => IsMultiFile && !entry.IsDirectory ? _selectedPaths.Contains(entry.FullPath) : _selectedPath == entry.FullPath;
 
     private void LoadEntries(string path)
     {

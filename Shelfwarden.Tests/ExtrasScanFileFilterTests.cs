@@ -16,8 +16,5 @@ public class ExtrasScanFileFilterTests
     [InlineData(@"D:\extras\@tmp\file.txt", false)]
     [InlineData(@"D:\extras\__MACOSX\author\._file.pdf", false)]
     [InlineData(@"D:\extras\.synologyworkingdirectory", false)]
-    public void ShouldInclude_respects_system_and_nas_paths(string path, bool expected)
-    {
-        Assert.Equal(expected, ExtrasScanFileFilter.ShouldInclude(path));
-    }
+    public void ShouldInclude_respects_system_and_nas_paths(string path, bool expected) => Assert.Equal(expected, ExtrasScanFileFilter.ShouldInclude(path));
 }

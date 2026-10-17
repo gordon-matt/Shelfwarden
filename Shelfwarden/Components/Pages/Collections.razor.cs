@@ -48,7 +48,7 @@ public partial class Collections : ComponentBase
             if (result.IsSuccess)
             {
                 creating = false;
-                SidebarNavRefresh.NotifyNavigationDataChanged();
+                SidebarRefresh.NotifyChanged();
                 NavigationManager.NavigateTo($"collections/{result.Value.Id}");
             }
             else

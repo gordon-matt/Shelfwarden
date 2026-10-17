@@ -16,6 +16,6 @@ public interface IServerSettingsService
     /// <summary>Persist a single setting and invalidate the in-memory cache. Admin-only.</summary>
     Task<Result> SetAsync(string key, string? value, CancellationToken cancellationToken = default);
 
-    /// <summary>Convenience wrapper that validates against <see cref="Constants.BootswatchThemes.All"/>.</summary>
+    /// <summary>Convenience wrapper that validates against <c>BootswatchThemes.All</c>.</summary>
     Task<Result> SetThemeAsync(string theme, CancellationToken cancellationToken = default);
 }

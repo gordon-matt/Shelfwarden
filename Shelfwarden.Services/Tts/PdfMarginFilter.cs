@@ -182,21 +182,15 @@ public static class PdfMarginFilter
         counts[key] = counts.GetValueOrDefault(key) + 1;
     }
 
-    private static List<string> NonEmptyLines(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return [];
-        }
-
-        return text
+    private static List<string> NonEmptyLines(string? text) => string.IsNullOrWhiteSpace(text)
+            ? []
+            : text
             .Replace("\r\n", "\n")
             .Replace('\r', '\n')
             .Split('\n')
             .Select(l => l.Trim())
             .Where(l => l.Length > 0)
             .ToList();
-    }
 
     /// <summary>
     /// A line that is nothing but a page number — either Arabic ("15") or Roman ("xiv"). Single-letter

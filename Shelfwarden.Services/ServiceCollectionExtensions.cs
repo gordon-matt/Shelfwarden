@@ -22,7 +22,6 @@ public static class ServiceCollectionExtensions
         public IServiceCollection AddShelfwardenServices()
         {
             services.AddHttpContextAccessor();
-            services.AddScoped<IUserContextService, BlazorAwareUserContextService>();
             services.AddScoped<IShelfAccessService, ShelfAccessService>();
 
             services.AddScoped<IShelfService, ShelfService>();

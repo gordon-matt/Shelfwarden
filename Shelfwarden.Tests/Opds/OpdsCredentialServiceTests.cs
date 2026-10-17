@@ -136,30 +136,30 @@ public class OpdsCredentialServiceTests : IClassFixture<TestDbFixture>
     public async Task Identity_role_changes_apply_to_existing_keys()
     {
         using var scope = fixture.CreateScope();
-        var user = NewUser(Constants.Roles.Administrator);
+        var user = NewUser(WellKnownRoles.Administrator);
         var harness = new Harness(scope, user);
         string key = (await harness.Service.GenerateAsync()).Value.Key;
 
-        harness.SetStoredUser(user with { Roles = [Constants.Roles.User] });
+        harness.SetStoredUser(user with { Roles = [WellKnownRoles.User] });
 
-        Assert.Equal([Constants.Roles.User], (await harness.Service.ValidateAsync(user.UserName, key)).Value.Roles);
+        Assert.Equal([WellKnownRoles.User], (await harness.Service.ValidateAsync(user.UserName, key)).Value.Roles);
     }
 
     [Fact]
     public async Task Without_a_local_user_store_the_session_snapshot_is_used_and_refreshed()
     {
         using var scope = fixture.CreateScope();
-        var user = NewUser(Constants.Roles.Administrator);
+        var user = NewUser(WellKnownRoles.Administrator);
         var harness = new Harness(scope, user, AuthProvider.Keycloak);
         string key = (await harness.Service.GenerateAsync()).Value.Key;
 
-        Assert.Equal([Constants.Roles.Administrator], (await harness.Service.ValidateAsync(user.UserName, key)).Value.Roles);
+        Assert.Equal([WellKnownRoles.Administrator], (await harness.Service.ValidateAsync(user.UserName, key)).Value.Roles);
 
         // A later visit to the OPDS page with fewer roles re-captures them.
-        var demoted = new Harness(scope, user with { Roles = [Constants.Roles.User] }, AuthProvider.Keycloak);
+        var demoted = new Harness(scope, user with { Roles = [WellKnownRoles.User] }, AuthProvider.Keycloak);
         Assert.True((await demoted.Service.GetCurrentAsync()).IsSuccess);
 
-        Assert.Equal([Constants.Roles.User], (await demoted.Service.ValidateAsync(user.UserName, key)).Value.Roles);
+        Assert.Equal([WellKnownRoles.User], (await demoted.Service.ValidateAsync(user.UserName, key)).Value.Roles);
         harness.UserInfo.Verify(x => x.GetUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -174,7 +174,7 @@ public class OpdsCredentialServiceTests : IClassFixture<TestDbFixture>
         Assert.Equal(ResultStatus.Forbidden, (await memberService.ListAllAsync()).Status);
         Assert.Equal(ResultStatus.Forbidden, (await memberService.RevokeForUserAsync(member.Id)).Status);
 
-        var admin = new Harness(scope, NewUser(Constants.Roles.Administrator), cache: null, storedUsers: [member]);
+        var admin = new Harness(scope, NewUser(WellKnownRoles.Administrator), cache: null, storedUsers: [member]);
         var all = (await admin.Service.ListAllAsync()).Value;
         Assert.Contains(all, c => c.UserId == member.Id && c.UserName == member.UserName);
 
@@ -193,7 +193,7 @@ public class OpdsCredentialServiceTests : IClassFixture<TestDbFixture>
         Assert.Equal(ResultStatus.Unauthorized, (await harness.Service.RevokeAsync()).Status);
     }
 
-    private static UserInfo NewUser(string role = Constants.Roles.User)
+    private static UserInfo NewUser(string role = WellKnownRoles.User)
     {
         string id = Guid.NewGuid().ToString("N");
         return new UserInfo(id, $"reader-{id[..8]}", $"reader-{id[..8]}@example.com", null, [role]);
@@ -222,7 +222,7 @@ public class OpdsCredentialServiceTests : IClassFixture<TestDbFixture>
             userContext.Setup(x => x.GetCurrentUserId()).Returns(signedIn ? caller.Id : null);
             userContext.Setup(x => x.GetCurrentUserName()).Returns(signedIn ? caller.UserName : null);
             userContext.Setup(x => x.IsAuthenticated()).Returns(signedIn);
-            userContext.Setup(x => x.IsAdministrator()).Returns(signedIn && caller.IsInRole(Constants.Roles.Administrator));
+            userContext.Setup(x => x.IsAdministrator()).Returns(signedIn && caller.IsInRole(WellKnownRoles.Administrator));
             userContext.Setup(x => x.GetRoleNames()).Returns(signedIn ? caller.Roles : []);
 
             var authProvider = new Mock<IAuthProviderService>();

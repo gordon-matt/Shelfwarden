@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Humanizer;
-using Shelfwarden.Extensions;
 using Shelfwarden.Models.Metadata;
 using Shelfwarden.Services.Metadata;
 using Shelfwarden.Services.Storage;

@@ -1,4 +1,3 @@
-using System.Net.Http;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
 using SixLabors.ImageSharp;

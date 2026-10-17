@@ -716,9 +716,9 @@ public class UniverseService(
             if (existing.Count > 0)
             {
                 await universeBookRepository.DeleteAsync(existing);
-                foreach (var affected in existing.Select(ub => (ub.UniverseId, ub.TimelineDateId)).Distinct())
+                foreach (var (UniverseId, TimelineDateId) in existing.Select(ub => (ub.UniverseId, ub.TimelineDateId)).Distinct())
                 {
-                    await CompactGroupOrderAsync(affected.UniverseId, affected.TimelineDateId, cancellationToken);
+                    await CompactGroupOrderAsync(UniverseId, TimelineDateId, cancellationToken);
                 }
             }
 
@@ -746,9 +746,9 @@ public class UniverseService(
         if (stale.Count > 0)
         {
             await universeBookRepository.DeleteAsync(stale);
-            foreach (var affected in stale.Select(ub => (ub.UniverseId, ub.TimelineDateId)).Distinct())
+            foreach (var (UniverseId, TimelineDateId) in stale.Select(ub => (ub.UniverseId, ub.TimelineDateId)).Distinct())
             {
-                await CompactGroupOrderAsync(affected.UniverseId, affected.TimelineDateId, cancellationToken);
+                await CompactGroupOrderAsync(UniverseId, TimelineDateId, cancellationToken);
             }
         }
 
@@ -933,15 +933,9 @@ public class UniverseService(
         string.IsNullOrWhiteSpace(name) ? null : name.Trim();
 
     /// <summary>Auto-derived label for a numeric-only date, e.g. <c>1998</c> or <c>1998-2003</c>.</summary>
-    private static string FormatYearRange(int? yearFrom, int? yearTo)
-    {
-        if (yearFrom is int f && yearTo is int t && f != t)
-        {
-            return $"{f}-{t}";
-        }
-
-        return (yearFrom ?? yearTo)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
-    }
+    private static string FormatYearRange(int? yearFrom, int? yearTo) => yearFrom is int f && yearTo is int t && f != t
+            ? $"{f}-{t}"
+            : (yearFrom ?? yearTo)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
 
     private static UniverseTimelineDateDto ToDateDto(TimelineDate td, int bookCount) =>
         new(td.Id, td.Name, td.Order, td.YearFrom, td.YearTo, bookCount);
@@ -1328,18 +1322,18 @@ public class UniverseService(
             .ToList();
 
         var merged = new List<(int Start, int End, List<UniverseTimelineEntryDto> Entries)>();
-        foreach (var range in ranges)
+        foreach (var (Start, End, Entries) in ranges)
         {
-            if (merged.Count > 0 && range.Start <= merged[^1].End)
+            if (merged.Count > 0 && Start <= merged[^1].End)
             {
                 var last = merged[^1];
-                last.End = Math.Max(last.End, range.End);
-                last.Entries.AddRange(range.Entries);
+                last.End = Math.Max(last.End, End);
+                last.Entries.AddRange(Entries);
                 merged[^1] = last;
             }
             else
             {
-                merged.Add((range.Start, range.End, range.Entries.ToList()));
+                merged.Add((Start, End, Entries.ToList()));
             }
         }
 

@@ -94,10 +94,12 @@ public partial class UniverseDetail : ComponentBase
 
     private async Task DeleteAsync()
     {
-        bool ok = await JS.InvokeAsync<bool>(
-            "confirm",
+        bool ok = await Dialogs.ConfirmAsync(
+            "Delete universe",
             $"Delete universe \"{universe?.Name}\"? Its books and series stay in the library — only the "
-            + "universe, its timeline and its reading orders are removed.");
+            + "universe, its timeline and its reading orders are removed.",
+            "Delete",
+            isDestructive: true);
         if (!ok)
         {
             return;
@@ -106,7 +108,7 @@ public partial class UniverseDetail : ComponentBase
         var result = await UniverseService.DeleteAsync(Id);
         if (result.IsSuccess)
         {
-            SidebarNavRefresh.NotifyNavigationDataChanged();
+            SidebarRefresh.NotifyChanged();
             NavigationManager.NavigateTo("universes");
         }
     }
@@ -337,7 +339,7 @@ public partial class UniverseDetail : ComponentBase
             : $"Delete the timeline date \"{label}\"? Its {bookCount} book{(bookCount == 1 ? "" : "s")} "
               + "stay in the universe and go back to being unscheduled.";
 
-        if (!await JS.InvokeAsync<bool>("confirm", question))
+        if (!await Dialogs.ConfirmAsync("Confirm", question))
         {
             return;
         }
@@ -401,10 +403,12 @@ public partial class UniverseDetail : ComponentBase
     /// </summary>
     private async Task RemoveSeriesAsync(UniverseSeriesDto series)
     {
-        bool ok = await JS.InvokeAsync<bool>(
-            "confirm",
+        bool ok = await Dialogs.ConfirmAsync(
+            "Remove series",
             $"Remove \"{series.Name}\" from this universe? Its books stay on the timeline unless you "
-            + "remove them too.");
+            + "remove them too.",
+            "Remove",
+            isDestructive: true);
         if (!ok)
         {
             return;
@@ -432,7 +436,7 @@ public partial class UniverseDetail : ComponentBase
             if (result.IsSuccess)
             {
                 editing = false;
-                SidebarNavRefresh.NotifyNavigationDataChanged();
+                SidebarRefresh.NotifyChanged();
                 await LoadAsync();
             }
             else

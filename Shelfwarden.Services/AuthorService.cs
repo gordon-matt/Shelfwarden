@@ -1,4 +1,3 @@
-using System.Net.Http;
 using Shelfwarden.Services.Metadata;
 using Shelfwarden.Services.Metadata.Authors;
 using Shelfwarden.Services.Storage;
@@ -143,7 +142,7 @@ public class AuthorService(
             return Result.NotFound($"Author {id} not found.");
         }
 
-        AuthorRefDto? primaryAuthor = author.PrimaryAuthor is { } primary
+        var primaryAuthor = author.PrimaryAuthor is { } primary
             ? new AuthorRefDto(primary.Id, primary.Name)
             : null;
 
@@ -668,7 +667,7 @@ public class AuthorService(
             trimmed = "https://" + trimmed;
         }
 
-        return Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? uri)
+        return Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
             && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
             ? uri.ToString()
             : null;
@@ -758,8 +757,8 @@ public class AuthorService(
 
         // The bio and photo can come from two different candidates (e.g. Goodreads photo + OpenLibrary
         // bio). Each is optional, but at least one usable source must be supplied.
-        ExternalAuthorMatchDto? bioMatch = request?.BiographyMatch is { } b && !string.IsNullOrWhiteSpace(b.Biography) ? b : null;
-        ExternalAuthorMatchDto? photoMatch = request?.PhotoMatch is { } p && !string.IsNullOrWhiteSpace(p.PhotoUrl) ? p : null;
+        var bioMatch = request?.BiographyMatch is { } b && !string.IsNullOrWhiteSpace(b.Biography) ? b : null;
+        var photoMatch = request?.PhotoMatch is { } p && !string.IsNullOrWhiteSpace(p.PhotoUrl) ? p : null;
 
         if (bioMatch is null && photoMatch is null)
         {

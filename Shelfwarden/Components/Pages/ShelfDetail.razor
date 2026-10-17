@@ -5,7 +5,7 @@
 @inject IShelfService ShelfService
 @inject IBookService BookService
 @inject IScanStatusService ScanStatusService
-@inject ISidebarNavRefreshService SidebarNavRefresh
+@inject SidebarRefresh SidebarRefresh
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @inject IConfiguration Configuration
@@ -39,7 +39,7 @@ else
                     <i class="bi bi-list-ul"></i>
                 </button>
             </div>
-        <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <AuthorizeView Roles="@WellKnownRoles.Administrator">
             <Authorized>
                 <div>
                     <button class="btn btn-outline-primary me-1"

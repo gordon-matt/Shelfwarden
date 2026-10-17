@@ -540,12 +540,7 @@ public class ReadingListService(
             CancellationToken = cancellationToken,
         }, b => b.Id)).ToList();
 
-        if (bookIds.Count == 0)
-        {
-            return Result.Success(0);
-        }
-
-        return await AddBooksAsync(readingListId, bookIds, cancellationToken);
+        return bookIds.Count == 0 ? Result.Success(0) : await AddBooksAsync(readingListId, bookIds, cancellationToken);
     }
 
     public async Task<Result> RemoveBookAsync(int readingListId, int bookId, CancellationToken cancellationToken = default)
@@ -691,21 +686,15 @@ public class ReadingListService(
     /// The set of books a universe-scoped list is allowed to contain, or <c>null</c> for an
     /// ordinary personal list, which may contain anything.
     /// </summary>
-    private async Task<HashSet<int>?> LoadUniverseBookIdsAsync(ReadingList list, CancellationToken cancellationToken)
-    {
-        if (list.UniverseId is not int universeId)
-        {
-            return null;
-        }
-
-        return (await universeBookRepository.FindAsync(
+    private async Task<HashSet<int>?> LoadUniverseBookIdsAsync(ReadingList list, CancellationToken cancellationToken) => list.UniverseId is not int universeId
+            ? null
+            : (await universeBookRepository.FindAsync(
             new SearchOptions<UniverseBook>
             {
                 Query = ub => ub.UniverseId == universeId,
                 CancellationToken = cancellationToken,
             },
             ub => ub.BookId)).ToHashSet();
-    }
 
     private async Task<Dictionary<int, List<CardBannerSupport.BookCoverSource>>> LoadReadingListBannerSourcesAsync(
         IReadOnlyList<int> listIds,

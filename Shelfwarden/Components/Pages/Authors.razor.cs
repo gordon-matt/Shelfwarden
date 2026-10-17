@@ -43,19 +43,16 @@ public partial class Authors : ComponentBase
     private static int? ParseShelfFilter(string raw)
         => string.IsNullOrWhiteSpace(raw) ? null : int.TryParse(raw, out int id) ? id : null;
 
-    private void ApplySort()
+    private void ApplySort() => authors = authorSortBy switch
     {
-        authors = authorSortBy switch
-        {
-            AuthorSortBy.BookCount => authorResults
-                .OrderByDescending(a => a.BookCount)
-                .ThenBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList(),
-            _ => authorResults
-                .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList(),
-        };
-    }
+        AuthorSortBy.BookCount => authorResults
+            .OrderByDescending(a => a.BookCount)
+            .ThenBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList(),
+        _ => authorResults
+            .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList(),
+    };
 
     private void ClearSelection() => selectedAuthorIds.Clear();
 
@@ -87,9 +84,11 @@ public partial class Authors : ComponentBase
         string primaryName = mergeCandidates.FirstOrDefault(c => c.Id == mergePrimaryAuthorId)?.Name ?? "Primary";
         var others = mergeCandidates.Where(c => c.Id != mergePrimaryAuthorId).Select(c => c.Id).ToList();
 
-        if (!await JSRuntime.InvokeAsync<bool>(
-                "shelfwarden.confirmDialog",
-                $"Merge into \"{primaryName}\"? Other selected author records will be deleted. This is not reversible."))
+        if (!await Dialogs.ConfirmAsync(
+                "Merge authors",
+                $"Merge into \"{primaryName}\"? Other selected author records will be deleted. This is not reversible.",
+                "Merge",
+                isDestructive: true))
         {
             return;
         }
@@ -97,7 +96,7 @@ public partial class Authors : ComponentBase
         var result = await AuthorService.MergeAuthorsAsync(mergePrimaryAuthorId, others);
         if (!result.IsSuccess)
         {
-            await JSRuntime.InvokeVoidAsync("alert", result.Errors.FirstOrDefault() ?? "Merge failed.");
+            Toasts.Error(result.Errors.FirstOrDefault() ?? "Merge failed.");
             return;
         }
 
@@ -115,9 +114,11 @@ public partial class Authors : ComponentBase
         }
 
         int n = selectedAuthorIds.Count;
-        if (!await JSRuntime.InvokeAsync<bool>(
-                "shelfwarden.confirmDialog",
-                $"Delete {n} author record(s)? Every book link to those authors will be removed and the author entries deleted. This is not reversible."))
+        if (!await Dialogs.ConfirmAsync(
+                "Delete authors",
+                $"Delete {n} author record(s)? Every book link to those authors will be removed and the author entries deleted. This is not reversible.",
+                "Delete",
+                isDestructive: true))
         {
             return;
         }
@@ -125,7 +126,7 @@ public partial class Authors : ComponentBase
         var result = await AuthorService.DeleteAuthorsAsync(selectedAuthorIds.ToList());
         if (!result.IsSuccess)
         {
-            await JSRuntime.InvokeVoidAsync("alert", result.Errors.FirstOrDefault() ?? "Delete failed.");
+            Toasts.Error(result.Errors.FirstOrDefault() ?? "Delete failed.");
             return;
         }
 

@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Text.Json;
 using HtmlAgilityPack;
 
@@ -138,20 +137,14 @@ public sealed class GoodreadsAuthorMetadataProvider(
         return preferred;
     }
 
-    private static string? ReadAuthorId(JsonElement author)
-    {
-        if (!author.TryGetProperty("id", out var idEl))
-        {
-            return null;
-        }
-
-        return idEl.ValueKind switch
-        {
-            JsonValueKind.Number when idEl.TryGetInt64(out long n) => n.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            JsonValueKind.String => MetadataNormalization.NullIfBlank(idEl.GetString()),
-            _ => null,
-        };
-    }
+    private static string? ReadAuthorId(JsonElement author) => !author.TryGetProperty("id", out var idEl)
+            ? null
+            : idEl.ValueKind switch
+            {
+                JsonValueKind.Number when idEl.TryGetInt64(out long n) => n.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                JsonValueKind.String => MetadataNormalization.NullIfBlank(idEl.GetString()),
+                _ => null,
+            };
 
     private ExternalAuthorMatchDto? ParseAuthor(HtmlDocument doc, string goodreadsId)
     {

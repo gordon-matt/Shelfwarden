@@ -60,8 +60,5 @@ public class OpdsLinkBuilderTests
     [InlineData("三体", "/b/x", EbookFormat.Epub, "三体.epub")]
     [InlineData("???", "/b/x.pdf", EbookFormat.Pdf, "book-42.pdf")]
     [InlineData(null, "/books/original-name.epub", EbookFormat.Epub, "original-name.epub")]
-    public void Download_file_names_are_safe_on_any_filesystem(string? title, string path, EbookFormat format, string expected)
-    {
-        Assert.Equal(expected, BookFileNames.BuildDownloadFileName(42, title, path, format));
-    }
+    public void Download_file_names_are_safe_on_any_filesystem(string? title, string path, EbookFormat format, string expected) => Assert.Equal(expected, BookFileNames.BuildDownloadFileName(42, title, path, format));
 }

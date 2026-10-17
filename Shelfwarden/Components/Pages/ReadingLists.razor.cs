@@ -47,7 +47,7 @@ public partial class ReadingLists : ComponentBase
             if (result.IsSuccess)
             {
                 creating = false;
-                SidebarNavRefresh.NotifyNavigationDataChanged();
+                SidebarRefresh.NotifyChanged();
                 NavigationManager.NavigateTo($"reading-lists/{result.Value.Id}");
             }
             else

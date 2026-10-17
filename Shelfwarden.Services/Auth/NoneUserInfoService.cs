@@ -2,24 +2,28 @@ namespace Shelfwarden.Services.Auth;
 
 /// <summary>
 /// User info implementation for the "None" authentication mode (desktop / kiosk). There is
-/// exactly one synthetic administrator user, identified by <see cref="Constants.DefaultUserId"/>.
+/// exactly one synthetic administrator user. The id, name and roles come from the user context,
+/// which the authentication package fills from <c>Authentication:None</c>.
 /// </summary>
-public class NoneUserInfoService : IUserInfoService
+public sealed class NoneUserInfoService(IUserContextService userContext) : IUserInfoService
 {
-    private static readonly UserInfo DefaultUser = new(
-        Constants.DefaultUserId,
-        Constants.DefaultUserName,
+    private UserInfo DefaultUser => new(
+        userContext.GetCurrentUserId()!,
+        userContext.GetCurrentUserName()!,
         Email: null,
-        DisplayName: Constants.DefaultUserName,
-        Roles: [Constants.Roles.Administrator]);
+        DisplayName: userContext.GetCurrentUserName()!,
+        Roles: [.. userContext.GetRoleNames()]);
 
     public Task<IReadOnlyDictionary<string, UserInfo>> GetUserInfoAsync(
         IEnumerable<string> userIds,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyDictionary<string, UserInfo> result = userIds.Contains(Constants.DefaultUserId)
-            ? new Dictionary<string, UserInfo> { [Constants.DefaultUserId] = DefaultUser }
+        var user = DefaultUser;
+
+        IReadOnlyDictionary<string, UserInfo> result = userIds.Contains(user.Id)
+            ? new Dictionary<string, UserInfo> { [user.Id] = user }
             : [];
+
         return Task.FromResult(result);
     }
 
@@ -27,5 +31,9 @@ public class NoneUserInfoService : IUserInfoService
         => Task.FromResult<IReadOnlyList<UserInfo>>([DefaultUser]);
 
     public Task<UserInfo?> GetUserAsync(string userId, CancellationToken cancellationToken = default)
-        => Task.FromResult<UserInfo?>(userId == Constants.DefaultUserId ? DefaultUser : null);
+    {
+        var user = DefaultUser;
+
+        return Task.FromResult(userId == user.Id ? user : null);
+    }
 }

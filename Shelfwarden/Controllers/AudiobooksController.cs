@@ -226,7 +226,7 @@ public class AudiobooksController(
     }
 
     [HttpGet("voices/{voiceName}/preview")]
-    [Authorize(Roles = Constants.Roles.Administrator)]
+    [Authorize(Roles = WellKnownRoles.Administrator)]
     public async Task<IActionResult> GetVoicePreview(string voiceName, CancellationToken cancellationToken)
     {
         var result = await audiobookService.EnsureVoiceSampleAsync(voiceName, cancellationToken);

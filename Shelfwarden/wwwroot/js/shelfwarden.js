@@ -2,66 +2,6 @@
 // is a single-purpose helper; keep things flat so the C# call sites read naturally.
 window.shelfwarden = {
     _observers: new Map(),
-    _themeModalDismissRegistered: new Set(),
-    /**
-     * Live-swap the active Bootswatch stylesheet without a full page reload.
-     * @param {string} href Path under wwwroot to the new theme's bootstrap.min.css.
-     * @param {string} [dataBsTheme] Optional "dark" | "light" — must match Bootswatch dark vs light
-     *   themes so Bootstrap + Bootswatch CSS variable overrides (e.g. emphasis + sidebar) apply.
-     */
-    setThemeHref: function (href, dataBsTheme) {
-        var link = document.getElementById('theme-stylesheet');
-        if (link) {
-            link.setAttribute('href', href);
-        }
-        if (dataBsTheme === 'dark' || dataBsTheme === 'light') {
-            document.documentElement.setAttribute('data-bs-theme', dataBsTheme);
-        }
-    },
-
-    /** Raw value from localStorage (may be empty or invalid — validate in .NET). */
-    getStoredTheme: function () {
-        try {
-            return localStorage.getItem('shelfwarden.theme') || '';
-        } catch (e) {
-            return '';
-        }
-    },
-
-    setStoredTheme: function (theme) {
-        try {
-            localStorage.setItem('shelfwarden.theme', theme);
-        } catch (e) {
-            /* private mode / blocked storage */
-        }
-    },
-
-    /** One-time: wires Bootstrap's hidden.bs.modal so Blazor can revert an uncommitted theme preview. */
-    registerThemeModalDismiss: function (modalId, dotNetRef) {
-        if (window.shelfwarden._themeModalDismissRegistered.has(modalId)) {
-            return;
-        }
-        var el = document.getElementById(modalId);
-        if (!el) {
-            return;
-        }
-        el.addEventListener('hidden.bs.modal', function () {
-            dotNetRef.invokeMethodAsync('OnThemeModalDismissed');
-        });
-        window.shelfwarden._themeModalDismissRegistered.add(modalId);
-    },
-
-    hideModal: function (modalId) {
-        var el = document.getElementById(modalId);
-        if (!el || typeof bootstrap === 'undefined') {
-            return;
-        }
-        var inst = bootstrap.Modal.getInstance(el);
-        if (inst) {
-            inst.hide();
-        }
-    },
-
     observeInfiniteScroll: function (key, element, dotNetRef, callbackMethodName) {
         if (!key || !element || !dotNetRef || !callbackMethodName) {
             return;
@@ -94,11 +34,6 @@ window.shelfwarden = {
             observer.disconnect();
             this._observers.delete(key);
         }
-    },
-
-    /** Native confirm — Blazor uses this so message escaping stays on the .NET side */
-    confirmDialog: function (message) {
-        return window.confirm(message);
     }
 };
 

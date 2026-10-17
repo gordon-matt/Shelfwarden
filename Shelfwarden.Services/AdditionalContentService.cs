@@ -1,6 +1,4 @@
 using LinqKit;
-using Microsoft.EntityFrameworkCore;
-using Shelfwarden.Models;
 using Shelfwarden.Services.Storage;
 
 namespace Shelfwarden.Services;
@@ -650,12 +648,7 @@ public class AdditionalContentService(
             CancellationToken = cancellationToken,
         });
 
-        if (item is null)
-        {
-            return Result.NotFound($"Content item {id} not found.");
-        }
-
-        return Result.Success(ToDto(item));
+        return item is null ? (Result<AdditionalContentItemDto>)Result.NotFound($"Content item {id} not found.") : Result.Success(ToDto(item));
     }
 
     /// <inheritdoc />

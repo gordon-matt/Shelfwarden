@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Text.Json;
 using OpenLibraryNET.Loader;
 
@@ -141,12 +140,9 @@ public sealed class OpenLibraryAuthorMetadataProvider(
         await using var stream = await response.Content.ReadAsStreamAsync();
         using var doc = await JsonDocument.ParseAsync(stream);
 
-        if (!doc.RootElement.TryGetProperty("docs", out var docs))
-        {
-            return [];
-        }
-
-        return docs.EnumerateArray()
+        return !doc.RootElement.TryGetProperty("docs", out var docs)
+            ? []
+            : docs.EnumerateArray()
             .Select(d => d.TryGetProperty("title", out var t) ? t.GetString()?.Trim() : null)
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .Take(count)

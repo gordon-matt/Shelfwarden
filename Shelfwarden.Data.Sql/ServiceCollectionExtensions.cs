@@ -1,9 +1,8 @@
 using Hangfire;
 using Hangfire.SqlServer;
+using LogVue.Data.Sql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-
-using LogVue.Data.Sql;
 
 namespace Shelfwarden.Data.Sql;
 

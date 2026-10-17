@@ -301,22 +301,14 @@ public partial class ExtraContent : ComponentBase
             var result = await ContentService.RegisterExternalFilesAsync(paths);
             if (result.IsSuccess)
             {
-                RegisterExternalFilesResult r = result.Value;
-                if (r.Added == 0 && r.Skipped == 0)
-                {
-                    actionMessage = "No files were registered.";
-                }
-                else if (r.Added == 0)
-                {
-                    actionMessage =
-                        $"No new files added. {r.Skipped} path(s) skipped (missing, duplicate, or not a file).";
-                }
-                else
-                {
-                    actionMessage = r.Skipped > 0
+                var r = result.Value;
+                actionMessage = r.Added == 0 && r.Skipped == 0
+                    ? "No files were registered."
+                    : r.Added == 0
+                        ? $"No new files added. {r.Skipped} path(s) skipped (missing, duplicate, or not a file)."
+                        : r.Skipped > 0
                         ? $"Added {r.Added} file(s). Skipped {r.Skipped} path(s) (already registered or invalid)."
                         : $"Added {r.Added} file(s).";
-                }
 
                 await ResetAndLoadAsync();
             }

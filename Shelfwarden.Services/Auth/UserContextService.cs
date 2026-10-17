@@ -15,7 +15,7 @@
 //        => httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
 
 //    public bool IsAdministrator()
-//        => httpContextAccessor.HttpContext?.User?.IsInRole(Constants.Roles.Administrator) ?? false;
+//        => httpContextAccessor.HttpContext?.User?.IsInRole(WellKnownRoles.Administrator) ?? false;
 
 //    public IReadOnlyList<string> GetRoleNames()
 //    {

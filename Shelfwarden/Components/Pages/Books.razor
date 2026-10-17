@@ -30,7 +30,7 @@
                 <i class="bi bi-list-ul"></i>
             </button>
         </div>
-        <AuthorizeView Roles="@Constants.Roles.Administrator">
+        <AuthorizeView Roles="@WellKnownRoles.Administrator">
             <Authorized>
                 <button type="button"
                         class="btn btn-sm @(selectMode ? "btn-primary" : "btn-outline-secondary")"
@@ -53,7 +53,7 @@
 
 @if (selectMode)
 {
-    <AuthorizeView Roles="@Constants.Roles.Administrator">
+    <AuthorizeView Roles="@WellKnownRoles.Administrator">
         <Authorized>
             <div class="selection-toolbar mb-3">
                 <span class="text-secondary small">
