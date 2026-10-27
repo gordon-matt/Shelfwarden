@@ -39,16 +39,19 @@
                     @if (activeTab == ModalTab.Manual)
                     {
                         <div class="mb-3">
-                            <label class="form-label">Name</label>
-                            <input class="form-control" @bind="manualName" @bind:event="oninput" maxlength="256" />
+                            <Field Label="Name" LabelClass="form-label">
+                                <input class="form-control" @bind="manualName" @bind:event="oninput" maxlength="256" />
+                            </Field>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Biography</label>
-                            <textarea class="form-control" rows="8" @bind="manualBiography"></textarea>
+                            <Field Label="Biography" LabelClass="form-label">
+                                <textarea class="form-control" rows="8" @bind="manualBiography"></textarea>
+                            </Field>
                         </div>
                         <div>
-                            <label class="form-label">Photo</label>
-                            <InputFile OnChange="OnPhotoSelectedAsync" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,image/*" />
+                            <Field Label="Photo" LabelClass="form-label">
+                                <InputFile OnChange="OnPhotoSelectedAsync" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,image/*" />
+                            </Field>
                             @if (!string.IsNullOrWhiteSpace(selectedPhotoName))
                             {
                                 <div class="small text-body-secondary mt-1">Selected: @selectedPhotoName</div>
@@ -59,28 +62,30 @@
                     {
                         <div class="row g-2 mb-3">
                             <div class="col-sm-4">
-                                <label class="form-label">Source</label>
-                                <select class="form-select" value="@selectedProvider" @onchange="OnProviderChangedAsync">
-                                    <option value="">All sources</option>
-                                    @foreach (var p in providers)
-                                    {
-                                        <option value="@p">@p</option>
-                                    }
-                                </select>
+                                <Field Label="Source" LabelClass="form-label">
+                                    <select class="form-select" value="@selectedProvider" @onchange="OnProviderChangedAsync">
+                                        <option value="">All sources</option>
+                                        @foreach (var p in providers)
+                                        {
+                                            <option value="@p">@p</option>
+                                        }
+                                    </select>
+                                </Field>
                             </div>
                             <div class="col-sm-8">
-                                <label class="form-label">Author name</label>
-                                <div class="input-group">
-                                    <input class="form-control" @bind="authorMatchQuery" @bind:event="oninput"
-                                           @onkeydown="@(async e => { if (e.Key == "Enter") await SearchProviderAsync(); })" />
-                                    <button type="button" class="btn btn-primary" @onclick="SearchProviderAsync" disabled="@isSearching">
-                                        @if (isSearching)
-                                        {
-                                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                                        }
-                                        <i class="bi bi-search"></i> Search
-                                    </button>
-                                </div>
+                                <Field Label="Author name" LabelClass="form-label">
+                                    <div class="input-group">
+                                        <input class="form-control" @bind="authorMatchQuery" @bind:event="oninput"
+                                               @onkeydown="@(async e => { if (e.Key == "Enter") await SearchProviderAsync(); })" />
+                                        <button type="button" class="btn btn-primary" @onclick="SearchProviderAsync" disabled="@isSearching">
+                                            @if (isSearching)
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                            }
+                                            <i class="bi bi-search"></i> Search
+                                        </button>
+                                    </div>
+                                </Field>
                             </div>
                         </div>
 
@@ -181,7 +186,8 @@
                                     @if (photoSource is not null)
                                     {
                                         <text> (photo from <strong>@photoSource.Provider</strong>)</text>
-                                    }.
+                                    }
+                                    .
                                 </div>
                             </div>
                         }

@@ -128,7 +128,7 @@ else
                         <BatchChipMode @bind-Mode="bulk.AuthorsMode" />
                         @if (bulk.AuthorsMode != ChipApplyMode.Remove)
                         {
-                            <ChipInput TItem="AuthorDto"
+                            <TagPicker TItem="AuthorDto"
                                        Label="Authors"
                                        Selected="bulkAuthors"
                                        NameOf="@(a => a.Name)"
@@ -143,7 +143,7 @@ else
                         <BatchChipMode @bind-Mode="bulk.GenresMode" />
                         @if (bulk.GenresMode != ChipApplyMode.Remove)
                         {
-                            <ChipInput TItem="GenreDto"
+                            <TagPicker TItem="GenreDto"
                                        Label="Genres"
                                        Selected="bulkGenres"
                                        NameOf="@(g => g.Name)"
@@ -158,10 +158,10 @@ else
                         <BatchChipMode @bind-Mode="bulk.TagsMode" />
                         @if (bulk.TagsMode != ChipApplyMode.Remove)
                         {
-                            <ChipInput TItem="string"
+                            <TagPicker TItem="string"
                                        Label="Tags"
                                        Selected="bulkTags"
-                                       ChipCssSuffix="chip-tag"
+                                       ChipClass="chip-tag"
                                        NameOf="@(t => t)"
                                        SearchAsync="SearchTagsAsync"
                                        OnAddAsync="AddTagAsync" />
@@ -176,12 +176,14 @@ else
                         {
                             <div class="row g-2">
                                 <div class="col-md-6">
-                                    <label class="form-label">Publisher</label>
-                                    <input class="form-control" @bind="bulk.Publisher" />
+                                    <Field Label="Publisher" LabelClass="form-label">
+                                        <input class="form-control" @bind="bulk.Publisher" />
+                                    </Field>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">Language</label>
-                                    <input class="form-control" @bind="bulk.Language" placeholder="en, fr, de…" />
+                                    <Field Label="Language" LabelClass="form-label">
+                                        <input class="form-control" @bind="bulk.Language" placeholder="en, fr, de…" />
+                                    </Field>
                                 </div>
                             </div>
                         }
@@ -200,65 +202,63 @@ else
             <strong>Per-book details</strong>
             <span class="text-secondary small ms-2">Edit one book per row. Untick to skip a row.</span>
         </div>
-        <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle batch-edit-grid mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 36px;">
+        <Table Dense="true" Class="batch-edit-grid">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 36px;">
+                        <input class="form-check-input" type="checkbox"
+                               checked="@(selectedIds.Count == books.Count)"
+                               @onchange="ToggleSelectAll" />
+                    </th>
+                    <th style="width: 56px;"></th>
+                    <th>Title</th>
+                    <th style="min-width: 11rem;">
+                        <span class="d-block small text-body-secondary mb-1">Sort title</span>
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" id="batchAutoSortTitle"
+                                   @bind="autoUpdateSortTitle"
+                                   @bind:after="OnAfterAutoUpdateSortTitleChanged" />
+                            <label class="form-check-label small" for="batchAutoSortTitle">Auto Update Sort Title</label>
+                        </div>
+                    </th>
+                    <th>Subtitle</th>
+                    <th style="width: 90px;">#</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in rows)
+                {
+                    <tr class="@(selectedIds.Contains(row.Id) ? "" : "table-secondary text-secondary")">
+                        <td>
                             <input class="form-check-input" type="checkbox"
-                                   checked="@(selectedIds.Count == books.Count)"
-                                   @onchange="ToggleSelectAll" />
-                        </th>
-                        <th style="width: 56px;"></th>
-                        <th>Title</th>
-                        <th style="min-width: 11rem;">
-                            <span class="d-block small text-body-secondary mb-1">Sort title</span>
-                            <div class="form-check mb-0">
-                                <input class="form-check-input" type="checkbox" id="batchAutoSortTitle"
-                                       @bind="autoUpdateSortTitle"
-                                       @bind:after="OnAfterAutoUpdateSortTitleChanged" />
-                                <label class="form-check-label small" for="batchAutoSortTitle">Auto Update Sort Title</label>
-                            </div>
-                        </th>
-                        <th>Subtitle</th>
-                        <th style="width: 90px;">#</th>
-                        <th>Description</th>
+                                   checked="@selectedIds.Contains(row.Id)"
+                                   @onchange="e => ToggleRow(row.Id, (bool)(e.Value ?? false))" />
+                        </td>
+                        <td>
+                            <a href="@($"books/{row.Id}")" target="_blank" title="Open in new tab">
+                                @if (!string.IsNullOrEmpty(row.CoverImagePath))
+                                {
+                                    <img src="@($"covers/{row.Id}")" class="batch-edit-cover" alt="@row.Title" />
+                                }
+                                else
+                                {
+                                    <div class="batch-edit-cover batch-edit-cover-empty">
+                                        <i class="bi bi-book"></i>
+                                    </div>
+                                }
+                            </a>
+                        </td>
+                        <td><input class="form-control form-control-sm" @bind="row.Title" @bind:event="onchange" @bind:after="() => OnTitleChanged(row)" /></td>
+                        <td><input class="form-control form-control-sm" @bind="row.SortTitle" /></td>
+                        <td><input class="form-control form-control-sm" @bind="row.Subtitle" /></td>
+                        <td><input class="form-control form-control-sm" type="number" step="0.01" @bind="row.NumberInSeries" @bind:event="onchange" @bind:after="() => OnNumberInSeriesChanged(row)" /></td>
+                        <td>
+                            <textarea class="form-control form-control-sm" rows="2" @bind="row.Description"></textarea>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    @foreach (var row in rows)
-                    {
-                        <tr class="@(selectedIds.Contains(row.Id) ? "" : "table-secondary text-secondary")">
-                            <td>
-                                <input class="form-check-input" type="checkbox"
-                                       checked="@selectedIds.Contains(row.Id)"
-                                       @onchange="e => ToggleRow(row.Id, (bool)(e.Value ?? false))" />
-                            </td>
-                            <td>
-                                <a href="@($"books/{row.Id}")" target="_blank" title="Open in new tab">
-                                    @if (!string.IsNullOrEmpty(row.CoverImagePath))
-                                    {
-                                        <img src="@($"covers/{row.Id}")" class="batch-edit-cover" alt="@row.Title" />
-                                    }
-                                    else
-                                    {
-                                        <div class="batch-edit-cover batch-edit-cover-empty">
-                                            <i class="bi bi-book"></i>
-                                        </div>
-                                    }
-                                </a>
-                            </td>
-                            <td><input class="form-control form-control-sm" @bind="row.Title" @bind:event="onchange" @bind:after="() => OnTitleChanged(row)" /></td>
-                            <td><input class="form-control form-control-sm" @bind="row.SortTitle" /></td>
-                            <td><input class="form-control form-control-sm" @bind="row.Subtitle" /></td>
-                            <td><input class="form-control form-control-sm" type="number" step="0.01" @bind="row.NumberInSeries" @bind:event="onchange" @bind:after="() => OnNumberInSeriesChanged(row)" /></td>
-                            <td>
-                                <textarea class="form-control form-control-sm" rows="2" @bind="row.Description"></textarea>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+                }
+            </tbody>
+        </Table>
     </div>
 }

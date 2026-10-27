@@ -6,17 +6,18 @@
     <div class="additional-content-grid">
         <div class="row g-2 mb-3">
             <div class="col-sm-6 col-md-4">
-                <label class="form-label small text-body-secondary mb-1">Tag</label>
-                <select class="form-select form-select-sm"
-                        @bind="tagFilterId"
-                        @bind:after="OnTagFilterChanged">
-                    <option value="0">Any</option>
-                    <option value="-1">None</option>
-                    @foreach (var tag in tagFilterOptions)
-                    {
-                        <option value="@tag.Id">@tag.Name</option>
-                    }
-                </select>
+                <Field Label="Tag" LabelClass="form-label small text-body-secondary mb-1">
+                    <select class="form-select form-select-sm"
+                            @bind="tagFilterId"
+                            @bind:after="OnTagFilterChanged">
+                        <option value="0">Any</option>
+                        <option value="-1">None</option>
+                        @foreach (var tag in tagFilterOptions)
+                        {
+                            <option value="@tag.Id">@tag.Name</option>
+                        }
+                    </select>
+                </Field>
             </div>
         </div>
 
@@ -188,12 +189,12 @@ else if (ShowEmptyState)
 }
 
 <EditExtraContentTagsModal IsOpen="tagsModalOpen"
-                          Title="@tagsModalTitle"
-                          ItemIds="tagsModalItemIds"
-                          InitialTagNames="tagsModalInitialNames"
-                          AuthorIdForTagSuggestions="TagScopeAuthorId"
-                          OnClose="CloseTagsModal"
-                          OnSaved="OnTagsSavedAsync" />
+                           Title="@tagsModalTitle"
+                           ItemIds="tagsModalItemIds"
+                           InitialTagNames="tagsModalInitialNames"
+                           AuthorIdForTagSuggestions="TagScopeAuthorId"
+                           OnClose="CloseTagsModal"
+                           OnSaved="OnTagsSavedAsync" />
 
 @* Content viewer modal (text / images) *@
 @if (viewerItem is not null)
@@ -225,7 +226,7 @@ else if (ShowEmptyState)
                     else if (viewerCsvRows is { Length: > 0 })
                     {
                         <div class="content-viewer-table-wrap">
-                            <table class="table table-sm table-striped table-bordered content-viewer-table mb-0">
+                            <Table Hover="false" Dense="true" Striped="true" Bordered="true" Class="content-viewer-table">
                                 <thead>
                                     <tr>
                                         @foreach (var cell in viewerCsvRows[0])
@@ -245,7 +246,7 @@ else if (ShowEmptyState)
                                         </tr>
                                     }
                                 </tbody>
-                            </table>
+                            </Table>
                         </div>
                     }
                     else if (viewerContent is not null)
@@ -288,8 +289,9 @@ else if (ShowEmptyState)
                     {
                         <div class="alert alert-danger py-2">@renameError</div>
                     }
-                    <label class="form-label">Name</label>
-                    <input class="form-control" @bind="renameName" maxlength="512" />
+                    <Field Label="Name" LabelClass="form-label">
+                        <input class="form-control" @bind="renameName" maxlength="512" />
+                    </Field>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" @onclick="CloseRename">Cancel</button>

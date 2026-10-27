@@ -381,15 +381,15 @@ else
                         <div class="alert alert-danger py-2">@linkError</div>
                     }
                     <div class="mb-3">
-                        <label class="form-label" for="author-link-label">Label</label>
-                        <input id="author-link-label" class="form-control" placeholder="e.g. Wikipedia"
-                               maxlength="256" @bind="linkName" />
+                        <Field Label="Label" LabelClass="form-label" For="author-link-label">
+                            <input id="author-link-label" class="form-control" placeholder="e.g. Wikipedia" maxlength="256" @bind="linkName" />
+                        </Field>
                         <div class="form-text">Optional. Shown as the link text.</div>
                     </div>
                     <div>
-                        <label class="form-label" for="author-link-url">URL</label>
-                        <input id="author-link-url" class="form-control" placeholder="https://…"
-                               maxlength="2048" @bind="linkUrl" />
+                        <Field Label="URL" LabelClass="form-label" For="author-link-url">
+                            <input id="author-link-url" class="form-control" placeholder="https://…" maxlength="2048" @bind="linkUrl" />
+                        </Field>
                     </div>
                 </div>
                 <div class="modal-footer">

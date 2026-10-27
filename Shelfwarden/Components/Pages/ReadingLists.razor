@@ -21,16 +21,17 @@
     <div class="card-body py-2">
         <div class="row g-2 align-items-end">
             <div class="col-sm-6 col-md-4 col-lg-3">
-                <label class="form-label small text-body-secondary mb-0">Shelf</label>
-                <select class="form-select form-select-sm"
-                        @bind="shelfFilterId"
-                        @bind:after="OnShelfFilterChangedAsync">
-                    <option value="">All shelves</option>
-                    @foreach (var s in shelves)
-                    {
-                        <option value="@s.Id">@s.Name</option>
-                    }
-                </select>
+                <Field Label="Shelf" LabelClass="form-label small text-body-secondary mb-0">
+                    <select class="form-select form-select-sm"
+                            @bind="shelfFilterId"
+                            @bind:after="OnShelfFilterChangedAsync">
+                        <option value="">All shelves</option>
+                        @foreach (var s in shelves)
+                        {
+                            <option value="@s.Id">@s.Name</option>
+                        }
+                    </select>
+                </Field>
             </div>
             @if (!string.IsNullOrEmpty(shelfFilterId))
             {
@@ -59,13 +60,18 @@
                 <DataAnnotationsValidator />
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label">Name <span class="text-danger">*</span></label>
-                        <InputText class="form-control" @bind-Value="newList.Name" />
+                        <Field LabelClass="form-label">
+                            <LabelContent>Name <span class="text-danger">*</span></LabelContent>
+                            <ChildContent>
+                                <InputText class="form-control" @bind-Value="newList.Name" />
+                            </ChildContent>
+                        </Field>
                         <ValidationMessage For="() => newList.Name" class="text-danger small" />
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Description</label>
-                        <InputText class="form-control" @bind-Value="newList.Description" />
+                        <Field Label="Description" LabelClass="form-label">
+                            <InputText class="form-control" @bind-Value="newList.Description" />
+                        </Field>
                     </div>
                 </div>
                 @if (errorMessage is not null)

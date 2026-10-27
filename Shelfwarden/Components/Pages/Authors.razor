@@ -73,32 +73,27 @@
 
 <div class="row g-2 mb-3 align-items-end">
     <div class="col-md-6 col-lg-5">
-        <label class="form-label small text-body-secondary mb-1">Search</label>
-        <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input class="form-control" placeholder="Search authors..." @bind="query" @bind:event="oninput" @onkeyup="OnQueryKeyUp" />
-        </div>
+        <SearchField Label="Search" LabelClass="form-label small text-body-secondary mb-1"
+                     Placeholder="Search authors..." @bind-Value="query" OnKeyUp="OnQueryKeyUp" />
     </div>
     <div class="col-sm-6 col-lg-4">
-        <label class="form-label small text-body-secondary mb-1">Shelf</label>
-        <select class="form-select"
-                @bind="shelfId"
-                @bind:after="OnShelfFilterChangedAsync">
-            <option value="">All shelves</option>
-            @foreach (var s in shelves)
-            {
-                <option value="@s.Id">@s.Name</option>
-            }
-        </select>
+        <Field Label="Shelf" LabelClass="form-label small text-body-secondary mb-1">
+            <select class="form-select" @bind="shelfId" @bind:after="OnShelfFilterChangedAsync">
+                <option value="">All shelves</option>
+                @foreach (var s in shelves)
+                {
+                    <option value="@s.Id">@s.Name</option>
+                }
+            </select>
+        </Field>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <label class="form-label small text-body-secondary mb-1">Sort</label>
-        <select class="form-select"
-                @bind="authorSortBy"
-                @bind:after="OnSortChangedAsync">
-            <option value="@AuthorSortBy.Name">Name</option>
-            <option value="@AuthorSortBy.BookCount">Book Count</option>
-        </select>
+        <Field Label="Sort" LabelClass="form-label small text-body-secondary mb-1">
+            <select class="form-select" @bind="authorSortBy" @bind:after="OnSortChangedAsync">
+                <option value="@AuthorSortBy.Name">Name</option>
+                <option value="@AuthorSortBy.BookCount">Book Count</option>
+            </select>
+        </Field>
     </div>
 </div>
 

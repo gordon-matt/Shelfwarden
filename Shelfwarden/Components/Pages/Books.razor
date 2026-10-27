@@ -94,26 +94,20 @@
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-12 col-lg-5">
-                <label class="form-label small text-body-secondary mb-1">Search</label>
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input class="form-control"
-                           placeholder="Search by title..."
-                           @bind="query"
-                           @bind:event="oninput"
-                           @bind:after="OnSearchQueryChangedAsync" />
-                </div>
+                <SearchField Label="Search" LabelClass="form-label small text-body-secondary mb-1"
+                             Placeholder="Search by title..." @bind-Value="query" @bind-Value:after="OnSearchQueryChangedAsync" />
             </div>
             <div class="col-6 col-lg-3">
-                <label class="form-label small text-body-secondary mb-1">Sort</label>
-                <select class="form-select"
-                        @bind="sortBy"
-                        @bind:after="OnFilterChangedAsync">
-                    <option value="@BookSortBy.Title">Title</option>
-                    <option value="@BookSortBy.AddedAt">Date added</option>
-                    <option value="@BookSortBy.UpdatedAt">Date updated</option>
-                    <option value="@BookSortBy.PublishedOn">Published date</option>
-                </select>
+                <Field Label="Sort" LabelClass="form-label small text-body-secondary mb-1">
+                    <select class="form-select"
+                            @bind="sortBy"
+                            @bind:after="OnFilterChangedAsync">
+                        <option value="@BookSortBy.Title">Title</option>
+                        <option value="@BookSortBy.AddedAt">Date added</option>
+                        <option value="@BookSortBy.UpdatedAt">Date updated</option>
+                        <option value="@BookSortBy.PublishedOn">Published date</option>
+                    </select>
+                </Field>
             </div>
             <div class="col-6 col-lg-2">
                 <label class="form-label small text-body-secondary mb-1" for="sortDesc">Order</label>
@@ -148,110 +142,118 @@
 
             <div class="row g-3 align-items-end">
                 <div class="col-sm-6 col-lg-3">
-                    <label class="form-label small text-body-secondary mb-1">Shelf</label>
-                    <select class="form-select form-select-sm"
-                            @bind="shelfId"
-                            @bind:after="OnFilterChangedAsync">
-                        <option value="">All shelves</option>
-                        @foreach (var lib in shelves)
-                        {
-                            <option value="@lib.Id">@lib.Name</option>
-                        }
-                    </select>
+                    <Field Label="Shelf" LabelClass="form-label small text-body-secondary mb-1">
+                        <select class="form-select form-select-sm"
+                                @bind="shelfId"
+                                @bind:after="OnFilterChangedAsync">
+                            <option value="">All shelves</option>
+                            @foreach (var lib in shelves)
+                            {
+                                <option value="@lib.Id">@lib.Name</option>
+                            }
+                        </select>
+                    </Field>
                 </div>
                 <div class="col-sm-6 col-lg-3">
-                    <label class="form-label small text-body-secondary mb-1">Collection</label>
-                    <select class="form-select form-select-sm"
-                            @bind="collectionId"
-                            @bind:after="OnFilterChangedAsync">
-                        <option value="">Any collection</option>
-                        <option value="-1">None</option>
-                        @foreach (var c in collections)
-                        {
-                            <option value="@c.Id">@(c.IsGlobal ? $"[Global] {c.Name}" : c.Name)</option>
-                        }
-                    </select>
+                    <Field Label="Collection" LabelClass="form-label small text-body-secondary mb-1">
+                        <select class="form-select form-select-sm"
+                                @bind="collectionId"
+                                @bind:after="OnFilterChangedAsync">
+                            <option value="">Any collection</option>
+                            <option value="-1">None</option>
+                            @foreach (var c in collections)
+                            {
+                                <option value="@c.Id">@(c.IsGlobal ? $"[Global] {c.Name}" : c.Name)</option>
+                            }
+                        </select>
+                    </Field>
                 </div>
                 <div class="col-sm-6 col-lg-3">
-                    <label class="form-label small text-body-secondary mb-1">Author</label>
-                    <select class="form-select form-select-sm"
-                            @bind="authorId"
-                            @bind:after="OnFilterChangedAsync">
-                        <option value="">Any author</option>
-                        <option value="-1">None</option>
-                        @foreach (var a in authors)
-                        {
-                            <option value="@a.Id">@a.Name</option>
-                        }
-                    </select>
+                    <Field Label="Author" LabelClass="form-label small text-body-secondary mb-1">
+                        <select class="form-select form-select-sm"
+                                @bind="authorId"
+                                @bind:after="OnFilterChangedAsync">
+                            <option value="">Any author</option>
+                            <option value="-1">None</option>
+                            @foreach (var a in authors)
+                            {
+                                <option value="@a.Id">@a.Name</option>
+                            }
+                        </select>
+                    </Field>
                 </div>
                 <div class="col-sm-6 col-lg-3">
-                    <label class="form-label small text-body-secondary mb-1">Series</label>
-                    <select class="form-select form-select-sm"
-                            @bind="seriesId"
-                            @bind:after="OnFilterChangedAsync">
-                        <option value="">Any series</option>
-                        <option value="-1">None</option>
-                        @foreach (var s in series)
-                        {
-                            <option value="@s.Id">@s.Name</option>
-                        }
-                    </select>
+                    <Field Label="Series" LabelClass="form-label small text-body-secondary mb-1">
+                        <select class="form-select form-select-sm"
+                                @bind="seriesId"
+                                @bind:after="OnFilterChangedAsync">
+                            <option value="">Any series</option>
+                            <option value="-1">None</option>
+                            @foreach (var s in series)
+                            {
+                                <option value="@s.Id">@s.Name</option>
+                            }
+                        </select>
+                    </Field>
                 </div>
                 <div class="col-sm-6 col-lg-3">
-                    <label class="form-label small text-body-secondary mb-1">Read status</label>
-                    <select class="form-select form-select-sm"
-                            @bind="readStatus"
-                            @bind:after="OnFilterChangedAsync">
-                        <option value="@BookReadStatusFilter.Any">Any</option>
-                        <option value="@BookReadStatusFilter.Read">Read</option>
-                        <option value="@BookReadStatusFilter.Unread">Unread</option>
-                    </select>
+                    <Field Label="Read status" LabelClass="form-label small text-body-secondary mb-1">
+                        <select class="form-select form-select-sm"
+                                @bind="readStatus"
+                                @bind:after="OnFilterChangedAsync">
+                            <option value="@BookReadStatusFilter.Any">Any</option>
+                            <option value="@BookReadStatusFilter.Read">Read</option>
+                            <option value="@BookReadStatusFilter.Unread">Unread</option>
+                        </select>
+                    </Field>
                 </div>
                 <div class="col-sm-6 col-lg-3">
-                    <label class="form-label small text-body-secondary mb-1">My rating</label>
-                    <select class="form-select form-select-sm"
-                            @bind="minRating"
-                            @bind:after="OnFilterChangedAsync">
-                        <option value="">Any rating</option>
-                        <option value="5">★★★★★ 5</option>
-                        <option value="4">★★★★☆ 4 &amp; up</option>
-                        <option value="3">★★★☆☆ 3 &amp; up</option>
-                        <option value="2">★★☆☆☆ 2 &amp; up</option>
-                        <option value="1">★☆☆☆☆ 1 &amp; up</option>
-                    </select>
+                    <Field Label="My rating" LabelClass="form-label small text-body-secondary mb-1">
+                        <select class="form-select form-select-sm"
+                                @bind="minRating"
+                                @bind:after="OnFilterChangedAsync">
+                            <option value="">Any rating</option>
+                            <option value="5">★★★★★ 5</option>
+                            <option value="4">★★★★☆ 4 &amp; up</option>
+                            <option value="3">★★★☆☆ 3 &amp; up</option>
+                            <option value="2">★★☆☆☆ 2 &amp; up</option>
+                            <option value="1">★☆☆☆☆ 1 &amp; up</option>
+                        </select>
+                    </Field>
                 </div>
                 <div class="col-sm-6 col-lg-3">
-                    <label class="form-label small text-body-secondary mb-1">Genre</label>
-                    <select class="form-select form-select-sm"
-                            @bind="genreId"
-                            @bind:after="OnFilterChangedAsync">
-                        <option value="">Any genre</option>
-                        <option value="-1">None</option>
-                        @foreach (var g in genres)
-                        {
-                            <option value="@g.Id">@g.Name</option>
-                        }
-                    </select>
+                    <Field Label="Genre" LabelClass="form-label small text-body-secondary mb-1">
+                        <select class="form-select form-select-sm"
+                                @bind="genreId"
+                                @bind:after="OnFilterChangedAsync">
+                            <option value="">Any genre</option>
+                            <option value="-1">None</option>
+                            @foreach (var g in genres)
+                            {
+                                <option value="@g.Id">@g.Name</option>
+                            }
+                        </select>
+                    </Field>
                 </div>
                 <div class="col-sm-6 col-lg-3">
-                    <label class="form-label small text-body-secondary mb-1">Tag</label>
-                    <select class="form-select form-select-sm"
-                            @bind="tagFilterMode"
-                            @bind:after="OnTagModeChangedAsync">
-                        <option value="@TagFilterMode.Any">Any</option>
-                        <option value="@TagFilterMode.None">None</option>
-                        <option value="@TagFilterMode.Selected">Selected</option>
-                    </select>
+                    <Field Label="Tag" LabelClass="form-label small text-body-secondary mb-1">
+                        <select class="form-select form-select-sm"
+                                @bind="tagFilterMode"
+                                @bind:after="OnTagModeChangedAsync">
+                            <option value="@TagFilterMode.Any">Any</option>
+                            <option value="@TagFilterMode.None">None</option>
+                            <option value="@TagFilterMode.Selected">Selected</option>
+                        </select>
+                    </Field>
                 </div>
                 @if (tagFilterMode == TagFilterMode.Selected)
                 {
                     <div class="col-sm-6 col-lg-3">
                         <label class="form-label small text-body-secondary mb-1">Selected tags (must match all)</label>
-                        <ChipInput TItem="TagDto"
+                        <TagPicker TItem="TagDto"
                                    Label="Tags"
                                    Selected="selectedTagFilters"
-                                   ChipCssSuffix="chip-tag"
+                                   ChipClass="chip-tag"
                                    NameOf="(t => t.Name)"
                                    SearchAsync="SearchTagFilterOptionsAsync"
                                    OnAddAsync="AddTagFilterAsync"

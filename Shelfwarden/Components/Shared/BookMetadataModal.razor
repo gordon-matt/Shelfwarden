@@ -17,16 +17,19 @@
 
                     <div class="row g-2 mb-2">
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">Title</label>
-                            <input class="form-control" @bind="searchTitle" @bind:event="oninput" @onkeydown="OnKeyDown" />
+                            <Field Label="Title" LabelClass="form-label small mb-1">
+                                <input class="form-control" @bind="searchTitle" @bind:event="oninput" @onkeydown="OnKeyDown" />
+                            </Field>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">Author</label>
-                            <input class="form-control" @bind="searchAuthor" @bind:event="oninput" @onkeydown="OnKeyDown" />
+                            <Field Label="Author" LabelClass="form-label small mb-1">
+                                <input class="form-control" @bind="searchAuthor" @bind:event="oninput" @onkeydown="OnKeyDown" />
+                            </Field>
                         </div>
                         <div class="col-md-8">
-                            <label class="form-label small mb-1">ISBN</label>
-                            <input class="form-control" @bind="searchIsbn" @bind:event="oninput" @onkeydown="OnKeyDown" />
+                            <Field Label="ISBN" LabelClass="form-label small mb-1">
+                                <input class="form-control" @bind="searchIsbn" @bind:event="oninput" @onkeydown="OnKeyDown" />
+                            </Field>
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
                             <button type="button" class="btn btn-primary w-100" @onclick="SearchAsync" disabled="@isSearching">

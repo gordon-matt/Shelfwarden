@@ -22,11 +22,7 @@
 
 <div class="row g-2 mb-3">
     <div class="col-md-6">
-        <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input class="form-control" placeholder="Search universes..." @bind="query" @bind:event="oninput"
-                   @onkeyup="OnQueryKeyUp" />
-        </div>
+        <SearchField Placeholder="Search universes..." @bind-Value="query" OnKeyUp="OnQueryKeyUp" />
     </div>
 </div>
 
@@ -39,13 +35,18 @@
                 <DataAnnotationsValidator />
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label">Name <span class="text-danger">*</span></label>
-                        <InputText class="form-control" @bind-Value="newUniverse.Name" />
+                        <Field LabelClass="form-label">
+                            <LabelContent>Name <span class="text-danger">*</span></LabelContent>
+                            <ChildContent>
+                                <InputText class="form-control" @bind-Value="newUniverse.Name" />
+                            </ChildContent>
+                        </Field>
                         <ValidationMessage For="() => newUniverse.Name" class="text-danger small" />
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Description</label>
-                        <InputText class="form-control" @bind-Value="newUniverse.Description" />
+                        <Field Label="Description" LabelClass="form-label">
+                            <InputText class="form-control" @bind-Value="newUniverse.Description" />
+                        </Field>
                     </div>
                 </div>
                 @if (errorMessage is not null)

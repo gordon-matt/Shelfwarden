@@ -61,13 +61,18 @@ else
                     <DataAnnotationsValidator />
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label">Name <span class="text-danger">*</span></label>
-                            <InputText class="form-control" @bind-Value="editModel.Name" />
+                            <Field LabelClass="form-label">
+                                <LabelContent>Name <span class="text-danger">*</span></LabelContent>
+                                <ChildContent>
+                                    <InputText class="form-control" @bind-Value="editModel.Name" />
+                                </ChildContent>
+                            </Field>
                             <ValidationMessage For="() => editModel.Name" class="text-danger small" />
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Description</label>
-                            <InputText class="form-control" @bind-Value="editModel.Description" />
+                            <Field Label="Description" LabelClass="form-label">
+                                <InputText class="form-control" @bind-Value="editModel.Description" />
+                            </Field>
                         </div>
                     </div>
                     @if (errorMessage is not null)
@@ -277,14 +282,19 @@ else
                                 <DataAnnotationsValidator />
                                 <div class="row g-3">
                                     <div class="col-md-5">
-                                        <label class="form-label">Name <span class="text-danger">*</span></label>
-                                        <InputText class="form-control" @bind-Value="newList.Name"
-                                                   placeholder="Chronological Order" />
+                                        <Field LabelClass="form-label">
+                                            <LabelContent>Name <span class="text-danger">*</span></LabelContent>
+                                            <ChildContent>
+                                                <InputText class="form-control" @bind-Value="newList.Name"
+                                                           placeholder="Chronological Order" />
+                                            </ChildContent>
+                                        </Field>
                                         <ValidationMessage For="() => newList.Name" class="text-danger small" />
                                     </div>
                                     <div class="col-md-5">
-                                        <label class="form-label">Description</label>
-                                        <InputText class="form-control" @bind-Value="newList.Description" />
+                                        <Field Label="Description" LabelClass="form-label">
+                                            <InputText class="form-control" @bind-Value="newList.Description" />
+                                        </Field>
                                     </div>
                                     <div class="col-md-2 d-flex align-items-end">
                                         <button type="submit" class="btn btn-primary w-100" disabled="@busy">
@@ -506,7 +516,10 @@ else
                                                 {
                                                     <div class="small text-body-secondary">
                                                         <i class="bi bi-collection"></i> @entry.Book.SeriesName
-                                                        @if (entry.Book.NumberInSeries.HasValue) { <span> · #@entry.Book.NumberInSeries</span> }
+                                                        @if (entry.Book.NumberInSeries.HasValue)
+                                                        {
+                                                            <span> · #@entry.Book.NumberInSeries</span>
+                                                        }
                                                     </div>
                                                 }
                                                 <div class="input-group input-group-sm mt-1 universe-timeline-date-input">
@@ -579,11 +592,12 @@ else
 
                         @if (dateModalTimelineType == TimelineType.Named)
                         {
-                            <label class="form-label" for="timeline-date-text">Date</label>
-                            <input id="timeline-date-text" class="form-control" maxlength="50" autofocus
-                                   placeholder="10,191 AG · Spring 1998 · Before the Fall"
-                                   @bind="dateModalText" @bind:event="oninput"
-                                   @onkeydown="DateModalKeyDownAsync" />
+                            <Field Label="Date" LabelClass="form-label" For="timeline-date-text">
+                                <input id="timeline-date-text" class="form-control" maxlength="50" autofocus
+                                       placeholder="10,191 AG · Spring 1998 · Before the Fall"
+                                       @bind="dateModalText" @bind:event="oninput"
+                                       @onkeydown="DateModalKeyDownAsync" />
+                            </Field>
                             <div class="form-text">
                                 Free text — books are assigned to it from a list, and you decide where it sits
                                 on the timeline using the arrows.
@@ -593,14 +607,19 @@ else
                         {
                             <div class="row g-3">
                                 <div class="col-6">
-                                    <label class="form-label" for="timeline-date-year-from">Year from</label>
-                                    <input id="timeline-date-year-from" type="number" class="form-control" autofocus
-                                           @bind="dateModalYearFrom" @onkeydown="DateModalKeyDownAsync" />
+                                    <Field Label="Year from" LabelClass="form-label" For="timeline-date-year-from">
+                                        <input id="timeline-date-year-from" type="number" class="form-control" autofocus
+                                               @bind="dateModalYearFrom" @onkeydown="DateModalKeyDownAsync" />
+                                    </Field>
                                 </div>
                                 <div class="col-6">
-                                    <label class="form-label" for="timeline-date-year-to">Year to <span class="text-body-secondary">(optional)</span></label>
-                                    <input id="timeline-date-year-to" type="number" class="form-control"
-                                           @bind="dateModalYearTo" @onkeydown="DateModalKeyDownAsync" />
+                                    <Field LabelClass="form-label" For="timeline-date-year-to">
+                                        <LabelContent>Year to <span class="text-body-secondary">(optional)</span></LabelContent>
+                                        <ChildContent>
+                                            <input id="timeline-date-year-to" type="number" class="form-control"
+                                                   @bind="dateModalYearTo" @onkeydown="DateModalKeyDownAsync" />
+                                        </ChildContent>
+                                    </Field>
                                 </div>
                             </div>
                             <div class="form-text">

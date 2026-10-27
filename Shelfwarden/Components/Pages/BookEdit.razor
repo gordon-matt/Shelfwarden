@@ -76,25 +76,32 @@ else
                     <div class="card-header"><strong>General</strong></div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label class="form-label">Title <span class="text-danger">*</span></label>
-                            <InputText class="form-control" @bind-Value="form.Title" />
+                            <Field LabelClass="form-label">
+                                <LabelContent>Title <span class="text-danger">*</span></LabelContent>
+                                <ChildContent>
+                                    <InputText class="form-control" @bind-Value="form.Title" />
+                                </ChildContent>
+                            </Field>
                             <ValidationMessage For="() => form.Title" class="text-danger small" />
                         </div>
 
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">Sort title</label>
-                                <InputText class="form-control" @bind-Value="form.SortTitle" />
+                                <Field Label="Sort title" LabelClass="form-label">
+                                    <InputText class="form-control" @bind-Value="form.SortTitle" />
+                                </Field>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Subtitle</label>
-                                <InputText class="form-control" @bind-Value="form.Subtitle" />
+                                <Field Label="Subtitle" LabelClass="form-label">
+                                    <InputText class="form-control" @bind-Value="form.Subtitle" />
+                                </Field>
                             </div>
                         </div>
 
                         <div class="mt-3">
-                            <label class="form-label">Description</label>
-                            <InputTextArea class="form-control" rows="6" @bind-Value="form.Description" />
+                            <Field Label="Description" LabelClass="form-label">
+                                <InputTextArea class="form-control" rows="6" @bind-Value="form.Description" />
+                            </Field>
                             <div class="form-text">HTML is rendered on the detail page.</div>
                         </div>
                     </div>
@@ -105,20 +112,24 @@ else
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">Publisher</label>
-                                <InputText class="form-control" @bind-Value="form.Publisher" />
+                                <Field Label="Publisher" LabelClass="form-label">
+                                    <InputText class="form-control" @bind-Value="form.Publisher" />
+                                </Field>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Published on</label>
-                                <InputDate class="form-control" @bind-Value="form.PublishedOn" />
+                                <Field Label="Published on" LabelClass="form-label">
+                                    <InputDate class="form-control" @bind-Value="form.PublishedOn" />
+                                </Field>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Language</label>
-                                <InputText class="form-control" @bind-Value="form.Language" placeholder="en, fr, de…" />
+                                <Field Label="Language" LabelClass="form-label">
+                                    <InputText class="form-control" @bind-Value="form.Language" placeholder="en, fr, de…" />
+                                </Field>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">ISBN</label>
-                                <InputText class="form-control" @bind-Value="form.Isbn" />
+                                <Field Label="ISBN" LabelClass="form-label">
+                                    <InputText class="form-control" @bind-Value="form.Isbn" />
+                                </Field>
                             </div>
                         </div>
                     </div>
@@ -208,8 +219,9 @@ else
 
                         @if (selectedSeries is not null)
                         {
-                            <label class="form-label">Number in series</label>
-                            <InputNumber class="form-control" @bind-Value="form.NumberInSeries" step="0.01" />
+                            <Field Label="Number in series" LabelClass="form-label">
+                                <InputNumber class="form-control" @bind-Value="form.NumberInSeries" step="0.01" />
+                            </Field>
                         }
                     </div>
                 </div>
@@ -217,14 +229,15 @@ else
                 <div class="card mb-4">
                     <div class="card-header"><strong>Universe</strong></div>
                     <div class="card-body">
-                        <label class="form-label">Universe</label>
-                        <select class="form-select" @bind="selectedUniverseId" @bind:after="OnUniverseChangedAsync">
-                            <option value="0">— None —</option>
-                            @foreach (var u in universeOptions)
-                            {
-                                <option value="@u.Id">@u.Name</option>
-                            }
-                        </select>
+                        <Field Label="Universe" LabelClass="form-label">
+                            <select class="form-select" @bind="selectedUniverseId" @bind:after="OnUniverseChangedAsync">
+                                <option value="0">— None —</option>
+                                @foreach (var u in universeOptions)
+                                {
+                                    <option value="@u.Id">@u.Name</option>
+                                }
+                            </select>
+                        </Field>
                         <div class="form-text">
                             A book's universe is stored separately from its series, so it stays put even if
                             the series moves.
@@ -232,14 +245,15 @@ else
 
                         @if (selectedUniverseId > 0)
                         {
-                            <label class="form-label mt-3">Timeline date</label>
-                            <select class="form-select" @bind="selectedTimelineDateId" disabled="@loadingDates">
-                                <option value="0">— Unscheduled —</option>
-                                @foreach (var d in timelineDates)
-                                {
-                                    <option value="@d.Id">@d.Label</option>
-                                }
-                            </select>
+                            <Field Label="Timeline date" LabelClass="form-label mt-3">
+                                <select class="form-select" @bind="selectedTimelineDateId" disabled="@loadingDates">
+                                    <option value="0">— Unscheduled —</option>
+                                    @foreach (var d in timelineDates)
+                                    {
+                                        <option value="@d.Id">@d.Label</option>
+                                    }
+                                </select>
+                            </Field>
                             <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                 <div class="form-text mb-0">
                                     The universe's dates, in timeline order. Reorder them from the universe page.
@@ -255,7 +269,7 @@ else
                 <div class="card mb-4">
                     <div class="card-header"><strong>Authors</strong></div>
                     <div class="card-body">
-                        <ChipInput TItem="AuthorDto"
+                        <TagPicker TItem="AuthorDto"
                                    Label="Authors"
                                    Selected="selectedAuthors"
                                    NameOf="@(a => a.Name)"
@@ -267,7 +281,7 @@ else
                 <div class="card mb-4">
                     <div class="card-header"><strong>Genres</strong></div>
                     <div class="card-body">
-                        <ChipInput TItem="GenreDto"
+                        <TagPicker TItem="GenreDto"
                                    Label="Genres"
                                    Selected="selectedGenres"
                                    NameOf="@(g => g.Name)"
@@ -279,10 +293,10 @@ else
                 <div class="card mb-4">
                     <div class="card-header"><strong>Tags</strong></div>
                     <div class="card-body">
-                        <ChipInput TItem="string"
+                        <TagPicker TItem="string"
                                    Label="Tags"
                                    Selected="selectedTags"
-                                   ChipCssSuffix="chip-tag"
+                                   ChipClass="chip-tag"
                                    NameOf="@(t => t)"
                                    SearchAsync="SearchTagsAsync"
                                    OnAddAsync="AddTagAsync" />
@@ -326,11 +340,12 @@ else
 
                         @if (dateModalTimelineType == TimelineType.Named)
                         {
-                            <label class="form-label" for="book-timeline-date-text">Date</label>
-                            <input id="book-timeline-date-text" class="form-control" maxlength="50" autofocus
-                                   placeholder="10,191 AG · Spring 1998 · Before the Fall"
-                                   @bind="dateModalText" @bind:event="oninput"
-                                   @onkeydown="DateModalKeyDownAsync" />
+                            <Field Label="Date" LabelClass="form-label" For="book-timeline-date-text">
+                                <input id="book-timeline-date-text" class="form-control" maxlength="50" autofocus
+                                       placeholder="10,191 AG · Spring 1998 · Before the Fall"
+                                       @bind="dateModalText" @bind:event="oninput"
+                                       @onkeydown="DateModalKeyDownAsync" />
+                            </Field>
                             <div class="form-text">
                                 Added to the end of the universe's timeline and selected for this book. Reorder
                                 the universe's dates from its own page.
@@ -340,14 +355,19 @@ else
                         {
                             <div class="row g-3">
                                 <div class="col-6">
-                                    <label class="form-label" for="book-timeline-date-year-from">Year from</label>
-                                    <input id="book-timeline-date-year-from" type="number" class="form-control" autofocus
-                                           @bind="dateModalYearFrom" @onkeydown="DateModalKeyDownAsync" />
+                                    <Field Label="Year from" LabelClass="form-label" For="book-timeline-date-year-from">
+                                        <input id="book-timeline-date-year-from" type="number" class="form-control" autofocus
+                                               @bind="dateModalYearFrom" @onkeydown="DateModalKeyDownAsync" />
+                                    </Field>
                                 </div>
                                 <div class="col-6">
-                                    <label class="form-label" for="book-timeline-date-year-to">Year to <span class="text-body-secondary">(optional)</span></label>
-                                    <input id="book-timeline-date-year-to" type="number" class="form-control"
-                                           @bind="dateModalYearTo" @onkeydown="DateModalKeyDownAsync" />
+                                    <Field LabelClass="form-label" For="book-timeline-date-year-to">
+                                        <LabelContent>Year to <span class="text-body-secondary">(optional)</span></LabelContent>
+                                        <ChildContent>
+                                            <input id="book-timeline-date-year-to" type="number" class="form-control"
+                                                   @bind="dateModalYearTo" @onkeydown="DateModalKeyDownAsync" />
+                                        </ChildContent>
+                                    </Field>
                                 </div>
                             </div>
                             <div class="form-text">

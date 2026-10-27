@@ -1,6 +1,5 @@
 @page "/settings/opds"
 @attribute [Authorize]
-@using Shelfwarden.Models.Opds
 @using Shelfwarden.Services.Opds
 @inject IOpdsCredentialService CredentialService
 @inject IServerSettingsService ServerSettings
@@ -129,36 +128,34 @@ else
             }
             else
             {
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead>
+                <Table>
+                    <thead>
+                        <tr>
+                            <th scope="col">User</th>
+                            <th scope="col">Key</th>
+                            <th scope="col">Created</th>
+                            <th scope="col">Last used</th>
+                            <th scope="col" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in allCredentials)
+                        {
                             <tr>
-                                <th scope="col">User</th>
-                                <th scope="col">Key</th>
-                                <th scope="col">Created</th>
-                                <th scope="col">Last used</th>
-                                <th scope="col" class="text-end">Actions</th>
+                                <td>@c.UserName</td>
+                                <td><code>@c.KeyPrefix…</code></td>
+                                <td>@c.CreatedAt.ToLocalTime().ToString("g")</td>
+                                <td>@(c.LastUsedAt?.ToLocalTime().ToString("g") ?? "Never")</td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" disabled="@saving"
+                                            @onclick="@(() => RevokeForUserAsync(c))">
+                                        <i class="bi bi-x-circle"></i><span class="d-none d-md-inline"> Revoke</span>
+                                    </button>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var c in allCredentials)
-                            {
-                                <tr>
-                                    <td>@c.UserName</td>
-                                    <td><code>@c.KeyPrefix…</code></td>
-                                    <td>@c.CreatedAt.ToLocalTime().ToString("g")</td>
-                                    <td>@(c.LastUsedAt?.ToLocalTime().ToString("g") ?? "Never")</td>
-                                    <td class="text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-danger" disabled="@saving"
-                                                @onclick="@(() => RevokeForUserAsync(c))">
-                                            <i class="bi bi-x-circle"></i><span class="d-none d-md-inline"> Revoke</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                        }
+                    </tbody>
+                </Table>
             }
         </div>
     }

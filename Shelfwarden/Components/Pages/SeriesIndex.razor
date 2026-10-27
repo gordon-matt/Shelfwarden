@@ -16,10 +16,7 @@
 
 <div class="row g-2 mb-3">
     <div class="col-md-6">
-        <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input class="form-control" placeholder="Search series..." @bind="query" @bind:event="oninput" @onkeyup="OnQueryKeyUp" />
-        </div>
+        <SearchField Placeholder="Search series..." @bind-Value="query" OnKeyUp="OnQueryKeyUp" />
     </div>
 </div>
 
@@ -119,17 +116,19 @@ else
                     {
                         <div class="alert alert-danger py-2">@editError</div>
                     }
-                    <label class="form-label">Name</label>
-                    <input class="form-control" @bind="editSeriesName" maxlength="256" />
+                    <Field Label="Name" LabelClass="form-label">
+                        <input class="form-control" @bind="editSeriesName" maxlength="256" />
+                    </Field>
 
-                    <label class="form-label mt-3">Universe</label>
-                    <select class="form-select" @bind="editUniverseId">
-                        <option value="0">— None —</option>
-                        @foreach (var u in universeOptions)
-                        {
-                            <option value="@u.Id">@u.Name</option>
-                        }
-                    </select>
+                    <Field Label="Universe" LabelClass="form-label mt-3">
+                        <select class="form-select" @bind="editUniverseId">
+                            <option value="0">— None —</option>
+                            @foreach (var u in universeOptions)
+                            {
+                                <option value="@u.Id">@u.Name</option>
+                            }
+                        </select>
+                    </Field>
 
                     @if (editUniverseId > 0 && editUniverseId != originalUniverseId)
                     {

@@ -37,18 +37,20 @@
                     {
                         <div class="row g-2 mb-3 align-items-end">
                             <div class="col-md-5">
-                                <label class="form-label small mb-1">Language</label>
-                                <select class="form-select form-select-sm" @bind="selectedLanguageBucket">
-                                    @foreach (var opt in languageDropdownOptions)
-                                    {
-                                        <option value="@opt">@opt</option>
-                                    }
-                                </select>
+                                <Field Label="Language" LabelClass="form-label small mb-1">
+                                    <select class="form-select form-select-sm" @bind="selectedLanguageBucket">
+                                        @foreach (var opt in languageDropdownOptions)
+                                        {
+                                            <option value="@opt">@opt</option>
+                                        }
+                                    </select>
+                                </Field>
                             </div>
                             <div class="col-md-7">
-                                <label class="form-label small mb-1">Filter by name</label>
-                                <input type="text" class="form-control form-control-sm" placeholder="Optional…"
-                                       @bind="filterText" @bind:event="oninput" />
+                                <Field Label="Filter by name" LabelClass="form-label small mb-1">
+                                    <input type="text" class="form-control form-control-sm" placeholder="Optional…"
+                                           @bind="filterText" @bind:event="oninput" />
+                                </Field>
                             </div>
                         </div>
 

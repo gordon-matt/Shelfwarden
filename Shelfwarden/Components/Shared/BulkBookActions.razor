@@ -40,13 +40,14 @@
                     }
                     else
                     {
-                        <label class="form-label">Collection</label>
-                        <select class="form-select" @bind="selectedCollectionId">
-                            @foreach (var c in writableCollections)
-                            {
-                                <option value="@c.Id">@c.Name@(c.IsGlobal ? " (global)" : "")</option>
-                            }
-                        </select>
+                        <Field Label="Collection" LabelClass="form-label">
+                            <select class="form-select" @bind="selectedCollectionId">
+                                @foreach (var c in writableCollections)
+                                {
+                                    <option value="@c.Id">@c.Name@(c.IsGlobal ? " (global)" : "")</option>
+                                }
+                            </select>
+                        </Field>
                         <p class="small text-secondary mt-2 mb-0">
                             Adds @SelectedBookIds.Count book@(SelectedBookIds.Count == 1 ? "" : "s") (skips any already in the collection).
                         </p>
@@ -94,13 +95,14 @@
                     }
                     else
                     {
-                        <label class="form-label">Reading list</label>
-                        <select class="form-select" @bind="selectedReadingListId">
-                            @foreach (var l in readingLists)
-                            {
-                                <option value="@l.Id">@l.Name</option>
-                            }
-                        </select>
+                        <Field Label="Reading list" LabelClass="form-label">
+                            <select class="form-select" @bind="selectedReadingListId">
+                                @foreach (var l in readingLists)
+                                {
+                                    <option value="@l.Id">@l.Name</option>
+                                }
+                            </select>
+                        </Field>
                         <p class="small text-secondary mt-2 mb-0">
                             Appends @SelectedBookIds.Count book@(SelectedBookIds.Count == 1 ? "" : "s") to the end (skips duplicates).
                         </p>

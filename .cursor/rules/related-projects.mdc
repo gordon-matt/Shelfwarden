@@ -1,0 +1,34 @@
+---
+description: Which of my other projects this repo depends on and where their source lives. Read before using or investigating any internal library/package.
+alwaysApply: false
+---
+
+Shared coding conventions live in Blueprint/.cursor/rules/conventions.mdc (absolute path: D:\Source\GitHub\Blueprint\.cursor\rules\conventions.mdc). Read it before writing or changing code.
+
+@../../Blueprint/.cursor/rules/conventions.mdc
+
+## Internal dependencies
+
+| Name | How it's consumed | Package ID and version | Source location |
+| --- | --- | --- | --- |
+| Extenso.Data.Entity | NuGet PackageReference | Extenso.Data.Entity 10.1.1 | `D:\Source\GitHub\Libraries\Extenso` (`..\..\Libraries\Extenso`) |
+| Heroicsoft.NetForge.Abstractions | ProjectReference | commented-out package 1.0.3-beta | `D:\Source\GitHub\Libraries\Heroicsoft.NetForge` (`..\..\Libraries\Heroicsoft.NetForge`) |
+| Heroicsoft.NetForge.Authentication | ProjectReference | commented-out package 1.0.3-beta | `D:\Source\GitHub\Libraries\Heroicsoft.NetForge` (`..\..\Libraries\Heroicsoft.NetForge`) |
+| Heroicsoft.NetForge.Components.Bootstrap | ProjectReference | commented-out package 1.0.3-beta | `D:\Source\GitHub\Libraries\Heroicsoft.NetForge` (`..\..\Libraries\Heroicsoft.NetForge`) |
+| Heroicsoft.NetForge.Hangfire | ProjectReference | commented-out package 1.0.3-beta | `D:\Source\GitHub\Libraries\Heroicsoft.NetForge` (`..\..\Libraries\Heroicsoft.NetForge`) |
+| Heroicsoft.NetForge.Results | ProjectReference | commented-out package 1.0.3-beta | `D:\Source\GitHub\Libraries\Heroicsoft.NetForge` (`..\..\Libraries\Heroicsoft.NetForge`) |
+| LogVue | ProjectReference | commented-out package 1.0.0 | `D:\Source\GitHub\Libraries\LogVue` (`..\..\Libraries\LogVue`) |
+| LogVue.Data.MySql | NuGet PackageReference | LogVue.Data.MySql 1.0.0 | `D:\Source\GitHub\Libraries\LogVue` (`..\..\Libraries\LogVue`) |
+| LogVue.Data.Npgsql | NuGet PackageReference | LogVue.Data.Npgsql 1.0.0 | `D:\Source\GitHub\Libraries\LogVue` (`..\..\Libraries\LogVue`) |
+| LogVue.Data.Sql | NuGet PackageReference | LogVue.Data.Sql 1.0.0 | `D:\Source\GitHub\Libraries\LogVue` (`..\..\Libraries\LogVue`) |
+| LogVue.Data.Sqlite | NuGet PackageReference | LogVue.Data.Sqlite 1.0.0 | `D:\Source\GitHub\Libraries\LogVue` (`..\..\Libraries\LogVue`) |
+
+## Unresolved
+
+None.
+
+## Reverse dependencies
+
+No other repo in this workspace consumes this one.
+
+When you need to understand an API, behavior, or bug in one of the internal packages above, read its source code at the listed location. Do NOT use reflection, decompilation, or inspect DLLs/NuGet cache. If a fix belongs in the library, say so rather than working around it in the consumer. Note that the consumer references a published package version, so local source may be newer than what the consumer actually uses; check the version.

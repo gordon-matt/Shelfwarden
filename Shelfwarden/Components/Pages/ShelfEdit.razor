@@ -24,14 +24,16 @@
     <DataAnnotationsValidator />
 
     <div class="mb-3">
-        <label class="form-label">Name</label>
-        <InputText class="form-control" @bind-Value="model.Name" />
+        <Field Label="Name" LabelClass="form-label">
+            <InputText class="form-control" @bind-Value="model.Name" />
+        </Field>
         <ValidationMessage For="@(() => model.Name)" />
     </div>
 
     <div class="mb-3">
-        <label class="form-label">Description</label>
-        <InputTextArea class="form-control" rows="3" @bind-Value="model.Description" />
+        <Field Label="Description" LabelClass="form-label">
+            <InputTextArea class="form-control" rows="3" @bind-Value="model.Description" />
+        </Field>
         <ValidationMessage For="@(() => model.Description)" />
     </div>
 
@@ -91,8 +93,9 @@
         @if (model.AssignNewBooksToCollection)
         {
             <div class="mt-2 ms-4">
-                <label class="form-label">Collection name</label>
-                <InputText class="form-control" @bind-Value="model.NewBooksCollectionName" placeholder="@Constants.DefaultNewBooksCollectionName" />
+                <Field Label="Collection name" LabelClass="form-label">
+                    <InputText class="form-control" @bind-Value="model.NewBooksCollectionName" placeholder="@Constants.DefaultNewBooksCollectionName" />
+                </Field>
                 <ValidationMessage For="@(() => model.NewBooksCollectionName)" />
             </div>
         }

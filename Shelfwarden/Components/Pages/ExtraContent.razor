@@ -58,49 +58,52 @@
 @* Filters — four equal columns on lg; fourth is empty when tag chips are hidden *@
 <div class="row g-2 mb-3 row-cols-1 row-cols-sm-2 row-cols-lg-4 align-items-end extra-content-filters">
     <div class="col">
-        <label class="form-label small text-body-secondary mb-1">Author</label>
-        <select class="form-select form-select-sm" @bind="authorFilter" @bind:after="OnFiltersChangedAsync">
-            <option value="-1">None (unassigned)</option>
-            <option value="0">Any</option>
-            @if (authors is not null)
-            {
-                @foreach (var a in authors)
+        <Field Label="Author" LabelClass="form-label small text-body-secondary mb-1">
+            <select class="form-select form-select-sm" @bind="authorFilter" @bind:after="OnFiltersChangedAsync">
+                <option value="-1">None (unassigned)</option>
+                <option value="0">Any</option>
+                @if (authors is not null)
                 {
-                    <option value="@a.Id">@a.Name</option>
+                    @foreach (var a in authors)
+                    {
+                        <option value="@a.Id">@a.Name</option>
+                    }
                 }
-            }
-        </select>
+            </select>
+        </Field>
     </div>
     <div class="col">
-        <label class="form-label small text-body-secondary mb-1">Series</label>
-        <select class="form-select form-select-sm" @bind="seriesFilter" @bind:after="OnFiltersChangedAsync">
-            <option value="-1">None (no series)</option>
-            <option value="0">Any</option>
-            @if (seriesList is not null)
-            {
-                @foreach (var s in seriesList)
+        <Field Label="Series" LabelClass="form-label small text-body-secondary mb-1">
+            <select class="form-select form-select-sm" @bind="seriesFilter" @bind:after="OnFiltersChangedAsync">
+                <option value="-1">None (no series)</option>
+                <option value="0">Any</option>
+                @if (seriesList is not null)
                 {
-                    <option value="@s.Id">@s.Name</option>
+                    @foreach (var s in seriesList)
+                    {
+                        <option value="@s.Id">@s.Name</option>
+                    }
                 }
-            }
-        </select>
+            </select>
+        </Field>
     </div>
     <div class="col">
-        <label class="form-label small text-body-secondary mb-1">Tag</label>
-        <select class="form-select form-select-sm" @bind="tagFilterMode" @bind:after="OnTagModeChangedAsync">
-            <option value="@TagFilterMode.Any">Any</option>
-            <option value="@TagFilterMode.None">None</option>
-            <option value="@TagFilterMode.Selected">Selected</option>
-        </select>
+        <Field Label="Tag" LabelClass="form-label small text-body-secondary mb-1">
+            <select class="form-select form-select-sm" @bind="tagFilterMode" @bind:after="OnTagModeChangedAsync">
+                <option value="@TagFilterMode.Any">Any</option>
+                <option value="@TagFilterMode.None">None</option>
+                <option value="@TagFilterMode.Selected">Selected</option>
+            </select>
+        </Field>
     </div>
     <div class="col extra-content-filters__tag-chips">
         @if (tagFilterMode == TagFilterMode.Selected)
         {
             <label class="form-label small text-body-secondary mb-1">Tags (match all)</label>
-            <ChipInput TItem="AdditionalContentTagDto"
+            <TagPicker TItem="AdditionalContentTagDto"
                        Label="Tags"
                        Selected="selectedTagFilters"
-                       ChipCssSuffix="chip-tag"
+                       ChipClass="chip-tag"
                        NameOf="(t => t.Name)"
                        SearchAsync="SearchTagFilterOptionsAsync"
                        OnAddAsync="AddTagFilterAsync"
@@ -253,17 +256,18 @@ else
                     {
                         <div class="alert alert-danger py-2">@bulkAssignError</div>
                     }
-                    <label class="form-label">Author</label>
-                    <select class="form-select" @bind="bulkAssignAuthorId">
-                        <option value="0">— Select author —</option>
-                        @if (authors is not null)
-                        {
-                            @foreach (var a in authors)
+                    <Field Label="Author" LabelClass="form-label">
+                        <select class="form-select" @bind="bulkAssignAuthorId">
+                            <option value="0">— Select author —</option>
+                            @if (authors is not null)
                             {
-                                <option value="@a.Id">@a.Name</option>
+                                @foreach (var a in authors)
+                                {
+                                    <option value="@a.Id">@a.Name</option>
+                                }
                             }
-                        }
-                    </select>
+                        </select>
+                    </Field>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" @onclick="() => bulkAssignOpen = false">Cancel</button>
@@ -284,11 +288,11 @@ else
 }
 
 <EditExtraContentTagsModal IsOpen="tagsModalOpen"
-                          Title="@tagsModalTitle"
-                          ItemIds="tagsModalItemIds"
-                          InitialTagNames="tagsModalInitialNames"
-                          OnClose="CloseTagsModal"
-                          OnSaved="OnTagsSavedAsync" />
+                           Title="@tagsModalTitle"
+                           ItemIds="tagsModalItemIds"
+                           InitialTagNames="tagsModalInitialNames"
+                           OnClose="CloseTagsModal"
+                           OnSaved="OnTagsSavedAsync" />
 
 @if (showAddContentPicker)
 {

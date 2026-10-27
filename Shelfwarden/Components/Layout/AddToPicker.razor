@@ -35,20 +35,24 @@
                         }
                         else
                         {
-                            <label class="form-label" for="add-to-picker-select">@TargetNoun</label>
-                            <select id="add-to-picker-select" class="form-select" @bind="selectedId" disabled="@creatingNew">
-                                @foreach (var option in options)
-                                {
-                                    <option value="@option.Id">@option.Name</option>
-                                }
-                            </select>
+                            <Field Label="@TargetNoun" LabelClass="form-label" For="add-to-picker-select">
+                                <select id="add-to-picker-select" class="form-select" @bind="selectedId" disabled="@creatingNew">
+                                    @foreach (var option in options)
+                                    {
+                                        <option value="@option.Id">@option.Name</option>
+                                    }
+                                </select>
+                            </Field>
                         }
 
                         @if (creatingNew)
                         {
-                            <label class="form-label mt-3" for="add-to-picker-new">New @TargetNoun.ToLowerInvariant()</label>
-                            <input id="add-to-picker-new" class="form-control" placeholder="Name&hellip;"
-                                   @bind="newName" @bind:event="oninput" />
+                            <Field LabelClass="form-label mt-3" For="add-to-picker-new">
+                                <LabelContent>New @TargetNoun.ToLowerInvariant()</LabelContent>
+                                <ChildContent>
+                                    <input id="add-to-picker-new" class="form-control" placeholder="Name&hellip;" @bind="newName" @bind:event="oninput" />
+                                </ChildContent>
+                            </Field>
                         }
                         else if (CanCreate)
                         {

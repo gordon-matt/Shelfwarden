@@ -76,13 +76,18 @@ else
                     <DataAnnotationsValidator />
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label">Name <span class="text-danger">*</span></label>
-                            <InputText class="form-control" @bind-Value="editModel.Name" />
+                            <Field LabelClass="form-label">
+                                <LabelContent>Name <span class="text-danger">*</span></LabelContent>
+                                <ChildContent>
+                                    <InputText class="form-control" @bind-Value="editModel.Name" />
+                                </ChildContent>
+                            </Field>
                             <ValidationMessage For="() => editModel.Name" class="text-danger small" />
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Description</label>
-                            <InputText class="form-control" @bind-Value="editModel.Description" />
+                            <Field Label="Description" LabelClass="form-label">
+                                <InputText class="form-control" @bind-Value="editModel.Description" />
+                            </Field>
                         </div>
                         <div class="col-12">
                             <CardHeaderImageSelector @bind-Mode="bannerMode"
@@ -205,7 +210,10 @@ else
                         {
                             <div class="small text-body-secondary">
                                 <i class="bi bi-collection"></i> @entry.Book.SeriesName
-                                @if (entry.Book.NumberInSeries.HasValue) { <span> · #@entry.Book.NumberInSeries</span> }
+                                @if (entry.Book.NumberInSeries.HasValue)
+                                {
+                                    <span> · #@entry.Book.NumberInSeries</span>
+                                }
                             </div>
                         }
                     </div>

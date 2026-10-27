@@ -1,10 +1,7 @@
 <div class="row g-2 mb-3 align-items-end">
     <div class="col-md-8">
-        <label class="form-label small text-body-secondary mb-1">Search @EntityPlural</label>
-        <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input class="form-control" placeholder="@($"Search {EntityPlural}...")" @bind="tagQuery" @bind:event="oninput" @onkeyup="OnTagQueryKeyUp" />
-        </div>
+        <SearchField Label="@($"Search {EntityPlural}")" LabelClass="form-label small text-body-secondary mb-1"
+                     Placeholder="@($"Search {EntityPlural}...")" @bind-Value="tagQuery" OnKeyUp="OnTagQueryKeyUp" />
     </div>
     <div class="col-md-4 d-flex justify-content-md-end gap-2">
         <button type="button" class="btn btn-outline-secondary" @onclick="ClearTagSelection" disabled="@(selectedTagIds.Count == 0)">
@@ -48,48 +45,46 @@ else if (tags.Count == 0)
 else
 {
     <div class="card">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead>
+        <Table>
+            <thead>
+                <tr>
+                    <th style="width: 1%;"></th>
+                    <th>Name</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in tags)
+                {
                     <tr>
-                        <th style="width: 1%;"></th>
-                        <th>Name</th>
-                        <th class="text-end">Actions</th>
+                        <td>
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   checked="@selectedTagIds.Contains(t.Id)"
+                                   @onchange="e => ToggleTagSelection(t.Id, (bool)(e.Value ?? false))" />
+                        </td>
+                        <td>
+                            @if (Kind == MetadataTagManager.TagKind.Book)
+                            {
+                                <a href="@($"books?tagId={t.Id}")">@t.Name</a>
+                            }
+                            else
+                            {
+                                @t.Name
+                            }
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => OpenTagRenameAsync(t))">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteTagAsync(t))">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    @foreach (var t in tags)
-                    {
-                        <tr>
-                            <td>
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       checked="@selectedTagIds.Contains(t.Id)"
-                                       @onchange="e => ToggleTagSelection(t.Id, (bool)(e.Value ?? false))" />
-                            </td>
-                            <td>
-                                @if (Kind == MetadataTagManager.TagKind.Book)
-                                {
-                                    <a href="@($"books?tagId={t.Id}")">@t.Name</a>
-                                }
-                                else
-                                {
-                                    @t.Name
-                                }
-                            </td>
-                            <td class="text-end text-nowrap">
-                                <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => OpenTagRenameAsync(t))">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteTagAsync(t))">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+                }
+            </tbody>
+        </Table>
     </div>
 }
 

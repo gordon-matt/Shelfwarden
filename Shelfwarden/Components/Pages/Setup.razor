@@ -1,7 +1,5 @@
 @page "/setup"
 @layout EmptyLayout
-@using Microsoft.AspNetCore.WebUtilities
-@using Shelfwarden.Infrastructure
 @inject IAuthProviderService AuthProvider
 @inject ISetupService SetupService
 @inject NavigationManager Nav
@@ -17,208 +15,219 @@
 @* A minimal centred shell rather than the app layout, so a half-configured server can't render
    NavLinks pointing at shelves that don't exist yet. *@
 <div class="setup-shell">
-<div class="setup-card">
-<div class="setup-brand">
-    <i class="bi bi-shield-shaded"></i>
-    <span class="ms-2">Shelfwarden</span>
-</div>
+    <div class="setup-card">
+        <div class="setup-brand">
+            <i class="bi bi-shield-shaded"></i>
+            <span class="ms-2">Shelfwarden</span>
+        </div>
 
-@if (status is null)
-{
-    <div class="text-center text-secondary py-5">
-        <div class="spinner-border" role="status"></div>
-    </div>
-}
-else if (status.SetupComplete)
-{
-    <h1 class="h3 mb-3">All set</h1>
-    <p>Setup is already complete. <a href="/">Go to the dashboard</a>.</p>
-}
-else
-{
-    <div class="setup-stepper" aria-label="Setup progress">
-        @foreach (var s in steps)
+        @if (status is null)
         {
-            <div class="setup-step @(s.Id == CurrentStep ? "active" : null) @(IsStepDone(s.Id) ? "done" : null)">
-                <span class="setup-step-bullet">
-                    @if (IsStepDone(s.Id))
+            <div class="text-center text-secondary py-5">
+                <div class="spinner-border" role="status"></div>
+            </div>
+        }
+        else if (status.SetupComplete)
+        {
+            <h1 class="h3 mb-3">All set</h1>
+            <p>Setup is already complete. <a href="/">Go to the dashboard</a>.</p>
+        }
+        else
+        {
+            <div class="setup-stepper" aria-label="Setup progress">
+                @foreach (var s in steps)
+                {
+                    <div class="setup-step @(s.Id == CurrentStep ? "active" : null) @(IsStepDone(s.Id) ? "done" : null)">
+                        <span class="setup-step-bullet">
+                            @if (IsStepDone(s.Id))
+                            {
+                                <i class="bi bi-check-lg"></i>
+                            }
+                            else
+                            {
+                                @s.Number
+                            }
+                        </span>
+                        <span class="setup-step-label">@s.Label</span>
+                    </div>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">@errorMessage</div>
+            }
+
+            @switch (CurrentStep)
+            {
+                case "welcome":
+                    <h1 class="h3 mb-2">Welcome to Shelfwarden</h1>
+                    <p class="text-secondary">
+                        You're three short steps away from your first shelf. We'll set up an
+                        administrator, point at a folder of books, and we're done.
+                    </p>
+                    <ul class="text-secondary small">
+                        <li>Authentication mode: <strong>@status.AuthProvider</strong></li>
+                        @if (status.ShelfCount > 0)
+                        {
+                            <li>@status.ShelfCount shelf(s) already exist — you can go straight to "Finish".</li>
+                        }
+                    </ul>
+                    <div class="setup-actions">
+                        <a class="btn btn-primary" href="@NextLinkAfterWelcome()">
+                            Get started <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                    break;
+
+                case "admin":
+                    <h1 class="h3 mb-2">Create your administrator</h1>
+                    <p class="text-secondary">
+                        Pick the email and password you'd like to use to sign in. We'll replace the
+                        default <code>admin@@shelfwarden.local</code> account with these values.
+                    </p>
+                    <form method="post" action="/setup/identity-admin" class="setup-form">
+                        <AntiforgeryToken />
+                        <div class="mb-3">
+                            <Field Label="Email" LabelClass="form-label" For="setup-email">
+                                <input id="setup-email" name="Email" type="email" class="form-control"
+                                       value="@adminEmail" required autocomplete="username" />
+                            </Field>
+                        </div>
+                        <div class="mb-3">
+                            <Field Label="Display name" LabelClass="form-label" For="setup-name">
+                                <input id="setup-name" name="DisplayName" type="text" class="form-control"
+                                       value="Administrator" maxlength="128" />
+                            </Field>
+                        </div>
+                        <div class="mb-3">
+                            <Field Label="Password" LabelClass="form-label" For="setup-password">
+                                <input id="setup-password" name="Password" type="password" class="form-control"
+                                       required minlength="6" autocomplete="new-password" />
+                            </Field>
+                            <div class="form-text">At least 6 characters.</div>
+                        </div>
+                        <div class="setup-actions">
+                            <a class="btn btn-outline-secondary" href="/setup">Back</a>
+                            <button class="btn btn-primary" type="submit">
+                                Save and continue <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </form>
+                    break;
+
+                case "shelf":
+                    @if (status.AuthProvider == nameof(Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Keycloak)
+                         && !status.CallerIsAdministrator)
                     {
-                        <i class="bi bi-check-lg"></i>
+                        <h1 class="h3 mb-2">Sign in as an administrator</h1>
+                        <p class="text-secondary">
+                            Shelfwarden is configured to use Keycloak for authentication. Sign in
+                            with a user that has the <code>Administrator</code> realm role to finish setup.
+                        </p>
+                        <div class="setup-actions">
+                            <a class="btn btn-primary" href="/auth/login?returnUrl=%2Fsetup%3Fstep%3Dshelf">
+                                Sign in with Keycloak <i class="bi bi-box-arrow-in-right ms-1"></i>
+                            </a>
+                        </div>
                     }
                     else
                     {
-                        @s.Number
+                        <h1 class="h3 mb-2">Add your first shelf</h1>
+                        <p class="text-secondary">
+                            Point Shelfwarden at one or more folders that contain your ebooks. We'll scan
+                            these in the background after setup finishes.
+                        </p>
+                        <form method="post" action="/setup/shelf" class="setup-form">
+                            <AntiforgeryToken />
+                            <div class="mb-3">
+                                <Field Label="Shelf name" LabelClass="form-label" For="setup-lib-name">
+                                    <input id="setup-lib-name" name="name" type="text" class="form-control"
+                                           value="@shelfName" maxlength="256" required />
+                                </Field>
+                            </div>
+                            <div class="mb-3">
+                                <Field Label="Folders (one per line)" LabelClass="form-label" For="setup-lib-folders">
+                                    <div class="input-group">
+                                        <textarea id="setup-lib-folders" name="folders" class="form-control" rows="4"
+                                                  placeholder="@FolderPlaceholder()" required
+                                                  value="@shelfFolders"
+                                                  @oninput="e => shelfFolders = e.Value?.ToString() ?? string.Empty"></textarea>
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                @onclick="() => _showSetupFolderPicker = true"
+                                                title="Browse container filesystem">
+                                            <i class="bi bi-folder2-open"></i>
+                                        </button>
+                                    </div>
+                                </Field>
+                                <div class="form-text">Absolute paths. We'll create them later if they don't exist.</div>
+                            </div>
+                            <div class="mb-3">
+                                <Field Label="Folder structure" LabelClass="form-label" For="setup-lib-structure">
+                                    <select id="setup-lib-structure" name="directoryStructure" class="form-select">
+                                        <option value="@nameof(DirectoryStructure.Unstructured)" selected>Unstructured (any layout)</option>
+                                        <option value="@nameof(DirectoryStructure.Calibre)">Calibre library</option>
+                                    </select>
+                                </Field>
+                                <div class="form-text">
+                                    Pick <strong>Calibre</strong> if these folders are a Calibre library so we read its
+                                    <code>metadata.opf</code> sidecars. This can't be changed after the shelf is created.
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <Field Label="Description (optional)" LabelClass="form-label" For="setup-lib-desc">
+                                    <input id="setup-lib-desc" name="description" type="text" class="form-control"
+                                           maxlength="2048" />
+                                </Field>
+                            </div>
+                            <div class="setup-actions">
+                                <a class="btn btn-link" href="/setup?step=done">Skip — set up later</a>
+                                <button class="btn btn-primary" type="submit">
+                                    Create shelf <i class="bi bi-arrow-right ms-1"></i>
+                                </button>
+                            </div>
+                        </form>
+
+                        @if (_showSetupFolderPicker)
+                        {
+                            <FileSystemPicker Mode="FileSystemPicker.PickerMode.Folder"
+                                              Title="Select Shelf Folder"
+                                              OnConfirm="OnSetupFolderPickerConfirm"
+                                              OnCancel="() => _showSetupFolderPicker = false" />
+                        }
                     }
-                </span>
-                <span class="setup-step-label">@s.Label</span>
-            </div>
-        }
-    </div>
+                    break;
 
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
-    {
-        <div class="alert alert-danger" role="alert">@errorMessage</div>
-    }
-
-    @switch (CurrentStep)
-    {
-        case "welcome":
-            <h1 class="h3 mb-2">Welcome to Shelfwarden</h1>
-            <p class="text-secondary">
-                You're three short steps away from your first shelf. We'll set up an
-                administrator, point at a folder of books, and we're done.
-            </p>
-            <ul class="text-secondary small">
-                <li>Authentication mode: <strong>@status.AuthProvider</strong></li>
-                @if (status.ShelfCount > 0)
-                {
-                    <li>@status.ShelfCount shelf(s) already exist — you can go straight to "Finish".</li>
-                }
-            </ul>
-            <div class="setup-actions">
-                <a class="btn btn-primary" href="@NextLinkAfterWelcome()">
-                    Get started <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-            break;
-
-        case "admin":
-            <h1 class="h3 mb-2">Create your administrator</h1>
-            <p class="text-secondary">
-                Pick the email and password you'd like to use to sign in. We'll replace the
-                default <code>admin@@shelfwarden.local</code> account with these values.
-            </p>
-            <form method="post" action="/setup/identity-admin" class="setup-form">
-                <AntiforgeryToken />
-                <div class="mb-3">
-                    <label class="form-label" for="setup-email">Email</label>
-                    <input id="setup-email" name="Email" type="email" class="form-control"
-                           value="@adminEmail" required autocomplete="username" />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="setup-name">Display name</label>
-                    <input id="setup-name" name="DisplayName" type="text" class="form-control"
-                           value="Administrator" maxlength="128" />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="setup-password">Password</label>
-                    <input id="setup-password" name="Password" type="password" class="form-control"
-                           required minlength="6" autocomplete="new-password" />
-                    <div class="form-text">At least 6 characters.</div>
-                </div>
-                <div class="setup-actions">
-                    <a class="btn btn-outline-secondary" href="/setup">Back</a>
-                    <button class="btn btn-primary" type="submit">
-                        Save and continue <i class="bi bi-arrow-right ms-1"></i>
-                    </button>
-                </div>
-            </form>
-            break;
-
-        case "shelf":
-            @if (status.AuthProvider == nameof(Heroicsoft.NetForge.Abstractions.Auth.AuthProvider.Keycloak)
-                 && !status.CallerIsAdministrator)
-            {
-                <h1 class="h3 mb-2">Sign in as an administrator</h1>
-                <p class="text-secondary">
-                    Shelfwarden is configured to use Keycloak for authentication. Sign in
-                    with a user that has the <code>Administrator</code> realm role to finish setup.
-                </p>
-                <div class="setup-actions">
-                    <a class="btn btn-primary" href="/auth/login?returnUrl=%2Fsetup%3Fstep%3Dshelf">
-                        Sign in with Keycloak <i class="bi bi-box-arrow-in-right ms-1"></i>
-                    </a>
-                </div>
-            }
-            else
-            {
-                <h1 class="h3 mb-2">Add your first shelf</h1>
-                <p class="text-secondary">
-                    Point Shelfwarden at one or more folders that contain your ebooks. We'll scan
-                    these in the background after setup finishes.
-                </p>
-                <form method="post" action="/setup/shelf" class="setup-form">
-                    <AntiforgeryToken />
-                    <div class="mb-3">
-                        <label class="form-label" for="setup-lib-name">Shelf name</label>
-                        <input id="setup-lib-name" name="name" type="text" class="form-control"
-                               value="@shelfName" maxlength="256" required />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="setup-lib-folders">Folders (one per line)</label>
-                        <div class="input-group">
-                            <textarea id="setup-lib-folders" name="folders" class="form-control" rows="4"
-                                      placeholder="@FolderPlaceholder()" required
-                                      value="@shelfFolders"
-                                      @oninput="e => shelfFolders = e.Value?.ToString() ?? string.Empty"></textarea>
-                            <button class="btn btn-outline-secondary" type="button"
-                                    @onclick="() => _showSetupFolderPicker = true"
-                                    title="Browse container filesystem">
-                                <i class="bi bi-folder2-open"></i>
+                case "done":
+                    <h1 class="h3 mb-2">You're ready to go</h1>
+                    <p class="text-secondary">
+                        @if (status.ShelfCount > 0)
+                        {
+                            <text>
+                                Shelfwarden has @status.ShelfCount shelf(s) configured. We'll start scanning
+                                once you head to the dashboard.
+                            </text>
+                        }
+                        else
+                        {
+                            <text>
+                                You skipped the shelf step — no problem. Head to <em>Shelves</em> in the
+                                sidebar after sign-in to add one.
+                            </text>
+                        }
+                    </p>
+                    <form method="post" action="/setup/complete" class="setup-form">
+                        <AntiforgeryToken />
+                        <div class="setup-actions">
+                            <a class="btn btn-outline-secondary" href="/setup?step=shelf">Back</a>
+                            <button class="btn btn-success" type="submit">
+                                Finish <i class="bi bi-check2 ms-1"></i>
                             </button>
                         </div>
-                        <div class="form-text">Absolute paths. We'll create them later if they don't exist.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="setup-lib-structure">Folder structure</label>
-                        <select id="setup-lib-structure" name="directoryStructure" class="form-select">
-                            <option value="@nameof(DirectoryStructure.Unstructured)" selected>Unstructured (any layout)</option>
-                            <option value="@nameof(DirectoryStructure.Calibre)">Calibre library</option>
-                        </select>
-                        <div class="form-text">
-                            Pick <strong>Calibre</strong> if these folders are a Calibre library so we read its
-                            <code>metadata.opf</code> sidecars. This can't be changed after the shelf is created.
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="setup-lib-desc">Description (optional)</label>
-                        <input id="setup-lib-desc" name="description" type="text" class="form-control"
-                               maxlength="2048" />
-                    </div>
-                    <div class="setup-actions">
-                        <a class="btn btn-link" href="/setup?step=done">Skip — set up later</a>
-                        <button class="btn btn-primary" type="submit">
-                            Create shelf <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
-                    </div>
-                </form>
-
-                @if (_showSetupFolderPicker)
-                {
-                    <FileSystemPicker Mode="FileSystemPicker.PickerMode.Folder"
-                                      Title="Select Shelf Folder"
-                                      OnConfirm="OnSetupFolderPickerConfirm"
-                                      OnCancel="() => _showSetupFolderPicker = false" />
-                }
+                    </form>
+                    break;
             }
-            break;
+        }
 
-        case "done":
-            <h1 class="h3 mb-2">You're ready to go</h1>
-            <p class="text-secondary">
-                @if (status.ShelfCount > 0)
-                {
-                    <text>Shelfwarden has @status.ShelfCount shelf(s) configured. We'll start scanning
-                    once you head to the dashboard.</text>
-                }
-                else
-                {
-                    <text>You skipped the shelf step — no problem. Head to <em>Shelves</em> in the
-                    sidebar after sign-in to add one.</text>
-                }
-            </p>
-            <form method="post" action="/setup/complete" class="setup-form">
-                <AntiforgeryToken />
-                <div class="setup-actions">
-                    <a class="btn btn-outline-secondary" href="/setup?step=shelf">Back</a>
-                    <button class="btn btn-success" type="submit">
-                        Finish <i class="bi bi-check2 ms-1"></i>
-                    </button>
-                </div>
-            </form>
-            break;
-    }
-}
-
-</div>
+    </div>
 </div>

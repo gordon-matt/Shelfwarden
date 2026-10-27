@@ -14,10 +14,10 @@
                     {
                         <div class="alert alert-danger py-2">@error</div>
                     }
-                    <ChipInput TItem="string"
+                    <TagPicker TItem="string"
                                Label="Tags"
                                Selected="selectedTags"
-                               ChipCssSuffix="chip-tag"
+                               ChipClass="chip-tag"
                                NameOf="@(t => t)"
                                SearchAsync="SearchTagsAsync"
                                OnAddAsync="AddTagAsync" />

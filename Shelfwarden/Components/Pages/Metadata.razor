@@ -48,11 +48,8 @@
 {
     <div class="row g-2 mb-3 align-items-end">
         <div class="col-md-8">
-            <label class="form-label small text-body-secondary mb-1">Search genres</label>
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input class="form-control" placeholder="Search genres..." @bind="genreQuery" @bind:event="oninput" @onkeyup="OnGenreQueryKeyUp" />
-            </div>
+            <SearchField Label="Search genres" LabelClass="form-label small text-body-secondary mb-1"
+                         Placeholder="Search genres..." @bind-Value="genreQuery" OnKeyUp="OnGenreQueryKeyUp" />
         </div>
         <div class="col-md-4 d-flex justify-content-md-end gap-2">
             <button class="btn btn-outline-secondary" @onclick="ClearGenreSelection" disabled="@(selectedGenreIds.Count == 0)">
@@ -96,55 +93,53 @@
     else
     {
         <div class="card">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead>
+            <Table>
+                <thead>
+                    <tr>
+                        <th style="width: 1%;"></th>
+                        <th>Name</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in genres)
+                    {
                         <tr>
-                            <th style="width: 1%;"></th>
-                            <th>Name</th>
-                            <th class="text-end">Actions</th>
+                            <td>
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       checked="@selectedGenreIds.Contains(g.Id)"
+                                       @onchange="e => ToggleGenreSelection(g.Id, (bool)(e.Value ?? false))" />
+                            </td>
+                            <td>
+                                <a href="@($"books?genreId={g.Id}")">@g.Name</a>
+                            </td>
+                            <td class="text-end text-nowrap">
+                                <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => OpenGenreRenameAsync(g))">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteGenreAsync(g))">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var g in genres)
-                        {
-                            <tr>
-                                <td>
-                                    <input class="form-check-input"
-                                           type="checkbox"
-                                           checked="@selectedGenreIds.Contains(g.Id)"
-                                           @onchange="e => ToggleGenreSelection(g.Id, (bool)(e.Value ?? false))" />
-                                </td>
-                                <td>
-                                    <a href="@($"books?genreId={g.Id}")">@g.Name</a>
-                                </td>
-                                <td class="text-end text-nowrap">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => OpenGenreRenameAsync(g))">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteGenreAsync(g))">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+                    }
+                </tbody>
+            </Table>
         </div>
     }
 }
 else if (activeTab == MetadataTab.BookTags)
 {
     <MetadataTagManager @key="MetadataTab.BookTags"
-                       Kind="MetadataTagManager.TagKind.Book"
-                       ErrorChanged="OnTagManagerErrorAsync" />
+                        Kind="MetadataTagManager.TagKind.Book"
+                        ErrorChanged="OnTagManagerErrorAsync" />
 }
 else
 {
     <MetadataTagManager @key="MetadataTab.ExtraContentTags"
-                       Kind="MetadataTagManager.TagKind.ExtraContent"
-                       ErrorChanged="OnTagManagerErrorAsync" />
+                        Kind="MetadataTagManager.TagKind.ExtraContent"
+                        ErrorChanged="OnTagManagerErrorAsync" />
 }
 
 @if (genreMergeModalOpen && genreMergeCandidates.Count > 0)
