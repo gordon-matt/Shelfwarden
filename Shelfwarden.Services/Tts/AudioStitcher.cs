@@ -1,4 +1,4 @@
-using Xabe.FFmpeg;
+using Heroicsoft.NetForge.Video;
 
 namespace Shelfwarden.Services.Tts;
 
@@ -10,7 +10,8 @@ namespace Shelfwarden.Services.Tts;
 /// </summary>
 public sealed class AudioStitcher(
     ILogger<AudioStitcher> logger,
-    IFFmpegProvider ffmpegProvider)
+    IFFmpegProvider ffmpegProvider,
+    IPcmAudioEncoder encoder)
 {
     /// <summary>Sample rate Kokoro emits at. Mirrors <c>KokoroPlayback.waveFormat</c>.</summary>
     public const int SampleRateHz = 24_000;
@@ -37,72 +38,22 @@ public sealed class AudioStitcher(
 
         await ffmpegProvider.EnsureReadyAsync(cancellationToken);
 
-        string workingDir = Path.GetDirectoryName(outputM4aPath)!;
-        Directory.CreateDirectory(workingDir);
-        string mergedPcmPath = Path.Combine(workingDir, "_merged.pcm");
+        logger.LogDebug("Encoding {ChunkCount} PCM chunks to {Path}", pcmChunkFiles.Count, outputM4aPath);
 
-        await ConcatenatePcmAsync(pcmChunkFiles, mergedPcmPath, cancellationToken);
-
-        try
-        {
-            var conversion = FFmpeg.Conversions.New()
-                // Tell FFmpeg how to interpret the headerless PCM input — sample rate, channel
-                // count and sample format must all match what Kokoro emitted.
-                .AddParameter($"-f s16le -ar {SampleRateHz} -ac {Channels}", ParameterPosition.PreInput)
-                .AddParameter($"-i \"{mergedPcmPath}\"", ParameterPosition.PreInput)
-                // 64 kbps AAC is plenty for spoken word — voices stay clear and the file is
-                // small enough that an 18-hour novel comes in under ~500 MB.
-                .AddParameter("-c:a aac -b:a 64k -movflags +faststart")
-                .SetOverwriteOutput(true)
-                .SetOutput(outputM4aPath);
-
-            if (logger.IsEnabled(LogLevel.Debug))
+        // 64 kbps AAC is plenty for spoken word. The encoder concatenates the raw chunks and
+        // deletes the intermediate PCM, which can run to gigabytes on a long book.
+        var encoded = await encoder.EncodeAsync(
+            new PcmAudioEncodeRequest
             {
-                logger.LogDebug("Running FFmpeg with arguments: {Args}", conversion.Build());
-            }
+                PcmChunkFiles = pcmChunkFiles,
+                OutputPath = outputM4aPath,
+                SampleRateHz = SampleRateHz,
+                Channels = Channels,
+                AudioBitrate = "64k",
+            },
+            cancellationToken);
 
-            var info = await conversion.Start(cancellationToken);
-
-            return new EncodingResult(
-                outputM4aPath,
-                new FileInfo(outputM4aPath).Length,
-                info?.Duration.TotalSeconds ?? 0d);
-        }
-        finally
-        {
-            // Always remove the giant intermediate PCM, success or failure — it can run into
-            // gigabytes for a long book and there's nothing to recover from it.
-            try
-            {
-                if (File.Exists(mergedPcmPath))
-                {
-                    File.Delete(mergedPcmPath);
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Failed to delete intermediate PCM file {Path}", mergedPcmPath);
-            }
-        }
-    }
-
-    private static async Task ConcatenatePcmAsync(
-        IReadOnlyList<string> pcmChunkFiles,
-        string outputPath,
-        CancellationToken cancellationToken)
-    {
-        await using var output = new FileStream(
-            outputPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
-
-        foreach (string chunk in pcmChunkFiles)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            await using var input = new FileStream(
-                chunk, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
-
-            await input.CopyToAsync(output, 81920, cancellationToken);
-        }
+        return new EncodingResult(encoded.FilePath, encoded.FileSizeBytes, encoded.DurationSeconds);
     }
 
     /// <summary>

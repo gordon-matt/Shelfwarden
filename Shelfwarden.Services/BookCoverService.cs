@@ -1,6 +1,6 @@
+using Heroicsoft.NetForge.Drawing;
 using Shelfwarden.Services.Scanning;
 using Shelfwarden.Services.Storage;
-using SixLabors.ImageSharp;
 
 namespace Shelfwarden.Services;
 
@@ -135,16 +135,13 @@ public sealed class BookCoverService(
     /// <summary>Validates the bytes are a real image and returns the canonical file extension, else null.</summary>
     private static string? DetectImageExtension(byte[] bytes)
     {
-        try
-        {
-            var format = Image.DetectFormat(bytes);
-            string? extension = format.FileExtensions.FirstOrDefault();
-            return string.IsNullOrWhiteSpace(extension) ? "jpg" : extension.ToLowerInvariant();
-        }
-        catch (Exception)
+        RasterFormat format = ImageFormats.Detect(bytes);
+        if (format == RasterFormat.Unknown)
         {
             return null;
         }
+
+        return ImageFormats.ToExtension(format).TrimStart('.');
     }
 
     private async Task SaveCoverAsync(Book book, EbookCoverImage cover, CancellationToken cancellationToken)

@@ -1,6 +1,5 @@
+using Heroicsoft.NetForge.Video;
 using Shelfwarden.Services.Storage;
-using Xabe.FFmpeg;
-using Xabe.FFmpeg.Downloader;
 
 namespace Shelfwarden.Services.Tts;
 
@@ -32,29 +31,19 @@ public sealed class FFmpegProvider(
                 return;
             }
 
-            // Prefer distro FFmpeg (e.g. Docker base image) — avoids download and matches Kinnect-style installs.
-            const string linuxSystemFfmpegDir = "/usr/bin";
-            if (OperatingSystem.IsLinux() && File.Exists(Path.Combine(linuxSystemFfmpegDir, "ffmpeg")))
-            {
-                FFmpeg.SetExecutablesPath(linuxSystemFfmpegDir);
-                logger.LogDebug("Using system FFmpeg at {Dir}", linuxSystemFfmpegDir);
-            }
-            else
-            {
-                string ffmpegDir = Path.Combine(storage.TtsCacheDirectory, "ffmpeg");
-                Directory.CreateDirectory(ffmpegDir);
-
-                // Tell Xabe both where to download to and where to look for the executable. The
-                // downloader skips the network call when binaries already exist on disk.
-                FFmpeg.SetExecutablesPath(ffmpegDir);
-
-                if (!HasFFmpegBinary(ffmpegDir))
+            // Prefer a distro ffmpeg (the Docker image) and otherwise download an official build
+            // into the TTS cache so a container restart does not fetch it again.
+            await FfmpegBootstrap.EnsureAsync(
+                new FfmpegBootstrapOptions
                 {
-                    logger.LogInformation("FFmpeg binaries not found in {Path}; downloading official build", ffmpegDir);
-                    await FFmpegDownloader.GetLatestVersion(FFmpegVersion.Official, ffmpegDir);
-                    logger.LogInformation("FFmpeg installed at {Path}", ffmpegDir);
-                }
-            }
+                    PreferLinuxSystemDirectory = true,
+                    DownloadDirectory = Path.Combine(storage.TtsCacheDirectory, "ffmpeg"),
+                    SearchWellKnownLocations = false,
+                    DownloadIfMissing = true,
+                    RequireFfprobe = false,
+                },
+                logger,
+                cancellationToken);
 
             ready = true;
         }
@@ -62,17 +51,5 @@ public sealed class FFmpegProvider(
         {
             initLock.Release();
         }
-    }
-
-    private static bool HasFFmpegBinary(string ffmpegDir)
-    {
-        // Xabe drops the binary as either ffmpeg.exe (Windows) or ffmpeg (POSIX) directly under
-        // the configured path. A simple existence check avoids the network round-trip every
-        // job startup.
-        string[] candidates = OperatingSystem.IsWindows()
-            ? ["ffmpeg.exe"]
-            : ["ffmpeg"];
-
-        return candidates.Any(name => File.Exists(Path.Combine(ffmpegDir, name)));
     }
 }

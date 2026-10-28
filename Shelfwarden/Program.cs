@@ -1,6 +1,7 @@
 using Hangfire;
 using Heroicsoft.NetForge.Abstractions.Navigation;
 using Heroicsoft.NetForge.Abstractions.Setup;
+using Heroicsoft.NetForge.Components;
 using Heroicsoft.NetForge.Components.Bootstrap;
 using Heroicsoft.NetForge.Hangfire;
 using LogVue;
@@ -61,6 +62,8 @@ builder.Services.AddShelfwardenOpds(builder.Configuration);
 builder.Services.AddShelfwardenHangfire(builder.Configuration);
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+builder.Services.ConfigureNetForgeToastSounds(sounds => sounds.EnableSounds = true);
 
 var app = builder.Build();
 

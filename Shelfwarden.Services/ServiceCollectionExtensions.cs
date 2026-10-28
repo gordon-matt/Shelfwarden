@@ -1,3 +1,5 @@
+using Heroicsoft.NetForge.Drawing;
+using Heroicsoft.NetForge.Video;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shelfwarden.Services.Jobs;
@@ -21,6 +23,8 @@ public static class ServiceCollectionExtensions
         /// </summary>
         public IServiceCollection AddShelfwardenServices()
         {
+            services.AddNetForgeDrawing();
+            services.AddNetForgeVideo();
             services.AddHttpContextAccessor();
             services.AddScoped<IShelfAccessService, ShelfAccessService>();
 

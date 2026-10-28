@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
-using SixLabors.ImageSharp;
+using Heroicsoft.NetForge.Drawing;
 using VersOne.Epub;
 using VersOne.Epub.Options;
 using VersOne.Epub.Schema;
@@ -198,18 +198,10 @@ public sealed partial class EpubMetadataExtractor(ILogger<EpubMetadataExtractor>
 
     private static string GuessImageExtension(byte[] bytes, string? hrefHint = null)
     {
-        try
+        RasterFormat format = ImageFormats.Detect(bytes);
+        if (format != RasterFormat.Unknown)
         {
-            var info = Image.Identify(bytes);
-            string? ext = info?.Metadata.DecodedImageFormat?.FileExtensions.FirstOrDefault()?.ToLowerInvariant();
-            if (!string.IsNullOrEmpty(ext))
-            {
-                return ext;
-            }
-        }
-        catch
-        {
-            // Fall back to manifest / zip entry extension below.
+            return ImageFormats.ToExtension(format).TrimStart('.');
         }
 
         if (!string.IsNullOrWhiteSpace(hrefHint))

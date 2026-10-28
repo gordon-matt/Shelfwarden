@@ -1,9 +1,7 @@
 using Docnet.Core;
 using Docnet.Core.Converters;
 using Docnet.Core.Models;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
+using Heroicsoft.NetForge.Drawing;
 using UglyToad.PdfPig;
 
 namespace Shelfwarden.Services.Scanning;
@@ -15,7 +13,9 @@ namespace Shelfwarden.Services.Scanning;
 /// box; ARM Linux is not, so cover extraction silently no-ops on unsupported platforms rather
 /// than blowing up the whole scan.
 /// </summary>
-public sealed class PdfMetadataExtractor(ILogger<PdfMetadataExtractor> logger) : IEbookMetadataExtractor
+public sealed class PdfMetadataExtractor(
+    ILogger<PdfMetadataExtractor> logger,
+    IImageProcessor images) : IEbookMetadataExtractor
 {
     /// <summary>Page render dimensions for cover capture. Tall enough to look sharp on the detail page; a single page render is cheap.</summary>
     private static readonly PageDimensions CoverPageDimensions = new(1080, 1920);
@@ -94,18 +94,16 @@ public sealed class PdfMetadataExtractor(ILogger<PdfMetadataExtractor> logger) :
                 return null;
             }
 
-            // PDFium hands back BGRA pixels; ImageSharp can wrap them directly. The naive
-            // transparency remover paints any transparent pixel white, which matches what
-            // a printed page looks like.
+            // PDFium hands back BGRA pixels. The naive transparency remover paints any
+            // transparent pixel white, which matches what a printed page looks like.
             byte[] rawBytes = pageReader.GetImage(new NaiveTransparencyRemover());
-
-            using var image = Image.LoadPixelData<Bgra32>(rawBytes, width, height);
 
             // Re-encode as JPEG. The covers directory averages tens of thousands of files at
             // scale, so the smaller / lossy format is the right trade-off.
-            using var ms = new MemoryStream();
-            image.SaveAsJpeg(ms, new JpegEncoder { Quality = 80 });
-            return new EbookCoverImage(ms.ToArray(), "jpg");
+            var processed = images.EncodeBgraAsync(rawBytes, width, height, new ImageEncode(RasterFormat.Jpeg, 80))
+                .GetAwaiter()
+                .GetResult();
+            return new EbookCoverImage(processed.Bytes, "jpg");
         }
         catch (Exception ex)
         {
