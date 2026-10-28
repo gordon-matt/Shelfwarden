@@ -1,61 +1,57 @@
+@using System.Text.Json
+@using Microsoft.Extensions.Options
+@using Heroicsoft.NetForge.Abstractions.Theming
+@using Heroicsoft.NetForge.Components.Theming
+@inject IOptions<ForgeUiOptions> UiOptions
 @*
-    Custom layout for the embedded ASP.NET Identity UI (`AddDefaultUI()`).
-    The default layout shipped with Microsoft.AspNetCore.Identity.UI references partials
-    (`_LoginPartial`, `_ValidationScriptsPartial`) we never scaffolded into this Blazor Server
-    project, so we replace it wholesale. Identity pages here intentionally do not host the
-    Blazor NavMenu / ThemePicker — they're plain Razor Pages rendered before the Blazor circuit
-    is up. They share the active Bootswatch theme so the chrome still looks consistent.
+    Layout for the embedded ASP.NET Identity UI. The app itself stays on Bootswatch, so this page
+    does not load theme-init.js: that script would read a Bootswatch name out of the shared
+    storage key and could write "light" or "dark" back over it. A short script only maps the
+    stored theme onto the nf light/dark scheme.
 *@
-@inject IServerSettingsService ServerSettings
 @{
-    string theme = BootswatchThemes.Default;
-    var themeResult = await ServerSettings.GetAsync(Context.RequestAborted);
-    if (themeResult.IsSuccess)
-    {
-        theme = themeResult.Value.Theme;
-    }
-    string colorScheme = BootswatchThemes.IsDarkColorScheme(theme) ? "dark" : "light";
+    const string siteName = "Shelfwarden";
+    var ui = UiOptions.Value;
+    string? accentCss = ForgeAccentCss.Build(ui);
+    string storageKey = Constants.ClientThemeLocalStorageKey;
+    string defaultScheme = BootswatchThemes.IsDarkColorScheme(BootswatchThemes.Default) ? "dark" : "light";
+    string darkThemesJson = JsonSerializer.Serialize(BootswatchThemes.DarkColorScheme.ToArray());
 }
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="@colorScheme">
+<html lang="en" data-theme="@defaultScheme">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Shelfwarden</title>
-    @* Same id and storage key as ForgeHostPage, so the shared theme-init.js carries the visitor's chosen
-       theme onto the sign-in page; the server theme is only the default. The stylesheet format is
-       root-relative because this page is not served from "/". *@
-    <link id="theme-stylesheet" rel="stylesheet" href="~/lib/bootswatch/dist/@(theme)/bootstrap.min.css" />
-    <script src="~/_content/Heroicsoft.NetForge.Components.Bootstrap/js/theme-init.js"
-            data-theme-key="@Constants.ClientThemeLocalStorageKey"
-            data-default-theme="@theme"
-            data-stylesheet-format="/lib/bootswatch/dist/{0}/bootstrap.min.css"></script>
-    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
-    <link rel="stylesheet" href="~/css/site.css" />
-    <link rel="icon" type="image/png" href="~/favicon.png" />
+    <title>@ViewData["Title"] - @siteName</title>
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico" />
+    <script>
+        (function () {
+            var dark = @Html.Raw(darkThemesJson);
+            var stored = null;
+            try { stored = localStorage.getItem(@Html.Raw(JsonSerializer.Serialize(storageKey))); } catch (e) { }
+            var name = stored ? String(stored).toLowerCase() : "";
+            var theme = name ? (dark.indexOf(name) >= 0 ? "dark" : "light") : @Html.Raw(JsonSerializer.Serialize(defaultScheme));
+            document.documentElement.setAttribute("data-theme", theme);
+        })();
+    </script>
+    <link rel="stylesheet" href="~/_content/Heroicsoft.NetForge.Components/css/nf.css" />
+    @if (accentCss is not null)
+    {
+        <style>@Html.Raw(accentCss)</style>
+    }
 </head>
-<body class="bg-body-tertiary">
-    <nav class="navbar navbar-expand-md navbar-dark bg-dark border-bottom">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <i class="bi bi-bookshelf"></i> Shelfwarden
-            </a>
-        </div>
-    </nav>
-
-    <main class="container py-4">
-        <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-6">
-                <div class="card shadow-sm">
-                    <div class="card-body p-4">
-                        @RenderBody()
-                    </div>
-                </div>
+<body>
+    <div class="nf-standalone">
+        <div class="nf-standalone-body">
+            <div class="nf-auth-card">
+                <a class="nf-brand-link" href="/">
+                    <img class="nf-brand-logo nf-has-dark" src="~/img/Logo.png" alt="@siteName" />
+                    <img class="nf-brand-logo-dark" src="~/img/Logo_Light.png" alt="" />
+                </a>
+                @RenderBody()
             </div>
         </div>
-    </main>
-
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    </div>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

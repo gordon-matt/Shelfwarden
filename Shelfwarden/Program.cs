@@ -3,6 +3,7 @@ using Heroicsoft.NetForge.Abstractions.Navigation;
 using Heroicsoft.NetForge.Abstractions.Setup;
 using Heroicsoft.NetForge.Components;
 using Heroicsoft.NetForge.Components.Bootstrap;
+using Heroicsoft.NetForge.Components.Theming;
 using Heroicsoft.NetForge.Hangfire;
 using LogVue;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -34,6 +35,12 @@ builder.Services.AddHttpClient();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthorization();
 builder.Services.AddNetForgeBootstrapComponents(ui => ui.ThemeStorageKey = Shelfwarden.Constants.ClientThemeLocalStorageKey);
+builder.Services.Configure<ForgeUiOptions>(ui =>
+{
+    // Gold from the wordmark. The sign-in page is the only nf surface; the app itself stays on Bootswatch.
+    ui.AccentColor = "#d4a017";
+    ui.AccentColorDark = "#f0c14a";
+});
 builder.Services.Configure<ForgeShellOptions>(shell =>
 {
     shell.Brand = "Shelfwarden";

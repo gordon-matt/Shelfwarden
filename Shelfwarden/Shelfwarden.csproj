@@ -18,6 +18,7 @@
 	<ItemGroup>
 		<PackageReference Include="Ardalis.Result" Version="10.1.0" />
 		<PackageReference Include="Heroicsoft.NetForge.Authentication" Version="1.1.0" />
+		<PackageReference Include="Heroicsoft.NetForge.Components" Version="1.1.1" />
 		<PackageReference Include="Heroicsoft.NetForge.Components.Bootstrap" Version="1.1.0" />
 		<PackageReference Include="Heroicsoft.NetForge.Hangfire" Version="1.1.0" />
 		<PackageReference Include="LogVue" Version="1.1.1" />
