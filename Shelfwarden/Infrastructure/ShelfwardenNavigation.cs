@@ -78,14 +78,14 @@ public sealed class ShelfwardenNavigation(
                 Heading = "Browse",
                 Items =
                 [
-                    new ForgeNavItem { Title = "Home", Href = "/", Icon = "bi-house-door", MatchAll = true },
-                    new ForgeNavItem { Title = "All books", Href = "/books", Icon = "bi-book" },
-                    new ForgeNavItem { Title = "Shelves", Href = "/shelves", Icon = "bi-collection" },
-                    new ForgeNavItem { Title = "Authors", Href = "/authors", Icon = "bi-person-lines-fill" },
-                    new ForgeNavItem { Title = "Series", Href = "/series", Icon = "bi-collection-fill" },
-                    new ForgeNavItem { Title = "Universes", Href = "/universes", Icon = "bi-stars", Badge = FormatCount(universes?.Count) },
-                    new ForgeNavItem { Title = "Collections", Href = "/collections", Icon = "bi-bookshelf", Badge = FormatCount(collections?.Count) },
-                    new ForgeNavItem { Title = "Reading lists", Href = "/reading-lists", Icon = "bi-list-ol", Badge = FormatCount(readingLists?.Count) },
+                    new() { Title = "Home", Href = "/", Icon = "bi-house-door", MatchAll = true },
+                    new() { Title = "All books", Href = "/books", Icon = "bi-book" },
+                    new() { Title = "Shelves", Href = "/shelves", Icon = "bi-collection" },
+                    new() { Title = "Authors", Href = "/authors", Icon = "bi-person-lines-fill" },
+                    new() { Title = "Series", Href = "/series", Icon = "bi-collection-fill" },
+                    new() { Title = "Universes", Href = "/universes", Icon = "bi-stars", Badge = FormatCount(universes?.Count) },
+                    new() { Title = "Collections", Href = "/collections", Icon = "bi-bookshelf", Badge = FormatCount(collections?.Count) },
+                    new() { Title = "Reading lists", Href = "/reading-lists", Icon = "bi-list-ol", Badge = FormatCount(readingLists?.Count) },
                 ],
             },
         };
@@ -130,12 +130,12 @@ public sealed class ShelfwardenNavigation(
             Roles = WellKnownRoles.Administrator,
             Items =
             [
-                new ForgeNavItem { Title = "Users", Href = "/users", Icon = "bi-people" },
-                new ForgeNavItem { Title = "Metadata", Href = "/metadata", Icon = "bi-tags" },
-                new ForgeNavItem { Title = "Extra Content", Href = "/extra-content", Icon = "bi-folder-plus" },
-                new ForgeNavItem { Title = "Audiobooks", Href = "/audiobooks", Icon = "bi-headphones" },
-                new ForgeNavItem { Title = "Hangfire", Href = "/hangfire", Icon = "bi-speedometer2", External = true, Tooltip = "Background jobs" },
-                new ForgeNavItem { Title = "Logging", Href = "/logvue", Icon = "bi-journal-text", External = true, Tooltip = "Log viewer" },
+                new() { Title = "Users", Href = "/users", Icon = "bi-people" },
+                new() { Title = "Metadata", Href = "/metadata", Icon = "bi-tags" },
+                new() { Title = "Extra Content", Href = "/extra-content", Icon = "bi-folder-plus" },
+                new() { Title = "Audiobooks", Href = "/audiobooks", Icon = "bi-headphones" },
+                new() { Title = "Logs", Href = "/logvue", Icon = "bi-journal-text" },
+                new() { Title = "Hangfire", Href = "/hangfire", Icon = "bi-speedometer2", External = true, Tooltip = "Background jobs" },
             ],
         });
 

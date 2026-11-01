@@ -50,7 +50,6 @@ builder.Services.Configure<ForgeShellOptions>(shell =>
     shell.SearchPlaceholder = "Search books, authors, series...";
     shell.UserMenuItems.Add(new ForgeNavItem { Title = "E-reader access", Href = "/settings/opds", Icon = "bi-tablet" });
 });
-
 // The sidebar is data (counts, shelves, reading lists), so it is supplied per circuit rather than
 // as static sections.
 builder.Services.AddScoped<IShellNavigation, ShelfwardenNavigation>();
