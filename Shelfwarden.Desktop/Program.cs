@@ -4,6 +4,7 @@ using Hangfire;
 using Heroicsoft.NetForge.Abstractions.Data;
 using Heroicsoft.NetForge.Abstractions.Navigation;
 using Heroicsoft.NetForge.Abstractions.Setup;
+using Heroicsoft.NetForge.Components;
 using Heroicsoft.NetForge.Components.Bootstrap;
 using Heroicsoft.NetForge.Components.Theming;
 using Heroicsoft.NetForge.Hangfire;
@@ -96,6 +97,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthorization();
 builder.Services.AddNetForgeBootstrapComponents(ui => ui.ThemeStorageKey = Shelfwarden.Constants.ClientThemeLocalStorageKey);
+
+builder.Services.ConfigureNetForgeToastSounds(sounds => sounds.EnableSounds = true);
 builder.Services.Configure<ForgeUiOptions>(ui =>
 {
     // Gold from the wordmark. The sign-in page is the only nf surface; the app itself stays on Bootswatch.
