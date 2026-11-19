@@ -104,6 +104,8 @@ app.UseStaticFiles();
 // not plain UseStaticFiles. MVC-only apps sometimes gate MapStaticAssets on Development; Blazor Web Apps do not.
 app.MapStaticAssets();
 
+app.MapNetForgeAssets();
+
 app.UseAntiforgery();
 
 app.UseAuthentication();

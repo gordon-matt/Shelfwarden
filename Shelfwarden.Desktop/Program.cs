@@ -144,6 +144,8 @@ app.UseStaticFiles();
 // fingerprinted scripts in App.razor). Those URLs are not served by UseStaticFiles.
 app.MapStaticAssets();
 
+app.MapNetForgeAssets();
+
 app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
