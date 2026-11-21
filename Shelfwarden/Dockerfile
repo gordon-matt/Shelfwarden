@@ -12,6 +12,9 @@ RUN mkdir -p /app/data/library /app/data/covers /app/data/db /app/data/logs /app
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+# Package versions live in Directory.Packages.props. Restore cannot see them
+# until this file is in the image, and the project files no longer repeat them.
+COPY ["Directory.Packages.props", "Directory.Build.props", "./"]
 COPY ["Shelfwarden/Shelfwarden.csproj", "Shelfwarden/"]
 COPY ["Shelfwarden.Core/Shelfwarden.Core.csproj", "Shelfwarden.Core/"]
 COPY ["Shelfwarden.Data/Shelfwarden.Data.csproj", "Shelfwarden.Data/"]

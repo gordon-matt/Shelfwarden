@@ -23,7 +23,6 @@
 		<RootNamespace>Shelfwarden</RootNamespace>
 		<AssemblyName>Shelfwarden.Desktop</AssemblyName>
 		<UserSecretsId>shelfwarden-desktop-1c4d0f7b-7e6d-4b9e-9f5e-2a7d3c8b9f4a</UserSecretsId>
-		<Version>1.1.1</Version>
 		<RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
 	</PropertyGroup>
 
@@ -38,29 +37,29 @@
 
 	<!-- Same package set as the main web project, minus Identity UI (None auth has no UI). -->
 	<ItemGroup>
-		<PackageReference Include="Ardalis.Result" Version="10.1.0" />
-		<PackageReference Include="Heroicsoft.NetForge.Authentication" Version="1.2.6" />
-		<PackageReference Include="Heroicsoft.NetForge.Components.Bootstrap" Version="1.2.6" />
-		<PackageReference Include="Heroicsoft.NetForge.Hangfire" Version="1.2.6" />
-		<PackageReference Include="Heroicsoft.NetForge.Results" Version="1.2.6" />
+		<PackageReference Include="Ardalis.Result" />
+		<PackageReference Include="Heroicsoft.NetForge.Authentication" />
+		<PackageReference Include="Heroicsoft.NetForge.Components.Bootstrap" />
+		<PackageReference Include="Heroicsoft.NetForge.Hangfire" />
+		<PackageReference Include="Heroicsoft.NetForge.Results" />
 		<ProjectReference Include="..\..\..\Libraries\LogVue\LogVue\LogVue.csproj" />
-		<PackageReference Include="Autofac" Version="9.3.4" />
-		<PackageReference Include="Autofac.Extensions.DependencyInjection" Version="11.0.2" />
-		<PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
+		<PackageReference Include="Autofac" />
+		<PackageReference Include="Autofac.Extensions.DependencyInjection" />
+		<PackageReference Include="Hangfire.AspNetCore" />
 		<ProjectReference Include="..\..\..\Libraries\LogVue\LogVue.Providers.Serilog\LogVue.Providers.Serilog.csproj" />
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.14" />
-		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
-		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.14" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.14">
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
-		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+		<PackageReference Include="Serilog.AspNetCore" />
+		<PackageReference Include="Serilog.Sinks.File" />
 
 		<!-- Electron host -->
-		<PackageReference Include="ElectronNET.Core" Version="0.4.1" />
-		<PackageReference Include="ElectronNET.Core.AspNet" Version="0.4.1" />
+		<PackageReference Include="ElectronNET.Core" />
+		<PackageReference Include="ElectronNET.Core.AspNet" />
 
 		<!--
 			KokoroSharp.CPU (referenced transitively via Shelfwarden.Services) only copies its
@@ -69,7 +68,7 @@
 			directly here (GeneratePathProperty) gives us $(PkgKokoroSharp) so we can publish the
 			voices ourselves below, the same way wwwroot is handled.
 		-->
-		<PackageReference Include="KokoroSharp" Version="0.6.7" GeneratePathProperty="true" />
+		<PackageReference Include="KokoroSharp" GeneratePathProperty="true" />
 	</ItemGroup>
 
 	<!--

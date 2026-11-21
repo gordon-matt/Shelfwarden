@@ -1,0 +1,65 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Ardalis.Result" Version="10.1.0" />
+    <PackageVersion Include="Autofac" Version="9.3.4" />
+    <PackageVersion Include="Autofac.Extensions.DependencyInjection" Version="11.0.2" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.1" />
+    <PackageVersion Include="Docnet.Core" Version="2.6.0" />
+    <PackageVersion Include="ElectronNET.Core" Version="0.4.1" />
+    <PackageVersion Include="ElectronNET.Core.AspNet" Version="0.4.1" />
+    <PackageVersion Include="Extenso.Data.Entity" Version="10.2.2" />
+    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.25" />
+    <PackageVersion Include="Hangfire.Core" Version="1.8.25" />
+    <PackageVersion Include="Hangfire.NetCore" Version="1.8.25" />
+    <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
+    <PackageVersion Include="Hangfire.SqlServer" Version="1.8.25" />
+    <PackageVersion Include="Hangfire.Storage.MySql" Version="2.1.0-beta" />
+    <PackageVersion Include="Hangfire.Storage.SQLite" Version="0.4.3" />
+    <PackageVersion Include="Heroicsoft.NetForge.Abstractions" Version="1.2.8" />
+    <PackageVersion Include="Heroicsoft.NetForge.Authentication" Version="1.2.8" />
+    <PackageVersion Include="Heroicsoft.NetForge.Components" Version="1.2.8" />
+    <PackageVersion Include="Heroicsoft.NetForge.Components.Bootstrap" Version="1.2.8" />
+    <PackageVersion Include="Heroicsoft.NetForge.Drawing" Version="1.2.8" />
+    <PackageVersion Include="Heroicsoft.NetForge.Hangfire" Version="1.2.8" />
+    <PackageVersion Include="Heroicsoft.NetForge.Results" Version="1.2.8" />
+    <PackageVersion Include="Heroicsoft.NetForge.Video" Version="1.2.8" />
+    <PackageVersion Include="HtmlAgilityPack" Version="1.13.1" />
+    <PackageVersion Include="Keycloak.NETCore.Client" Version="1.0.2" />
+    <PackageVersion Include="KokoroSharp" Version="0.6.7" />
+    <PackageVersion Include="KokoroSharp.CPU" Version="0.6.7" />
+    <PackageVersion Include="LinqKit.Core" Version="1.3.2" />
+    <PackageVersion Include="LogVue.Data.MySql" Version="1.1.7" />
+    <PackageVersion Include="LogVue.Data.Npgsql" Version="1.1.7" />
+    <PackageVersion Include="LogVue.Data.Sql" Version="1.1.7" />
+    <PackageVersion Include="LogVue.Data.Sqlite" Version="1.1.7" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
+    <PackageVersion Include="Microsoft.Web.LibraryManager.Build" Version="3.0.114" />
+    <PackageVersion Include="Moq" Version="4.21.0" />
+    <PackageVersion Include="MySql.EntityFrameworkCore" Version="10.0.12" />
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="OpenLibrary.NET" Version="0.1.3" />
+    <PackageVersion Include="PdfPig" Version="0.1.16" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageVersion Include="VersOne.Epub" Version="3.3.6" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
+  </ItemGroup>
+</Project>

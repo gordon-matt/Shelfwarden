@@ -5,14 +5,13 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<RootNamespace>Shelfwarden</RootNamespace>
-		<Version>1.1.1</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Hangfire.Core" Version="1.8.25" />
+		<PackageReference Include="Hangfire.Core" />
 		<!-- Hangfire.Core 1.8.23 transitively pulls Newtonsoft.Json 11.0.1 (high-severity CVE).
 		     Pin a current version directly so the whole graph uses it. -->
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+		<PackageReference Include="Newtonsoft.Json" />
 	</ItemGroup>
 
 </Project>
