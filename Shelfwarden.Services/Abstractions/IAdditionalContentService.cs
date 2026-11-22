@@ -1,5 +1,9 @@
 namespace Shelfwarden.Services;
 
+/// <summary>
+/// Extra files that are not ebooks. Scanning and registering them, assigning them to authors,
+/// books, and series, and reading text for the in-app viewer.
+/// </summary>
 public interface IAdditionalContentService
 {
     /// <summary>
@@ -63,29 +67,34 @@ public interface IAdditionalContentService
     Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetForBookAsync(int bookId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Assigns the listed items to the given author, moving files on disk under
-    /// <c>_extras/{AuthorName}/</c> (author root only — no series subfolders). Items already on
-    /// that author are skipped. When moving from a different author, all book and series links
-    /// are removed first.
+    /// Assigns the listed items to the given author. Scanned files are moved under that author's
+    /// extras folder, with no series subfolder. Manually imported files stay where they are.
+    /// Items already on that author are skipped. When an item moves off a different author, its
+    /// book and series links are removed first. A missing author is not found. Unknown item ids
+    /// are skipped.
     /// </summary>
     Task<Result> AssignToAuthorAsync(AssignContentToAuthorRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Associates a content item with the listed books (replaces existing book associations).
+    /// Adds book links that are not already on the item. Existing links stay. A missing item is not found.
     /// </summary>
     Task<Result> AssociateWithBooksAsync(AssociateContentRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Associates a content item with the listed series (replaces existing series associations)
-    /// and moves the file to <c>_extras/{AuthorName}/{SeriesName}/</c> for the first series
-    /// when exactly one series is given.
+    /// Adds series links that are not already on the item. Existing links stay. A missing item is not found.
+    /// When the item was found by a scan, already has an author, and exactly one series id was sent,
+    /// the file is moved under that author's extras folder into a folder named for the series.
+    /// A manually imported file is not moved.
     /// </summary>
     Task<Result> AssociateWithSeriesAsync(AssociateContentRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>Renames a content item's display name. Does not rename the file on disk.</summary>
     Task<Result> RenameAsync(RenameContentItemRequest request, CancellationToken cancellationToken = default);
 
-    /// <summary>Permanently deletes the listed items from the database and from disk.</summary>
+    /// <summary>
+    /// Deletes the listed library rows. A scanned file is removed from disk. A manually imported
+    /// file is left where it is.
+    /// </summary>
     Task<Result> DeleteAsync(IReadOnlyList<int> itemIds, CancellationToken cancellationToken = default);
 
     /// <summary>Returns a single item by id (used for download/serve operations).</summary>

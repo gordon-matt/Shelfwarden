@@ -11,10 +11,10 @@ namespace Shelfwarden.Services.Scanning;
 public interface IScannerService
 {
     /// <summary>
-    /// Scan a single shelf. Returns <see cref="Result.NotFound()"/> when the shelf has been
-    /// deleted between enqueue and execution; otherwise returns the populated <see cref="ScanResult"/>.
-    /// Hangfire serialises calls per shelf via the queue + a distributed lock so the same
-    /// shelf cannot scan twice in parallel.
+    /// Scans one shelf. Returns not found when the shelf was deleted between enqueue and execution.
+    /// A lock on this method lets only one scan run at a time; a second scan waits up to an hour.
+    /// A failed scan is not retried. Books whose files are no longer under the shelf's folders are
+    /// removed, and their cover files are deleted. The ebook files are not deleted by the scan.
     /// </summary>
     [Queue(Constants.HangfireQueues.Scan)]
     [DisableConcurrentExecution(timeoutInSeconds: 60 * 60)]

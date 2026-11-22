@@ -1,9 +1,17 @@
 namespace Shelfwarden.Models;
 
 /// <summary>
-/// A user-curated themed grouping of books. <see cref="IsGlobal"/> is true if this is shared
-/// across all users (created by admins; OwnerUserId == Constants.GlobalUserId).
+/// A user-curated themed grouping of books. <see cref="IsGlobal"/> is <see langword="true"/> when
+/// <paramref name="OwnerUserId"/> is <see cref="Shelfwarden.Constants.GlobalUserId"/>.
 /// </summary>
+/// <param name="Id">Collection id.</param>
+/// <param name="Name">Collection name.</param>
+/// <param name="Description">Description, or <see langword="null"/>.</param>
+/// <param name="OwnerUserId">Owning user, or <see cref="Shelfwarden.Constants.GlobalUserId"/> for a global collection.</param>
+/// <param name="IsGlobal"><see langword="true"/> when every user can see it.</param>
+/// <param name="BookCount">Books in the collection.</param>
+/// <param name="CreatedAt">When it was created, in UTC.</param>
+/// <param name="Banner">Tile image for list views.</param>
 public record CollectionDto(
     int Id,
     string Name,
@@ -15,6 +23,14 @@ public record CollectionDto(
     CardBannerPreview Banner);
 
 /// <summary>Detail projection that also embeds the books inside the collection.</summary>
+/// <param name="Id">Collection id.</param>
+/// <param name="Name">Collection name.</param>
+/// <param name="Description">Description, or <see langword="null"/>.</param>
+/// <param name="OwnerUserId">Owning user, or <see cref="Shelfwarden.Constants.GlobalUserId"/> for a global collection.</param>
+/// <param name="IsGlobal"><see langword="true"/> when every user can see it.</param>
+/// <param name="CreatedAt">When it was created, in UTC.</param>
+/// <param name="Books">Books in the collection.</param>
+/// <param name="BannerSettings">Banner choices for the edit form.</param>
 public record CollectionDetailDto(
     int Id,
     string Name,
@@ -52,7 +68,15 @@ public record UpdateCollectionRequest
     /// </summary>
     public bool IsGlobal { get; init; }
 
+    /// <summary>
+    /// <see cref="CardHeaderBannerMode.UploadedImage"/> is rejected when no banner file is stored.
+    /// Switching away from an uploaded image deletes that file.
+    /// </summary>
     public CardHeaderBannerMode CardBannerMode { get; init; } = CardHeaderBannerMode.RandomCovers;
 
+    /// <summary>
+    /// Used when <see cref="CardBannerMode"/> is <see cref="CardHeaderBannerMode.SelectedBooks"/>.
+    /// Only books in this collection are kept, at most <see cref="CardBannerLimits.MaxStripCovers"/>, and the update is rejected when none remain.
+    /// </summary>
     public IReadOnlyList<int> CardBannerSelectedBookIds { get; init; } = [];
 }

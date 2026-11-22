@@ -1,5 +1,9 @@
 namespace Shelfwarden.Data.Entities;
 
+/// <summary>
+/// One ebook file. <see cref="UpdatedAt"/> stays null until someone edits the metadata, which is
+/// what the awaiting-review filter looks for.
+/// </summary>
 public class Book : BaseEntity<int>
 {
     public required string Title { get; set; }

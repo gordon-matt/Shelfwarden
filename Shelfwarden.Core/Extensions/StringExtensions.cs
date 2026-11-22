@@ -4,6 +4,10 @@ public static class StringExtensions
 {
     extension(string value)
     {
+        /// <summary>
+        /// Drops a leading "A", "An", or "The" so the remainder can be used as a sort title.
+        /// A name that is only the article is returned unchanged.
+        /// </summary>
         public string ToSortTitle()
         {
             string trimmed = value.Trim();

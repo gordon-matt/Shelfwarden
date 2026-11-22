@@ -15,7 +15,7 @@ public partial class AssignContentModal : ComponentBase
     /// </summary>
     [Parameter] public int AuthorId { get; set; }
 
-    /// <summary>The database id of the book or series being assigned to.</summary>
+    /// <summary>Book or series the modal assigns content to. Which one depends on <see cref="EntityType"/>.</summary>
     [Parameter] public int EntityId { get; set; }
 
     /// <summary>Display label for the entity type (e.g. "series", "book").</summary>

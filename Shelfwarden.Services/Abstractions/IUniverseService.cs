@@ -16,16 +16,34 @@ namespace Shelfwarden.Services;
 /// </summary>
 public interface IUniverseService
 {
+    /// <summary>Universes whose name contains <paramref name="query"/>, ignoring case. An empty query returns every universe.</summary>
     /// <param name="query">Optional case-insensitive name filter.</param>
     Task<Result<IReadOnlyList<UniverseDto>>> ListAsync(string? query = null, CancellationToken cancellationToken = default);
 
     /// <summary>Lightweight lookup for the universe dropdowns on the book / series edit forms.</summary>
     Task<Result<IReadOnlyList<UniverseOptionDto>>> SearchAsync(string? query = null, int limit = 100, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns the universe with its series, timeline, and reading orders. A missing universe is not found.
+    /// Series follow normalized name, and each includes its book count and the first four books in series
+    /// order. Reading orders follow name. Timeline entries include the caller's reading progress, and a
+    /// book that no longer exists is left out.
+    /// </summary>
     Task<Result<UniverseDetailDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates a universe. Administrator only. A blank name is rejected. A name that matches an existing
+    /// universe, ignoring case and a leading "A", "An", or "The", is refused. A blank description is
+    /// stored as <see langword="null"/>. The new universe uses a <see cref="TimelineType.Named"/> timeline.
+    /// </summary>
     Task<Result<UniverseDto>> CreateAsync(CreateUniverseRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Renames the universe and replaces its description. Administrator only. A blank name is rejected,
+    /// and a blank description is cleared. A missing universe is not found. Another universe with the
+    /// same name, ignoring case and a leading "A", "An", or "The", is refused. The returned series,
+    /// book, and reading-order counts are current, and the cover list is empty.
+    /// </summary>
     Task<Result<UniverseDto>> UpdateAsync(int id, UpdateUniverseRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>

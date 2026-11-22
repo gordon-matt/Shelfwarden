@@ -6,6 +6,9 @@ namespace Shelfwarden.Models;
 /// </summary>
 public static class BookListLetterFilter
 {
+    /// <summary>
+    /// Rail choices. An empty value means every book. <c>#</c> means a title or sort title that does not start with a letter.
+    /// </summary>
     public static readonly (string Value, string Label)[] Options =
     [
         (string.Empty, "All"),

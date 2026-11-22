@@ -1,11 +1,23 @@
 namespace Shelfwarden.Services;
 
+/// <summary>
+/// Authors and their pseudonyms. A name matches without case. Two authors cannot share one.
+/// </summary>
 public interface IAuthorService
 {
+    /// <summary>
+    /// Authors whose name contains <paramref name="query"/>, ignoring case, up to
+    /// <paramref name="limit"/> (clamped between 1 and 200).
+    /// </summary>
     Task<Result<IReadOnlyList<AuthorDto>>> SearchAsync(string? query, int limit = 50, CancellationToken cancellationToken = default);
 
+    /// <summary>The author, or not found.</summary>
     Task<Result<AuthorDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns the author with this name, ignoring case, or creates one. "Last, First" is not
+    /// rewritten here; the scanner does that before it looks an author up.
+    /// </summary>
     Task<Result<AuthorDto>> GetOrCreateAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -30,12 +42,8 @@ public interface IAuthorService
     Task<Result<IReadOnlyList<ExternalAuthorMatchDto>>> SearchAuthorMetadataAsync(string query, string? provider = null, int limit = 8, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Imports the biography / photo (and a source link) from a chosen provider match into an
-    /// existing author. The match already carries the full data, so no second lookup is needed.
-    /// </summary>
-    /// <summary>
     /// Imports author metadata, optionally combining a biography from one candidate and a photo from
-    /// another (e.g. an OpenLibrary bio with a Goodreads photo). Administrator only.
+    /// another. Administrator only.
     /// </summary>
     Task<Result<AuthorMetadataImportResultDto>> ImportAuthorMetadataAsync(int authorId, AuthorMetadataImportRequest request, CancellationToken cancellationToken = default);
 

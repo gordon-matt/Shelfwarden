@@ -1,9 +1,14 @@
 namespace Shelfwarden.Data.Entities;
 
+/// <summary>
+/// A named group of books. <see cref="NormalizedName"/> is unique, so two series cannot share a
+/// name once case and a leading "A", "An", or "The" are ignored.
+/// </summary>
 public class Series : BaseEntity<int>
 {
     public required string Name { get; set; }
 
+    /// <summary>Lowercased sort title, used for lookup. A leading article is already removed.</summary>
     public required string NormalizedName { get; set; }
 
     public string? Description { get; set; }

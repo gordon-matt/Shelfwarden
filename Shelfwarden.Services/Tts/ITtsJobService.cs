@@ -10,10 +10,10 @@ namespace Shelfwarden.Services.Tts;
 public interface ITtsJobService
 {
     /// <summary>
-    /// Run the full pipeline (extract → chunk → synthesise → encode) for the given
-    /// <paramref name="bookId"/>. The voice is pulled off the existing <c>Audiobook</c> row
-    /// rather than being passed in, so a re-enqueue picks up whatever the user picked
-    /// last.
+    /// Runs the full pipeline (extract, chunk, synthesise, encode) for <paramref name="bookId"/>.
+    /// The voice comes from the stored audiobook row, so a re-enqueue uses whatever was picked last.
+    /// Only one generation runs at a time; a second waits up to six hours for the lock. A failed
+    /// run is not retried.
     /// </summary>
     [Queue(Constants.HangfireQueues.Tts)]
     [DisableConcurrentExecution(timeoutInSeconds: 60 * 60 * 6)]

@@ -2,8 +2,8 @@ namespace Shelfwarden.Services;
 
 /// <summary>
 /// Server-wide configuration persisted in the <c>ServerSettings</c> key/value table. Values
-/// are cached in memory and invalidated on writes; reads on the hot path hit memory after the
-/// first request. (UI theme is per-browser in localStorage, not this store.)
+/// are cached in memory and invalidated on writes. The first read loads every row; later reads
+/// use that cache until the next write. A browser may also remember its own theme.
 /// </summary>
 public interface IServerSettingsService
 {
@@ -16,6 +16,9 @@ public interface IServerSettingsService
     /// <summary>Persist a single setting and invalidate the in-memory cache. Admin-only.</summary>
     Task<Result> SetAsync(string key, string? value, CancellationToken cancellationToken = default);
 
-    /// <summary>Convenience wrapper that validates against <c>BootswatchThemes.All</c>.</summary>
+    /// <summary>
+    /// Stores a Bootswatch theme name. A name that is not in the theme list is rejected.
+    /// Administrator only.
+    /// </summary>
     Task<Result> SetThemeAsync(string theme, CancellationToken cancellationToken = default);
 }

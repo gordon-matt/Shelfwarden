@@ -31,5 +31,6 @@ public interface IEbookSectionParser
 /// <summary>Maps an ebook file path to the right section parser.</summary>
 public interface IEbookSectionParserFactory
 {
+    /// <summary>The parser for this file, or <see langword="null"/> when the format is not supported.</summary>
     IEbookSectionParser? GetFor(string filePath);
 }

@@ -24,6 +24,7 @@ public static class OpdsMediaTypes
     public const string Pdf = "application/pdf";
     public const string OctetStream = "application/octet-stream";
 
+    /// <summary>The acquisition media type for this format. Anything other than EPUB or PDF uses the generic binary type.</summary>
     public static string ForFormat(EbookFormat format) => format switch
     {
         EbookFormat.Epub => Epub,

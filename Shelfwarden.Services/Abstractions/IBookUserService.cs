@@ -11,7 +11,7 @@ public interface IBookUserService
 
     /// <summary>
     /// Sets (or clears) the calling user's star rating for the book. Pass 0 or null to un-rate.
-    /// Returns the effective rating.
+    /// A value outside 0 to 5 is rejected. Returns the rating that was stored.
     /// </summary>
     Task<Result<int?>> SetRatingAsync(int bookId, int? rating, CancellationToken cancellationToken = default);
 

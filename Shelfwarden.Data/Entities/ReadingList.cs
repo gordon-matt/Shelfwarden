@@ -1,5 +1,9 @@
 namespace Shelfwarden.Data.Entities;
 
+/// <summary>
+/// An ordered queue of books owned by one user. A list with <see cref="UniverseId"/> set is a
+/// universe reading order and is hidden from the personal reading lists page.
+/// </summary>
 public class ReadingList : BaseEntity<int>, ICardBannerOwner
 {
     public required string Name { get; set; }

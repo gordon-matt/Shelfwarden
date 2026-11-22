@@ -16,14 +16,16 @@ public interface IScanProgressTracker
     /// <summary>Begin tracking a scan for <paramref name="shelfId"/>. Resets any previous progress.</summary>
     void Start(int shelfId);
 
-    /// <summary>Record progress for the active scan. Each call replaces the snapshot.</summary>
+    /// <summary>Applies the update to this shelf's counters. Does nothing when that shelf is not being tracked.</summary>
     void Update(int shelfId, Action<ScanProgressBuilder> update);
 
-    /// <summary>Stop tracking the scan; the next read returns null.</summary>
+    /// <summary>Stop tracking the scan. The next read returns <see langword="null"/>.</summary>
     void Finish(int shelfId);
 
+    /// <summary>The latest counters for this shelf, or <see langword="null"/> when no scan is being tracked.</summary>
     ScanProgressDto? GetSnapshot(int shelfId);
 
+    /// <summary>The latest counters for every shelf that is still being tracked.</summary>
     IReadOnlyDictionary<int, ScanProgressDto> GetAllSnapshots();
 }
 

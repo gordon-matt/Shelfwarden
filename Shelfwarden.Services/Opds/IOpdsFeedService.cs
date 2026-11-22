@@ -46,5 +46,11 @@ public interface IOpdsFeedService
     /// </summary>
     Task<Result<OpdsFeed>> SearchAsync(OpdsLinkBuilder links, string? query, int page, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Builds the OpenSearch description for the catalogue. The short name is Shelfwarden, and the
+    /// description says the search covers title, author, or series. Both URL templates are
+    /// <see cref="OpdsLinkBuilder.SearchTemplate"/>, one as <see cref="OpdsMediaTypes.Atom"/> and
+    /// one as <see cref="OpdsMediaTypes.AcquisitionFeed"/>.
+    /// </summary>
     OpenSearchDescription GetOpenSearchDescription(OpdsLinkBuilder links);
 }

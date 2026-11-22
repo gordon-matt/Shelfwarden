@@ -1,9 +1,11 @@
 namespace Shelfwarden.Data.Entities;
 
+/// <summary>A book tag shared by the whole library. Names match without case.</summary>
 public class Tag : BaseEntity<int>
 {
     public required string Name { get; set; }
 
+    /// <summary>Lowercased name. Unique, so two tags cannot differ only by case.</summary>
     public required string NormalizedName { get; set; }
 
     public virtual ICollection<BookTag> BookTags { get; set; } = [];

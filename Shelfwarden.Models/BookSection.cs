@@ -64,6 +64,9 @@ public enum SectionDetectionQuality
 }
 
 /// <summary>Result of parsing an ebook into reviewable sections.</summary>
+/// <param name="Sections">Sections in reading order.</param>
+/// <param name="Quality">How the parser found them.</param>
+/// <param name="Warning">Why the breakdown may be wrong, or <see langword="null"/>.</param>
 public sealed record SectionDetectionResult(
     IReadOnlyList<BookSection> Sections,
     SectionDetectionQuality Quality,
@@ -74,6 +77,10 @@ public sealed record SectionDetectionResult(
 /// applied where it still matches the freshly detected structure. <see cref="SplitByChapter"/> is
 /// the user's remembered "split into chapters" choice.
 /// </summary>
+/// <param name="Sections">Sections, with a previous selection reapplied where the structure still matches.</param>
+/// <param name="Quality">How the parser found them.</param>
+/// <param name="Warning">Why the breakdown may be wrong, or <see langword="null"/>.</param>
+/// <param name="SplitByChapter">The user's remembered choice to write one file per chapter.</param>
 public sealed record AudiobookPlanDto(
     IReadOnlyList<BookSection> Sections,
     SectionDetectionQuality Quality,

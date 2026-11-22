@@ -47,9 +47,11 @@ public interface IAudiobookService
     Task<Result<string>> EnsureVoiceSampleAsync(string voiceName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Delete the finished <c>.m4a</c> and database row for <paramref name="bookId"/> (administrators only)
-    /// so an operator can generate again with another voice. Only when generation has completed
-    /// (not while queued or running — use <see cref="CancelAsync"/>).
+    /// Removes the finished audio for <paramref name="bookId"/> and marks the row deleted
+    /// (administrators only). The voice, chapter split, and section plan are kept for the next
+    /// generation. Only a completed audiobook can be deleted this way. A queued or running one
+    /// has to be stopped with <see cref="CancelAsync"/> first, and a failed one is cleared the
+    /// same way.
     /// </summary>
     Task<Result> DeleteAsync(int bookId, CancellationToken cancellationToken = default);
 
@@ -61,8 +63,10 @@ public interface IAudiobookService
     Task<Result<AudiobookDto>> DeleteChapterAsync(int bookId, int chapterIndex, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Stop a queued or in-progress generation, or clear a failed attempt (administrators only):
-    /// deletes the audiobook row, working files, and attempts to dequeue the Hangfire job when still pending.
+    /// Stops a queued or in-progress generation, or clears a failed attempt (administrators only).
+    /// The output and working files are removed and the row is marked deleted, keeping the voice,
+    /// chapter split, and section plan. A Hangfire job that is still queued is removed. A finished
+    /// audiobook is refused; use <see cref="DeleteAsync"/> for that.
     /// </summary>
     Task<Result> CancelAsync(int bookId, CancellationToken cancellationToken = default);
 }

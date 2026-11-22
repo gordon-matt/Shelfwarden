@@ -1,5 +1,9 @@
 namespace Shelfwarden.Data.Entities;
 
+/// <summary>
+/// A library root. <see cref="DirectoryStructure"/> is chosen when the shelf is created and is
+/// not changed later. With no user or role access rows, every signed-in user can open it.
+/// </summary>
 public class Shelf : BaseEntity<int>, ICardBannerOwner
 {
     public required string Name { get; set; }

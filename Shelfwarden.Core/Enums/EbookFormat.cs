@@ -5,13 +5,19 @@ namespace Shelfwarden.Enums;
 /// </summary>
 public enum EbookFormat
 {
+    /// <summary>The extension was missing or is not a supported ebook.</summary>
     Unknown = 0,
+
+    /// <summary>An EPUB file.</summary>
     Epub = 1,
+
+    /// <summary>A PDF file.</summary>
     Pdf = 2,
 }
 
 public static class EbookFormatExtensions
 {
+    /// <summary>The format for a file path, from its extension. Anything else is <see cref="EbookFormat.Unknown"/>.</summary>
     public static EbookFormat FromExtension(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -28,6 +34,7 @@ public static class EbookFormatExtensions
         };
     }
 
+    /// <summary>The MIME type used when the file is downloaded.</summary>
     public static string ToContentType(this EbookFormat format) => format switch
     {
         EbookFormat.Epub => "application/epub+zip",
@@ -35,5 +42,6 @@ public static class EbookFormatExtensions
         _ => "application/octet-stream",
     };
 
+    /// <summary>Extensions the scanner accepts.</summary>
     public static IReadOnlyList<string> SupportedExtensions { get; } = [".epub", ".pdf"];
 }

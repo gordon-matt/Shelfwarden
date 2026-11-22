@@ -4,17 +4,21 @@ namespace Shelfwarden.Services.Tts;
 
 /// <summary>
 /// In-process registry of in-flight audiobook generations. The TTS Hangfire worker writes
-/// fine-grained chunk progress here; the UI poller reads it via <c>IAudiobookService</c> so
+/// fine-grained chunk progress here; the UI poller reads it via <see cref="IAudiobookService"/> so
 /// the progress bar updates more frequently than the database row would.
 /// </summary>
 public interface IAudiobookProgressTracker
 {
+    /// <summary>Begin tracking a generation for this book, replacing any counters already stored for it.</summary>
     void Start(int bookId, string voiceName);
 
+    /// <summary>Applies the update to this book's counters. Does nothing when that book is not being tracked.</summary>
     void Update(int bookId, Action<AudiobookProgressBuilder> update);
 
+    /// <summary>Stop tracking this book. The next read returns <see langword="null"/>.</summary>
     void Finish(int bookId);
 
+    /// <summary>The latest counters for this book, or <see langword="null"/> when it is not being tracked.</summary>
     AudiobookLiveProgress? GetSnapshot(int bookId);
 }
 

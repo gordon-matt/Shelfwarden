@@ -9,6 +9,9 @@ public class Author : BaseEntity<int>
 
     public string? Biography { get; set; }
 
+    /// <summary>
+    /// When set, this author is a pseudonym of that author. Each author keeps their own books.
+    /// </summary>
     public int? PrimaryAuthorId { get; set; }
 
     public virtual Author? PrimaryAuthor { get; set; } = null;

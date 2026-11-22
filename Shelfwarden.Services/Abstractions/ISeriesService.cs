@@ -1,11 +1,21 @@
 namespace Shelfwarden.Services;
 
+/// <summary>
+/// Named groups of books. A name matches without case, and a leading "A", "An", or "The" is
+/// ignored, so those do not create a second series.
+/// </summary>
 public interface ISeriesService
 {
+    /// <summary>
+    /// Series whose name contains <paramref name="query"/>, ignoring case, up to
+    /// <paramref name="limit"/> (clamped between 1 and 200), with a book count.
+    /// </summary>
     Task<Result<IReadOnlyList<SeriesDto>>> SearchAsync(string? query, int limit = 50, CancellationToken cancellationToken = default);
 
+    /// <summary>The series, including its universe when it has one.</summary>
     Task<Result<SeriesDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the series with this name, or creates it. See the class summary for how names match.</summary>
     Task<Result<SeriesDto>> GetOrCreateAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>

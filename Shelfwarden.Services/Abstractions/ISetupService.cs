@@ -12,12 +12,26 @@ namespace Shelfwarden.Services;
 /// </summary>
 public interface ISetupService
 {
+    /// <summary>
+    /// Returns whether setup is complete, the authentication provider's name, whether the caller is
+    /// signed in and an administrator, and how many shelves exist.
+    /// <see cref="SetupStatusDto.RequiresIdentityAdmin"/> is <see langword="true"/> only when the
+    /// provider is <see cref="AuthProvider.Identity"/> and the caller is not signed in.
+    /// </summary>
+    /// <remarks>
+    /// When the settings cannot be read, setup is reported as not complete.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    /// <returns>The wizard snapshot.</returns>
     Task<Result<SetupStatusDto>> GetStatusAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates the initial shelf, bypassing the admin check. Idempotent on duplicate names —
     /// returns Conflict instead of throwing. Refuses with Conflict once setup is already done.
     /// </summary>
+    /// <param name="request">The shelf. At least one folder is required.</param>
+    /// <param name="cancellationToken">Cancels the save.</param>
+    /// <returns>The shelf, or invalid or conflict.</returns>
     Task<Result<ShelfDto>> CreateInitialShelfAsync(CreateShelfRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -26,5 +40,7 @@ public interface ISetupService
     /// (the redirect middleware also bounces unauthenticated calls to <c>/setup</c> to the
     /// shelf step).
     /// </summary>
+    /// <param name="cancellationToken">Cancels the save.</param>
+    /// <returns>Success.</returns>
     Task<Result> CompleteAsync(CancellationToken cancellationToken = default);
 }

@@ -26,9 +26,11 @@ public class OpdsCredentialService(
     private static readonly TimeSpan ValidationCacheDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan LastUsedResolution = TimeSpan.FromMinutes(5);
 
+    /// <summary>Removes hyphens and whitespace, then lowercases the key, so the stored hash does not depend on how it was typed.</summary>
     public static string NormalizeKey(string key) =>
         new string([.. key.Where(c => c != '-' && !char.IsWhiteSpace(c))]).ToLowerInvariant();
 
+    /// <summary>Lowercase hex SHA-256 of the UTF-8 bytes. The string is hashed as given.</summary>
     public static string HashKey(string normalizedKey) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedKey)));
 

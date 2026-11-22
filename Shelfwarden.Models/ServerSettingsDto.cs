@@ -17,6 +17,7 @@ public record ServerSettingsDto
     public bool OpdsEnabled { get; init; }
 }
 
+/// <summary>New stored theme. A name that is not in the theme list is rejected.</summary>
 public record UpdateThemeRequest
 {
     [Required, StringLength(64)]
